@@ -3,6 +3,7 @@
 
   const get = ({ request, path }) => {
     console.log(request, path, 3);
+    return fetch(request);
   };
 
   self.addEventListener("fetch", (event) => {
@@ -27,3 +28,4 @@
   });
 
 })();
+//# sourceMappingURL=sw.js.map

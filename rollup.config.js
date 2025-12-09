@@ -7,6 +7,7 @@ export default defineConfig({
   output: {
     file: "sw.js",
     format: "iife",
+    sourcemap: true
   },
   plugins: [
     // nodeResolve(),
