@@ -1,4 +1,4 @@
-import { fs } from "./fs.js";
+import { get } from "./fs.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -8,7 +8,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  //   event.respondWith((async () => {})());
+  event.respondWith(get({ request, path: pathname }));
 });
 
 self.addEventListener("install", () => {

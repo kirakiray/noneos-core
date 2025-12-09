@@ -15,9 +15,10 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run static",
+    "dev": "npm run static & npm run watch:sw",
     "static": "node _script/static.js",
-    "build:sw": "rollup -c"
+    "build:sw": "rollup -c",
+    "watch:sw": "rollup -c -w"
   },
   "devDependencies": {
     "rollup": "^3.0.0",

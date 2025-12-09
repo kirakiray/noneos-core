@@ -1,1 +1,3 @@
-export const fs = async () => {};
+export const get = ({ request, path }) => {
+  console.log(request, path, 3);
+};
