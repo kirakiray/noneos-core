@@ -1,0 +1,22 @@
+{
+  "name": "noneos-core",
+  "version": "4.0.0",
+  "description": "As the core engine of the next generation of NoneOS",
+  "homepage": "https://github.com/kirakiray/noneos-core#readme",
+  "bugs": {
+    "url": "https://github.com/kirakiray/noneos-core/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kirakiray/noneos-core.git"
+  },
+  "license": "Apache-2.0",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "static": "serve -p 3002 ./",
+    "dev": "node _script/static.js"
+  },
+  "devDependencies": {}
+}
