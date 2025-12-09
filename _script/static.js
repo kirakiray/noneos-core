@@ -12,6 +12,15 @@ const __dirname = path.dirname(__filename);
 // 设置端口
 const PORT = process.env.PORT || 3002;
 
+// ANSI 颜色代码
+const colors = {
+  red: "\x1b[31m",
+  yellow: "\x1b[33m",
+  green: "\x1b[32m",
+  blue: "\x1b[34m",
+  reset: "\x1b[0m",
+};
+
 // MIME 类型映射
 const mimeTypes = {
   ".html": "text/html",
@@ -53,8 +62,6 @@ async function fileExists(filePath) {
 
 // 处理请求的异步函数
 async function handleRequest(req, res) {
-  console.log(`${req.method} ${req.url}`);
-
   try {
     // 解析请求的文件路径
     let filePath = path.join(
@@ -69,8 +76,11 @@ async function handleRequest(req, res) {
 
     // 检查文件是否存在
     const exists = await fileExists(filePath);
-    
+
     if (!exists) {
+      // 打印无法访问的文件信息（红色状态码）
+      console.log(`${colors.red}404${colors.reset} - ${req.method} ${req.url}`);
+
       // 文件不存在，尝试返回 404 页面
       try {
         const content = await readFile(path.join(__dirname, "..", "404.html"));
@@ -92,8 +102,11 @@ async function handleRequest(req, res) {
     res.writeHead(200, { "Content-Type": contentType });
     res.end(content, "utf-8");
   } catch (error) {
-    // 处理其他错误
-    console.error("Server Error:", error);
+    // 打印服务器错误信息（黄色状态码）
+    console.log(
+      `${colors.yellow}500${colors.reset} - ${req.method} ${req.url}`
+    );
+    console.error(`${colors.yellow}Server Error:${colors.reset}`, error);
     res.writeHead(500);
     res.end(`Server Error: ${error.message}`);
   }
@@ -106,5 +119,7 @@ const server = http.createServer(async (req, res) => {
 
 // 启动服务器
 server.listen(PORT, () => {
-  console.log(`Static server running at http://localhost:${PORT}/`);
+  console.log(
+    `${colors.green}Static server running at http://localhost:${PORT}/${colors.reset}`
+  );
 });
