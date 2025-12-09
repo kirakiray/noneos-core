@@ -10,12 +10,20 @@
   const getByGh = async ({ path }) => {
     const rePath = path.replace(/^\/\$gh\//, "https://cdn.jsdelivr.net/gh/");
     console.log("gh: ", rePath);
-    return fetch(rePath);
+    const response = await fetch(rePath);
+
+    // 获取文本内容
+    const text = await response.text();
+
+    // 转化为新的 Response 对象
+    const newResponse = new Response(text, response);
+
+    return newResponse;
   };
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
-    const { pathname, origin, searchParams } = new URL(request.url);
+    const { pathname } = new URL(request.url);
 
     console.log("pathname: ", pathname);
 
@@ -25,10 +33,11 @@
     }
 
     if (/^\/\$gh/.test(pathname)) {
+      // 从 GitHub 仓库获取文件
       return event.respondWith(
         getByGh({
           path: pathname,
-          url: request.url,
+          originUrl: request.url,
         })
       );
     }
@@ -36,7 +45,7 @@
     event.respondWith(
       get({
         request,
-        url: request.url,
+        originUrl: request.url,
         path: pathname,
       })
     );

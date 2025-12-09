@@ -3,7 +3,7 @@ import { getByGh } from "./get-by-platform.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  const { pathname, origin, searchParams } = new URL(request.url);
+  const { pathname } = new URL(request.url);
 
   console.log("pathname: ", pathname);
 
@@ -13,10 +13,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (/^\/\$gh/.test(pathname)) {
+    // 从 GitHub 仓库获取文件
     return event.respondWith(
       getByGh({
         path: pathname,
-        url: request.url,
+        originUrl: request.url,
       })
     );
   }
@@ -24,7 +25,7 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     get({
       request,
-      url: request.url,
+      originUrl: request.url,
       path: pathname,
     })
   );

@@ -6,15 +6,6 @@
     <title>test html</title>
   </head>
   <body>
-    <script type="module">
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js").then((registration) => {
-          console.log(
-            "Service Worker registered with scope:",
-            registration.scope
-          );
-        });
-      }
-    </script>
+    <script src="/_init.js"></script>
   </body>
 </html>
