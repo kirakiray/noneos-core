@@ -6,32 +6,187 @@
     .container {
       width: 100%;
       height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #fafafa;
+    }
+
+    .breadcrumb {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .breadcrumb-item {
+      color: #1890ff;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .breadcrumb-item:hover {
+      background-color: #e6f7ff;
+      text-decoration: underline;
+    }
+
+    .breadcrumb-separator {
+      color: #999;
+      margin: 0 4px;
+    }
+
+    .current-path {
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+      word-break: break-all;
+      padding: 8px 12px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
     }
 
     .list {
       display: flex;
-      flex-wrap: wrap;
-      padding: 8px;
+      flex-direction: column;
+      padding: 0;
     }
 
     .item {
+      display: flex;
+      align-items: center;
       cursor: pointer;
-      padding: 8px;
-      margin: 8px;
-      border-radius: 4px;
+      padding: 12px 24px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background-color 0.2s ease;
     }
+
     .item:hover {
-      background-color: #f5f5f5;
+      background-color: #f5f9ff;
+    }
+
+    .item-icon {
+      margin-right: 12px;
+      font-size: 18px;
+      min-width: 18px;
+    }
+
+    .item-name {
+      flex: 1;
+      font-size: 14px;
+      color: #444;
+      word-break: break-word;
+    }
+
+    /* 文件夹图标 */
+    .folder-icon::before {
+      content: "📁";
+    }
+
+    /* 文件图标 */
+    .file-icon::before {
+      content: "📄";
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .header {
+        padding: 12px 16px;
+      }
+
+      .breadcrumb {
+        font-size: 12px;
+      }
+
+      .current-path {
+        font-size: 14px;
+        padding: 6px 10px;
+      }
+
+      .item {
+        padding: 10px 16px;
+      }
+
+      .item-icon {
+        margin-right: 10px;
+        font-size: 16px;
+      }
+
+      .item-name {
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        max-width: 100%;
+      }
+
+      .header {
+        padding: 10px 12px;
+      }
+
+      .breadcrumb {
+        font-size: 11px;
+      }
+
+      .breadcrumb-item {
+        padding: 3px 6px;
+      }
+
+      .current-path {
+        font-size: 13px;
+        padding: 5px 8px;
+      }
+
+      .item {
+        padding: 8px 12px;
+      }
+
+      .item-icon {
+        margin-right: 8px;
+        font-size: 14px;
+      }
+
+      .item-name {
+        font-size: 12px;
+      }
     }
   </style>
   <div class="container">
     <div class="header">
-      <div class="title">{{path}}</div>
+      <div class="breadcrumb">
+        <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')"
+          >根目录</span
+        >
+        <o-if :value="path !== '/' && breadcrumbItems.length > 0">
+          <span class="breadcrumb-separator">/</span>
+          <o-fill :value="breadcrumbItems">
+            <span
+              class="breadcrumb-item"
+              on:click="$host.handleBreadcrumbClick($data.path)"
+              >{{$data.name}}</span
+            >
+            <o-if :value="$index < $host.breadcrumbItems.length - 1">
+              <span class="breadcrumb-separator">/</span>
+            </o-if>
+          </o-fill>
+        </o-if>
+      </div>
     </div>
     <div class="list">
       <o-fill :value="list">
         <div class="item" on:click="$host.handleClick($data)">
-          {{$data.name}}
+          <div
+            class="item-icon"
+            :class="{'folder-icon': $data.type === 'directory', 'file-icon': $data.type === 'file'}"
+          ></div>
+          <div class="item-name">{{$data.name}}</div>
         </div>
       </o-fill>
     </div>
@@ -44,10 +199,29 @@
         data: {
           path: currentPath,
           list: [],
+          breadcrumbItems: [],
         },
         proto: {
           async handleClick(data) {
             this.goto(`./list.html?path=${data.path}`);
+          },
+          async handleBreadcrumbClick(path) {
+            this.goto(`./list.html?path=${path}`);
+          },
+          generateBreadcrumbItems(currentPath) {
+            if (currentPath === "/") {
+              this.breadcrumbItems = [];
+              return;
+            }
+
+            const paths = currentPath.split("/").filter((item) => item !== "");
+            this.breadcrumbItems = paths.map((path, index) => {
+              const fullPath = "/" + paths.slice(0, index + 1).join("/");
+              return {
+                name: path,
+                path: fullPath,
+              };
+            });
           },
           async loadFile() {
             const rootHandle = await navigator.storage.getDirectory();
@@ -64,7 +238,7 @@
             for await (const entry of currentHandle.values()) {
               this.list.push({
                 name: entry.name,
-                type: entry.kind,
+                type: entry.kind === "directory" ? "directory" : "file",
                 path:
                   currentPath === "/"
                     ? `/${entry.name}`
@@ -74,6 +248,7 @@
           },
         },
         attached() {
+          this.generateBreadcrumbItems(this.path);
           this.loadFile();
         },
       };
