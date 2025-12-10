@@ -1,4 +1,6 @@
-export const getContentType = (prefix) => {
+export const getContentType = (path) => {
+  const prefix = path.split(".").slice(-1)[0];
+
   switch (prefix) {
     case "html":
     case "htm":

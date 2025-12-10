@@ -1,4 +1,5 @@
 import { getFileHandle } from "./fs.js";
+import { getContentType } from "./util.js";
 
 // 从 GitHub 仓库获取文件
 export const getByGh = async ({ path }) => {
@@ -12,7 +13,11 @@ export const getByGh = async ({ path }) => {
   if (targetHandle) {
     const fileStream = await targetHandle.getFile();
     if (fileStream.size) {
-      return new Response(fileStream);
+      return new Response(fileStream, {
+        headers: {
+          "Content-Type": getContentType(path),
+        },
+      });
     }
   }
 
@@ -27,5 +32,9 @@ export const getByGh = async ({ path }) => {
   await writeStream.close();
 
   // 转化为新的 Response 对象
-  return new Response(blob);
+  return new Response(blob, {
+    headers: {
+      "Content-Type": getContentType(path),
+    },
+  });
 };
