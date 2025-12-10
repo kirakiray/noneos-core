@@ -151,14 +151,20 @@
 
     console.log("pathname: ", pathname);
 
-    if (/^\/_gh\//.test(pathname)) {
-      // 从 GitHub 仓库获取文件
-      return event.respondWith(
-        getByGh({
-          path: pathname,
-          originUrl: request.url,
-        })
-      );
+    try {
+      if (/^\/_gh\//.test(pathname)) {
+        // 从 GitHub 仓库获取文件
+        return event.respondWith(
+          getByGh({
+            path: pathname,
+            originUrl: request.url,
+          })
+        );
+      }
+    } catch (err) {
+      return new Response(err.stack || err.toString(), {
+        status: 400,
+      });
     }
 
     if (/^\/_/.test(pathname)) {
