@@ -52,45 +52,59 @@
     }
 
     .list {
-      display: flex;
-      flex-direction: column;
-      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 20px;
+      padding: 20px;
     }
 
     .item {
       display: flex;
+      flex-direction: column;
       align-items: center;
       cursor: pointer;
-      padding: 12px 24px;
-      border-bottom: 1px solid #f0f0f0;
-      transition: background-color 0.2s ease;
+      padding: 16px 8px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      text-align: center;
+      border: 1px solid transparent;
     }
 
     .item:hover {
       background-color: #f5f9ff;
+      border-color: #d0e6ff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .item-icon {
-      margin-right: 12px;
-      font-size: 18px;
-      min-width: 18px;
+      font-size: 32px;
+      margin-bottom: 8px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgb(60, 127, 182);
     }
 
     .item-name {
-      flex: 1;
-      font-size: 14px;
+      font-size: 13px;
       color: #444;
       word-break: break-word;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      max-width: 100px;
     }
 
-    /* 文件夹图标 */
-    .folder-icon::before {
-      content: "📁";
+    .directory .item-icon {
+      color: #ffd666;
     }
 
-    /* 文件图标 */
-    .file-icon::before {
-      content: "📄";
+    .file .item-icon {
+      color: #bfbfbf;
     }
 
     /* 响应式设计 */
@@ -162,7 +176,7 @@
     <div class="header">
       <div class="breadcrumb">
         <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')"
-          >根目录</span
+          >Root</span
         >
         <o-if :value="path !== '/' && breadcrumbItems.length > 0">
           <span class="breadcrumb-separator">/</span>
@@ -181,11 +195,15 @@
     </div>
     <div class="list">
       <o-fill :value="list">
-        <div class="item" on:click="$host.handleClick($data)">
-          <div
-            class="item-icon"
-            :class="{'folder-icon': $data.type === 'directory', 'file-icon': $data.type === 'file'}"
-          ></div>
+        <div class="item" class:directory="$data.type === 'directory'" class:file="$data.type === 'file'" on:click="$host.handleClick($data)">
+          <div class="item-icon">
+            <o-if :value="$data.type === 'directory'">
+              <iconify-icon icon="mdi:folder"></iconify-icon>
+            </o-if>
+            <o-else>
+              <iconify-icon icon="mdi:file"></iconify-icon>
+            </o-else>
+          </div>
           <div class="item-name">{{$data.name}}</div>
         </div>
       </o-fill>
@@ -203,7 +221,11 @@
         },
         proto: {
           async handleClick(data) {
-            this.goto(`./list.html?path=${data.path}`);
+            if (data.type === "directory") {
+              this.goto(`./list.html?path=${data.path}`);
+            } else {
+              window.open(data.path);
+            }
           },
           async handleBreadcrumbClick(path) {
             this.goto(`./list.html?path=${path}`);
