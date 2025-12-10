@@ -8,15 +8,15 @@
 
   // 从 GitHub 仓库获取文件
   const getByGh = async ({ path }) => {
-    const rePath = path.replace(/^\/\$gh\//, "https://cdn.jsdelivr.net/gh/");
+    const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
     console.log("gh: ", rePath);
     const response = await fetch(rePath);
 
     // 获取文本内容
-    const text = await response.text();
+    const blob = await response.blob();
 
     // 转化为新的 Response 对象
-    const newResponse = new Response(text, response);
+    const newResponse = new Response(blob, response);
 
     return newResponse;
   };
@@ -27,12 +27,7 @@
 
     console.log("pathname: ", pathname);
 
-    if (/^\/_/.test(pathname)) {
-      // 隐藏目录开头的，属于本地文件，无需代理
-      return;
-    }
-
-    if (/^\/\$gh/.test(pathname)) {
+    if (/^\/_gh/.test(pathname)) {
       // 从 GitHub 仓库获取文件
       return event.respondWith(
         getByGh({
@@ -40,6 +35,11 @@
           originUrl: request.url,
         })
       );
+    }
+
+    if (/^\/_/.test(pathname)) {
+      // 隐藏目录开头的，属于本地文件，无需代理
+      return;
     }
 
     event.respondWith(
