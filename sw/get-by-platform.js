@@ -5,8 +5,7 @@ import { getContentType } from "./util.js";
 export const getByGh = async ({ path }) => {
   const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
   // const rePath = path.replace(/^\/_gh\//, "https://cdn.statically.io/gh/");
-
-  console.log("gh: ", rePath);
+  // console.log("gh: ", rePath);
 
   let targetHandle = await getFileHandle({ path }).catch(() => null);
 

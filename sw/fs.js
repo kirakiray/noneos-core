@@ -19,23 +19,19 @@ export const getFileHandle = async ({ path, create }) => {
   }
 
   let currentHandle = rootHandle;
-  let lastName = paths[paths.length - 1];
-  for (const p of paths) {
-    if (p === lastName) {
+  let lastId = paths.length - 1;
+  for (let i = 0; i < lastId; i++) {
+    if (i == lastId) {
       break;
     }
+    const p = paths[i];
     currentHandle = await currentHandle.getDirectoryHandle(p, { create });
   }
 
-  const fileHandle = await currentHandle.getFileHandle(lastName, { create });
+  const fileHandle = await currentHandle.getFileHandle(
+    paths[paths.length - 1],
+    { create }
+  );
 
   return fileHandle;
-};
-
-// 获取目录句柄
-export const getDirHandle = async ({ path, create }) => {
-  const rootHandle = await getRoot();
-  const dirHandle = await rootHandle.getDirectoryHandle(path, { create });
-  
-  return dirHandle;
 };
