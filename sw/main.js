@@ -1,4 +1,3 @@
-import { get } from "./fs.js";
 import { getByGh } from "./get-by-platform.js";
 
 self.addEventListener("fetch", (event) => {
@@ -7,7 +6,7 @@ self.addEventListener("fetch", (event) => {
 
   console.log("pathname: ", pathname);
 
-  if (/^\/_gh/.test(pathname)) {
+  if (/^\/_gh\//.test(pathname)) {
     // 从 GitHub 仓库获取文件
     return event.respondWith(
       getByGh({
@@ -21,14 +20,6 @@ self.addEventListener("fetch", (event) => {
     // 隐藏目录开头的，属于本地文件，无需代理
     return;
   }
-
-  event.respondWith(
-    get({
-      request,
-      originUrl: request.url,
-      path: pathname,
-    })
-  );
 });
 
 self.addEventListener("install", () => {

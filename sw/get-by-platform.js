@@ -1,14 +1,31 @@
+import { getFileHandle } from "./fs.js";
+
 // 从 GitHub 仓库获取文件
 export const getByGh = async ({ path }) => {
   const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
-  console.log("gh: ", rePath);
-  const response = await fetch(rePath);
+  // const rePath = path.replace(/^\/_gh\//, "https://cdn.statically.io/gh/");
 
-  // 获取文本内容
+  console.log("gh: ", rePath);
+
+  let targetHandle = await getFileHandle({ path }).catch(() => null);
+
+  if (targetHandle) {
+    const fileStream = await targetHandle.getFile();
+    if (fileStream.size) {
+      return new Response(fileStream);
+    }
+  }
+
+  // 请求实际文件
+  const response = await fetch(rePath);
   const blob = await response.blob();
 
-  // 转化为新的 Response 对象
-  const newResponse = new Response(blob, response);
+  // 写入缓存
+  targetHandle = await getFileHandle({ path, create: true });
+  const writeStream = await targetHandle.createWritable();
+  await writeStream.write(blob);
+  await writeStream.close();
 
-  return newResponse;
+  // 转化为新的 Response 对象
+  return new Response(blob);
 };
