@@ -45,6 +45,7 @@
     switch (prefix) {
       case "html":
       case "htm":
+        return "text/html; charset=utf-8";
       case "txt":
       case "md":
         return "text/plain; charset=utf-8";
@@ -148,6 +149,30 @@
     });
   };
 
+  const getByFile = async ({ path }) => {
+    const rePath = path.replace(/^\/\$/, "");
+
+    const fileHandle = await getFileHandle({ path: rePath }).catch(() => null);
+
+    if (fileHandle) {
+      const fileStream = await fileHandle.getFile();
+      if (fileStream.size) {
+        return new Response(fileStream, {
+          headers: {
+            "Content-Type": getContentType(path),
+          },
+        });
+      }
+    }
+
+    return new Response("Not Found", {
+      status: 404,
+      headers: {
+        "Content-Type": getContentType(path),
+      },
+    });
+  };
+
   self.addEventListener("fetch", (event) => {
     const { request } = event;
     const { pathname } = new URL(request.url);
@@ -159,6 +184,15 @@
         // 从 GitHub 仓库获取文件
         return event.respondWith(
           getByGh({
+            path: pathname,
+            originUrl: request.url,
+          })
+        );
+      }
+
+      if (/^\/\$/.test(pathname)) {
+        return event.respondWith(
+          getByFile({
             path: pathname,
             originUrl: request.url,
           })

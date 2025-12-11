@@ -318,20 +318,21 @@
             for (const file of files) {
               // 获取文件的相对路径
               const relativePath = file.webkitRelativePath;
-              const pathParts = relativePath.split('/');
+              const pathParts = relativePath.split("/");
               const fileName = pathParts.pop(); // 最后一个是文件名
               const directoryPath = pathParts; // 剩余的是目录路径
 
               // 创建必要的目录结构
               let targetDirectoryHandle = currentHandle;
-              let currentPath = '';
+              let currentPath = "";
 
               for (const dirName of directoryPath) {
-                currentPath += '/' + dirName;
+                currentPath += "/" + dirName;
                 if (!directoryHandles.has(currentPath)) {
-                  const dirHandle = await targetDirectoryHandle.getDirectoryHandle(dirName, {
-                    create: true,
-                  });
+                  const dirHandle =
+                    await targetDirectoryHandle.getDirectoryHandle(dirName, {
+                      create: true,
+                    });
                   directoryHandles.set(currentPath, dirHandle);
                   targetDirectoryHandle = dirHandle;
                 } else {
@@ -340,9 +341,12 @@
               }
 
               // 在目标目录中创建文件
-              const fileHandle = await targetDirectoryHandle.getFileHandle(fileName, {
-                create: true,
-              });
+              const fileHandle = await targetDirectoryHandle.getFileHandle(
+                fileName,
+                {
+                  create: true,
+                }
+              );
 
               const writer = await fileHandle.createWritable();
               await writer.write(file);
@@ -356,7 +360,11 @@
             if (data.type === "directory") {
               this.goto(`./list.html?path=${data.path}`);
             } else {
-              window.open(data.path);
+              if (/^\/_/.test(data.path)) {
+                window.open(data.path);
+              } else {
+                window.open(`/$${data.path.replace("/", "")}`);
+              }
             }
           },
           async handleDelete(data, event) {

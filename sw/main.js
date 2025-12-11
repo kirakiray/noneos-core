@@ -1,4 +1,5 @@
 import { getByGh } from "./get-by-platform.js";
+import { getByFile } from "./get-by-file.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -11,6 +12,15 @@ self.addEventListener("fetch", (event) => {
       // 从 GitHub 仓库获取文件
       return event.respondWith(
         getByGh({
+          path: pathname,
+          originUrl: request.url,
+        })
+      );
+    }
+
+    if (/^\/\$/.test(pathname)) {
+      return event.respondWith(
+        getByFile({
           path: pathname,
           originUrl: request.url,
         })

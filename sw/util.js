@@ -4,6 +4,7 @@ export const getContentType = (path) => {
   switch (prefix) {
     case "html":
     case "htm":
+      return "text/html; charset=utf-8";
     case "txt":
     case "md":
       return "text/plain; charset=utf-8";
