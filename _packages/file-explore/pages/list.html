@@ -155,6 +155,12 @@
         font-size: 12px;
       }
     }
+
+    .item-size {
+      font-size: 12px;
+      color: #999;
+      padding: 0 8px;
+    }
   </style>
   <div class="container">
     <div class="header">
@@ -165,19 +171,47 @@
         <o-if :value="path !== '/' && breadcrumbItems.length > 0">
           <span class="breadcrumb-separator">/</span>
           <o-fill :value="breadcrumbItems">
-            <span
-              class="breadcrumb-item"
-              on:click="$host.handleBreadcrumbClick($data.path)"
-              >{{$data.name}}</span
-            >
-            <o-if :value="$index < $host.breadcrumbItems.length - 1">
-              <span class="breadcrumb-separator">/</span>
-            </o-if>
+            <div style="display: inline-block">
+              <span
+                class="breadcrumb-item"
+                on:click="$host.handleBreadcrumbClick($data.path)"
+                >{{$data.name}}</span
+              >
+              <o-if :value="$index < $host.breadcrumbItems.length - 1">
+                <span class="breadcrumb-separator">/</span>
+              </o-if>
+            </div>
           </o-fill>
         </o-if>
       </div>
+      <div style="text-align: right">
+        <button on:click="handleCreateDirectory($event)">
+          Create Directory
+        </button>
+        <button on:click="shadow.$('#import-file').ele.click()">
+          Import File
+        </button>
+        <button on:click="handleImportDirectory($event)">
+          Import Directory
+        </button>
+        <input
+          type="file"
+          id="import-file"
+          style="display: none"
+          multiple
+          on:change="handleImportFile($event)"
+        />
+      </div>
     </div>
     <div class="list">
+      <o-if :value="list.length === 0">
+        <div style="text-align: center; padding: 40px 0; color: #999">
+          <div class="item-icon">
+            <iconify-icon icon="mdi:folder"></iconify-icon>
+          </div>
+          <div class="item-name">Empty</div>
+        </div>
+      </o-if>
       <o-fill :value="list" fill-key="name">
         <div
           class="item"
@@ -194,6 +228,9 @@
             </o-else>
           </div>
           <div class="item-name">{{$data.name}}</div>
+          <o-if :value="$data.type === 'file'">
+            <div class="item-size">{{$data.size}}</div>
+          </o-if>
           <button on:click="$host.handleDelete($data,$event)">Delete</button>
         </div>
       </o-fill>
@@ -210,6 +247,54 @@
           breadcrumbItems: [],
         },
         proto: {
+          getSize(size) {
+            if (size < 1024) {
+              return `${size} B`;
+            } else if (size < 1024 * 1024) {
+              return `${(size / 1024).toFixed(2)} KB`;
+            } else if (size < 1024 * 1024 * 1024) {
+              return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+            } else {
+              return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+            }
+          },
+          async handleCreateDirectory() {
+            const currentHandle = await this.getCurrentHandle();
+            const directoryName = prompt("Enter directory name:");
+
+            if (!directoryName) {
+              return;
+            }
+
+            await currentHandle.getDirectoryHandle(directoryName, {
+              create: true,
+            });
+
+            this.loadFile();
+          },
+
+          async handleImportFile(event) {
+            const files = event.target.files;
+
+            if (files.length === 0) {
+              return;
+            }
+
+            const currentHandle = await this.getCurrentHandle();
+
+            for (const file of files) {
+              const handle = await currentHandle.getFileHandle(file.name, {
+                create: true,
+              });
+
+              const writer = await handle.createWritable();
+              await writer.write(file);
+              await writer.close();
+            }
+
+            this.loadFile();
+          },
+
           async handleClick(data) {
             if (data.type === "directory") {
               this.goto(`./list.html?path=${data.path}`);
@@ -226,6 +311,7 @@
               const result = confirm(
                 "Are you sure you want to delete this directory and all its contents?"
               );
+
               if (!result) {
                 return;
               }
@@ -277,14 +363,21 @@
             const list = [];
 
             for await (const entry of currentHandle.values()) {
-              list.push({
+              const obj = {
                 name: entry.name,
                 type: entry.kind === "directory" ? "directory" : "file",
                 path:
                   currentPath === "/"
                     ? `/${entry.name}`
                     : `${currentPath}/${entry.name}`,
-              });
+              };
+
+              if (entry.kind === "file") {
+                const file = await entry.getFile();
+                obj.size = this.getSize(file.size);
+              }
+
+              list.push(obj);
             }
 
             this.list = list;
