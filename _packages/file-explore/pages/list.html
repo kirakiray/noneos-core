@@ -451,6 +451,14 @@
         attached() {
           this.generateBreadcrumbItems(this.path);
           this.loadFile();
+
+          const lastName = currentPath.split("/").pop();
+
+          if (lastName) {
+            $("title").text = lastName;
+          } else {
+            $("title").text = "Root";
+          }
         },
       };
     };
