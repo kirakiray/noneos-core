@@ -191,7 +191,7 @@
         <button on:click="shadow.$('#import-file').ele.click()">
           Import File
         </button>
-        <button on:click="handleImportDirectory($event)">
+        <button on:click="shadow.$('#import-directory').ele.click()">
           Import Directory
         </button>
         <input
@@ -200,6 +200,13 @@
           style="display: none"
           multiple
           on:change="handleImportFile($event)"
+        />
+        <input
+          type="file"
+          id="import-directory"
+          style="display: none"
+          webkitdirectory
+          on:change="handleImportDirectory($event)"
         />
       </div>
     </div>
@@ -288,6 +295,56 @@
               });
 
               const writer = await handle.createWritable();
+              await writer.write(file);
+              await writer.close();
+            }
+
+            this.loadFile();
+          },
+
+          async handleImportDirectory(event) {
+            const files = event.target.files;
+
+            if (files.length === 0) {
+              return;
+            }
+
+            const currentHandle = await this.getCurrentHandle();
+
+            // 创建一个映射来跟踪已创建的目录
+            const directoryHandles = new Map();
+
+            // 处理每个文件
+            for (const file of files) {
+              // 获取文件的相对路径
+              const relativePath = file.webkitRelativePath;
+              const pathParts = relativePath.split('/');
+              const fileName = pathParts.pop(); // 最后一个是文件名
+              const directoryPath = pathParts; // 剩余的是目录路径
+
+              // 创建必要的目录结构
+              let targetDirectoryHandle = currentHandle;
+              let currentPath = '';
+
+              for (const dirName of directoryPath) {
+                currentPath += '/' + dirName;
+                if (!directoryHandles.has(currentPath)) {
+                  const dirHandle = await targetDirectoryHandle.getDirectoryHandle(dirName, {
+                    create: true,
+                  });
+                  directoryHandles.set(currentPath, dirHandle);
+                  targetDirectoryHandle = dirHandle;
+                } else {
+                  targetDirectoryHandle = directoryHandles.get(currentPath);
+                }
+              }
+
+              // 在目标目录中创建文件
+              const fileHandle = await targetDirectoryHandle.getFileHandle(fileName, {
+                create: true,
+              });
+
+              const writer = await fileHandle.createWritable();
               await writer.write(file);
               await writer.close();
             }
