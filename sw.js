@@ -134,8 +134,9 @@
    * @returns {Promise<Response>} 响应对象
    */
   const handleGitHubRequest = async ({ path }) => {
-    const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
-    // const rePath = path.replace(/^\/_gh\//, "https://cdn.statically.io/gh/");
+    // 将 /gh/ 路径转换为 jsDelivr CDN URL
+    const rePath = path.replace(/^\/gh\//, "https://cdn.jsdelivr.net/gh/");
+    // const rePath = path.replace(/^\/gh\//, "https://cdn.statically.io/gh/");
     // console.log("gh: ", rePath);
 
     let targetHandle = await getFileHandle({ path }).catch(() => null);
@@ -208,10 +209,10 @@
    * @returns {Promise<Response>} 响应对象
    */
   const handleNpmRequest = async ({ path }) => {
-    // 将 /_npm/ 或 /npm/ 路径转换为 jsDelivr CDN URL
-    // 例如: /_npm/jquery@3.6.0/dist/jquery.min.js
+    // 将 /npm/ 路径转换为 jsDelivr CDN URL
+    // 例如: /npm/jquery@3.6.0/dist/jquery.min.js
     // 转换为: https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js
-    const rePath = path.replace(/^\/_?npm\//, "https://cdn.jsdelivr.net/npm/");
+    const rePath = path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/");
 
     console.log("npm request: ", rePath);
 
@@ -275,7 +276,7 @@
     console.log("pathname: ", pathname);
 
     try {
-      if (/^\/_gh\//.test(pathname) || /^\/gh\//.test(pathname)) {
+      if (/^\/gh\//.test(pathname)) {
         // 从 GitHub 仓库获取文件
         return event.respondWith(
           handleGitHubRequest({
@@ -285,7 +286,7 @@
         );
       }
 
-      if (/^\/_npm\//.test(pathname) || /^\/npm\//.test(pathname)) {
+      if (/^\/npm\//.test(pathname)) {
         // 从 NPM CDN 获取包文件
         return event.respondWith(
           handleNpmRequest({

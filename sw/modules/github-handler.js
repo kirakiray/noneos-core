@@ -1,5 +1,5 @@
-import { getFileHandle } from './file-system.js';
-import { getContentType } from './mime-types.js';
+import { getFileHandle } from "./file-system.js";
+import { getContentType } from "./mime-types.js";
 
 /**
  * 从 GitHub 仓库获取文件
@@ -9,8 +9,9 @@ import { getContentType } from './mime-types.js';
  * @returns {Promise<Response>} 响应对象
  */
 export const handleGitHubRequest = async ({ path }) => {
-  const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
-  // const rePath = path.replace(/^\/_gh\//, "https://cdn.statically.io/gh/");
+  // 将 /gh/ 路径转换为 jsDelivr CDN URL
+  const rePath = path.replace(/^\/gh\//, "https://cdn.jsdelivr.net/gh/");
+  // const rePath = path.replace(/^\/gh\//, "https://cdn.statically.io/gh/");
   // console.log("gh: ", rePath);
 
   let targetHandle = await getFileHandle({ path }).catch(() => null);

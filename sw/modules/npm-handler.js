@@ -9,10 +9,10 @@ import { getContentType } from "./mime-types.js";
  * @returns {Promise<Response>} 响应对象
  */
 export const handleNpmRequest = async ({ path }) => {
-  // 将 /_npm/ 或 /npm/ 路径转换为 jsDelivr CDN URL
-  // 例如: /_npm/jquery@3.6.0/dist/jquery.min.js
+  // 将 /npm/ 路径转换为 jsDelivr CDN URL
+  // 例如: /npm/jquery@3.6.0/dist/jquery.min.js
   // 转换为: https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js
-  const rePath = path.replace(/^\/_?npm\//, "https://cdn.jsdelivr.net/npm/");
+  const rePath = path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/");
 
   console.log("npm request: ", rePath);
 
