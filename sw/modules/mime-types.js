@@ -72,6 +72,8 @@ export const getContentType = (path) => {
     case "avi":
       return "video/x-msvideo";
     default:
-      return "application/octet-stream";
+      return "application/javascript; charset=utf-8";
+      // return "application/octet-stream";
+      return "";
   }
 };

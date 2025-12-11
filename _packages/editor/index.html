@@ -15,11 +15,50 @@
     <div id="container"></div>
 
     <script type="module">
-      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+      // import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+      import * as monaco from "/_npm/monaco-editor@0.44.0/+esm";
 
       monaco.editor.create(document.getElementById("container"), {
         value: 'const msg = "ESM 方式";\nconsole.log(msg);',
+        // language: "html",
         language: "javascript",
+        // 设置主题（可选：'vs' 浅色, 'vs-dark' 深色, 'hc-black' 高对比度）
+        theme: "vs-dark",
+        fontSize: 14,
+        wordWrap: "on",
+        automaticLayout: true,
+
+        // ===== 高亮相关配置 =====
+        // 选中相同词汇自动高亮
+        selectionHighlight: true,
+        occurrencesHighlight: true,
+
+        // 语法错误高亮（红色波浪线）
+        renderValidationDecorations: "on",
+
+        // 当前行高亮
+        renderLineHighlight: "line",
+
+        // ===== 自动补全配置 =====
+        // 启用自动补全
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: {
+          other: true,
+          comments: false,
+          strings: true,
+        },
+
+        // 补全触发字符（HTML 标签用 <）
+        triggerCharacters: ["<", " ", '"', "'"],
+
+        // 快速建议延迟（毫秒）
+        quickSuggestionsDelay: 10,
+
+        // 参数提示（函数参数）
+        parameterHints: {
+          enabled: true,
+          cycle: false,
+        },
       });
     </script>
   </body>

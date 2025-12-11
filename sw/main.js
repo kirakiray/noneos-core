@@ -1,5 +1,6 @@
-import { handleGitHubRequest } from './modules/github-handler.js';
-import { handleFileRequest } from './modules/file-handler.js';
+import { handleGitHubRequest } from "./modules/github-handler.js";
+import { handleFileRequest } from "./modules/file-handler.js";
+import { handleNpmRequest } from "./modules/npm-handler.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -8,10 +9,20 @@ self.addEventListener("fetch", (event) => {
   console.log("pathname: ", pathname);
 
   try {
-    if (/^\/_gh\//.test(pathname)) {
+    if (/^\/_gh\//.test(pathname) || /^\/gh\//.test(pathname)) {
       // 从 GitHub 仓库获取文件
       return event.respondWith(
         handleGitHubRequest({
+          path: pathname,
+          originUrl: request.url,
+        })
+      );
+    }
+
+    if (/^\/_npm\//.test(pathname) || /^\/npm\//.test(pathname)) {
+      // 从 NPM CDN 获取包文件
+      return event.respondWith(
+        handleNpmRequest({
           path: pathname,
           originUrl: request.url,
         })
