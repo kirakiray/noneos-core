@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monaco ESM 版本</title>
+    <style>
+      #container {
+        width: 800px;
+        height: 600px;
+        border: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script type="module">
+      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+
+      monaco.editor.create(document.getElementById("container"), {
+        value: 'const msg = "ESM 方式";\nconsole.log(msg);',
+        language: "javascript",
+      });
+    </script>
+  </body>
+</html>
