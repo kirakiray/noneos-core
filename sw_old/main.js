@@ -1,5 +1,5 @@
-import { handleGitHubRequest } from './modules/github-handler.js';
-import { handleFileRequest } from './modules/file-handler.js';
+import { getByGh } from "./get-by-platform.js";
+import { getByFile } from "./get-by-file.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -11,7 +11,7 @@ self.addEventListener("fetch", (event) => {
     if (/^\/_gh\//.test(pathname)) {
       // 从 GitHub 仓库获取文件
       return event.respondWith(
-        handleGitHubRequest({
+        getByGh({
           path: pathname,
           originUrl: request.url,
         })
@@ -20,7 +20,7 @@ self.addEventListener("fetch", (event) => {
 
     if (/^\/\$/.test(pathname)) {
       return event.respondWith(
-        handleFileRequest({
+        getByFile({
           path: pathname,
           originUrl: request.url,
         })

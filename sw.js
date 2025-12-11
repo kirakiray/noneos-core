@@ -3,8 +3,11 @@
 
   let rootHandle = null;
 
-  // 获取根目录句柄
-  const getRoot = async () => {
+  /**
+   * 获取根目录句柄
+   * @returns {Promise<FileSystemDirectoryHandle>} 根目录句柄
+   */
+  const getRootDirectory = async () => {
     if (!rootHandle) {
       rootHandle = await navigator.storage.getDirectory();
     }
@@ -12,9 +15,15 @@
     return rootHandle;
   };
 
-  // 获取文件句柄
+  /**
+   * 获取文件句柄
+   * @param {Object} options - 选项
+   * @param {string} options.path - 文件路径
+   * @param {boolean} [options.create] - 是否创建文件（如果不存在）
+   * @returns {Promise<FileSystemFileHandle>} 文件句柄
+   */
   const getFileHandle = async ({ path, create }) => {
-    const rootHandle = await getRoot();
+    const rootHandle = await getRootDirectory();
 
     const paths = path.split("/");
     if (paths[0] === "") {
@@ -39,6 +48,11 @@
     return fileHandle;
   };
 
+  /**
+   * 根据文件扩展名获取 Content-Type
+   * @param {string} path - 文件路径
+   * @returns {string} Content-Type 值
+   */
   const getContentType = (path) => {
     const prefix = path.split(".").slice(-1)[0];
 
@@ -112,8 +126,14 @@
     }
   };
 
-  // 从 GitHub 仓库获取文件
-  const getByGh = async ({ path }) => {
+  /**
+   * 从 GitHub 仓库获取文件
+   * @param {Object} options - 选项
+   * @param {string} options.path - 请求路径
+   * @param {string} options.originUrl - 原始请求 URL
+   * @returns {Promise<Response>} 响应对象
+   */
+  const handleGitHubRequest = async ({ path }) => {
     const rePath = path.replace(/^\/_gh\//, "https://cdn.jsdelivr.net/gh/");
     // const rePath = path.replace(/^\/_gh\//, "https://cdn.statically.io/gh/");
     // console.log("gh: ", rePath);
@@ -149,7 +169,14 @@
     });
   };
 
-  const getByFile = async ({ path }) => {
+  /**
+   * 从本地文件系统获取文件
+   * @param {Object} options - 选项
+   * @param {string} options.path - 请求路径
+   * @param {string} options.originUrl - 原始请求 URL
+   * @returns {Promise<Response>} 响应对象
+   */
+  const handleFileRequest = async ({ path }) => {
     const rePath = path.replace(/^\/\$/, "");
 
     const fileHandle = await getFileHandle({ path: rePath }).catch(() => null);
@@ -183,7 +210,7 @@
       if (/^\/_gh\//.test(pathname)) {
         // 从 GitHub 仓库获取文件
         return event.respondWith(
-          getByGh({
+          handleGitHubRequest({
             path: pathname,
             originUrl: request.url,
           })
@@ -192,7 +219,7 @@
 
       if (/^\/\$/.test(pathname)) {
         return event.respondWith(
-          getByFile({
+          handleFileRequest({
             path: pathname,
             originUrl: request.url,
           })
