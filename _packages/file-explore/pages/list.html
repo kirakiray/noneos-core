@@ -159,9 +159,9 @@
   <div class="container">
     <div class="header">
       <div class="breadcrumb">
-        <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')"
-          >Root</span
-        >
+        <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')">
+          Root
+        </span>
         <o-if :value="path !== '/' && breadcrumbItems.length > 0">
           <span class="breadcrumb-separator">/</span>
           <o-fill :value="breadcrumbItems">
@@ -178,7 +178,7 @@
       </div>
     </div>
     <div class="list">
-      <o-fill :value="list">
+      <o-fill :value="list" fill-key="name">
         <div
           class="item"
           class:directory="$data.type === 'directory'"
@@ -194,6 +194,7 @@
             </o-else>
           </div>
           <div class="item-name">{{$data.name}}</div>
+          <button on:click="$host.handleDelete($data,$event)">Delete</button>
         </div>
       </o-fill>
     </div>
@@ -216,6 +217,28 @@
               window.open(data.path);
             }
           },
+          async handleDelete(data, event) {
+            event.stopPropagation();
+
+            const currentHandle = await this.getCurrentHandle();
+
+            if (data.type === "directory") {
+              const result = confirm(
+                "Are you sure you want to delete this directory and all its contents?"
+              );
+              if (!result) {
+                return;
+              }
+
+              await currentHandle.removeEntry(data.name, {
+                recursive: true,
+              });
+            } else {
+              await currentHandle.removeEntry(data.name);
+            }
+
+            this.loadFile();
+          },
           async handleBreadcrumbClick(path) {
             this.goto(`./list.html?path=${path}`);
           },
@@ -234,7 +257,7 @@
               };
             });
           },
-          async loadFile() {
+          async getCurrentHandle() {
             const rootHandle = await navigator.storage.getDirectory();
             let currentHandle = rootHandle;
 
@@ -246,8 +269,15 @@
               }
             }
 
+            return currentHandle;
+          },
+          async loadFile() {
+            const currentHandle = await this.getCurrentHandle();
+
+            const list = [];
+
             for await (const entry of currentHandle.values()) {
-              this.list.push({
+              list.push({
                 name: entry.name,
                 type: entry.kind === "directory" ? "directory" : "file",
                 path:
@@ -256,6 +286,8 @@
                     : `${currentPath}/${entry.name}`,
               });
             }
+
+            this.list = list;
           },
         },
         attached() {
