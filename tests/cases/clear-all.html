@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clear</title>
+  </head>
+  <body>
+    <div id="result">pending</div>
+    <button onclick="clearAll()">Clear All</button>
+    <script>
+      window.clearAll = async () => {
+        // 弹窗确认
+        if (
+          !confirm(
+            "确定要清除所有缓存数据吗？这将删除 Service Worker、IndexedDB、OPFS 和 localStorage 中的所有数据。"
+          )
+        ) {
+          return;
+        }
+
+        try {
+          // 清除 Service Worker
+          if ("serviceWorker" in navigator) {
+            const registrations =
+              await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+            }
+          }
+
+          // 清除 localStorage
+          localStorage.clear();
+
+          // 清除 sessionStorage
+          sessionStorage.clear();
+
+          // 清除 IndexedDB
+          if ("databases" in indexedDB) {
+            const databases = await indexedDB.databases();
+            for (const db of databases) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          }
+
+          // 清除 OPFS (Origin Private File System)
+          if ("storage" in navigator && "getDirectory" in navigator.storage) {
+            try {
+              // 获取根目录句柄
+              const root = await navigator.storage.getDirectory();
+
+              // 递归删除所有条目
+              for await (const [name, handle] of root.entries()) {
+                if (handle.kind === "directory") {
+                  // 删除目录及其内容
+                  await root.removeEntry(name, { recursive: true });
+                } else {
+                  // 删除文件
+                  await root.removeEntry(name);
+                }
+              }
+            } catch (opfsError) {
+              console.warn("清除 OPFS 时出错:", opfsError);
+              // OPFS 可能不被完全支持或权限不足，继续执行其他清理
+            }
+          }
+
+          // 更新页面状态
+          document.getElementById("result").textContent = "所有缓存已清除";
+        } catch (error) {
+          console.error("清除缓存时出错:", error);
+          document.getElementById("result").textContent =
+            "清除缓存失败: " + error.message;
+        }
+      };
+    </script>
+  </body>
+</html>

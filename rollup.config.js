@@ -3,17 +3,17 @@ import { defineConfig } from "rollup";
 // import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig({
-  input: "sw/main.js",
+  input: "sw/src/main.js",
   output: {
-    file: "sw.js",
+    file: "sw/dist.js",
     format: "iife",
-    sourcemap: true
+    sourcemap: true,
   },
   plugins: [
     // nodeResolve(),
     // commonjs()
   ],
   watch: {
-    include: "sw/**",
+    include: "sw/src/**",
   },
 });
