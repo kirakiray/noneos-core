@@ -2,64 +2,93 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Monaco ESM 版本</title>
     <style>
       #container {
-        width: 800px;
+        width: 900px;
         height: 600px;
         border: 1px solid #ccc;
       }
     </style>
   </head>
   <body>
+    <h3>ES Module - HTML 自动格式化</h3>
     <div id="container"></div>
 
+    <!-- 使用 ES Module CDN -->
     <script type="module">
-      // import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
-      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
+      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
 
-      monaco.editor.create(document.getElementById("container"), {
-        value: 'const msg = "ESM 方式";\nconsole.log(msg);',
-        // language: "html",
-        language: "javascript",
-        // 设置主题（可选：'vs' 浅色, 'vs-dark' 深色, 'hc-black' 高对比度）
-        theme: "vs-dark",
-        fontSize: 14,
-        wordWrap: "on",
-        automaticLayout: true,
+      // 创建编辑器
+      const editor = monaco.editor.create(
+        document.getElementById("container"),
+        {
+          language: "html",
+          theme: "vs-dark",
 
-        // ===== 高亮相关配置 =====
-        // 选中相同词汇自动高亮
-        selectionHighlight: true,
-        occurrencesHighlight: true,
+          // ===== 核心自动格式化配置 =====
+          // 输入时自动格式化（如输入 > 或 } 后）
+          formatOnType: true,
 
-        // 语法错误高亮（红色波浪线）
-        renderValidationDecorations: "on",
+          // 粘贴时自动格式化
+          formatOnPaste: true,
 
-        // 当前行高亮
-        renderLineHighlight: "line",
+          // 保存时自动格式化（在浏览器中效果有限）
+          formatOnSave: true,
 
-        // ===== 自动补全配置 =====
-        // 启用自动补全
-        suggestOnTriggerCharacters: true,
-        quickSuggestions: {
-          other: true,
-          comments: false,
-          strings: true,
-        },
+          // ===== 增强配置 =====
+          // 自动缩进
+          autoIndent: "full",
 
-        // 补全触发字符（HTML 标签用 <）
-        triggerCharacters: ["<", " ", '"', "'"],
+          // 自动闭合括号/引号
+          autoClosingBrackets: "always",
+          autoClosingQuotes: "always",
 
-        // 快速建议延迟（毫秒）
-        quickSuggestionsDelay: 10,
+          // 快速建议
+          quickSuggestions: true,
+          suggestOnTriggerCharacters: true,
+          parameterHints: { enabled: true },
 
-        // 参数提示（函数参数）
-        parameterHints: {
-          enabled: true,
-          cycle: false,
-        },
-      });
+          // 缩进设置
+          tabSize: 2,
+          insertSpaces: true,
+
+          // 高亮配置
+          selectionHighlight: true,
+          occurrencesHighlight: true,
+          renderLineHighlight: "line",
+
+          value: `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>未格式化代码</title>
+<style>
+body{background:#f0f0f0;color:#333;}
+.container{max-width:1200px;margin:0 auto;padding:20px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>测试自动格式化</h1>
+<p>粘贴或输入混乱代码，会自动整理格式。</p>
+<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
+</div>
+</body>
+</html>`,
+
+          fontSize: 14,
+          automaticLayout: true,
+        }
+      );
+
+      // ===== 手动格式化按钮 =====
+      const btn = document.createElement("button");
+      btn.textContent = "手动格式化 (Shift+Alt+F)";
+      btn.style.marginTop = "10px";
+      btn.onclick = () => {
+        editor.getAction("editor.action.formatDocument").run();
+      };
+      document.body.appendChild(btn);
     </script>
   </body>
 </html>
