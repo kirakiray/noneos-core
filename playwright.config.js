@@ -51,13 +51,27 @@ export default defineConfig({
 
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { 
+        ...devices['Desktop Firefox'],
+        launchOptions: {
+          firefoxUserPrefs: {
+            'browser.privatebrowsing.autostart': false
+          }
+        }
+      },
     },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // safari 不支持 private browsing
+    // {
+    //   name: 'webkit',
+    //   use: { 
+    //     ...devices['Desktop Safari'],
+    //     launchOptions: {
+    //       // WebKit doesn't have a direct flag to disable private browsing
+    //       // We'll remove any private browsing related settings
+    //     }
+    //   },
+    // },
 
     /* Test against mobile viewports. */
     // {
