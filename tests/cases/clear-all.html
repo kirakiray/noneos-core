@@ -4,16 +4,198 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Clear</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .cache-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .cache-item {
+        margin: 5px 0;
+        padding: 5px;
+        background-color: #f5f5f5;
+      }
+      button {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      #result {
+        margin: 10px 0;
+        padding: 10px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+      }
+    </style>
   </head>
   <body>
+    <h1>Cache Data Management</h1>
+
     <div id="result">pending</div>
-    <button onclick="clearAll()">Clear All</button>
+
+    <div class="cache-section">
+      <h2>Existing Cache Data</h2>
+      <div id="cache-data">
+        <p>Loading cache data...</p>
+      </div>
+      <button onclick="loadCacheData()">Refresh Cache Data</button>
+    </div>
+
+    <button onclick="clearAll()">Clear All Cache</button>
+
     <script>
+      // 页面加载时显示缓存数据
+      window.onload = () => {
+        loadCacheData();
+      };
+
+      // 加载并显示缓存数据
+      async function loadCacheData() {
+        const cacheDataDiv = document.getElementById("cache-data");
+        cacheDataDiv.innerHTML = "<p>Loading cache data...</p>";
+
+        try {
+          let cacheInfo = [];
+
+          // 获取 localStorage 数据
+          if (localStorage.length > 0) {
+            cacheInfo.push(
+              `<h3>localStorage (${localStorage.length} items):</h3>`
+            );
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              const value = localStorage.getItem(key);
+              cacheInfo.push(
+                `<div class="cache-item"><strong>${key}:</strong> ${value.substring(
+                  0,
+                  100
+                )}${value.length > 100 ? "..." : ""}</div>`
+              );
+            }
+          } else {
+            cacheInfo.push("<h3>localStorage:</h3><p>No data</p>");
+          }
+
+          // 获取 sessionStorage 数据
+          if (sessionStorage.length > 0) {
+            cacheInfo.push(
+              `<h3>sessionStorage (${sessionStorage.length} items):</h3>`
+            );
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const key = sessionStorage.key(i);
+              const value = sessionStorage.getItem(key);
+              cacheInfo.push(
+                `<div class="cache-item"><strong>${key}:</strong> ${value.substring(
+                  0,
+                  100
+                )}${value.length > 100 ? "..." : ""}</div>`
+              );
+            }
+          } else {
+            cacheInfo.push("<h3>sessionStorage:</h3><p>No data</p>");
+          }
+
+          // 获取 Service Worker 信息
+          if ("serviceWorker" in navigator) {
+            try {
+              const registrations =
+                await navigator.serviceWorker.getRegistrations();
+              if (registrations.length > 0) {
+                cacheInfo.push(
+                  `<h3>Service Workers (${registrations.length} registered):</h3>`
+                );
+                registrations.forEach((reg) => {
+                  cacheInfo.push(
+                    `<div class="cache-item"><strong>Scope:</strong> ${reg.scope}</div>`
+                  );
+                });
+              } else {
+                cacheInfo.push(
+                  "<h3>Service Workers:</h3><p>No registered service workers</p>"
+                );
+              }
+            } catch (swError) {
+              cacheInfo.push("<h3>Service Workers:</h3><p>Unable to get information</p>");
+            }
+          } else {
+            cacheInfo.push("<h3>Service Workers:</h3><p>Not supported by browser</p>");
+          }
+
+          // 获取 IndexedDB 信息
+          if ("databases" in indexedDB) {
+            try {
+              const databases = await indexedDB.databases();
+              if (databases.length > 0) {
+                cacheInfo.push(
+                  `<h3>IndexedDB (${databases.length} databases):</h3>`
+                );
+                databases.forEach((db) => {
+                  cacheInfo.push(
+                    `<div class="cache-item"><strong>Name:</strong> ${
+                      db.name || "unnamed"
+                    } <strong>Version:</strong> ${db.version}</div>`
+                  );
+                });
+              } else {
+                cacheInfo.push("<h3>IndexedDB:</h3><p>No databases</p>");
+              }
+            } catch (dbError) {
+              cacheInfo.push("<h3>IndexedDB:</h3><p>Unable to get information</p>");
+            }
+          } else {
+            cacheInfo.push("<h3>IndexedDB:</h3><p>Not supported by browser</p>");
+          }
+
+          // 获取 OPFS 信息
+          if ("storage" in navigator && "getDirectory" in navigator.storage) {
+            try {
+              const root = await navigator.storage.getDirectory();
+              let opfsEntries = [];
+              for await (const [name, handle] of root.entries()) {
+                opfsEntries.push(name);
+              }
+
+              if (opfsEntries.length > 0) {
+                cacheInfo.push(`<h3>OPFS (${opfsEntries.length} items):</h3>`);
+                opfsEntries.forEach((entry) => {
+                  cacheInfo.push(`<div class="cache-item">${entry}</div>`);
+                });
+              } else {
+                cacheInfo.push("<h3>OPFS:</h3><p>No files</p>");
+              }
+            } catch (opfsError) {
+              cacheInfo.push("<h3>OPFS:</h3><p>Unable to get information</p>");
+            }
+          } else {
+            cacheInfo.push("<h3>OPFS:</h3><p>Not supported by browser</p>");
+          }
+
+          cacheDataDiv.innerHTML = cacheInfo.join("");
+        } catch (error) {
+          console.error("加载缓存数据时出错:", error);
+          cacheDataDiv.innerHTML = `<p>Failed to load cache data: ${error.message}</p>`;
+        }
+      }
+
+      // 清除所有缓存数据
       window.clearAll = async () => {
         // 弹窗确认
         if (
           !confirm(
-            "确定要清除所有缓存数据吗？这将删除 Service Worker、IndexedDB、OPFS 和 localStorage 中的所有数据。"
+            "Are you sure you want to clear all cache data? This will delete all data in Service Workers, IndexedDB, OPFS, and localStorage."
           )
         ) {
           return;
@@ -60,17 +242,20 @@
                 }
               }
             } catch (opfsError) {
-              console.warn("清除 OPFS 时出错:", opfsError);
+              console.warn("Error clearing OPFS:", opfsError);
               // OPFS 可能不被完全支持或权限不足，继续执行其他清理
             }
           }
 
           // 更新页面状态
-          document.getElementById("result").textContent = "所有缓存已清除";
+          document.getElementById("result").textContent = "All caches cleared";
+
+          // 刷新缓存数据显示
+          setTimeout(loadCacheData, 500); // 稍微延迟以确保清理完成
         } catch (error) {
-          console.error("清除缓存时出错:", error);
+          console.error("Error clearing cache:", error);
           document.getElementById("result").textContent =
-            "清除缓存失败: " + error.message;
+            "Failed to clear cache: " + error.message;
         }
       };
     </script>
