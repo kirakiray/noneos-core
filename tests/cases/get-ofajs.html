@@ -6,10 +6,9 @@
     <title>get ofa.js</title>
   </head>
   <div id="result">pending</div>
-  <button onclick="clearSw()">Clear Services Worker</button>
   <body>
     <script type="module">
-      import { ready, clear } from "/_sw.js";
+      import { ready } from "/_sw.js";
 
       const registration = await ready;
 
@@ -29,8 +28,6 @@
         document.getElementById("result").textContent = "failed";
         console.error("Error loading ofa.js:", error);
       }
-
-      window.clearSw = clear;
     </script>
   </body>
 </html>

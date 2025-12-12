@@ -11,17 +11,27 @@
         margin: 0 auto;
         padding: 20px;
       }
+      
+      /* 默认浅色主题 */
+      body {
+        background-color: #ffffff;
+        color: #333333;
+      }
+      
       .cache-section {
         margin: 20px 0;
         padding: 15px;
         border: 1px solid #ddd;
         border-radius: 5px;
       }
+      
       .cache-item {
         margin: 5px 0;
         padding: 5px;
         background-color: #f5f5f5;
+        border-radius: 3px;
       }
+      
       button {
         padding: 10px 15px;
         background-color: #007bff;
@@ -30,14 +40,55 @@
         border-radius: 4px;
         cursor: pointer;
       }
+      
       button:hover {
         background-color: #0056b3;
       }
+      
       #result {
         margin: 10px 0;
         padding: 10px;
         background-color: #e9ecef;
         border-radius: 4px;
+      }
+      
+      h1, h2, h3 {
+        color: #007bff;
+      }
+      
+      /* 深色主题 */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #1a1a1a;
+          color: #e0e0e0;
+        }
+        
+        .cache-section {
+          border: 1px solid #444;
+          background-color: #2a2a2a;
+        }
+        
+        .cache-item {
+          background-color: #333;
+          color: #e0e0e0;
+        }
+        
+        button {
+          background-color: #0056b3;
+        }
+        
+        button:hover {
+          background-color: #004080;
+        }
+        
+        #result {
+          background-color: #333;
+          color: #e0e0e0;
+        }
+        
+        h1, h2, h3 {
+          color: #4da6ff;
+        }
       }
     </style>
   </head>
