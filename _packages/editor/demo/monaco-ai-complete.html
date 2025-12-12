@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monaco Editor - AI 自动补全 (修复版)</title>
+    <style>
+      #container {
+        height: 600px;
+        border: 1px solid #ccc;
+      }
+      .info {
+        padding: 10px;
+        background: #f0f0f0;
+        margin-bottom: 10px;
+        font-family: monospace;
+      }
+      code {
+        background: #ddd;
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: #d63384;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info">
+      <strong>🤖 AI 自动补全演示（修复版）</strong><br />
+      输入 <code>function</code> 或 <code>const</code> 触发建议<br />
+      按 <code>Tab</code> 接受，<code>Esc</code> 取消。<strong
+        >已修复重复问题！</strong
+      >
+    </div>
+    <div id="container"></div>
+
+    <script type="module">
+      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+
+      // 创建编辑器
+      const editor = monaco.editor.create(
+        document.getElementById("container"),
+        {
+          language: "javascript",
+          theme: "vs-dark",
+          tabSize: 2,
+          insertSpaces: true,
+          fontSize: 14,
+          automaticLayout: true,
+          wordWrap: "on",
+          suggest: { preview: true },
+          inlineSuggest: { enabled: true },
+        }
+      );
+
+      editor.setValue(`// 输入 function 或 const 测试 AI 补全（不会重复）
+`);
+
+      // ==================== AI 模拟服务 ====================
+      const mockAICompletions = {
+        function: [
+          " calculateSum(a, b) {\n  return a + b;\n}",
+          " handleClick(event) {\n  console.log('Clicked:', event.target);\n  $0\n}",
+          " async fetchData() {\n  const response = await fetch('/api/data');\n  return response.json();\n}",
+        ],
+        const: [
+          " result = await fetch('/api/data');\nconst data = await result.json();",
+          " config = {\n  apiUrl: 'https://api.example.com',\n  timeout: 5000,\n  $0\n};",
+        ],
+        if: [
+          " (condition) {\n  // TODO: 实现逻辑\n  $0\n} else {\n  // 备选方案\n}",
+        ],
+      };
+
+      // 防抖函数
+      function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+          const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+          };
+          clearTimeout(timeout);
+          timeout = setTimeout(later, wait);
+        };
+      }
+
+      // 获取当前输入的单词
+      function getCurrentWord(model, position) {
+        const textUntilPosition = model.getValueInRange({
+          startLineNumber: position.lineNumber,
+          startColumn: 1,
+          endLineNumber: position.lineNumber,
+          endColumn: position.column,
+        });
+        const words = textUntilPosition.trim().split(/\s+/);
+        return words[words.length - 1] || "";
+      }
+
+      // 获取代码上下文
+      function getCodeContext(model, position, lines = 5) {
+        const startLine = Math.max(1, position.lineNumber - lines);
+        const endLine = Math.min(
+          model.getLineCount(),
+          position.lineNumber + lines
+        );
+        return model.getValueInRange({
+          startLineNumber: startLine,
+          startColumn: 1,
+          endLineNumber: endLine,
+          endColumn: model.getLineMaxColumn(endLine),
+        });
+      }
+
+      // 模拟 AI API
+      function simulateAIRequest(currentWord) {
+        return new Promise((resolve) => {
+          const delay = 100 + Math.random() * 200;
+          setTimeout(() => {
+            const completions = mockAICompletions[currentWord];
+            if (completions && completions.length > 0) {
+              resolve(
+                completions[Math.floor(Math.random() * completions.length)]
+              );
+            } else {
+              resolve(" { /* 实现 */ }"); // 默认补全
+            }
+          }, delay);
+        });
+      }
+
+      // ==================== 修复核心：行内补全提供器 ====================
+      let lastRequestId = 0;
+      let inlineCompletionsCache = null;
+
+      monaco.languages.registerInlineCompletionsProvider("javascript", {
+        provideInlineCompletions: async function (
+          model,
+          position,
+          context,
+          token
+        ) {
+          // 1. 获取当前输入的单词
+          const currentWord = getCurrentWord(model, position);
+
+          // 2. 严格触发条件（避免误触发）
+          const keywords = [
+            "function",
+            "const",
+            "let",
+            "if",
+            "for",
+            "class",
+            "async",
+          ];
+          const shouldTrigger =
+            keywords.includes(currentWord) &&
+            !currentWord.includes("(") && // 避免函数调用时触发
+            !currentWord.includes(".") && // 避免对象属性访问时触发
+            position.column < 30; // 避免长行触发
+
+          if (!shouldTrigger) {
+            return { items: [] };
+          }
+
+          const requestId = ++lastRequestId;
+
+          try {
+            // 3. 获取 AI 建议（不包含当前单词本身）
+            const aiSuggestion = await simulateAIRequest(currentWord);
+
+            if (requestId !== lastRequestId) {
+              return { items: [] };
+            }
+
+            // ✅ 4. 关键修复：创建零宽度 range，避免重叠
+            const range = new monaco.Range(
+              position.lineNumber,
+              position.column,
+              position.lineNumber,
+              position.column // 不覆盖任何已有文本
+            );
+
+            inlineCompletionsCache = {
+              items: [
+                {
+                  insertText: aiSuggestion,
+                  range: range,
+                },
+              ],
+            };
+
+            return inlineCompletionsCache;
+          } catch (error) {
+            console.error("AI 请求失败:", error);
+            return { items: [] };
+          }
+        },
+
+        freeInlineCompletions: function (completions) {
+          inlineCompletionsCache = null;
+        },
+      });
+
+      // ==================== 智能触发机制 ====================
+      const debouncedTrigger = debounce(() => {
+        const position = editor.getPosition();
+        const model = editor.getModel();
+        const currentWord = getCurrentWord(model, position);
+
+        // 优化触发条件
+        const minWordLength = 3;
+        if (
+          currentWord.length >= minWordLength &&
+          /^(function|const|let|if|for|class|async)$/.test(currentWord)
+        ) {
+          editor.trigger("ai", "editor.action.inlineSuggest.trigger", {});
+        }
+      }, 600); // 增加防抖时间，减少误触发
+
+      editor.onDidChangeModelContent((e) => {
+        // 只在用户输入字符时触发（不是删除）
+        const isInsert = e.changes.some((change) => change.text.length > 0);
+        if (isInsert) {
+          debouncedTrigger();
+        }
+      });
+
+      // 绑定快捷键
+      editor.addCommand(monaco.KeyMod.Ctrl | monaco.KeyCode.Space, () => {
+        editor.trigger("ai", "editor.action.inlineSuggest.trigger", {});
+      });
+
+      console.log("✅ AI 自动补全（修复版）已加载");
+      console.log("🔧 修复内容：改进 range 计算，避免文本重叠");
+    </script>
+  </body>
+</html>
