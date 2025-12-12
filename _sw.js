@@ -9,7 +9,7 @@ export const ready = (async () => {
     await new Promise((resolve, reject) => {
       registration.active.addEventListener("statechange", () => {
         if (registration.active.state === "activated") {
-          console.log("Service Worker activated");
+          console.log("Service Worker activated: ", registration.scope);
           resolve(registration);
         }
       });
