@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monaco Editor</title>
+    <style>
+      #container {
+        height: 600px;
+        border: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>ES Module - editor</h3>
+    <div id="container"></div>
+
+    <!-- 使用 ES Module CDN -->
+    <script type="module">
+      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
+      // import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+
+      // 创建编辑器
+      const editor = monaco.editor.create(
+        document.getElementById("container"),
+        {
+          language: "html",
+          theme: "vs-dark",
+          tabSize: 2,
+          insertSpaces: true,
+          fontSize: 14,
+          automaticLayout: true,
+          wordWrap: "on",
+        }
+      );
+
+      // 设置 editor 的value
+      editor.setValue(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>未格式化代码</title>
+<style>
+body{background:#f0f0f0;color:#333;}
+.container{max-width:1200px;margin:0 auto;padding:20px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>测试自动格式化</h1>
+<p>粘贴或输入混乱代码，会自动整理格式。</p>
+<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
+</div>
+</body>
+</html>`);
+
+      // ===== 手动格式化按钮 =====
+      // const btn = document.createElement("button");
+      // btn.textContent = "手动格式化 (Shift+Alt+F)";
+      // btn.style.marginTop = "10px";
+      // btn.onclick = () => {
+      //   editor.getAction("editor.action.formatDocument").run();
+      // };
+      // document.body.appendChild(btn);
+    </script>
+  </body>
+</html>

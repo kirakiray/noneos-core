@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monaco + Prettier</title>
+    <style>
+      #container {
+        height: 500px;
+        border: 1px solid #ccc;
+      }
+      button {
+        margin: 10px;
+        padding: 8px 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <select id="languageSelect">
+        <option value="html">HTML</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="css">CSS</option>
+        <option value="json">JSON</option>
+      </select>
+      <button id="formatBtn">格式化代码 (Shift+Alt+F)</button>
+    </div>
+    <div id="container"></div>
+
+    <script type="module">
+      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
+
+      // 动态加载 Prettier 和插件（按需加载）
+      async function loadPrettierAndPlugins(language) {
+        const prettier = await import("/npm/prettier@3.4.1/standalone.mjs");
+
+        // 根据语言加载必要插件
+        const plugins = [];
+
+        // JS/TS/JSON 必须加载 estree
+        if (["javascript", "typescript", "json"].includes(language)) {
+          const estree = await import("/npm/prettier@3.4.1/plugins/estree.mjs");
+          plugins.push(estree);
+        }
+
+        switch (language) {
+          case "javascript":
+            const babel = await import("/npm/prettier@3.4.1/plugins/babel.mjs");
+            plugins.push(babel);
+            break;
+          case "typescript":
+            const typescript = await import(
+              "/npm/prettier@3.4.1/plugins/typescript.mjs"
+            );
+            plugins.push(typescript);
+            break;
+          case "html":
+            const html = await import("/npm/prettier@3.4.1/plugins/html.mjs");
+            plugins.push(html);
+            break;
+          case "css":
+            const postcss = await import(
+              "/npm/prettier@3.4.1/plugins/postcss.mjs"
+            );
+            plugins.push(postcss);
+            break;
+          case "json":
+            const babelForJson = await import(
+              "/npm/prettier@3.4.1/plugins/babel.mjs"
+            );
+            plugins.push(babelForJson);
+            break;
+        }
+
+        return { prettier, plugins };
+      }
+
+      // 创建编辑器
+      const editor = monaco.editor.create(
+        document.getElementById("container"),
+        {
+          value: `<div class="foo"><span>Hello</span></div>`,
+          language: "html",
+          theme: "vs-dark",
+          tabSize: 2,
+          insertSpaces: true,
+          fontSize: 14,
+          automaticLayout: true,
+        }
+      );
+
+      // 注册格式化提供者
+      monaco.languages.registerDocumentFormattingEditProvider(
+        ["javascript", "typescript", "html", "css", "json"],
+        {
+          async provideDocumentFormattingEdits(model) {
+            const language = model.getLanguageId();
+
+            try {
+              const { prettier, plugins } = await loadPrettierAndPlugins(
+                language
+              );
+
+              // 映射 Monaco 语言到 Prettier parser
+              const parserMap = {
+                javascript: "babel",
+                typescript: "typescript",
+                html: "html",
+                css: "css",
+                json: "json",
+              };
+
+              const formatted = await prettier.format(model.getValue(), {
+                parser: parserMap[language],
+                plugins,
+                tabWidth: 2,
+                semi: true,
+                singleQuote: true,
+                printWidth: 80,
+              });
+
+              // 返回格式化后的文本范围
+              return [
+                {
+                  range: model.getFullModelRange(),
+                  text: formatted,
+                },
+              ];
+            } catch (error) {
+              console.error("格式化失败:", error);
+              return []; // 返回空数组表示格式化失败
+            }
+          },
+        }
+      );
+
+      // 绑定格式化按钮
+      document.getElementById("formatBtn").addEventListener("click", () => {
+        editor.getAction("editor.action.formatDocument").run();
+      });
+
+      // 语言切换
+      document
+        .getElementById("languageSelect")
+        .addEventListener("change", (e) => {
+          monaco.editor.setModelLanguage(editor.getModel(), e.target.value);
+        });
+    </script>
+  </body>
+</html>
