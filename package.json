@@ -18,11 +18,13 @@
     "dev": "npm run static & npm run watch:sw",
     "static": "node _script/static.js",
     "build:sw": "rollup -c",
-    "watch:sw": "rollup -c -w"
+    "watch:sw": "rollup -c -w",
+    "test": "npx playwright test"
   },
   "devDependencies": {
-    "rollup": "^3.0.0",
+    "@playwright/test": "^1.57.0",
+    "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
-    "@rollup/plugin-commonjs": "^24.0.0"
+    "rollup": "^3.0.0"
   }
 }

@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>get ofa.js</title>
-    <script type="module" src="/_init.js"></script>
   </head>
+  <div id="result">pending</div>
+  <button onclick="clearSw()">Clear Services Worker</button>
   <body>
     <script type="module">
-      import { swReady } from "/_init.js";
+      import { ready, clear } from "/_sw.js";
 
-      const registration = await swReady;
+      const registration = await ready;
 
       console.log("registration: ", registration);
 
@@ -18,11 +19,18 @@
       //   import ofa from "/gh/kirakiray/ofa.js/dist/ofa.mjs";
       // import ofa from "/gh/kirakiray/ofa.js/packages/ofa/main.mjs";
 
-      const { default: ofa } = await import(
-        "/gh/kirakiray/ofa.js/packages/ofa/main.mjs"
-      );
+      try {
+        const { default: ofa } = await import(
+          "/gh/kirakiray/ofa.js/packages/ofa/main.mjs"
+        );
 
-      console.log("ofa: ", ofa);
+        document.getElementById("result").textContent = "success";
+      } catch (error) {
+        document.getElementById("result").textContent = "failed";
+        console.error("Error loading ofa.js:", error);
+      }
+
+      window.clearSw = clear;
     </script>
   </body>
 </html>
