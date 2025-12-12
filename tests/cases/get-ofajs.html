@@ -1,33 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>get ofa.js</title>
-  </head>
-  <div id="result">pending</div>
-  <body>
-    <script type="module">
-      import { ready } from "/_sw.js";
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>get ofa.js</title>
+  <style>
+    :root {
+      --background-color: #ffffff;
+      --text-color: #333333;
+      --result-pending-bg: #ffeeba;
+      --result-pending-text: #856404;
+      --result-success-bg: #d4edda;
+      --result-success-text: #155724;
+      --result-failed-bg: #f8d7da;
+      --result-failed-text: #721c24;
+      --border-radius: 8px;
+      --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --transition: background-color 0.3s, color 0.3s;
+    }
 
-      const registration = await ready;
-
-      console.log("registration: ", registration);
-
-      // import ofa from "https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.12/dist/ofa.min.mjs";
-      // import ofa from "/gh/kirakiray/ofa.js/dist/ofa.mjs";
-      // import ofa from "/gh/kirakiray/ofa.js/packages/ofa/main.mjs";
-
-      try {
-        const { default: ofa } = await import(
-          "/gh/kirakiray/ofa.js/packages/ofa/main.mjs"
-        );
-
-        document.getElementById("result").textContent = "success";
-      } catch (error) {
-        document.getElementById("result").textContent = "failed";
-        console.error("Error loading ofa.js:", error);
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background-color: #1a1a1a;
+        --text-color: #f0f0f0;
+        --result-pending-bg: #5d532d;
+        --result-pending-text: #fff3cd;
+        --result-success-bg: #2d5d35;
+        --result-success-text: #d4edda;
+        --result-failed-bg: #5d2d30;
+        --result-failed-text: #f8d7da;
+        --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
       }
-    </script>
-  </body>
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+
+    .container {
+      text-align: center;
+      padding: 2rem;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      background-color: var(--background-color);
+      transition: var(--transition);
+    }
+
+    h1 {
+      margin-bottom: 2rem;
+    }
+
+    #result {
+      padding: 1.5rem 2rem;
+      border-radius: var(--border-radius);
+      font-size: 1.5rem;
+      font-weight: bold;
+      display: inline-block;
+      min-width: 200px;
+      transition: var(--transition);
+    }
+
+    #result.pending {
+      background-color: var(--result-pending-bg);
+      color: var(--result-pending-text);
+    }
+
+    #result.success {
+      background-color: var(--result-success-bg);
+      color: var(--result-success-text);
+    }
+
+    #result.failed {
+      background-color: var(--result-failed-bg);
+      color: var(--result-failed-text);
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--text-color);
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status-text {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>OFA.js Loading Test</h1>
+    <div id="result" class="pending">
+      <span class="loading"></span>
+      <span class="status-text">pending</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ready } from "/_sw.js";
+
+    const registration = await ready;
+    console.log("registration: ", registration);
+
+    // Get result element and update its class
+    const resultElement = document.getElementById("result");
+    
+    // Remove loading spinner and update text
+    const updateResult = (status, text) => {
+      resultElement.innerHTML = `<span class="status-text">${text}</span>`;
+      resultElement.className = status;
+    };
+
+    try {
+      const { default: ofa } = await import(
+        "/gh/kirakiray/ofa.js/dist/ofa.mjs"
+      );
+
+      updateResult("success", "success");
+    } catch (error) {
+      updateResult("failed", "failed");
+      console.error("Error loading ofa.js:", error);
+    }
+  </script>
+</body>
 </html>
