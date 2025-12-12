@@ -277,7 +277,7 @@
     const { request } = event;
     const { pathname } = new URL(request.url);
 
-    console.log("pathname: ", pathname);
+    // console.log("pathname: ", pathname);
 
     try {
       if (/^\/gh\//.test(pathname)) {

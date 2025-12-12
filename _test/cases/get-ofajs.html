@@ -4,12 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>get ofa.js</title>
+    <script type="module" src="/_init.js"></script>
   </head>
   <body>
     <script type="module">
+      import { swReady } from "/_init.js";
+
+      const registration = await swReady;
+
+      console.log("registration: ", registration);
+
       //   import ofa from "https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.12/dist/ofa.min.mjs";
       //   import ofa from "/gh/kirakiray/ofa.js/dist/ofa.mjs";
-      import ofa from "/gh/kirakiray/ofa.js/packages/ofa/main.mjs";
+      // import ofa from "/gh/kirakiray/ofa.js/packages/ofa/main.mjs";
+
+      const { default: ofa } = await import(
+        "/gh/kirakiray/ofa.js/packages/ofa/main.mjs"
+      );
 
       console.log("ofa: ", ofa);
     </script>
