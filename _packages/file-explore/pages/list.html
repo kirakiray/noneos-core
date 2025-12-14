@@ -183,6 +183,13 @@
             </div>
           </o-fill>
         </o-if>
+        <button
+          on:click="handleCopyPath($event)"
+          id="copy-path-button"
+          style="float: right"
+        >
+          Copy
+        </button>
       </div>
       <div style="text-align: right">
         <button on:click="handleCreateDirectory($event)">
@@ -254,6 +261,13 @@
           breadcrumbItems: [],
         },
         proto: {
+          handleCopyPath(event) {
+            navigator.clipboard.writeText(this.path);
+            this.shadow.$("#copy-path-button").text = "Copied";
+            setTimeout(() => {
+              this.shadow.$("#copy-path-button").text = "Copy";
+            }, 1000);
+          },
           getSize(size) {
             if (size < 1024) {
               return `${size} B`;
