@@ -21,15 +21,15 @@
       return {
         tag: "monaco-editor",
         data: {
-          _frame: null,
-          _frameid: null,
-          _inited: null,
+          _editorFrame: null,
+          _frameId: null,
+          _initialized: null,
         },
         proto: {
           async setValue(value) {
-            await this._inited;
+            await this._initialized;
 
-            this._frame.contentWindow.postMessage(
+            this._editorFrame.contentWindow.postMessage(
               {
                 type: "setValue",
                 value,
@@ -39,45 +39,27 @@
           },
         },
         ready() {
-          this._inited = new Promise((resolve, reject) => {
-            window.addEventListener("message", (e) => {
-              if (e.data.id === this._frameid && e.data.inited) {
+          this._initialized = new Promise((resolve, reject) => {
+            window.addEventListener("message", (event) => {
+              if (event.data.id === this._frameId && event.data.initialized) {
                 // 初始化完成
                 resolve();
+
+                this.emit("initialized");
               }
             });
           });
 
-          this._frameid = Math.random().toString(36).slice(2);
+          this._frameId = Math.random().toString(36).slice(2);
 
           this.shadow.push(
             `<iframe src="${new URL(
               "./monaco-editor-inner.html",
               url
-            )}?frameid=${this._frameid}" frameborder="0"></iframe>`
+            )}?frameId=${this._frameId}" frameborder="0"></iframe>`
           );
 
-          this._frame = this.shadow.$("iframe").ele;
-        },
-        attached() {
-          this.setValue(`<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>未格式化代码</title>
-<style>
-body{background:#f0f0f0;color:#333;}
-.container{max-width:1200px;margin:0 auto;padding:20px;}
-</style>
-</head>
-<body>
-<div class="container">
-<h1>测试自动格式化</h1>
-<p>粘贴或输入混乱代码，会自动整理格式。</p>
-<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
-</div>
-</body>
-</html>`);
+          this._editorFrame = this.shadow.$("iframe").ele;
         },
       };
     };

@@ -1,4 +1,5 @@
 <template page>
+  <!-- <l-m src="../comps/monaco-editor.html"></l-m> -->
   <style>
     :host {
       display: block;
@@ -6,14 +7,35 @@
       height: 100%;
     }
   </style>
-  <l-m src="../comps/monaco-editor.html"></l-m>
   <monaco-editor style="width: 100%; height: 100%"></monaco-editor>
   <script>
     export const parent = "./layout.html";
 
     export default async ({ load }) => {
+      await load("../comps/monaco-editor.html");
+
       return {
         data: {},
+        async attached() {
+          this.shadow.$("monaco-editor").setValue(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>未格式化代码</title>
+<style>
+body{background:#f0f0f0;color:#333;}
+.container{max-width:1200px;margin:0 auto;padding:20px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>测试自动格式化</h1>
+<p>粘贴或输入混乱代码，会自动整理格式。</p>
+<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
+</div>
+</body>
+</html>`);
+        },
       };
     };
   </script>

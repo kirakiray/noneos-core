@@ -39,17 +39,18 @@
         }
       );
 
-      window.onmessage = (e) => {
-        switch (e.data.type) {
+      window.onmessage = (event) => {
+        switch (event.data.type) {
           case "setValue":
-            editor.setValue(e.data.value);
+            editor.setValue(event.data.value);
             break;
         }
       };
+
       window.parent.postMessage(
         {
-          id: new URLSearchParams(location.search).get("frameid"),
-          inited: true,
+          id: new URLSearchParams(location.search).get("frameId"),
+          initialized: true,
         },
         "*"
       );
