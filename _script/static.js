@@ -63,11 +63,15 @@ async function fileExists(filePath) {
 // 处理请求的异步函数
 async function handleRequest(req, res) {
   try {
+    // 解析URL，移除查询参数
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = url.pathname;
+    
     // 解析请求的文件路径
     let filePath = path.join(
       __dirname,
       "..",
-      req.url === "/" ? "index.html" : req.url
+      pathname === "/" ? "index.html" : pathname
     );
 
     // 获取文件扩展名
