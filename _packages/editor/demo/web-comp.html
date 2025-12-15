@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>原生 Web Component 封装</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>原生 Web Component 示例</h2>
+    <monaco-editor language="typescript" theme="vs-dark"></monaco-editor>
+
+    <script>
+      // 配置 Monaco Environment（必须在加载 Monaco 之前）
+      window.MonacoEnvironment = {
+        getWorkerUrl: function (workerId, label) {
+          // 根据语言类型返回对应的 worker
+          const workers = {
+            json: "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/json/json.worker.js",
+            css: "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/css/css.worker.js",
+            html: "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/html/html.worker.js",
+            typescript:
+              "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/typescript/ts.worker.js",
+          };
+          const url =
+            workers[label] ||
+            "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/base/worker/workerMain.js";
+          return url;
+        },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+
+    <script>
+      // 自定义 Web Component
+      class MonacoEditor extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+          this.editor = null;
+          this._value = "";
+          this._language = "javascript";
+          this._theme = "vs";
+        }
+
+        static get observedAttributes() {
+          return ["value", "language", "theme"];
+        }
+
+        connectedCallback() {
+          // 创建容器
+          const container = document.createElement("div");
+          container.style.width = "100%";
+          container.style.height = "400px";
+          container.style.border = "1px solid #ccc";
+
+          // 添加样式
+          const style = document.createElement("style");
+          style.textContent = `
+                    :host { display: block; }
+                    .monaco-container { width: 100%; height: 100%; }
+                `;
+
+          this.shadowRoot.appendChild(style);
+          this.shadowRoot.appendChild(container);
+
+          // 加载 Monaco
+          this.loadMonaco(container);
+        }
+
+        async loadMonaco(container) {
+          // 等待 loader 加载完成
+          if (typeof require === "undefined") {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            return this.loadMonaco(container);
+          }
+
+          require(["vs/editor/editor.main"], () => {
+            this.createEditor(container);
+          });
+        }
+
+        createEditor(container) {
+          // 获取属性
+          this._value = this.getAttribute("value") || "";
+          this._language = this.getAttribute("language") || "javascript";
+          this._theme = this.getAttribute("theme") || "vs";
+
+          // 创建编辑器
+          this.editor = monaco.editor.create(container, {
+            value: this._value,
+            language: this._language,
+            theme: this._theme,
+            automaticLayout: true,
+          });
+
+          // 监听变化事件
+          this.editor.onDidChangeModelContent(() => {
+            this._value = this.editor.getValue();
+            this.dispatchEvent(
+              new CustomEvent("change", {
+                detail: { value: this._value },
+              })
+            );
+          });
+        }
+
+        attributeChangedCallback(name, oldValue, newValue) {
+          if (!this.editor) return;
+
+          switch (name) {
+            case "value":
+              if (this.editor.getValue() !== newValue) {
+                this.editor.setValue(newValue || "");
+              }
+              break;
+            case "language":
+              monaco.editor.setModelLanguage(
+                this.editor.getModel(),
+                newValue || "javascript"
+              );
+              break;
+            case "theme":
+              monaco.editor.setTheme(newValue || "vs");
+              break;
+          }
+        }
+
+        // 公共 API
+        get value() {
+          return this.editor ? this.editor.getValue() : this._value;
+        }
+
+        set value(code) {
+          if (this.editor) {
+            this.editor.setValue(code);
+          } else {
+            this._value = code;
+          }
+        }
+
+        disconnectedCallback() {
+          if (this.editor) {
+            this.editor.dispose();
+            this.editor = null;
+          }
+        }
+      }
+
+      // 注册自定义元素
+      customElements.define("monaco-editor", MonacoEditor);
+    </script>
+
+    <!-- 使用示例 -->
+    <script>
+      const editor = document.querySelector("monaco-editor");
+      editor.addEventListener("change", (e) => {
+        console.log("代码变化:", e.detail.value);
+      });
+
+      // 3秒后修改代码
+      setTimeout(() => {
+        editor.value =
+          '// 动态修改的代码\nconst msg = "Hello World";\nconsole.log(msg);';
+      }, 3000);
+    </script>
+  </body>
+</html>

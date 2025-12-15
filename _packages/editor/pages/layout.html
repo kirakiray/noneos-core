@@ -13,11 +13,24 @@
       width: 56px;
       border-right: 1px solid rgba(204, 204, 204, 0.2);
     }
+    .main {
+      position: relative;
+      flex: 1;
+    }
+    .mian-inner {
+      position: absolute;
+      height: 100%;
+      width: 100%;
+      left: 0;
+      top: 0;
+    }
   </style>
   <div class="container">
     <div class="left"></div>
     <div class="main">
-      <slot></slot>
+      <div class="mian-inner">
+        <slot></slot>
+      </div>
     </div>
   </div>
   <script>
