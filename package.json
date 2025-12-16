@@ -16,7 +16,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
-    "static": "http-server -p 3002",
+    "static": "http-server -p 3002 -c-1",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
     "test": "npx playwright test"

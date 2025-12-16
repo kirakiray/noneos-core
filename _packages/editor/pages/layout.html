@@ -13,6 +13,13 @@
       width: 56px;
       border-right: 1px solid rgba(204, 204, 204, 0.2);
     }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 56px;
+    }
     .main {
       position: relative;
       flex: 1;
@@ -26,7 +33,9 @@
     }
   </style>
   <div class="container">
-    <div class="left"></div>
+    <div class="left">
+      <div class="btn">A</div>
+    </div>
     <div class="main">
       <div class="mian-inner">
         <slot></slot>
