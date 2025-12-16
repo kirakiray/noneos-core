@@ -55,7 +55,9 @@
 
                 prettierPlugin({ editor, monaco });
               } else {
-                debugger;
+                // 加载其他插件
+                const { default: initFunc } = await import(plugin);
+                initFunc({ editor, monaco });
               }
             });
             break;
