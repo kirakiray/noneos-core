@@ -16,7 +16,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
-    "static": "node _script/static.js",
+    "static": "serve -p 3002",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
     "test": "npx playwright test"
@@ -25,6 +25,7 @@
     "@playwright/test": "^1.57.0",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
-    "rollup": "^3.0.0"
+    "rollup": "^3.0.0",
+    "serve": "^14.2.5"
   }
 }
