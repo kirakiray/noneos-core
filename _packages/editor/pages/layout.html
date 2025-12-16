@@ -38,16 +38,18 @@
       top: 0;
     }
   </style>
-  <div class="container">
-    <!-- <div class="left">
+  <o-provider name="project-data" path="/ggwave-master">
+    <div class="container">
+      <!-- <div class="left">
       <div class="btn">A</div>
     </div> -->
-    <div class="main">
-      <div class="mian-inner">
-        <slot></slot>
+      <div class="main">
+        <div class="mian-inner">
+          <slot></slot>
+        </div>
       </div>
     </div>
-  </div>
+  </o-provider>
   <script>
     export default async ({ load }) => {
       return {

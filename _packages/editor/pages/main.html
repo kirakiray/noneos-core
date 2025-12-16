@@ -25,7 +25,9 @@
       flex: 1;
     }
   </style>
-  <div class="left"></div>
+  <div class="left">
+    <o-page src="./file-explore.html"></o-page>
+  </div>
   <div class="main">
     <div class="main-top"></div>
     <div class="article">
@@ -40,35 +42,41 @@
   ></monaco-editor> -->
     </div>
   </div>
+  <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
   <script>
     export const parent = "./layout.html";
 
     export default async ({ load }) => {
       await load("../comps/monaco-editor.html");
 
+      const { get } = await load("/_core/fs/handle/main.js");
+
       return {
-        data: {},
+        data: {
+          projectPath: "",
+        },
+        proto: {},
         async attached() {
           await this.shadow.$("monaco-editor")._initialized;
 
-          this.shadow.$("monaco-editor").setValue(`<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>未格式化代码</title>
-<style>
-body{background:#f0f0f0;color:#333;}
-.container{max-width:1200px;margin:0 auto;padding:20px;}
-</style>
-</head>
-<body>
-<div class="container">
-<h1>测试自动格式化</h1>
-<p>粘贴或输入混乱代码，会自动整理格式。</p>
-<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
-</div>
-</body>
-</html>`);
+          //           this.shadow.$("monaco-editor").setValue(`<!DOCTYPE html>
+          // <html lang="zh-CN">
+          // <head>
+          // <meta charset="UTF-8">
+          // <title>未格式化代码</title>
+          // <style>
+          // body{background:#f0f0f0;color:#333;}
+          // .container{max-width:1200px;margin:0 auto;padding:20px;}
+          // </style>
+          // </head>
+          // <body>
+          // <div class="container">
+          // <h1>测试自动格式化</h1>
+          // <p>粘贴或输入混乱代码，会自动整理格式。</p>
+          // <ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
+          // </div>
+          // </body>
+          // </html>`);
         },
       };
     };

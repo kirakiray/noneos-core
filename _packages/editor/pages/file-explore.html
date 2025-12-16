@@ -1,0 +1,51 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+  <o-fill :value="list">
+    <div>{{ $data.name }}</div>
+  </o-fill>
+  <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
+  <script>
+    export default async ({ load }) => {
+      const { get } = await load("/_core/fs/handle/main.js");
+
+      return {
+        data: {
+          projectPath: "",
+          list: [],
+        },
+        watch: {
+          projectPath(path) {
+            this.loadProject();
+          },
+        },
+        proto: {
+          async loadProject() {
+            if (!this.projectPath) {
+              return;
+            }
+
+            // 加载项目文件
+            const projectHandle = await get(this.projectPath);
+
+            const list = [];
+            for await (let item of projectHandle.values()) {
+              list.push({
+                name: item.name,
+                path: item.path,
+                kind: item.kind,
+              });
+            }
+
+            this.list = list;
+          },
+        },
+        attached() {},
+        detached() {},
+      };
+    };
+  </script>
+</template>
