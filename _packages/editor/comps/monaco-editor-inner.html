@@ -46,19 +46,16 @@
             break;
           case "setPlugins":
             event.data.plugins.split(" ").forEach(async (plugin) => {
+              // 统一加载并初始化插件
+              let pluginUrl = plugin;
+
               if (plugin === "prettier") {
-                const prettierUrl = import.meta.resolve(
-                  "./plugins/prettier.js"
-                );
-
-                const { default: prettierPlugin } = await import(prettierUrl);
-
-                prettierPlugin({ editor, monaco });
-              } else {
-                // 加载其他插件
-                const { default: initFunc } = await import(plugin);
-                initFunc({ editor, monaco });
+                pluginUrl = import.meta.resolve("./plugins/prettier.js");
               }
+
+              const { default: init } = await import(pluginUrl);
+
+              init({ editor, monaco });
             });
             break;
         }
