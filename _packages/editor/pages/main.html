@@ -7,7 +7,10 @@
       height: 100%;
     }
   </style>
-  <monaco-editor style="width: 100%; height: 100%"></monaco-editor>
+  <monaco-editor
+    style="width: 100%; height: 100%"
+    plugins="prettier"
+  ></monaco-editor>
   <script>
     export const parent = "./layout.html";
 
@@ -17,6 +20,8 @@
       return {
         data: {},
         async attached() {
+          await this.shadow.$("monaco-editor")._initialized;
+
           this.shadow.$("monaco-editor").setValue(`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>

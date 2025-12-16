@@ -18,12 +18,32 @@
   <!-- <iframe src="./monaco-editor-inner.html?frameid=123" frameborder="0"></iframe> -->
   <script>
     export default async ({ load, url }) => {
+      const frameSrc = new URL("./monaco-editor-inner.html", url).href;
+
       return {
         tag: "monaco-editor",
         data: {
           _editorFrame: null,
           _frameId: null,
           _initialized: null,
+        },
+        attrs: {
+          plugins: null,
+        },
+        watch: {
+          async plugins() {
+            await this._initialized;
+
+            if (this.plugins) {
+              this._editorFrame.contentWindow.postMessage(
+                {
+                  type: "setPlugins",
+                  plugins: this.plugins,
+                },
+                frameSrc
+              );
+            }
+          },
         },
         proto: {
           async setValue(value) {
@@ -34,7 +54,7 @@
                 type: "setValue",
                 value,
               },
-              "*"
+              frameSrc
             );
           },
         },
@@ -53,10 +73,7 @@
           this._frameId = Math.random().toString(36).slice(2);
 
           this.shadow.push(
-            `<iframe src="${new URL(
-              "./monaco-editor-inner.html",
-              url
-            )}?frameId=${this._frameId}" frameborder="0"></iframe>`
+            `<iframe src="${frameSrc}?frameId=${this._frameId}" frameborder="0"></iframe>`
           );
 
           this._editorFrame = this.shadow.$("iframe").ele;

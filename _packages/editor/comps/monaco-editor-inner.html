@@ -44,6 +44,21 @@
           case "setValue":
             editor.setValue(event.data.value);
             break;
+          case "setPlugins":
+            event.data.plugins.split(" ").forEach(async (plugin) => {
+              if (plugin === "prettier") {
+                const prettierUrl = import.meta.resolve(
+                  "./plugins/prettier.js"
+                );
+
+                const { default: prettierPlugin } = await import(prettierUrl);
+
+                prettierPlugin({ editor, monaco });
+              } else {
+                debugger;
+              }
+            });
+            break;
         }
       };
 
