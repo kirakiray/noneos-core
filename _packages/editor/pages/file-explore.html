@@ -81,7 +81,22 @@
           ></n-icon>
         </div>
         <n-icon :icon="$host.getIcon($data)" class="item-icon"></n-icon>
-        {{ $data.name }}
+        <div style="flex: 1; position: relative; height: 20px">
+          <div
+            style="
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            "
+          >
+            {{ $data.name }}
+          </div>
+        </div>
       </div>
       <div class="item-child">
         <o-fill :value="$data.list" fill-key="path" name="file-item"></o-fill>

@@ -33,11 +33,13 @@
             // 创建新的Promise并存入缓存
             iconCache[this.icon] = fetch(
               `https://api.iconify.design/${this.icon}.svg`
-            ).then((res) => res.text()).catch((error) => {
-              // 请求失败时从缓存中移除
-              delete iconCache[this.icon];
-              throw error;
-            });
+            )
+              .then((res) => res.text())
+              .catch((error) => {
+                // 请求失败时从缓存中移除
+                delete iconCache[this.icon];
+                throw error;
+              });
           }
 
           try {
