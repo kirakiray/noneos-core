@@ -9,6 +9,9 @@
   </style>
   <div class="main"></div>
   <script>
+    // 图标缓存对象，存储Promise以防止并发请求相同图标
+    const iconCache = {};
+
     export default {
       tag: "n-icon",
       attrs: {
@@ -25,11 +28,25 @@
             return;
           }
 
-          const iconContent = await fetch(
-            `https://api.iconify.design/${this.icon}.svg`
-          ).then((res) => res.text());
+          // 检查缓存中是否已有该图标的Promise
+          if (!iconCache[this.icon]) {
+            // 创建新的Promise并存入缓存
+            iconCache[this.icon] = fetch(
+              `https://api.iconify.design/${this.icon}.svg`
+            ).then((res) => res.text()).catch((error) => {
+              // 请求失败时从缓存中移除
+              delete iconCache[this.icon];
+              throw error;
+            });
+          }
 
-          this.shadow.$(".main").html = iconContent;
+          try {
+            // 等待Promise解析
+            const iconContent = await iconCache[this.icon];
+            this.shadow.$(".main").html = iconContent;
+          } catch (error) {
+            console.error(`Failed to load icon: ${this.icon}`, error);
+          }
         },
       },
     };
