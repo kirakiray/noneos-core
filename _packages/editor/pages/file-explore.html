@@ -57,7 +57,7 @@
   <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
   <script>
     export default async ({ load }) => {
-      const { get } = await load("/_core/fs/handle/main.js");
+      const { get } = await load("/nos/fs/handle/main.js");
 
       return {
         data: {
