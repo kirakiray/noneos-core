@@ -17,6 +17,8 @@
       font-size: 14px;
       transition: background-color 0.03s ease-in-out;
       cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
     }
 
     .item:hover {
@@ -31,29 +33,61 @@
       background-color: rgba(204, 204, 204, 0.25);
     }
 
-    .item n-icon {
-      font-size: 16px;
+    .item-icon {
       margin-right: 4px;
+      font-size: 16px;
     }
 
-    n-icon[icon="mdi:file-outline"] {
+    .item-icon[icon="mdi:file-outline"] {
       color: #007acc;
     }
-    n-icon[icon="whh:html"] {
-      color: #00cc69;
+    .item-icon[icon="whh:html"] {
+      color: #83d99f;
+    }
+
+    .item-prefix {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+    }
+
+    .item-prefix.expanded {
+      transform: rotate(90deg);
+    }
+
+    .hide {
+      display: none !important;
+    }
+
+    .item-child {
+      padding-left: 20px;
     }
   </style>
   <h5>{{ projectName }}</h5>
-  <o-fill :value="list" fill-key="path">
-    <div
-      class="item"
-      class:active="$host.activePath === $data.path"
-      on:click="$host.activePath = $data.path"
-    >
-      <n-icon :icon="$host.getIcon($data)"></n-icon>
-      {{ $data.name }}
+  <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
+  <template name="file-item">
+    <div>
+      <div
+        class="item"
+        class:active="$host.activePath === $data.path"
+        on:click="$host.clickItem($data)"
+      >
+        <div class="item-prefix" class:expanded="$data.expanded">
+          <n-icon
+            icon="mingcute:right-line"
+            class:hide="$data.kind !== 'dir'"
+          ></n-icon>
+        </div>
+        <n-icon :icon="$host.getIcon($data)" class="item-icon"></n-icon>
+        {{ $data.name }}
+      </div>
+      <div class="item-child">
+        <o-fill :value="$data.list" fill-key="path" name="file-item"></o-fill>
+      </div>
     </div>
-  </o-fill>
+  </template>
   <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
   <script>
     export default async ({ load }) => {
@@ -72,9 +106,28 @@
           },
         },
         proto: {
+          clickItem(item) {
+            this.activePath = item.path;
+            const projectData = this.getProvider("project-data");
+            projectData.selected = item.path;
+
+            if (item.kind === "dir") {
+              if (!item.expanded) {
+                item.expanded = true;
+                // 展开折叠
+                this.loadDir(item);
+              } else {
+                item.expanded = false;
+                item.list = [];
+              }
+            }
+          },
           getIcon(item) {
             if (item.kind === "dir") {
-              return "mdi:folder-outline";
+              if (item.expanded) {
+                return "material-symbols:folder-open-outline";
+              }
+              return "material-symbols:folder-outline";
             }
 
             const suffix = item.path.split(".").pop();
@@ -86,6 +139,22 @@
               default:
                 return "mdi:file-outline";
             }
+          },
+          async loadDir(item) {
+            item.expanded = true;
+
+            const dirHandle = await get(item.path);
+            const list = [];
+            for await (let item of dirHandle.values()) {
+              list.push({
+                kind: item.kind, // dir or file
+                expanded: false, // 是否展开，只在kind为dir时有效
+                list: [], // 子项列表，只在kind为dir时有效
+                name: item.name,
+                path: item.path,
+              });
+            }
+            item.list = list;
           },
           async loadProject() {
             if (!this.projectPath) {
@@ -101,9 +170,11 @@
             const list = [];
             for await (let item of projectHandle.values()) {
               list.push({
+                kind: item.kind, // dir or file
+                expanded: false, // 是否展开，只在kind为dir时有效
+                list: [], // 子项列表，只在kind为dir时有效
                 name: item.name,
                 path: item.path,
-                kind: item.kind,
               });
             }
 

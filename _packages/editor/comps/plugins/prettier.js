@@ -16,6 +16,7 @@ export default async ({ monaco, editor }) => {
             html: "html",
             css: "css",
             json: "json",
+            markdown: "markdown",
           };
 
           const formatted = await prettier.format(model.getValue(), {
@@ -80,6 +81,10 @@ async function loadPrettierAndPlugins(language) {
         "/npm/prettier@3.4.1/plugins/babel.mjs"
       );
       plugins.push(babelForJson);
+      break;
+    case "markdown":
+      const markdown = await import("/npm/prettier@3.4.1/plugins/markdown.mjs");
+      plugins.push(markdown);
       break;
   }
 
