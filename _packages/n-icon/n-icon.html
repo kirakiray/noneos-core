@@ -1,0 +1,37 @@
+<template component>
+  <style>
+    :host {
+      display: block;
+    }
+    svg {
+      display: block;
+    }
+  </style>
+  <div class="main"></div>
+  <script>
+    export default {
+      tag: "n-icon",
+      attrs: {
+        icon: null,
+      },
+      watch: {
+        icon(icon) {
+          this.loadIcon();
+        },
+      },
+      proto: {
+        async loadIcon() {
+          if (!this.icon) {
+            return;
+          }
+
+          const iconContent = await fetch(
+            `https://api.iconify.design/${this.icon}.svg`
+          ).then((res) => res.text());
+
+          this.shadow.$(".main").html = iconContent;
+        },
+      },
+    };
+  </script>
+</template>

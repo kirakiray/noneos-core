@@ -1,11 +1,58 @@
 <template page>
+  <l-m src="/_packages/n-icon/n-icon.html"></l-m>
   <style>
     :host {
       display: block;
     }
+    h5 {
+      padding: 8px 12px;
+      margin: 8px 0 4px;
+      font-size: 14px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      padding: 4px 12px;
+      font-size: 14px;
+      transition: background-color 0.03s ease-in-out;
+      cursor: pointer;
+    }
+
+    .item:hover {
+      background-color: rgba(204, 204, 204, 0.1);
+    }
+
+    .item.active {
+      background-color: rgba(204, 204, 204, 0.2);
+    }
+
+    .item.active:hover {
+      background-color: rgba(204, 204, 204, 0.25);
+    }
+
+    .item n-icon {
+      font-size: 16px;
+      margin-right: 4px;
+    }
+
+    n-icon[icon="mdi:file-outline"] {
+      color: #007acc;
+    }
+    n-icon[icon="whh:html"] {
+      color: #00cc69;
+    }
   </style>
-  <o-fill :value="list">
-    <div>{{ $data.name }}</div>
+  <h5>{{ projectName }}</h5>
+  <o-fill :value="list" fill-key="path">
+    <div
+      class="item"
+      class:active="$host.activePath === $data.path"
+      on:click="$host.activePath = $data.path"
+    >
+      <n-icon :icon="$host.getIcon($data)"></n-icon>
+      {{ $data.name }}
+    </div>
   </o-fill>
   <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
   <script>
@@ -16,6 +63,8 @@
         data: {
           projectPath: "",
           list: [],
+          activePath: "",
+          projectName: "",
         },
         watch: {
           projectPath(path) {
@@ -23,6 +72,21 @@
           },
         },
         proto: {
+          getIcon(item) {
+            if (item.kind === "dir") {
+              return "mdi:folder-outline";
+            }
+
+            const suffix = item.path.split(".").pop();
+            switch (suffix) {
+              case "html":
+                return "whh:html";
+              case "md":
+                return "material-symbols:markdown-outline";
+              default:
+                return "mdi:file-outline";
+            }
+          },
           async loadProject() {
             if (!this.projectPath) {
               return;
@@ -30,6 +94,9 @@
 
             // 加载项目文件
             const projectHandle = await get(this.projectPath);
+
+            // 加载项目名称
+            this.projectName = projectHandle.name;
 
             const list = [];
             for await (let item of projectHandle.values()) {
