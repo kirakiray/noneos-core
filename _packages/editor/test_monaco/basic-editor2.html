@@ -18,7 +18,7 @@
     </style>
   </head>
   <body>
-    <h3>ES Module - editor</h3>
+    <h3>Global Variable - editor</h3>
     <div id="controls">
       <label for="language-select">选择语言: </label>
       <select id="language-select">
@@ -34,27 +34,31 @@
     </div>
     <div id="container"></div>
 
-    <!-- 使用 ES Module CDN -->
-    <script type="module">
-      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
-      // import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+    <!-- 使用全局变量 CDN -->
+    <script src="/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script> -->
 
-      // 创建编辑器
-      const editor = monaco.editor.create(
-        document.getElementById("container"),
-        {
-          language: "html",
-          theme: "vs-dark",
-          tabSize: 2,
-          insertSpaces: true,
-          fontSize: 14,
-          automaticLayout: true,
-          wordWrap: "on",
-        }
-      );
+    <script>
+      require.config({ paths: { vs: '/npm/monaco-editor@0.44.0/min/vs' }});
+      // require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
 
-      // 设置 editor 的value
-      editor.setValue(`<!DOCTYPE html>
+      require(['vs/editor/editor.main'], function () {
+        // 创建编辑器
+        const editor = monaco.editor.create(
+          document.getElementById("container"),
+          {
+            language: "html",
+            theme: "vs-dark",
+            tabSize: 2,
+            insertSpaces: true,
+            fontSize: 14,
+            automaticLayout: true,
+            wordWrap: "on",
+          }
+        );
+
+        // 设置 editor 的value
+        editor.setValue(`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -73,17 +77,17 @@ body{background:#f0f0f0;color:#333;}
 </body>
 </html>`);
 
-      // 语言选择功能
-      const languageSelect = document.getElementById('language-select');
-      languageSelect.addEventListener('change', (event) => {
-        const selectedLanguage = event.target.value;
-        monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage);
-        
-        // 根据选择的语言更新编辑器内容示例
-        let sampleCode = '';
-        switch(selectedLanguage) {
-          case 'html':
-            sampleCode = `<!DOCTYPE html>
+        // 语言选择功能
+        const languageSelect = document.getElementById('language-select');
+        languageSelect.addEventListener('change', (event) => {
+          const selectedLanguage = event.target.value;
+          monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage);
+          
+          // 根据选择的语言更新编辑器内容示例
+          let sampleCode = '';
+          switch(selectedLanguage) {
+            case 'html':
+              sampleCode = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -101,16 +105,16 @@ body{background:#f0f0f0;color:#333;}
 </div>
 </body>
 </html>`;
-            break;
-          case 'javascript':
-            sampleCode = `function helloWorld() {
+              break;
+            case 'javascript':
+              sampleCode = `function helloWorld() {
   console.log("Hello, World!");
   const arr = [1, 2, 3];
   arr.map(item => item * 2);
 }`;
-            break;
-          case 'typescript':
-            sampleCode = `interface Person {
+              break;
+            case 'typescript':
+              sampleCode = `interface Person {
   name: string;
   age: number;
 }
@@ -121,9 +125,9 @@ function greet(person: Person): string {
 
 const user: Person = { name: "Alice", age: 30 };
 console.log(greet(user));`;
-            break;
-          case 'css':
-            sampleCode = `body {
+              break;
+            case 'css':
+              sampleCode = `body {
   margin: 0;
   padding: 0;
   background-color: #f0f0f0;
@@ -135,9 +139,9 @@ console.log(greet(user));`;
   margin: 0 auto;
   padding: 20px;
 }`;
-            break;
-          case 'json':
-            sampleCode = `{
+              break;
+            case 'json':
+              sampleCode = `{
   "name": "example",
   "version": "1.0.0",
   "description": "An example JSON file",
@@ -150,9 +154,9 @@ console.log(greet(user));`;
     "test": "jest"
   }
 }`;
-            break;
-          case 'python':
-            sampleCode = `def fibonacci(n):
+              break;
+            case 'python':
+              sampleCode = `def fibonacci(n):
     if n <= 1:
         return n
     else:
@@ -161,9 +165,9 @@ console.log(greet(user));`;
 # Print the first 10 Fibonacci numbers
 for i in range(10):
     print(fibonacci(i))`;
-            break;
-          case 'java':
-            sampleCode = `public class HelloWorld {
+              break;
+            case 'java':
+              sampleCode = `public class HelloWorld {
     public static void main(String[] args) {
         System.out.println("Hello, World!");
         
@@ -173,9 +177,9 @@ for i in range(10):
         }
     }
 }`;
-            break;
-          case 'markdown':
-            sampleCode = `# 标题
+              break;
+            case 'markdown':
+              sampleCode = `# 标题
 
 ## 副标题
 
@@ -205,12 +209,13 @@ function hello() {
 [百度](https://www.baidu.com)
 
 ![示例图片](https://via.placeholder.com/150)`;
-            break;
-          default:
-            sampleCode = '// Select a language to see sample code';
-        }
-        
-        editor.setValue(sampleCode);
+              break;
+            default:
+              sampleCode = '// Select a language to see sample code';
+          }
+          
+          editor.setValue(sampleCode);
+        });
       });
     </script>
   </body>
