@@ -22,56 +22,75 @@
   </head>
   <body>
     <div id="container"></div>
-    <script type="module">
-      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
 
-      // 创建编辑器
-      window.editor = monaco.editor.create(
-        document.getElementById("container"),
-        {
-          language: "html",
-          theme: "vs-dark",
-          tabSize: 2,
-          insertSpaces: true,
-          fontSize: 14,
-          automaticLayout: true,
-          wordWrap: "on",
-        }
-      );
+    <!-- 使用全局变量 CDN -->
+    <script src="/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script> -->
 
-      window.onmessage = (event) => {
-        switch (event.data.type) {
-          case "setValue":
-            editor.setValue(event.data.value);
-            break;
-          case "setLanguage":
-            // debugger;
-            // editor.setLanguage(event.data.lang);
-            break;
-          case "setPlugins":
-            event.data.plugins.split(" ").forEach(async (plugin) => {
-              // 统一加载并初始化插件
-              let pluginUrl = plugin;
+    <script>
+      require.config({ paths: { vs: "/npm/monaco-editor@0.44.0/min/vs" } });
+      // require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
 
-              if (plugin === "prettier") {
-                pluginUrl = import.meta.resolve("./plugins/prettier.js");
-              }
+      require(["vs/editor/editor.main"], function () {
+        // 创建编辑器
+        window.editor = monaco.editor.create(
+          document.getElementById("container"),
+          {
+            language: "html",
+            theme: "vs-dark",
+            tabSize: 2,
+            insertSpaces: true,
+            fontSize: 14,
+            automaticLayout: true,
+            wordWrap: "on",
+          }
+        );
 
-              const { default: init } = await import(pluginUrl);
+        window.onmessage = (event) => {
+          switch (event.data.type) {
+            case "setValue":
+              editor.setValue(event.data.value);
+              break;
+            case "setLanguage":
+              // debugger;
+              // editor.setLanguage(event.data.lang);
+              break;
+            case "setPlugins":
+              event.data.plugins.split(" ").forEach(async (plugin) => {
+                // 统一加载并初始化插件
+                let pluginUrl = plugin;
 
-              init({ editor, monaco });
-            });
-            break;
-        }
-      };
+                if (plugin === "prettier") {
+                  // 注意：在全局变量模式下，import.meta.resolve 不可用
+                  // 需要使用其他方式解析路径
+                  pluginUrl = "./plugins/prettier.js";
+                }
 
-      window.parent.postMessage(
-        {
-          id: new URLSearchParams(location.search).get("frameId"),
-          initialized: true,
-        },
-        "*"
-      );
+                // 在全局变量模式下，我们需要使用 require 或其他方式加载模块
+                // 这里保持原始逻辑，但在实际应用中可能需要调整
+                if (typeof module !== "undefined" && module.exports) {
+                  // Node.js 环境
+                  const init = require(pluginUrl);
+                  init({ editor, monaco });
+                } else {
+                  // 浏览器环境，尝试使用 AMD 加载
+                  require([pluginUrl], function (init) {
+                    init.default({ editor, monaco });
+                  });
+                }
+              });
+              break;
+          }
+        };
+
+        window.parent.postMessage(
+          {
+            id: new URLSearchParams(location.search).get("frameId"),
+            initialized: true,
+          },
+          "*"
+        );
+      });
     </script>
   </body>
 </html>
