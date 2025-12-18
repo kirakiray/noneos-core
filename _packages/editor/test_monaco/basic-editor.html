@@ -29,14 +29,15 @@
         <option value="json">JSON</option>
         <option value="python">Python</option>
         <option value="java">Java</option>
+        <option value="markdown">Markdown</option>
       </select>
     </div>
     <div id="container"></div>
 
     <!-- 使用 ES Module CDN -->
     <script type="module">
-      import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
-      // import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+      // import * as monaco from "/npm/monaco-editor@0.44.0/+esm";
+      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/+esm";
 
       // 创建编辑器
       const editor = monaco.editor.create(
@@ -76,7 +77,11 @@ body{background:#f0f0f0;color:#333;}
       const languageSelect = document.getElementById('language-select');
       languageSelect.addEventListener('change', (event) => {
         const selectedLanguage = event.target.value;
-        monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage);
+        try {
+          monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage);
+        } catch (error) {
+          console.warn(`Failed to set language ${selectedLanguage}:`, error);
+        }
         
         // 根据选择的语言更新编辑器内容示例
         let sampleCode = '';
@@ -172,6 +177,38 @@ for i in range(10):
         }
     }
 }`;
+            break;
+          case 'markdown':
+            sampleCode = `# 标题
+
+## 副标题
+
+### 列表
+
+- 项目1
+- 项目2
+- 项目3
+
+### 代码块
+
+\`\`\`javascript
+function hello() {
+  console.log("Hello, World!");
+}
+\`\`\`
+
+### 表格
+
+| 名称 | 年龄 | 城市 |
+|------|------|------|
+| 张三 | 25   | 北京 |
+| 李四 | 30   | 上海 |
+
+### 链接和图片
+
+[百度](https://www.baidu.com)
+
+![示例图片](https://via.placeholder.com/150)`;
             break;
           default:
             sampleCode = '// Select a language to see sample code';
