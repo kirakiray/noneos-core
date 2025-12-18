@@ -151,6 +151,7 @@
         class="item"
         class:active="$host.activePath === $data.path"
         on:click="$host.clickItem($data)"
+        on:dblclick="$host.dblclickItem($data)"
       >
         <!-- 折叠/展开图标 -->
         <div class="item-prefix" class:expanded="$data.expanded">
@@ -175,7 +176,7 @@
       </div>
     </div>
   </template>
-  <o-consumer name="project-data" watch:path="projectPath"></o-consumer>
+  <o-consumer name="studio-data" watch:path="projectPath"></o-consumer>
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
@@ -244,9 +245,19 @@
           },
         },
         proto: {
+          async dblclickItem(item) {
+            const studioProvider = await this.getProvider("studio-data");
+
+            // 触发双击事件
+            studioProvider.dispatch("dblclick-file", {
+              data: {
+                path: item.path,
+              },
+            });
+          },
           clickItem(item) {
             this.activePath = item.path;
-            const projectData = this.getProvider("project-data");
+            const projectData = this.getProvider("studio-data");
             projectData.selected = item.path;
 
             if (item.kind === "dir") {

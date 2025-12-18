@@ -13,7 +13,7 @@
     }
   </style>
   <div class="block" style="margin-left: auto">{{type}}</div>
-  <o-consumer name="project-data" watch:selected="selectPath"></o-consumer>
+  <o-consumer name="studio-data" watch:selected="selectPath"></o-consumer>
   <script>
     export default async ({ load }) => {
       const { getType } = await load("../util/get-type.js");
