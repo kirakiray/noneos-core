@@ -9,9 +9,15 @@
 
     /* 项目标题样式 */
     h5 {
+      display: flex;
+      align-items: center;
       padding: 12px;
       margin: 0;
-      font-size: 14px;
+      font-size: 15px;
+    }
+    h5 n-icon {
+      margin-right: 4px;
+      font-size: 20px;
     }
 
     .list {
@@ -128,7 +134,10 @@
       background: rgba(0, 0, 0, 0.3);
     }
   </style>
-  <h5>{{ projectName }}</h5>
+  <h5>
+    <n-icon icon="flat-color-icons:folder"></n-icon>
+    {{ projectName }}
+  </h5>
   <div class="list">
     <div class="list-inner">
       <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>

@@ -1,0 +1,29 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+    .container {
+      display: flex;
+    }
+    .tab {
+      padding: 8px 16px;
+    }
+  </style>
+  <div class="tab">{{selectPath}}</div>
+
+  <o-consumer name="project-data" watch:selected="selectPath"></o-consumer>
+  <script>
+    export default async ({ load }) => {
+      return {
+        data: {
+          selectPath: "",
+          list: [],
+        },
+        proto: {},
+        attached() {},
+        detached() {},
+      };
+    };
+  </script>
+</template>
