@@ -50,6 +50,7 @@
   <o-consumer
     name="studio-data"
     watch:selected="selectPath"
+    watch:path="projectPath"
     on:dblclick-file="dblclickFile"
   ></o-consumer>
   <script>
@@ -57,9 +58,28 @@
       return {
         data: {
           selectPath: "",
+          projectPath: "",
           list: [],
         },
+        watch: {
+          projectPath() {
+            this.loadHistory();
+          },
+        },
         proto: {
+          loadHistory() {
+            if (!this.projectPath) return;
+
+            let openedTabs = [];
+            try {
+              openedTabs =
+                JSON.parse(sessionStorage.getItem("__studio_opened_tabs")) ||
+                [];
+            } catch (e) {}
+
+            this.list = openedTabs;
+          },
+          // 点击切换选中项
           clickItem(item) {
             const provider = this.getProvider("studio-data");
             provider.selected = item.path;
@@ -75,6 +95,14 @@
               path,
               permanent: true,
             });
+
+            // 保存到 sessionStorage
+            try {
+              sessionStorage.setItem(
+                "__studio_opened_tabs",
+                JSON.stringify(this.list)
+              );
+            } catch (e) {}
           },
         },
         attached() {},
