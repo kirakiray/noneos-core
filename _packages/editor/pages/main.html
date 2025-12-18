@@ -62,11 +62,8 @@
           selectPath: "",
         },
         watch: {
-          selectPath(newPath) {
+          selectPath() {
             this.loadFile();
-
-            const type = getType(newPath);
-            this.shadow.$("monaco-editor").setLanguage(type);
           },
         },
         proto: {
@@ -79,6 +76,9 @@
             if (targetHandle.kind === "file") {
               const contenet = await targetHandle.text();
               this.shadow.$("monaco-editor").setValue(contenet);
+
+              const type = getType(this.selectPath);
+              this.shadow.$("monaco-editor").setLanguage(type);
             }
           },
         },

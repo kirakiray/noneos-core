@@ -64,9 +64,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      /* width: 20px; */
       width: 20px;
       height: 20px;
-      transition: transform 0.2s ease-in-out;
+      transition: transform 0.1s ease-in-out;
     }
 
     .item-prefix.expanded {
@@ -80,7 +81,7 @@
 
     /* 子项缩进样式 */
     .item-child {
-      padding-left: 20px;
+      padding-left: 10px;
     }
 
     /* 文件名文本截断容器 */
@@ -204,6 +205,9 @@
         const list = [];
 
         for await (const item of dirHandle.values()) {
+          // 忽略 .DS_Store 文件
+          if (item.name === ".DS_Store") continue;
+
           const isExpanded = expandedPathsSet.has(item.path);
           const itemData = createItemData(item, isExpanded);
 
@@ -253,12 +257,6 @@
             }
           },
           getIcon(item) {
-            if (item.kind === "dir") {
-              return item.expanded
-                ? "material-symbols:folder-open-outline"
-                : "material-symbols:folder-outline";
-            }
-
             const suffix = item.path.split(".").pop();
             switch (suffix) {
               case "html":
@@ -268,14 +266,26 @@
               case "md":
                 return "vscode-icons:file-type-markdown";
               case "js":
+              case "cjs":
+              case "mjs":
                 return "vscode-icons:file-type-js";
               case "json":
                 return "vscode-icons:file-type-json";
+              case "ts":
+                return "vscode-icons:file-type-ts";
+              case "react":
+                return "vscode-icons:file-type-reactjs";
+              case "vue":
+                return "vscode-icons:file-type-vue";
               case "py":
                 return "vscode-icons:file-type-python";
+              case "pyx":
+              case "pxd":
+                return "vscode-icons:file-type-cython";
               case "txt":
                 return "vscode-icons:file-type-text";
               case "yaml":
+              case "yml":
                 return "vscode-icons:file-type-yaml";
               case "cpp":
                 return "vscode-icons:file-type-cpp";
@@ -286,7 +296,73 @@
                 return "vscode-icons:file-type-cmake";
               case "gitignore":
                 return "vscode-icons:file-type-git";
+              case "github":
+                return "vscode-icons:folder-type-github";
+              case "svg":
+                return "vscode-icons:file-type-svg";
+              case "ttf":
+                return "vscode-icons:file-type-font";
+              case "mp3":
+              case "wav":
+              case "aac":
+              case "flac":
+              case "ogg":
+              case "m4a":
+              case "wma":
+              case "aiff":
+              case "alac":
+              case "opus":
+              case "mka":
+              case "mkv":
+              case "mp4":
+              case "mov":
+              case "wmv":
+              case "avi":
+              case "webm":
+              case "m2ts":
+              case "ts":
+              case "mts":
+              case "m2v":
+              case "vob":
+              case "dv":
+              case "mxf":
+              case "m2v":
+              case "m2a":
+              case "ts":
+              case "m2ts":
+              case "mts":
+              case "m2v":
+              case "vob":
+              case "dv":
+              case "mp3":
+                return "vscode-icons:file-type-audio";
+              case "png":
+              case "jpg":
+              case "jpeg":
+              case "gif":
+              case "svg":
+              case "webp":
+                return "vscode-icons:file-type-image";
+              case "mp4":
+              case "mov":
+              case "wmv":
+              case "avi":
+              case "webm":
+                return "vscode-icons:file-type-video";
               default:
+                if (item.kind === "dir") {
+                  return item.expanded
+                    ? "vscode-icons:default-folder-opened"
+                    : "vscode-icons:default-folder";
+                }
+
+                if (item.name === "LICENSE") {
+                  return "vscode-icons:file-type-license";
+                }
+                if (item.name === "Makefile") {
+                  return "vscode-icons:file-type-makefile";
+                }
+
                 return "vscode-icons:default-file";
             }
           },
