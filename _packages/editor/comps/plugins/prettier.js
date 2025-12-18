@@ -22,8 +22,7 @@ export default async ({ monaco, editor }) => {
           const parserMap = {
             javascript: "babel",
             typescript: "typescript",
-            // html: "html",
-            html: "babel",
+            html: "html",
             css: "css",
             json: "json",
             markdown: "markdown",
@@ -64,9 +63,14 @@ async function loadPrettierAndPlugins(language) {
   const plugins = [];
 
   // JS/TS/JSON 必须加载 estree
-  if (["javascript", "typescript", "json"].includes(language)) {
+  if (["javascript", "typescript", "json", "html"].includes(language)) {
     const estree = await import("/npm/prettier@3.4.1/plugins/estree.mjs");
     plugins.push(estree);
+  }
+
+  if (["html", "htm"].includes(language)) {
+    const babel = await import("/npm/prettier@3.4.1/plugins/babel.mjs");
+    plugins.push(babel);
   }
 
   switch (language) {
@@ -81,10 +85,8 @@ async function loadPrettierAndPlugins(language) {
       plugins.push(typescript);
       break;
     case "html": {
-      // const html = await import("/npm/prettier@3.4.1/plugins/html.mjs");
-      const babel = await import("/npm/prettier@3.4.1/plugins/babel.mjs");
-      // plugins.push(html);
-      plugins.push(babel);
+      const html = await import("/npm/prettier@3.4.1/plugins/html.mjs");
+      plugins.push(html);
       break;
     }
     case "css":
