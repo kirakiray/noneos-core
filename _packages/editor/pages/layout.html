@@ -7,7 +7,7 @@
     }
     .container {
       display: flex;
-      height: 100%;
+      height: calc(100% - 26px);
     }
     .left {
       width: 56px;
@@ -37,6 +37,11 @@
       left: 0;
       top: 0;
     }
+    .frame-bottom {
+      height: 26px;
+      line-height: 26px;
+      border-top: 1px solid rgba(204, 204, 204, 0.2);
+    }
   </style>
   <o-provider name="project-data" path="/ggwave-master" selected="">
     <div class="container">
@@ -48,6 +53,9 @@
           <slot></slot>
         </div>
       </div>
+    </div>
+    <div class="frame-bottom">
+      <o-page src="./frame-bottom.html"></o-page>
     </div>
   </o-provider>
   <script>

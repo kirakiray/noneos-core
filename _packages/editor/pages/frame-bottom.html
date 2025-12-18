@@ -1,0 +1,40 @@
+<template page>
+  <style>
+    :host {
+      display: flex;
+      padding: 0 4px;
+    }
+    .block {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      font-size: 14px;
+    }
+  </style>
+  <div class="block" style="margin-left: auto">{{type}}</div>
+  <o-consumer name="project-data" watch:selected="selectPath"></o-consumer>
+  <script>
+    export default async ({ load }) => {
+      const { getType } = await load("../util/get-type.js");
+
+      return {
+        data: {
+          type: "text",
+          selectPath: "",
+        },
+        watch: {
+          selectPath(path) {
+            if (!path) {
+              this.type = "text";
+              return;
+            }
+
+            this.type = getType(path);
+          },
+        },
+        attached() {},
+      };
+    };
+  </script>
+</template>

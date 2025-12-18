@@ -28,7 +28,6 @@
   </style>
   <div class="left">
     <o-page src="./file-explore.html"></o-page>
-    <div style="height: 20px"></div>
   </div>
   <div class="main">
     <div class="main-top"></div>
@@ -54,7 +53,7 @@
 
     export default async ({ load }) => {
       await load("../comps/monaco-editor.html");
-
+      const { getType } = await load("../util/get-type.js");
       const { get } = await load("/nos/fs/handle/main.js");
 
       return {
@@ -65,6 +64,9 @@
         watch: {
           selectPath(newPath) {
             this.loadFile();
+
+            const type = getType(newPath);
+            this.shadow.$("monaco-editor").setLanguage(type);
           },
         },
         proto: {

@@ -46,6 +46,17 @@
           },
         },
         proto: {
+          async setLanguage(lang) {
+            await this._initialized;
+
+            this._editorFrame.contentWindow.postMessage(
+              {
+                type: "setLanguage",
+                lang,
+              },
+              frameSrc
+            );
+          },
           async setValue(value) {
             await this._initialized;
 

@@ -44,6 +44,10 @@
           case "setValue":
             editor.setValue(event.data.value);
             break;
+          case "setLanguage":
+            // debugger;
+            // editor.setLanguage(event.data.lang);
+            break;
           case "setPlugins":
             event.data.plugins.split(" ").forEach(async (plugin) => {
               // 统一加载并初始化插件
