@@ -22,7 +22,8 @@ export default async ({ monaco, editor }) => {
           const parserMap = {
             javascript: "babel",
             typescript: "typescript",
-            html: "html",
+            // html: "html",
+            html: "babel",
             css: "css",
             json: "json",
             markdown: "markdown",
@@ -79,10 +80,13 @@ async function loadPrettierAndPlugins(language) {
       );
       plugins.push(typescript);
       break;
-    case "html":
-      const html = await import("/npm/prettier@3.4.1/plugins/html.mjs");
-      plugins.push(html);
+    case "html": {
+      // const html = await import("/npm/prettier@3.4.1/plugins/html.mjs");
+      const babel = await import("/npm/prettier@3.4.1/plugins/babel.mjs");
+      // plugins.push(html);
+      plugins.push(babel);
       break;
+    }
     case "css":
       const postcss = await import("/npm/prettier@3.4.1/plugins/postcss.mjs");
       plugins.push(postcss);

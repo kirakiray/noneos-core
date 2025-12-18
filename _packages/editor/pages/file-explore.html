@@ -24,6 +24,7 @@
       display: flex;
       align-items: center;
       padding: 4px 12px;
+      margin-right: 6px;
       font-size: 14px;
       transition: background-color 0.03s ease-in-out;
       cursor: pointer;
@@ -99,19 +100,36 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    .list-inner {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      /* 自定义滚动条样式 */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+    .list-inner::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .list-inner::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .list-inner::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .list-inner::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
   </style>
   <h5>{{ projectName }}</h5>
   <div class="list">
-    <div
-      style="
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-      "
-    >
+    <div class="list-inner">
       <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
       <div style="height: 16px"></div>
     </div>
@@ -244,11 +262,32 @@
             const suffix = item.path.split(".").pop();
             switch (suffix) {
               case "html":
-                return "whh:html";
+                return "vscode-icons:file-type-html";
+              case "css":
+                return "vscode-icons:file-type-css";
               case "md":
-                return "material-symbols:markdown-outline";
+                return "vscode-icons:file-type-markdown";
+              case "js":
+                return "vscode-icons:file-type-js";
+              case "json":
+                return "vscode-icons:file-type-json";
+              case "py":
+                return "vscode-icons:file-type-python";
+              case "txt":
+                return "vscode-icons:file-type-text";
+              case "yaml":
+                return "vscode-icons:file-type-yaml";
+              case "cpp":
+                return "vscode-icons:file-type-cpp";
+              case "c":
+              case "h":
+                return "vscode-icons:file-type-c";
+              case "cmake":
+                return "vscode-icons:file-type-cmake";
+              case "gitignore":
+                return "vscode-icons:file-type-git";
               default:
-                return "mdi:file-outline";
+                return "vscode-icons:default-file";
             }
           },
           async loadDirectoryContents(rootItem) {

@@ -50,6 +50,7 @@
           switch (event.data.type) {
             case "setValue":
               editor.setValue(event.data.value);
+              editor.setScrollPosition({ scrollTop: 0 });
               break;
             case "setLanguage":
               monaco.editor.setModelLanguage(
