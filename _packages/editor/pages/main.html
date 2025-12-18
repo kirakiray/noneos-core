@@ -8,10 +8,26 @@
     }
 
     .left {
-      width: 260px;
+      position: relative;
+      /* width: 260px; */
       overflow: auto;
       border-right: 1px solid rgba(204, 204, 204, 0.2);
     }
+
+    .left-resize-bar {
+      position: absolute;
+      top: 0;
+      right: 0px;
+      width: 5px;
+      height: 100%;
+      z-index: 6;
+      cursor: col-resize;
+    }
+
+    .left-resize-bar:hover {
+      background-color: rgba(38, 72, 174, 0.414);
+    }
+
     .main {
       display: flex;
       flex-direction: column;
@@ -25,13 +41,17 @@
     .article {
       flex: 1;
     }
+    .article.in-resize {
+      pointer-events: none;
+    }
   </style>
-  <div class="left">
+  <div class="left" style="width: 260px">
+    <div class="left-resize-bar" on:mousedown="resizeLeftStart"></div>
     <o-page src="./file-explore.html"></o-page>
   </div>
   <div class="main">
     <div class="main-top"></div>
-    <div class="article">
+    <div class="article" class:in-resize="inResize">
       <monaco-editor
         style="width: 100%; height: 100%"
         plugins="prettier"
@@ -60,6 +80,7 @@
         data: {
           projectPath: "",
           selectPath: "",
+          inResize: false,
         },
         watch: {
           selectPath() {
@@ -67,6 +88,42 @@
           },
         },
         proto: {
+          resizeLeftStart(e) {
+            e.preventDefault();
+            this._resizeLeftStartX = e.clientX;
+            const leftContainer = this.shadow.$(".left");
+            this._startWidth = leftContainer.width;
+            this.inResize = true;
+
+            // 鼠标移动时，更新左侧宽度
+            let resizeLeftMove;
+            document.addEventListener(
+              "mousemove",
+              (resizeLeftMove = (e) => {
+                const diffLeft = e.clientX - this._resizeLeftStartX;
+                leftContainer.style.width = `${this._startWidth + diffLeft}px`;
+              })
+            );
+
+            this._cancelResizeLeft = () => {
+              document.removeEventListener("mousemove", resizeLeftMove);
+              document.removeEventListener("mouseup", resizeLeftEnd);
+              this.inResize = false;
+              this._cancelResizeLeft = null;
+            };
+
+            // 鼠标松开时，移除事件监听
+            let resizeLeftEnd;
+            document.addEventListener(
+              "mouseup",
+              (resizeLeftEnd = () => {
+                // 记录当前的宽度
+                localStorage.setItem("editor_left_width", leftContainer.width);
+
+                this._cancelResizeLeft();
+              })
+            );
+          },
           async loadFile() {
             if (!this.selectPath) {
               return;
@@ -84,6 +141,14 @@
         },
         async attached() {
           await this.shadow.$("monaco-editor")._initialized;
+
+          if (localStorage.getItem("editor_left_width")) {
+            this.shadow.$(".left").style.width =
+              localStorage.getItem("editor_left_width") + "px";
+          }
+        },
+        detached() {
+          this._cancelResizeLeft && this._cancelResizeLeft();
         },
       };
     };
