@@ -11,8 +11,11 @@
     }
   </style>
   <div class="tab">{{selectPath}}</div>
-
-  <o-consumer name="project-data" watch:selected="selectPath"></o-consumer>
+  <o-consumer
+    name="project-data"
+    watch:selected="selectPath"
+    on:click-file="clickFile"
+  ></o-consumer>
   <script>
     export default async ({ load }) => {
       return {
@@ -20,7 +23,11 @@
           selectPath: "",
           list: [],
         },
-        proto: {},
+        proto: {
+          clickFile(e) {
+            debugger;
+          },
+        },
         attached() {},
         detached() {},
       };
