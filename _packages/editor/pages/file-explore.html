@@ -108,6 +108,15 @@
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
 
+      let expandedPaths;
+      try {
+        expandedPaths = JSON.parse(
+          sessionStorage.getItem("__expandedPaths") || "[]"
+        );
+      } catch (e) {
+        expandedPaths = [];
+      }
+
       return {
         data: {
           projectPath: "",
@@ -129,12 +138,19 @@
             if (item.kind === "dir") {
               if (!item.expanded) {
                 item.expanded = true;
+                expandedPaths.push(item.path);
                 // 展开折叠
                 this.loadDir(item);
               } else {
                 item.expanded = false;
                 item.list = [];
+                expandedPaths.splice(expandedPaths.indexOf(item.path), 1);
               }
+
+              sessionStorage.setItem(
+                "__expandedPaths",
+                JSON.stringify(expandedPaths)
+              );
             }
           },
           getIcon(item) {
@@ -155,21 +171,28 @@
                 return "mdi:file-outline";
             }
           },
-          async loadDir(item) {
-            item.expanded = true;
+          async loadDir(rootItem) {
+            rootItem.expanded = true;
 
-            const dirHandle = await get(item.path);
+            const dirHandle = await get(rootItem.path);
             const list = [];
             for await (let item of dirHandle.values()) {
-              list.push({
+              const itemData = {
                 kind: item.kind, // dir or file
-                expanded: false, // 是否展开，只在kind为dir时有效
+                expanded: expandedPaths.includes(item.path), // 若路径已在展开记录中，则初始展开
                 list: [], // 子项列表，只在kind为dir时有效
                 name: item.name,
                 path: item.path,
-              });
+              };
+
+              if (expandedPaths.includes(item.path)) {
+                await this.loadDir(itemData);
+              }
+
+              list.push(itemData);
             }
-            item.list = list;
+
+            rootItem.list = list;
           },
           async loadProject() {
             if (!this.projectPath) {
@@ -184,13 +207,19 @@
 
             const list = [];
             for await (let item of projectHandle.values()) {
-              list.push({
+              const itemData = {
                 kind: item.kind, // dir or file
                 expanded: false, // 是否展开，只在kind为dir时有效
                 list: [], // 子项列表，只在kind为dir时有效
                 name: item.name,
                 path: item.path,
-              });
+              };
+
+              if (expandedPaths.includes(item.path)) {
+                await this.loadDir(itemData);
+              }
+
+              list.push(itemData);
             }
 
             this.list = list;
