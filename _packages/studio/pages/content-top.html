@@ -10,11 +10,13 @@
       position: relative;
       padding: 8px 16px;
       font-size: 14px;
+      cursor: pointer;
     }
 
     .tab.focus {
       z-index: 3;
       background-color: #1e1e1e;
+      cursor: default;
     }
 
     .active-mark {
@@ -35,7 +37,11 @@
   </style>
   <div class="container">
     <o-fill :value="list">
-      <div class="tab" class:focus="$data.path === $host.selectPath">
+      <div
+        class="tab"
+        on:click="$host.clickItem($data)"
+        class:focus="$data.path === $host.selectPath"
+      >
         <div class="active-mark"></div>
         {{$data.name}}
       </div>
@@ -54,8 +60,15 @@
           list: [],
         },
         proto: {
+          clickItem(item) {
+            const provider = this.getProvider("studio-data");
+            provider.selected = item.path;
+          },
           dblclickFile(e) {
             const { path } = e.data;
+
+            // 已经存在的不重复添加
+            if (this.list.some((item) => item.path === path)) return;
 
             this.list.push({
               name: path.split("/").pop(),

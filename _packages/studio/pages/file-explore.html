@@ -246,6 +246,8 @@
         },
         proto: {
           async dblclickItem(item) {
+            if (item.kind === "dir") return;
+
             const studioProvider = await this.getProvider("studio-data");
 
             // 触发双击事件
