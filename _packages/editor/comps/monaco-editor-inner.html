@@ -52,7 +52,10 @@
               editor.setValue(event.data.value);
               break;
             case "setLanguage":
-              // debugger;
+              monaco.editor.setModelLanguage(
+                editor.getModel(),
+                event.data.lang
+              );
               // editor.setLanguage(event.data.lang);
               break;
             case "setPlugins":
