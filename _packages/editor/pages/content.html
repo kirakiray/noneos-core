@@ -1,0 +1,60 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+  </style>
+  <monaco-editor
+    style="width: 100%; height: 100%"
+    plugins="prettier"
+  ></monaco-editor>
+
+  <!-- <monaco-editor
+    style="width: 100%; height: 100%"
+    plugins="http://localhost:3002/_packages/editor/comps/plugins/prettier.js"
+  ></monaco-editor> -->
+  <o-consumer
+    name="project-data"
+    watch:path="projectPath"
+    watch:selected="selectPath"
+  ></o-consumer>
+  <script>
+    export default async ({ load }) => {
+      await load("../comps/monaco-editor.html");
+      const { getType } = await load("../util/get-type.js");
+      const { get } = await load("/nos/fs/handle/main.js");
+
+      return {
+        data: {
+          selectPath: "",
+        },
+        watch: {
+          selectPath() {
+            this.loadFile();
+          },
+        },
+        proto: {
+          async loadFile() {
+            if (!this.selectPath) {
+              return;
+            }
+            const targetHandle = await get(this.selectPath);
+
+            if (targetHandle.kind === "file") {
+              const contenet = await targetHandle.text();
+              this.shadow.$("monaco-editor").setValue(contenet);
+
+              const type = getType(this.selectPath);
+              this.shadow.$("monaco-editor").setLanguage(type);
+            }
+          },
+        },
+        async attached() {
+          await this.shadow.$("monaco-editor")._initialized;
+        },
+        detached() {},
+      };
+    };
+  </script>
+</template>

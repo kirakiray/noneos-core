@@ -27,7 +27,7 @@
     <script src="/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
     <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script> -->
 
-    <script>
+    <script type="module">
       require.config({ paths: { vs: "/npm/monaco-editor@0.44.0/min/vs" } });
       // require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
 
@@ -69,18 +69,21 @@
                   pluginUrl = "./plugins/prettier.js";
                 }
 
-                // 在全局变量模式下，我们需要使用 require 或其他方式加载模块
-                // 这里保持原始逻辑，但在实际应用中可能需要调整
-                if (typeof module !== "undefined" && module.exports) {
-                  // Node.js 环境
-                  const init = require(pluginUrl);
-                  init({ editor, monaco });
-                } else {
-                  // 浏览器环境，尝试使用 AMD 加载
-                  require([pluginUrl], function (init) {
-                    init.default({ editor, monaco });
-                  });
-                }
+                // const { default: init } = await import(pluginUrl);
+                // init({ editor, monaco });
+
+                // // 在全局变量模式下，我们需要使用 require 或其他方式加载模块
+                // // 这里保持原始逻辑，但在实际应用中可能需要调整
+                // if (typeof module !== "undefined" && module.exports) {
+                //   // Node.js 环境
+                //   const init = require(pluginUrl);
+                //   init({ editor, monaco });
+                // } else {
+                //   // 浏览器环境，尝试使用 AMD 加载
+                //   require([pluginUrl], function (init) {
+                //     init.default({ editor, monaco });
+                //   });
+                // }
               });
               break;
           }

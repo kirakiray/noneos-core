@@ -52,15 +52,7 @@
   <div class="main">
     <div class="main-top"></div>
     <div class="article" class:in-resize="inResize">
-      <monaco-editor
-        style="width: 100%; height: 100%"
-        plugins="prettier"
-      ></monaco-editor>
-
-      <!-- <monaco-editor
-    style="width: 100%; height: 100%"
-    plugins="http://localhost:3002/_packages/editor/comps/plugins/prettier.js"
-  ></monaco-editor> -->
+      <o-page src="./content.html"></o-page>
     </div>
   </div>
   <o-consumer
@@ -72,20 +64,11 @@
     export const parent = "./layout.html";
 
     export default async ({ load }) => {
-      await load("../comps/monaco-editor.html");
-      const { getType } = await load("../util/get-type.js");
-      const { get } = await load("/nos/fs/handle/main.js");
-
       return {
         data: {
           projectPath: "",
           selectPath: "",
           inResize: false,
-        },
-        watch: {
-          selectPath() {
-            this.loadFile();
-          },
         },
         proto: {
           resizeLeftStart(e) {
@@ -124,24 +107,8 @@
               })
             );
           },
-          async loadFile() {
-            if (!this.selectPath) {
-              return;
-            }
-            const targetHandle = await get(this.selectPath);
-
-            if (targetHandle.kind === "file") {
-              const contenet = await targetHandle.text();
-              this.shadow.$("monaco-editor").setValue(contenet);
-
-              const type = getType(this.selectPath);
-              this.shadow.$("monaco-editor").setLanguage(type);
-            }
-          },
         },
         async attached() {
-          await this.shadow.$("monaco-editor")._initialized;
-
           if (localStorage.getItem("editor_left_width")) {
             this.shadow.$(".left").style.width =
               localStorage.getItem("editor_left_width") + "px";
