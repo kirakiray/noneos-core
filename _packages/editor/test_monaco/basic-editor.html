@@ -8,10 +8,29 @@
         height: 600px;
         border: 1px solid #ccc;
       }
+      #controls {
+        margin-bottom: 10px;
+      }
+      #language-select {
+        padding: 5px;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
     <h3>ES Module - editor</h3>
+    <div id="controls">
+      <label for="language-select">选择语言: </label>
+      <select id="language-select">
+        <option value="html">HTML</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="css">CSS</option>
+        <option value="json">JSON</option>
+        <option value="python">Python</option>
+        <option value="java">Java</option>
+      </select>
+    </div>
     <div id="container"></div>
 
     <!-- 使用 ES Module CDN -->
@@ -52,6 +71,114 @@ body{background:#f0f0f0;color:#333;}
 </div>
 </body>
 </html>`);
+
+      // 语言选择功能
+      const languageSelect = document.getElementById('language-select');
+      languageSelect.addEventListener('change', (event) => {
+        const selectedLanguage = event.target.value;
+        monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage);
+        
+        // 根据选择的语言更新编辑器内容示例
+        let sampleCode = '';
+        switch(selectedLanguage) {
+          case 'html':
+            sampleCode = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>未格式化代码</title>
+<style>
+body{background:#f0f0f0;color:#333;}
+.container{max-width:1200px;margin:0 auto;padding:20px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>测试自动格式化</h1>
+<p>粘贴或输入混乱代码，会自动整理格式。</p>
+<ul><li>项目1</li><li>项目2</li><li>项目3</li></ul>
+</div>
+</body>
+</html>`;
+            break;
+          case 'javascript':
+            sampleCode = `function helloWorld() {
+  console.log("Hello, World!");
+  const arr = [1, 2, 3];
+  arr.map(item => item * 2);
+}`;
+            break;
+          case 'typescript':
+            sampleCode = `interface Person {
+  name: string;
+  age: number;
+}
+
+function greet(person: Person): string {
+  return \`Hello, \${person.name}!\`;
+}
+
+const user: Person = { name: "Alice", age: 30 };
+console.log(greet(user));`;
+            break;
+          case 'css':
+            sampleCode = `body {
+  margin: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}`;
+            break;
+          case 'json':
+            sampleCode = `{
+  "name": "example",
+  "version": "1.0.0",
+  "description": "An example JSON file",
+  "dependencies": {
+    "express": "^4.18.0",
+    "lodash": "^4.17.21"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  }
+}`;
+            break;
+          case 'python':
+            sampleCode = `def fibonacci(n):
+    if n <= 1:
+        return n
+    else:
+        return fibonacci(n-1) + fibonacci(n-2)
+
+# Print the first 10 Fibonacci numbers
+for i in range(10):
+    print(fibonacci(i))`;
+            break;
+          case 'java':
+            sampleCode = `public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+        
+        int[] numbers = {1, 2, 3, 4, 5};
+        for (int number : numbers) {
+            System.out.println(number);
+        }
+    }
+}`;
+            break;
+          default:
+            sampleCode = '// Select a language to see sample code';
+        }
+        
+        editor.setValue(sampleCode);
+      });
     </script>
   </body>
 </html>
