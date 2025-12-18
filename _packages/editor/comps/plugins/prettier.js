@@ -1,7 +1,16 @@
 export default async ({ monaco, editor }) => {
   // 注册格式化提供者
   monaco.languages.registerDocumentFormattingEditProvider(
-    ["javascript", "typescript", "html", "css", "json"],
+    [
+      "javascript",
+      "typescript",
+      "html",
+      "css",
+      "json",
+      "markdown",
+      "yaml",
+      "graphql",
+    ],
     {
       async provideDocumentFormattingEdits(model) {
         const language = model.getLanguageId();
@@ -17,6 +26,8 @@ export default async ({ monaco, editor }) => {
             css: "css",
             json: "json",
             markdown: "markdown",
+            yaml: "yaml",
+            graphql: "graphql",
           };
 
           const formatted = await prettier.format(model.getValue(), {
@@ -85,6 +96,14 @@ async function loadPrettierAndPlugins(language) {
     case "markdown":
       const markdown = await import("/npm/prettier@3.4.1/plugins/markdown.mjs");
       plugins.push(markdown);
+      break;
+    case "yaml":
+      const yaml = await import("/npm/prettier@3.4.1/plugins/yaml.mjs");
+      plugins.push(yaml);
+      break;
+    case "graphql":
+      const graphql = await import("/npm/prettier@3.4.1/plugins/graphql.mjs");
+      plugins.push(graphql);
       break;
   }
 
