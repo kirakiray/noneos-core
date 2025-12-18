@@ -4,12 +4,15 @@
     :host {
       display: block;
     }
+
+    /* 项目标题样式 */
     h5 {
       padding: 8px 12px;
       margin: 8px 0 4px;
       font-size: 14px;
     }
 
+    /* 文件/目录项基础样式 */
     .item {
       display: flex;
       align-items: center;
@@ -21,6 +24,7 @@
       border-radius: 4px;
     }
 
+    /* 悬停和激活状态样式 */
     .item:hover {
       background-color: rgba(204, 204, 204, 0.1);
     }
@@ -33,6 +37,7 @@
       background-color: rgba(204, 204, 204, 0.25);
     }
 
+    /* 图标样式 */
     .item-icon {
       margin-right: 4px;
       font-size: 16px;
@@ -41,63 +46,81 @@
     .item-icon[icon="mdi:file-outline"] {
       color: #007acc;
     }
+
     .item-icon[icon="whh:html"] {
       color: #83d99f;
     }
 
+    /* 折叠/展开图标容器样式 */
     .item-prefix {
       display: flex;
       align-items: center;
       justify-content: center;
       width: 20px;
       height: 20px;
+      transition: transform 0.2s ease-in-out;
     }
 
     .item-prefix.expanded {
       transform: rotate(90deg);
     }
 
+    /* 隐藏元素的工具类 */
     .hide {
       display: none !important;
     }
 
+    /* 子项缩进样式 */
     .item-child {
       padding-left: 20px;
+    }
+
+    /* 文件名文本截断容器 */
+    .item-name-container {
+      flex: 1;
+      position: relative;
+      height: 20px;
+    }
+
+    .item-name {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   </style>
   <h5>{{ projectName }}</h5>
   <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
   <template name="file-item">
     <div>
+      <!-- 文件/目录项 -->
       <div
         class="item"
         class:active="$host.activePath === $data.path"
         on:click="$host.clickItem($data)"
       >
+        <!-- 折叠/展开图标 -->
         <div class="item-prefix" class:expanded="$data.expanded">
           <n-icon
             icon="mingcute:right-line"
             class:hide="$data.kind !== 'dir'"
           ></n-icon>
         </div>
+
+        <!-- 文件类型图标 -->
         <n-icon :icon="$host.getIcon($data)" class="item-icon"></n-icon>
-        <div style="flex: 1; position: relative; height: 20px">
-          <div
-            style="
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              height: 100%;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            "
-          >
-            {{ $data.name }}
-          </div>
+
+        <!-- 文件/目录名称 -->
+        <div class="item-name-container">
+          <div class="item-name">{{ $data.name }}</div>
         </div>
       </div>
+
+      <!-- 子项容器 -->
       <div class="item-child">
         <o-fill :value="$data.list" fill-key="path" name="file-item"></o-fill>
       </div>
@@ -108,14 +131,53 @@
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
 
-      let expandedPaths;
+      // 使用 Set 数据结构提高查找性能
+      let expandedPathsSet;
       try {
-        expandedPaths = JSON.parse(
+        const expandedPathsArray = JSON.parse(
           sessionStorage.getItem("__expandedPaths") || "[]"
         );
+        expandedPathsSet = new Set(expandedPathsArray);
       } catch (e) {
-        expandedPaths = [];
+        expandedPathsSet = new Set();
       }
+
+      // 保存展开路径到 sessionStorage 的函数
+      const saveExpandedPaths = () => {
+        sessionStorage.setItem(
+          "__expandedPaths",
+          JSON.stringify(Array.from(expandedPathsSet))
+        );
+      };
+
+      // 创建文件/目录项数据的通用函数
+      const createItemData = (item, isExpanded = false) => ({
+        kind: item.kind,
+        expanded: isExpanded,
+        list: [],
+        name: item.name,
+        path: item.path,
+      });
+
+      // 递归加载目录内容的函数
+      const loadDirectoryContents = async (rootItem) => {
+        const dirHandle = await get(rootItem.path);
+        const list = [];
+
+        for await (const item of dirHandle.values()) {
+          const isExpanded = expandedPathsSet.has(item.path);
+          const itemData = createItemData(item, isExpanded);
+
+          // 如果目录是展开状态，递归加载其内容
+          if (isExpanded && item.kind === "dir") {
+            await loadDirectoryContents(itemData);
+          }
+
+          list.push(itemData);
+        }
+
+        rootItem.list = list;
+      };
 
       return {
         data: {
@@ -137,28 +199,25 @@
 
             if (item.kind === "dir") {
               if (!item.expanded) {
+                // 展开目录
                 item.expanded = true;
-                expandedPaths.push(item.path);
-                // 展开折叠
-                this.loadDir(item);
+                expandedPathsSet.add(item.path);
+                saveExpandedPaths();
+                this.loadDirectoryContents(item);
               } else {
+                // 折叠目录
                 item.expanded = false;
                 item.list = [];
-                expandedPaths.splice(expandedPaths.indexOf(item.path), 1);
+                expandedPathsSet.delete(item.path);
+                saveExpandedPaths();
               }
-
-              sessionStorage.setItem(
-                "__expandedPaths",
-                JSON.stringify(expandedPaths)
-              );
             }
           },
           getIcon(item) {
             if (item.kind === "dir") {
-              if (item.expanded) {
-                return "material-symbols:folder-open-outline";
-              }
-              return "material-symbols:folder-outline";
+              return item.expanded
+                ? "material-symbols:folder-open-outline"
+                : "material-symbols:folder-outline";
             }
 
             const suffix = item.path.split(".").pop();
@@ -171,28 +230,8 @@
                 return "mdi:file-outline";
             }
           },
-          async loadDir(rootItem) {
-            rootItem.expanded = true;
-
-            const dirHandle = await get(rootItem.path);
-            const list = [];
-            for await (let item of dirHandle.values()) {
-              const itemData = {
-                kind: item.kind, // dir or file
-                expanded: expandedPaths.includes(item.path), // 若路径已在展开记录中，则初始展开
-                list: [], // 子项列表，只在kind为dir时有效
-                name: item.name,
-                path: item.path,
-              };
-
-              if (expandedPaths.includes(item.path)) {
-                await this.loadDir(itemData);
-              }
-
-              list.push(itemData);
-            }
-
-            rootItem.list = list;
+          async loadDirectoryContents(rootItem) {
+            await loadDirectoryContents(rootItem);
           },
           async loadProject() {
             if (!this.projectPath) {
@@ -205,24 +244,10 @@
             // 加载项目名称
             this.projectName = projectHandle.name;
 
-            const list = [];
-            for await (let item of projectHandle.values()) {
-              const itemData = {
-                kind: item.kind, // dir or file
-                expanded: false, // 是否展开，只在kind为dir时有效
-                list: [], // 子项列表，只在kind为dir时有效
-                name: item.name,
-                path: item.path,
-              };
-
-              if (expandedPaths.includes(item.path)) {
-                await this.loadDir(itemData);
-              }
-
-              list.push(itemData);
-            }
-
-            this.list = list;
+            // 加载根目录内容
+            const rootItem = createItemData(projectHandle);
+            await loadDirectoryContents(rootItem);
+            this.list = rootItem.list;
           },
         },
         attached() {},
