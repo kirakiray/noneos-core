@@ -83,6 +83,8 @@
   ></o-consumer>
   <script>
     export default async ({ load }) => {
+      const { get } = await load("/nos/fs/handle/main.js");
+
       return {
         data: {
           activeFilePath: "",
@@ -91,6 +93,14 @@
         },
         watch: {
           activeFilePath() {
+            this.changeActiveFile();
+          },
+          projectPath() {
+            this.loadHistory();
+          },
+        },
+        proto: {
+          async changeActiveFile() {
             if (!this.activeFilePath) {
               return;
             }
@@ -101,6 +111,10 @@
               const index = this.list.findIndex(
                 (item) => item.permanent === false
               );
+
+              // 没有的化，判断路径是否是文件，如果不是则不需要添加
+              const handle = await get(this.activeFilePath);
+              if (handle.kind !== "file") return;
 
               if (index !== -1) {
                 this.list[index] = {
@@ -117,11 +131,6 @@
               }
             }
           },
-          projectPath() {
-            this.loadHistory();
-          },
-        },
-        proto: {
           loadHistory() {
             if (!this.projectPath) return;
 
@@ -149,6 +158,7 @@
               // this.activeFilePath = "";
               const provider = this.getProvider("studio-data");
               provider.activeFile = "";
+              this.list = [];
               return;
             }
 
