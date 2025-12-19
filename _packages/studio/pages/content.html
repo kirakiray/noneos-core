@@ -13,6 +13,7 @@
     class:hide="mode !== 'edit'"
     style="width: 100%; height: 100%"
     plugins="prettier"
+    on:change="changeCode"
   ></monaco-editor>
   <o-if :value="mode === 'img'">
     <div
@@ -55,6 +56,23 @@
           },
         },
         proto: {
+          changeCode() {
+            clearTimeout(this._changeTimer);
+
+            this._changeTimer = setTimeout(async () => {
+              this._changeTimer = null;
+
+              const code = await this.shadow.$("monaco-editor").getValue();
+
+              // 查看是否有数据变动
+              const provider = this.getProvider("studio-data");
+              provider.dispatch("change-code", {
+                data: {
+                  code,
+                },
+              });
+            }, 200);
+          },
           async loadFile() {
             if (!this.activeFilePath) {
               this.shadow.$("monaco-editor").setValue("");
