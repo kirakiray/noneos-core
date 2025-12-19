@@ -37,6 +37,7 @@
         proto: {
           async loadFile() {
             if (!this.activeFilePath) {
+              this.shadow.$("monaco-editor").setValue("");
               return;
             }
             const targetHandle = await get(this.activeFilePath);
