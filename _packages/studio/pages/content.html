@@ -17,7 +17,7 @@
   <o-consumer
     name="studio-data"
     watch:path="projectPath"
-    watch:selected="selectPath"
+    watch:active-file="activeFilePath"
   ></o-consumer>
   <script>
     export default async ({ load }) => {
@@ -27,25 +27,25 @@
 
       return {
         data: {
-          selectPath: "",
+          activeFilePath: "",
         },
         watch: {
-          selectPath() {
+          activeFilePath() {
             this.loadFile();
           },
         },
         proto: {
           async loadFile() {
-            if (!this.selectPath) {
+            if (!this.activeFilePath) {
               return;
             }
-            const targetHandle = await get(this.selectPath);
+            const targetHandle = await get(this.activeFilePath);
 
             if (targetHandle.kind === "file") {
               const contenet = await targetHandle.text();
               this.shadow.$("monaco-editor").setValue(contenet);
 
-              const type = getType(this.selectPath);
+              const type = getType(this.activeFilePath);
               this.shadow.$("monaco-editor").setLanguage(type);
             }
           },

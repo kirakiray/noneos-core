@@ -61,7 +61,7 @@
   <o-consumer
     name="studio-data"
     watch:path="projectPath"
-    watch:selected="selectPath"
+    watch:active-file="activeFilePath"
   ></o-consumer>
   <script>
     export const parent = "./layout.html";
@@ -70,7 +70,7 @@
       return {
         data: {
           projectPath: "",
-          selectPath: "",
+          activeFilePath: "",
           inResize: false,
         },
         proto: {

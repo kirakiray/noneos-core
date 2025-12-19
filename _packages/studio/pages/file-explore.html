@@ -176,7 +176,11 @@
       </div>
     </div>
   </template>
-  <o-consumer name="studio-data" watch:path="projectPath"></o-consumer>
+  <o-consumer
+    name="studio-data"
+    watch:path="projectPath"
+    watch:active-file="activePath"
+  ></o-consumer>
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
@@ -258,7 +262,9 @@
             });
           },
           clickItem(item) {
-            this.activePath = item.path;
+            // this.activePath = item.path;
+            this.getProvider("studio-data").activeFile = item.path;
+
             const projectData = this.getProvider("studio-data");
             projectData.selected = item.path;
 

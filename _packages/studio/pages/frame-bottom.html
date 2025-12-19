@@ -13,7 +13,7 @@
     }
   </style>
   <div class="block" style="margin-left: auto">{{type}}</div>
-  <o-consumer name="studio-data" watch:selected="selectPath"></o-consumer>
+  <o-consumer name="studio-data" watch:active-file="activeFilePath"></o-consumer>
   <script>
     export default async ({ load }) => {
       const { getType } = await load("../util/get-type.js");
@@ -21,10 +21,10 @@
       return {
         data: {
           type: "text",
-          selectPath: "",
+          activeFilePath: "",
         },
         watch: {
-          selectPath(path) {
+          activeFilePath(path) {
             if (!path) {
               this.type = "text";
               return;

@@ -8,9 +8,30 @@
     }
     .tab {
       position: relative;
-      padding: 8px 16px;
+      padding: 8px 6px 8px 12px;
       font-size: 14px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+
+    .close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+      width: 18px;
+      height: 18px;
+      margin-left: 8px;
+      cursor: pointer;
+      border-radius: 10px;
+      opacity: 0;
+    }
+
+    .close-btn:hover {
+      opacity: 1;
+      background-color: rgba(114, 114, 114, 0.4);
     }
 
     .tab.focus {
@@ -40,16 +61,19 @@
       <div
         class="tab"
         on:click="$host.clickItem($data)"
-        class:focus="$data.path === $host.selectPath"
+        class:focus="$data.path === $host.activeFilePath"
       >
         <div class="active-mark"></div>
         {{$data.name}}
+        <div class="close-btn" on:click="$host.closeTab($data,$event,$index)">
+          <n-icon icon="material-symbols:close-small-rounded"></n-icon>
+        </div>
       </div>
     </o-fill>
   </div>
   <o-consumer
     name="studio-data"
-    watch:selected="selectPath"
+    watch:active-file="activeFilePath"
     watch:path="projectPath"
     on:dblclick-file="dblclickFile"
   ></o-consumer>
@@ -57,7 +81,7 @@
     export default async ({ load }) => {
       return {
         data: {
-          selectPath: "",
+          activeFilePath: "",
           projectPath: "",
           list: [],
         },
@@ -79,10 +103,25 @@
 
             this.list = openedTabs;
           },
+          closeTab(item, event, index) {
+            event.stopPropagation();
+
+            this.list.splice(index, 1);
+
+            // 保存到 sessionStorage
+            try {
+              sessionStorage.setItem(
+                "__studio_opened_tabs",
+                JSON.stringify(this.list)
+              );
+            } catch (e) {}
+            // const provider = this.getProvider("studio-data");
+            // provider.selected = item.path;
+          },
           // 点击切换选中项
           clickItem(item) {
             const provider = this.getProvider("studio-data");
-            provider.selected = item.path;
+            provider.activeFile = item.path;
           },
           dblclickFile(e) {
             const { path } = e.data;
