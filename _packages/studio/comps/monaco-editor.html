@@ -72,15 +72,26 @@
         ready() {
           this._frameId = Math.random().toString(36).slice(2);
 
-          this._initialized = new Promise((resolve, reject) => {
-            window.addEventListener("message", (event) => {
-              if (event.data.id === this._frameId && event.data.initialized) {
-                // 初始化完成
-                resolve();
+          let initResolve;
+          this._initialized = new Promise((resolve) => {
+            initResolve = resolve;
+          });
 
-                this.emit("initialized");
-              }
-            });
+          // 监听初始化完成消息
+          window.addEventListener("message", (event) => {
+            if (event.data.id === this._frameId && event.data.initialized) {
+              // 初始化完成
+              initResolve();
+              this.emit("initialized");
+              return;
+            }
+
+            if (event.data.id === this._frameId && event.data.changeData) {
+              // 内容改变
+              this.emit("change", {
+                data: event.data.changeData,
+              });
+            }
           });
 
           this.shadow.push(
