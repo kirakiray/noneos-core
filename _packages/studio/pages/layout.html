@@ -43,7 +43,11 @@
       border-top: 1px solid rgba(204, 204, 204, 0.2);
     }
   </style>
-  <o-provider name="studio-data" project-path="/ggwave-master" active-file="">
+  <o-provider
+    name="studio-data"
+    project-path="/ggwave-master"
+    sync:active-file="activeFilePath"
+  >
     <div class="container">
       <!-- <div class="left">
       <div class="btn">A</div>
@@ -61,8 +65,27 @@
   <script>
     export default async ({ load }) => {
       return {
-        data: {},
-        attached() {},
+        data: {
+          activeFilePath: null,
+        },
+        watch: {
+          activeFilePath() {
+            if (this.activeFilePath === null) {
+              return;
+            }
+            
+            sessionStorage.setItem("__studio_active_file", this.activeFilePath);
+          },
+        },
+        attached() {
+          try {
+            this.activeFilePath = sessionStorage.getItem(
+              "__studio_active_file"
+            );
+          } catch (e) {
+            console.warn("读取会话存储失败:", e);
+          }
+        },
       };
     };
   </script>

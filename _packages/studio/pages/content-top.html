@@ -105,16 +105,16 @@
               return;
             }
 
+            // 判断路径是否是文件，如果不是则不需要添加
+            const handle = await get(this.activeFilePath);
+            if (handle.kind !== "file") return;
+
             // 如果不在列表中，添加到列表
             if (!this.list.some((item) => item.path === this.activeFilePath)) {
               // 判断是否有 permanent false，有则替换它
               const index = this.list.findIndex(
                 (item) => item.permanent === false
               );
-
-              // 没有的化，判断路径是否是文件，如果不是则不需要添加
-              const handle = await get(this.activeFilePath);
-              if (handle.kind !== "file") return;
 
               if (index !== -1) {
                 this.list[index] = {
@@ -129,6 +129,11 @@
                   permanent: false,
                 });
               }
+
+              sessionStorage.setItem(
+                "__studio_opened_tabs",
+                JSON.stringify(this.list)
+              );
             }
           },
           loadHistory() {
@@ -142,6 +147,8 @@
             } catch (e) {}
 
             this.list = openedTabs;
+
+            // 修正激活态
           },
           closeTab(item, event, index) {
             event.stopPropagation();
@@ -171,14 +178,10 @@
             this.list.splice(index, 1);
 
             // 保存到 sessionStorage
-            try {
-              sessionStorage.setItem(
-                "__studio_opened_tabs",
-                JSON.stringify(this.list)
-              );
-            } catch (e) {}
-            // const provider = this.getProvider("studio-data");
-            // provider.selected = item.path;
+            sessionStorage.setItem(
+              "__studio_opened_tabs",
+              JSON.stringify(this.list)
+            );
           },
           // 点击切换选中项
           clickItem(item) {
@@ -205,12 +208,10 @@
             });
 
             // 保存到 sessionStorage
-            try {
-              sessionStorage.setItem(
-                "__studio_opened_tabs",
-                JSON.stringify(this.list)
-              );
-            } catch (e) {}
+            sessionStorage.setItem(
+              "__studio_opened_tabs",
+              JSON.stringify(this.list)
+            );
           },
         },
         attached() {},
