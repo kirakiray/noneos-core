@@ -68,6 +68,34 @@
               frameSrc
             );
           },
+          async getValue() {
+            await this._initialized;
+
+            return new Promise((resolve) => {
+              this._editorFrame.contentWindow.postMessage(
+                {
+                  type: "getValue",
+                },
+                frameSrc
+              );
+
+              let f;
+
+              window.addEventListener(
+                "message",
+                (f = (event) => {
+                  if (
+                    event.data.id === this._frameId &&
+                    event.data.type === "getValue"
+                  ) {
+                    // 移除事件监听
+                    window.removeEventListener("message", f);
+                    resolve(event.data.value);
+                  }
+                })
+              );
+            });
+          },
         },
         ready() {
           this._frameId = Math.random().toString(36).slice(2);
@@ -86,10 +114,13 @@
               return;
             }
 
-            if (event.data.id === this._frameId && event.data.changeData) {
+            if (
+              event.data.id === this._frameId &&
+              event.data.type === "contentChange"
+            ) {
               // 内容改变
               this.emit("change", {
-                data: event.data.changeData,
+                bubbles: false,
               });
             }
           });

@@ -46,11 +46,34 @@
           }
         );
 
+        // 监听编辑器内容变化
+        editor.onDidChangeModelContent(() => {
+          // 向父窗口发送内容变化消息
+          window.parent.postMessage(
+            {
+              id: new URLSearchParams(location.search).get("frameId"),
+              type: "contentChange",
+              // value: editor.getValue(),
+            },
+            "*"
+          );
+        });
+
         window.onmessage = (event) => {
           switch (event.data.type) {
             case "setValue":
               editor.setValue(event.data.value);
               editor.setScrollPosition({ scrollTop: 0 });
+              break;
+            case "getValue":
+              window.parent.postMessage(
+                {
+                  id: new URLSearchParams(location.search).get("frameId"),
+                  type: "getValue",
+                  value: editor.getValue(),
+                },
+                "*"
+              );
               break;
             case "setLanguage":
               monaco.editor.setModelLanguage(
