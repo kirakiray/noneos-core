@@ -64,7 +64,7 @@
       <div
         class="tab"
         class:italic="!$data.permanent"
-        on:click="$host.clickItem($data)"
+        on:mousedown="$host.clickItem($data)"
         class:focus="$data.path === $host.activeFilePath"
       >
         <div class="active-mark"></div>
