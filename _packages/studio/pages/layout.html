@@ -66,7 +66,8 @@
     export default async ({ load }) => {
       return {
         data: {
-          activeFilePath: null,
+          activeFilePath: null, // 激活的文件路径，(只允许kind为file的文件)
+          // selectedPaths: [], // 选中的文件路径数组
         },
         watch: {
           activeFilePath() {

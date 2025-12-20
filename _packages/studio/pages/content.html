@@ -66,9 +66,9 @@
 
               // 查看是否有数据变动
               const provider = this.getProvider("studio-data");
-              provider.dispatch("change-code", {
+              provider.dispatch("change", {
                 data: {
-                  code,
+                  content: code,
                 },
               });
             }, 200);
