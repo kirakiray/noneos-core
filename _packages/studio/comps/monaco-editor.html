@@ -107,6 +107,16 @@
               frameSrc
             );
           },
+          async focus() {
+            await this._initialized;
+
+            this._editorFrame.contentWindow.postMessage(
+              {
+                type: "focus",
+              },
+              frameSrc
+            );
+          },
         },
         ready() {
           this._frameId = Math.random().toString(36).slice(2);
