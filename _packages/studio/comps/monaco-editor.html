@@ -122,6 +122,15 @@
               this.emit("change", {
                 bubbles: false,
               });
+              return;
+            }
+
+            if (event.data.id === this._frameId && event.data.type === "save") {
+              // 保存触发
+              this.emit("save", {
+                bubbles: false,
+              });
+              return;
             }
           });
 

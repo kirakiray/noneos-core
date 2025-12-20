@@ -59,6 +59,18 @@
           );
         });
 
+        // 绑定 Ctrl+S 快捷键
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, (e) => {
+          // 通知父窗口保存
+          window.parent.postMessage(
+            {
+              id: new URLSearchParams(location.search).get("frameId"),
+              type: "save",
+            },
+            "*"
+          );
+        });
+
         window.onmessage = (event) => {
           switch (event.data.type) {
             case "setValue":

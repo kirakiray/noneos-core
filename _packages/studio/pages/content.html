@@ -14,6 +14,7 @@
     style="width: 100%; height: 100%"
     plugins="prettier"
     on:change="changeCode"
+    on:save="saveCode"
   ></monaco-editor>
   <o-if :value="mode === 'img'">
     <div
@@ -39,6 +40,12 @@
     watch:active-file="activeFilePath"
   ></o-consumer>
   <script>
+    // 映射文件是否有改动
+    export const hasChangedPaths = $.stanz([]);
+
+    const fileOriginContent = {}; // 记录文件原始内容，用于判断是否有改动
+    const fileHistoryContent = {}; // 记录修改文件后的内容，用于判断是否有改动
+
     export default async ({ load }) => {
       await load("../comps/monaco-editor.html");
       const { getType } = await load("../util/get-type.js");
@@ -56,6 +63,23 @@
           },
         },
         proto: {
+          refreshHasChangedPaths() {
+            const code = fileHistoryContent[this.activeFilePath];
+
+            // 判断文件是否有改动
+            if (fileOriginContent[this.activeFilePath] !== code) {
+              // 不在hasChangedPaths中，添加
+              if (!hasChangedPaths.includes(this.activeFilePath)) {
+                hasChangedPaths.push(this.activeFilePath);
+              }
+            } else {
+              // 在hasChangedPaths中，移除
+              const index = hasChangedPaths.indexOf(this.activeFilePath);
+              if (index !== -1) {
+                hasChangedPaths.splice(index, 1);
+              }
+            }
+          },
           changeCode() {
             clearTimeout(this._changeTimer);
 
@@ -71,7 +95,30 @@
                   content: code,
                 },
               });
-            }, 200);
+
+              fileHistoryContent[this.activeFilePath] = code;
+
+              this.refreshHasChangedPaths();
+            }, 100);
+          },
+          async saveCode() {
+            const code = await this.shadow.$("monaco-editor").getValue();
+
+            const handle = await get(this.activeFilePath);
+
+            await handle.write(code);
+
+            fileOriginContent[this.activeFilePath] = code;
+            fileHistoryContent[this.activeFilePath] = code;
+
+            this.refreshHasChangedPaths();
+
+            this.getProvider("studio-data").dispatch("save", {
+              data: {
+                path: this.activeFilePath,
+                content: code,
+              },
+            });
           },
           async loadFile() {
             if (!this.activeFilePath) {
@@ -87,7 +134,7 @@
                 this.picUrl = "";
               }
 
-              // 判断是否图片
+              // 判断是否图片文件
               if (isPic(this.activeFilePath)) {
                 this.mode = "img";
                 const file = await targetHandle.file();
@@ -97,11 +144,20 @@
 
               this.mode = "edit";
 
-              const contenet = await targetHandle.text();
-              this.shadow.$("monaco-editor").setValue(contenet);
-
               const type = getType(this.activeFilePath);
               this.shadow.$("monaco-editor").setLanguage(type);
+
+              // 从历史记录中获取内容
+              if (fileHistoryContent[this.activeFilePath]) {
+                this.shadow
+                  .$("monaco-editor")
+                  .setValue(fileHistoryContent[this.activeFilePath]);
+                return;
+              }
+
+              const content = await targetHandle.text();
+              fileOriginContent[this.activeFilePath] = content;
+              this.shadow.$("monaco-editor").setValue(content);
             }
           },
         },

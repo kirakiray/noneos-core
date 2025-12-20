@@ -58,6 +58,20 @@
     .italic {
       font-style: italic;
     }
+
+    .alter-icon {
+      display: none;
+    }
+
+    .tab.has-changed .close-btn {
+      opacity: 1;
+    }
+    .tab.has-changed .alter-icon {
+      display: block;
+    }
+    .tab.has-changed .close-btn .close-icon {
+      display: none;
+    }
   </style>
   <div class="container">
     <o-fill :value="list">
@@ -66,11 +80,19 @@
         class:italic="!$data.permanent"
         on:mousedown="$host.clickItem($data)"
         class:focus="$data.path === $host.activeFilePath"
+        class:has-changed="$host.hasChangedPaths.includes($data.path)"
       >
         <div class="active-mark"></div>
         {{$data.name}}
         <div class="close-btn" on:click="$host.closeTab($data,$event,$index)">
-          <n-icon icon="material-symbols:close-small-rounded"></n-icon>
+          <n-icon
+            icon="material-symbols:close-small-rounded"
+            class="close-icon"
+          ></n-icon>
+          <n-icon
+            icon="material-symbols:launcher-assistant-off"
+            class="alter-icon"
+          ></n-icon>
         </div>
       </div>
     </o-fill>
@@ -80,15 +102,18 @@
     watch:active-file="activeFilePath"
     watch:project-path="projectPath"
     on:dblclick-file="dblclickFile"
+    on:save="saveFile"
   ></o-consumer>
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
+      const { hasChangedPaths } = await load("./content.html");
 
       return {
         data: {
           activeFilePath: "",
           projectPath: "",
+          hasChangedPaths: [],
           list: [],
         },
         watch: {
@@ -100,6 +125,15 @@
           },
         },
         proto: {
+          saveFile(e) {
+            const { path, content } = e.data;
+
+            // 将对应path的permanent设置为true
+            const index = this.list.findIndex((item) => item.path === path);
+            if (index !== -1) {
+              this.list[index].permanent = true;
+            }
+          },
           async changeActiveFile() {
             if (!this.activeFilePath) {
               return;
@@ -214,8 +248,12 @@
             );
           },
         },
-        attached() {},
-        detached() {},
+        attached() {
+          this.hasChangedPaths = hasChangedPaths;
+        },
+        detached() {
+          this.hasChangedPaths = [];
+        },
       };
     };
   </script>
