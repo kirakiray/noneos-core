@@ -71,6 +71,8 @@
           );
         });
 
+        const stateHistory = {};
+
         window.onmessage = (event) => {
           switch (event.data.type) {
             case "setValue":
@@ -108,6 +110,30 @@
                 init({ editor, monaco });
               });
               break;
+            case "switchState": {
+              const id = event.data.id;
+              if (editor._stateId) {
+                // 已经存在的状况下，要先保存当前内容
+                const model = editor.getModel();
+                const viewState = editor.saveViewState();
+
+                stateHistory[editor._stateId] = { model, viewState };
+              }
+
+              editor._stateId = id;
+
+              // 是否存在过该状态
+              if (stateHistory[id]) {
+                const { model, viewState } = stateHistory[id];
+                editor.setModel(model);
+                editor.restoreViewState(viewState);
+              } else {
+                editor.setModel(monaco.editor.createModel());
+              }
+
+              // editor.setModel(editor.createModel(event.data.filePath));
+              break;
+            }
           }
         };
 

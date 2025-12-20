@@ -96,6 +96,17 @@
               );
             });
           },
+          async switchState(id) {
+            await this._initialized;
+
+            this._editorFrame.contentWindow.postMessage(
+              {
+                type: "switchState",
+                id,
+              },
+              frameSrc
+            );
+          },
         },
         ready() {
           this._frameId = Math.random().toString(36).slice(2);

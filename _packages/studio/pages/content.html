@@ -56,30 +56,17 @@
           activeFilePath: "",
           mode: "edit",
           picUrl: "",
+          _oldActiveFilePath: "", // 上一个activeFilePath
         },
         watch: {
           activeFilePath() {
-            this.loadFile();
+            this.loadFile().then(() => {
+              // 记录上一个activeFilePath
+              this._oldActiveFilePath = this.activeFilePath;
+            });
           },
         },
         proto: {
-          refreshHasChangedPaths() {
-            const code = fileHistoryContent[this.activeFilePath];
-
-            // 判断文件是否有改动
-            if (fileOriginContent[this.activeFilePath] !== code) {
-              // 不在hasChangedPaths中，添加
-              if (!hasChangedPaths.includes(this.activeFilePath)) {
-                hasChangedPaths.push(this.activeFilePath);
-              }
-            } else {
-              // 在hasChangedPaths中，移除
-              const index = hasChangedPaths.indexOf(this.activeFilePath);
-              if (index !== -1) {
-                hasChangedPaths.splice(index, 1);
-              }
-            }
-          },
           changeCode() {
             clearTimeout(this._changeTimer);
 
@@ -120,9 +107,29 @@
               },
             });
           },
+
+          refreshHasChangedPaths() {
+            const code = fileHistoryContent[this.activeFilePath];
+
+            // 判断文件是否有改动
+            if (fileOriginContent[this.activeFilePath] !== code) {
+              // 不在hasChangedPaths中，添加
+              if (!hasChangedPaths.includes(this.activeFilePath)) {
+                hasChangedPaths.push(this.activeFilePath);
+              }
+            } else {
+              // 在hasChangedPaths中，移除
+              const index = hasChangedPaths.indexOf(this.activeFilePath);
+              if (index !== -1) {
+                hasChangedPaths.splice(index, 1);
+              }
+            }
+          },
           async loadFile() {
+            const editor = this.shadow.$("monaco-editor");
+
             if (!this.activeFilePath) {
-              this.shadow.$("monaco-editor").setValue("");
+              editor.setValue("");
               return;
             }
 
@@ -144,20 +151,17 @@
 
               this.mode = "edit";
 
-              const type = getType(this.activeFilePath);
-              this.shadow.$("monaco-editor").setLanguage(type);
+              // 切换到当前文件状态
+              editor.switchState(this.activeFilePath);
 
-              // 从历史记录中获取内容
-              if (fileHistoryContent[this.activeFilePath]) {
-                this.shadow
-                  .$("monaco-editor")
-                  .setValue(fileHistoryContent[this.activeFilePath]);
-                return;
+              if (!fileHistoryContent[this.activeFilePath]) {
+                // 如果没有历史数据，从文件中读取内容
+                const content = await targetHandle.text();
+                fileOriginContent[this.activeFilePath] = content;
+                editor.setValue(content);
+                const type = getType(this.activeFilePath);
+                editor.setLanguage(type);
               }
-
-              const content = await targetHandle.text();
-              fileOriginContent[this.activeFilePath] = content;
-              this.shadow.$("monaco-editor").setValue(content);
             }
           },
         },
