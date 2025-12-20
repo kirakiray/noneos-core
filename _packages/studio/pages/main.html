@@ -89,7 +89,13 @@
               "mousemove",
               (resizeLeftMove = (e) => {
                 const diffLeft = e.clientX - this._resizeLeftStartX;
-                leftContainer.style.width = `${this._startWidth + diffLeft}px`;
+                let width = this._startWidth + diffLeft;
+                if (width < 200) {
+                  width = 200;
+                } else if (width > 800) {
+                  width = 800;
+                }
+                leftContainer.style.width = `${width}px`;
               })
             );
 
