@@ -27,6 +27,19 @@
           _frameId: null,
           _initialized: null,
         },
+        proto: {
+          _postMessage(type, data = {}) {
+            if (this._editorFrame && this._editorFrame.contentWindow) {
+              this._editorFrame.contentWindow.postMessage(
+                {
+                  type,
+                  ...data,
+                },
+                frameSrc
+              );
+            }
+          },
+        },
         attrs: {
           plugins: null,
         },
@@ -35,50 +48,38 @@
             await this._initialized;
 
             if (this.plugins) {
+              this._postMessage("setPlugins", { plugins: this.plugins });
+            }
+          },
+        },
+        proto: {
+          _postMessage(type, data = {}) {
+            if (this._editorFrame && this._editorFrame.contentWindow) {
               this._editorFrame.contentWindow.postMessage(
                 {
-                  type: "setPlugins",
-                  plugins: this.plugins,
+                  type,
+                  ...data,
                 },
                 frameSrc
               );
             }
           },
-        },
-        proto: {
           async setLanguage(lang) {
             await this._initialized;
 
-            this._editorFrame.contentWindow.postMessage(
-              {
-                type: "setLanguage",
-                lang,
-              },
-              frameSrc
-            );
+            this._postMessage("setLanguage", { lang });
           },
           async setValue(value) {
             await this._initialized;
 
-            this._editorFrame.contentWindow.postMessage(
-              {
-                type: "setValue",
-                value,
-              },
-              frameSrc
-            );
+            this._postMessage("setValue", { value });
           },
           async getValue() {
             await this._initialized;
 
-            return new Promise((resolve) => {
-              this._editorFrame.contentWindow.postMessage(
-                {
-                  type: "getValue",
-                },
-                frameSrc
-              );
+            this._postMessage("getValue");
 
+            return new Promise((resolve) => {
               let f;
 
               window.addEventListener(
@@ -99,23 +100,12 @@
           async switchState(id) {
             await this._initialized;
 
-            this._editorFrame.contentWindow.postMessage(
-              {
-                type: "switchState",
-                id,
-              },
-              frameSrc
-            );
+            this._postMessage("switchState", { id });
           },
           async focus() {
             await this._initialized;
 
-            this._editorFrame.contentWindow.postMessage(
-              {
-                type: "focus",
-              },
-              frameSrc
-            );
+            this._postMessage("focus");
           },
         },
         ready() {

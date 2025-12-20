@@ -49,27 +49,26 @@
         // 监听编辑器内容变化
         editor.onDidChangeModelContent(() => {
           // 向父窗口发送内容变化消息
-          window.parent.postMessage(
-            {
-              id: new URLSearchParams(location.search).get("frameId"),
-              type: "contentChange",
-              // value: editor.getValue(),
-            },
-            "*"
-          );
+          postMessage("contentChange");
         });
 
         // 绑定 Ctrl+S 快捷键
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, (e) => {
           // 通知父窗口保存
+          postMessage("save");
+        });
+
+        function postMessage(type, data = {}) {
+          const frameId = new URLSearchParams(location.search).get("frameId");
           window.parent.postMessage(
             {
-              id: new URLSearchParams(location.search).get("frameId"),
-              type: "save",
+              id: frameId,
+              type,
+              ...data,
             },
             "*"
           );
-        });
+        }
 
         const stateHistory = {};
 
@@ -80,14 +79,7 @@
               editor.setScrollPosition({ scrollTop: 0 });
               break;
             case "getValue":
-              window.parent.postMessage(
-                {
-                  id: new URLSearchParams(location.search).get("frameId"),
-                  type: "getValue",
-                  value: editor.getValue(),
-                },
-                "*"
-              );
+              postMessage("getValue", { value: editor.getValue() });
               break;
             case "setLanguage":
               monaco.editor.setModelLanguage(
@@ -140,13 +132,7 @@
           }
         };
 
-        window.parent.postMessage(
-          {
-            id: new URLSearchParams(location.search).get("frameId"),
-            initialized: true,
-          },
-          "*"
-        );
+        postMessage("initialized", { initialized: true });
       });
     </script>
   </body>
