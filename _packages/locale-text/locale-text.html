@@ -1,0 +1,45 @@
+<template component>
+  <style>
+    :host {
+      display: contents;
+    }
+    ::slotted(*) {
+      display: none;
+    }
+  </style>
+  <style id="lang-style"></style>
+  <slot></slot>
+  <script>
+    let defaultLang = "en";
+
+    // 根据本地语言，进行修正
+    if (navigator.language.toLowerCase().includes("zh")) {
+      defaultLang = "cn";
+    } else if (navigator.language.toLowerCase().includes("ja")) {
+      defaultLang = "ja";
+    }
+
+    export default async ({ load }) => {
+      return {
+        tag: "locale-text",
+        data: {
+          lang: defaultLang,
+        },
+        watch: {
+          lang(lang) {
+            lang && this.refreshStyle();
+          },
+        },
+        proto: {
+          refreshStyle() {
+            this.shadow.$("#lang-style").html = `
+              ::slotted([lang="${this.lang}"]) {
+                display: inherit;
+              }
+            `;
+          },
+        },
+      };
+    };
+  </script>
+</template>

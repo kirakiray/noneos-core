@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/_packages/n-icon/n-icon.html"></l-m>
+  <l-m src="/_packages/locale-text/locale-text.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
   <style>
     :host {
@@ -207,7 +208,10 @@
         slot="prefix"
         class="menu-item-icon"
       ></n-icon>
-      新建
+      <locale-text>
+        <span lang="cn">新建</span>
+        <span lang="en">New</span>
+      </locale-text>
       <p-menu>
         <p-menu-item>
           <n-icon
@@ -215,7 +219,10 @@
             class="menu-item-icon"
             slot="prefix"
           ></n-icon>
-          新建文件
+          <locale-text>
+            <span lang="cn">新建文件</span>
+            <span lang="en">New File</span>
+          </locale-text>
         </p-menu-item>
         <p-menu-item>
           <n-icon
@@ -223,7 +230,10 @@
             class="menu-item-icon"
             slot="prefix"
           ></n-icon>
-          新建目录
+          <locale-text>
+            <span lang="cn">新建目录</span>
+            <span lang="en">New Directory</span>
+          </locale-text>
         </p-menu-item>
       </p-menu>
     </p-menu-item>
@@ -234,7 +244,10 @@
         slot="prefix"
         class="menu-item-icon"
       ></n-icon>
-      剪切
+      <locale-text>
+        <span lang="cn">剪切</span>
+        <span lang="en">Cut</span>
+      </locale-text>
     </p-menu-item>
     <p-menu-item>
       <n-icon
@@ -242,7 +255,10 @@
         slot="prefix"
         class="menu-item-icon"
       ></n-icon>
-      复制
+      <locale-text>
+        <span lang="cn">复制</span>
+        <span lang="en">Copy</span>
+      </locale-text>
     </p-menu-item>
     <p-menu-item>
       <n-icon
@@ -250,7 +266,10 @@
         slot="prefix"
         class="menu-item-icon"
       ></n-icon>
-      重命名
+      <locale-text>
+        <span lang="cn">重命名</span>
+        <span lang="en">Rename</span>
+      </locale-text>
     </p-menu-item>
     <p-menu-item>
       <n-icon
@@ -258,7 +277,10 @@
         slot="prefix"
         class="menu-item-icon"
       ></n-icon>
-      删除
+      <locale-text>
+        <span lang="cn">删除</span>
+        <span lang="en">Delete</span>
+      </locale-text>
     </p-menu-item>
   </p-menu>
   <script>
