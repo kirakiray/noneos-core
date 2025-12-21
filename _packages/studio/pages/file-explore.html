@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/_packages/n-icon/n-icon.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
   <style>
     :host {
       display: flex;
@@ -26,7 +27,7 @@
     }
 
     /* 文件/目录项基础样式 */
-    .item {
+    .file-list-item {
       display: flex;
       align-items: center;
       padding: 4px 12px;
@@ -39,20 +40,20 @@
     }
 
     /* 悬停和激活状态样式 */
-    .item:hover {
+    .file-list-item:hover {
       background-color: rgba(204, 204, 204, 0.1);
     }
 
-    .item.selected {
+    .file-list-item.selected {
       background-color: rgba(204, 204, 204, 0.2);
     }
 
-    .item.selected:hover {
+    .file-list-item.selected:hover {
       background-color: rgba(204, 204, 204, 0.25);
     }
 
-    .item.active,
-    .item.selected.active {
+    .file-list-item.active,
+    .file-list-item.selected.active {
       background-color: rgba(0, 122, 204, 0.2);
     }
 
@@ -130,13 +131,31 @@
     .list-inner::-webkit-scrollbar-thumb:hover {
       background: rgba(0, 0, 0, 0.3);
     }
+
+    .menu-mask {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 30;
+    }
+
+    #file-list-menu {
+      position: fixed;
+      z-index: 31;
+    }
+
+    .menu-item-icon {
+      color: #a1c9ff;
+    }
   </style>
   <h5>
     <n-icon icon="flat-color-icons:folder"></n-icon>
     {{ projectName }}
   </h5>
   <div class="list">
-    <div class="list-inner">
+    <div class="list-inner" on:contextmenu="itemContextMenu">
       <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
       <div style="height: 16px"></div>
     </div>
@@ -145,7 +164,7 @@
     <div>
       <!-- 文件/目录项 -->
       <div
-        class="item"
+        class="file-list-item"
         class:active="$host.activePath === $data.path"
         on:click="$host.clickItem($data)"
         on:dblclick="$host.dblclickItem($data)"
@@ -178,6 +197,70 @@
     watch:project-path="projectPath"
     watch:active-file="activePath"
   ></o-consumer>
+
+  <div class="menu-mask" style="display: none" on:click="hideMenu"></div>
+
+  <p-menu open="off" id="file-list-menu">
+    <p-menu-item>
+      <n-icon
+        icon="mdi:plus-circle"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      新建
+      <p-menu>
+        <p-menu-item>
+          <n-icon
+            icon="mdi:file-document-plus-outline"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          新建文件
+        </p-menu-item>
+        <p-menu-item>
+          <n-icon
+            icon="mdi:folder-plus-outline"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          新建目录
+        </p-menu-item>
+      </p-menu>
+    </p-menu-item>
+    <hr />
+    <p-menu-item>
+      <n-icon
+        icon="mdi:content-cut"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      剪切
+    </p-menu-item>
+    <p-menu-item>
+      <n-icon
+        icon="mdi:content-copy"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      复制
+    </p-menu-item>
+    <p-menu-item>
+      <n-icon
+        icon="mdi:rename-box-outline"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      重命名
+    </p-menu-item>
+    <p-menu-item>
+      <n-icon
+        icon="mdi:delete-forever-outline"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      删除
+    </p-menu-item>
+  </p-menu>
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
@@ -246,6 +329,37 @@
           },
         },
         proto: {
+          hideMenu() {
+            this.shadow.$(".menu-mask").style.display = "none";
+            this.shadow.$("#file-list-menu").open = "off";
+          },
+          itemContextMenu(event) {
+            const target = $(event.target);
+            event.preventDefault();
+
+            let item;
+            if (target.is(".file-list-item")) {
+              item = target;
+            } else {
+              item = target.parents.find(
+                (e) => e?.tag && e.is(".file-list-item")
+              );
+            }
+
+            if (item) {
+              this.shadow.$(".menu-mask").style.display = "block";
+              const menuEl = this.shadow.$("#file-list-menu");
+
+              // 显示菜单
+              menuEl.open = "on";
+
+              // 修正定位
+              menuEl.style.top = `${event.pageY}px`;
+              menuEl.style.left = `${event.pageX}px`;
+            } else {
+              // 空白区域
+            }
+          },
           async dblclickItem(item) {
             if (item.kind === "dir") return;
 
