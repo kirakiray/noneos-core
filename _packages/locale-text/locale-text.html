@@ -32,8 +32,31 @@
         },
         proto: {
           refreshStyle() {
+            let finalLang = this.lang || defaultLang;
+
+            let allLang = new Set();
+
+            // 判断是否存在对应的语言元素
+            this.forEach((el) => {
+              let lang = el.attr("lang");
+              if (lang) {
+                allLang.add(lang);
+              }
+            });
+
+            // 判断是否有当前的lang
+            if (!allLang.has(finalLang)) {
+              // 第二替代为英语
+              if (allLang.has("en")) {
+                finalLang = "en";
+              } else {
+                // 默认第一个
+                finalLang = allLang.values().next().value;
+              }
+            }
+
             this.shadow.$("#lang-style").html = `
-              ::slotted([lang="${this.lang}"]) {
+              ::slotted([lang="${finalLang}"]) {
                 display: inherit;
               }
             `;
