@@ -213,7 +213,7 @@
         <span lang="en">New</span>
       </locale-text>
       <p-menu>
-        <p-menu-item>
+        <p-menu-item on:click="createFile">
           <n-icon
             icon="mdi:file-document-plus-outline"
             class="menu-item-icon"
@@ -351,6 +351,9 @@
           },
         },
         proto: {
+          async createFile() {
+            debugger;
+          },
           hideMenu() {
             this.shadow.$(".menu-mask").style.display = "none";
             this.shadow.$("#file-list-menu").open = "off";
