@@ -11,7 +11,7 @@
   <slot></slot>
   <script>
     export default async ({ load }) => {
-      const { getLang } = await load("./get-local-text.js");
+      const { getLang } = await load("./get-locale-text.js");
 
       return {
         tag: "locale-text",

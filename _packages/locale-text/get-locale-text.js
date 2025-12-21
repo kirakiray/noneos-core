@@ -11,17 +11,20 @@ export const getLang = () => {
   return defaultLang;
 };
 
+// 通过对象获取对应语言的文本
 export const getLocaleText = (obj) => {
-  let text = obj[defaultLang] ? obj[defaultLang].textContent : "";
+  let text = obj[getLang()];
+
   // 如果没有对应语言的文本，查找en
   if (text === undefined && obj.en !== undefined) {
-    text = obj.en.textContent;
+    text = obj.en;
   }
 
   // 如果没有en，返回第一个文本
   if (text === undefined) {
-    text = obj[Object.keys(obj)[0]].textContent;
+    text = obj[Object.keys(obj)[0]];
   }
+
   return text;
 };
 

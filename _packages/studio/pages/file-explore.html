@@ -148,7 +148,7 @@
     }
 
     .menu-item-icon {
-      color: #a1c9ff;
+      color: var(--md-sys-color-primary);
     }
   </style>
   <h5>
@@ -169,6 +169,7 @@
         class:active="$host.activePath === $data.path"
         on:click="$host.clickItem($data)"
         on:dblclick="$host.dblclickItem($data)"
+        attr:data-path="$data.path"
       >
         <!-- 折叠/展开图标 -->
         <div class="item-prefix" class:expanded="$data.expanded">
@@ -213,7 +214,7 @@
         <span lang="en">New</span>
       </locale-text>
       <p-menu>
-        <p-menu-item on:click="createFile">
+        <p-menu-item on:click="clickCreate('file',$event)">
           <n-icon
             icon="mdi:file-document-plus-outline"
             class="menu-item-icon"
@@ -286,6 +287,11 @@
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
+      const { getLocaleText } = await load(
+        "/_packages/locale-text/get-locale-text.js"
+      );
+      load("/gh/ofajs/Punch-UI/packages/button/button.html");
+      const { prompt } = await load("/gh/ofajs/Punch-UI/packages/util.js");
 
       // 使用 Set 数据结构提高查找性能
       let expandedPathsSet;
@@ -351,7 +357,14 @@
           },
         },
         proto: {
-          async createFile() {
+          async clickCreate(type, event) {
+            const path = this._contextItemPath;
+
+            // 判断目标是目录还是文件
+            const handle = await get(path);
+            const kind = handle.kind;
+            debugger;
+
             debugger;
           },
           hideMenu() {
@@ -377,6 +390,8 @@
 
               // 显示菜单
               menuEl.open = "on";
+
+              this._contextItemPath = item.data.path;
 
               // 修正定位
               menuEl.style.top = `${event.pageY}px`;
