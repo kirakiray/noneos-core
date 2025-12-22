@@ -1,0 +1,41 @@
+<template component>
+  <l-m src="./handle-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+
+    .file-list-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 12px;
+      margin-right: 6px;
+      font-size: 15px;
+      transition: background-color 0.03s ease-in-out;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+    }
+
+    #create-mark-item {
+      margin-left: 20px;
+    }
+  </style>
+  <div class="file-list-item" id="create-mark-item">
+    <n-icon icon="vscode-icons:file-type-text" class="item-icon"></n-icon>
+    <input type="text" style="margin-left: 4px" />
+  </div>
+  <script>
+    export default async ({ load }) => {
+      return {
+        tag: "create-handle-item",
+        data: {},
+        attached() {
+          setTimeout(() => {
+            this.shadow.$("input").ele.focus();
+          }, 100);
+        },
+      };
+    };
+  </script>
+</template>

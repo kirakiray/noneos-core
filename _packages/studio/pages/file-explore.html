@@ -2,6 +2,8 @@
   <l-m src="/_packages/n-icon/n-icon.html"></l-m>
   <l-m src="/_packages/locale-text/locale-text.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
+  <l-m src="../comps/handle-icon.html"></l-m>
+  <l-m src="../comps/create-handle.html"></l-m>
   <style>
     :host {
       display: flex;
@@ -180,7 +182,11 @@
         </div>
 
         <!-- 文件类型图标 -->
-        <n-icon :icon="$host.getIcon($data)" class="item-icon"></n-icon>
+        <handle-icon
+          :path="$data.path"
+          :item="$data"
+          class="item-icon"
+        ></handle-icon>
 
         <!-- 文件/目录名称 -->
         <div class="item-name-container">
@@ -363,9 +369,27 @@
             // 判断目标是目录还是文件
             const handle = await get(path);
             const kind = handle.kind;
-            debugger;
+
+            // 目标目录句柄
+            let targetDirHandle;
+
+            if (kind === "dir") {
+              targetDirHandle = handle;
+            } else {
+              targetDirHandle = handle.parent;
+            }
+
+            const targetPathItem = this.shadow.$(
+              `.file-list-item[data-path="${targetDirHandle.path}"]`
+            );
 
             debugger;
+
+            // 添加创建文件的item
+            const creationItem = $(`<create-handle-item></create-handle-item>`);
+            targetPathItem.next.unshift(creationItem);
+
+            this.hideMenu();
           },
           hideMenu() {
             this.shadow.$(".menu-mask").style.display = "none";
@@ -435,165 +459,6 @@
               }
             } else {
               provider.activeFile = item.path;
-            }
-          },
-          getIcon(item) {
-            const suffix = item.path.split(".").pop();
-            switch (suffix) {
-              case "html":
-                return "vscode-icons:file-type-html";
-              case "css":
-                return "vscode-icons:file-type-css";
-              case "xml":
-                return "vscode-icons:file-type-xml";
-              case "md":
-                return "vscode-icons:file-type-markdown";
-              case "js":
-              case "cjs":
-              case "mjs":
-                return "vscode-icons:file-type-js";
-              case "json":
-                return "vscode-icons:file-type-json";
-              case "ts":
-                return "vscode-icons:file-type-ts";
-              case "react":
-                return "vscode-icons:file-type-reactjs";
-              case "vue":
-                return "vscode-icons:file-type-vue";
-              case "py":
-                return "vscode-icons:file-type-python";
-              case "rs":
-                return "material-icon-theme:rust";
-              case "conf":
-                return "vscode-icons:file-type-config";
-              case "pyx":
-              case "pxd":
-                return "vscode-icons:file-type-cython";
-              case "txt":
-                return "vscode-icons:file-type-text";
-              case "yaml":
-              case "yml":
-                return "vscode-icons:file-type-yaml";
-              case "cpp":
-                return "vscode-icons:file-type-cpp";
-              case "hpp":
-                return "material-icon-theme:hpp";
-              case "c":
-              case "h":
-                return "vscode-icons:file-type-c";
-              case "ino":
-                return "devicon:arduino";
-              case "cmake":
-                return "vscode-icons:file-type-cmake";
-              case "gitignore":
-                return "vscode-icons:file-type-git";
-              case "github":
-                return "vscode-icons:folder-type-github";
-              case "svg":
-                return "vscode-icons:file-type-svg";
-              case "ttf":
-                return "vscode-icons:file-type-font";
-              case "zip":
-              case "rar":
-              case "7z":
-              case "tar":
-              case "gz":
-              case "bz2":
-              case "xz":
-              case "tgz":
-              case "tbz2":
-              case "txz":
-              case "iso":
-              case "vmdk":
-              case "vdi":
-              case "qcow2":
-              case "raw":
-              case "dd":
-              case "gpt":
-              case "mbr":
-              case "ntfs":
-              case "ext4":
-              case "xfs":
-              case "btrfs":
-              case "swap":
-              case "hfs":
-              case "hfs+":
-              case "ntfs-3g":
-              case "exfat":
-              case "fat32":
-              case "fat16":
-              case "iso9660":
-              case "udf":
-              case "ntfs-3g":
-                return "vscode-icons:file-type-zip";
-              case "mp3":
-              case "wav":
-              case "aac":
-              case "flac":
-              case "ogg":
-              case "m4a":
-              case "wma":
-              case "aiff":
-              case "alac":
-              case "opus":
-              case "mka":
-              case "mkv":
-              case "mp4":
-              case "mov":
-              case "wmv":
-              case "avi":
-              case "webm":
-              case "m2ts":
-              case "ts":
-              case "mts":
-              case "m2v":
-              case "vob":
-              case "dv":
-              case "mxf":
-              case "m2v":
-              case "m2a":
-              case "ts":
-              case "m2ts":
-              case "mts":
-              case "m2v":
-              case "vob":
-              case "dv":
-              case "mp3":
-                // return "vscode-icons:file-type-audio";
-                return "material-icon-theme:audio";
-              case "png":
-              case "jpg":
-              case "jpeg":
-              case "gif":
-              case "svg":
-              case "webp":
-              case "bmp":
-              case "tiff":
-              case "ico":
-              case "cur":
-              case "ani":
-                return "vscode-icons:file-type-image";
-              case "mp4":
-              case "mov":
-              case "wmv":
-              case "avi":
-              case "webm":
-                return "vscode-icons:file-type-video";
-              default:
-                if (item.kind === "dir") {
-                  return item.expanded
-                    ? "vscode-icons:default-folder-opened"
-                    : "vscode-icons:default-folder";
-                }
-
-                if (item.name === "LICENSE") {
-                  return "vscode-icons:file-type-license";
-                }
-                if (item.name === "Makefile") {
-                  return "vscode-icons:file-type-makefile";
-                }
-
-                return "vscode-icons:default-file";
             }
           },
           async loadDirectoryContents(rootItem) {
