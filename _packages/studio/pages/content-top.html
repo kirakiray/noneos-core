@@ -1,4 +1,5 @@
 <template page>
+  <l-m src="../comps/handle-icon.html"></l-m>
   <style>
     :host {
       display: block;
@@ -83,6 +84,7 @@
         class:has-changed="$host.hasChangedPaths.includes($data.path)"
       >
         <div class="active-mark"></div>
+        <handle-icon :path="$data.path" style="margin-right: 4px;"></handle-icon>
         {{$data.name}}
         <div class="close-btn" on:click="$host.closeTab($data,$event,$index)">
           <n-icon
