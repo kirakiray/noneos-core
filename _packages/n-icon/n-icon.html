@@ -43,9 +43,13 @@
           }
 
           try {
+            const icon = this.icon;
+
             // 等待Promise解析
-            const iconContent = await iconCache[this.icon];
-            this.shadow.$(".main").html = iconContent;
+            const iconContent = await iconCache[icon];
+            if (this.icon === icon) {
+              this.shadow.$(".main").html = iconContent;
+            }
           } catch (error) {
             console.error(`Failed to load icon: ${this.icon}`, error);
           }

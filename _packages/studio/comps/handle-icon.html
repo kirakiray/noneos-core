@@ -19,8 +19,7 @@
         },
         watch: {
           ["path,item"]() {
-            const icon = this.getIcon();
-            this.icon = icon;
+            this.icon = this.getIcon();
           },
         },
         proto: {
@@ -81,6 +80,8 @@
                 return "vscode-icons:file-type-svg";
               case "ttf":
                 return "vscode-icons:file-type-font";
+              case "php":
+                return "vscode-icons:file-type-php";
               case "zip":
               case "rar":
               case "7z":
