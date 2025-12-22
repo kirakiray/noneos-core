@@ -157,7 +157,7 @@
     <n-icon icon="flat-color-icons:folder"></n-icon>
     {{ projectName }}
   </h5>
-  <div class="list">
+  <div class="list" on:create-handle="createHandle">
     <div class="list-inner" on:contextmenu="itemContextMenu">
       <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
       <div style="height: 16px"></div>
@@ -231,7 +231,7 @@
             <span lang="en">New File</span>
           </locale-text>
         </p-menu-item>
-        <p-menu-item>
+        <p-menu-item on:click="clickCreate('dir',$event)">
           <n-icon
             icon="mdi:folder-plus-outline"
             class="menu-item-icon"
@@ -363,6 +363,28 @@
           },
         },
         proto: {
+          async createHandle(e) {
+            const { name, kind, handlePath } = e.data;
+
+            const afterFocusPath = `${handlePath}/${name}`;
+
+            const handle = await get(afterFocusPath, {
+              create: kind,
+            });
+
+            await this.loadProject();
+
+            setTimeout(() => {
+              // 稍后聚焦它
+              const targetItem = this.shadow.$(
+                `.file-list-item[data-path="${afterFocusPath}"]`
+              );
+
+              if (targetItem) {
+                targetItem.ele.click();
+              }
+            }, 200);
+          },
           async clickCreate(type, event) {
             const path = this._contextItemPath;
 
@@ -383,10 +405,16 @@
               `.file-list-item[data-path="${targetDirHandle.path}"]`
             );
 
-            debugger;
+            const siblingNames = [];
+            for await (const item of targetDirHandle.values()) {
+              siblingNames.push(item.name);
+            }
 
             // 添加创建文件的item
             const creationItem = $(`<create-handle-item></create-handle-item>`);
+            creationItem.kind = type;
+            creationItem.handlePath = targetDirHandle.path;
+            creationItem.siblingNames = siblingNames;
             targetPathItem.next.unshift(creationItem);
 
             this.hideMenu();
