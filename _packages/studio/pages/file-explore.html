@@ -283,7 +283,7 @@
         <span lang="en">Rename</span>
       </locale-text>
     </p-menu-item>
-    <p-menu-item>
+    <p-menu-item on:click="clickDelete">
       <n-icon
         icon="mdi:delete-forever-outline"
         slot="prefix"
@@ -302,7 +302,7 @@
         "/_packages/locale-text/get-locale-text.js"
       );
       load("/gh/ofajs/Punch-UI/packages/button/button.html");
-      const { prompt } = await load("/gh/ofajs/Punch-UI/packages/util.js");
+      const { confirm } = await load("/gh/ofajs/Punch-UI/packages/util.js");
 
       // 使用 Set 数据结构提高查找性能
       let expandedPathsSet;
@@ -369,29 +369,26 @@
           },
         },
         proto: {
-          async createHandle(e) {
-            const { name, kind, handlePath } = e.data;
-
-            const afterFocusPath = `${handlePath}/${name}`;
-
-            const handle = await get(afterFocusPath, {
-              create: kind,
+          async clickDelete() {
+            const { contextItemPath } = this;
+            const handle = await get(contextItemPath);
+            this.hideMenu();
+            const result = await confirm({
+              title: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
+              content: `确认删除 ${
+                handle.kind === "dir" ? "目录" : "文件"
+              } ${contextItemPath} 吗？此操作不可撤销。`,
             });
 
-            await this.loadProject();
+            if (!result) {
+              return;
+            }
 
-            setTimeout(() => {
-              // 稍后聚焦它
-              const targetItem = this.shadow.$(
-                `.file-list-item[data-path="${afterFocusPath}"]`
-              );
+            await handle.remove();
 
-              if (targetItem) {
-                targetItem.ele.click();
-              }
-            }, 150);
+            this.loadProject();
           },
-          async clickCreate(type, event) {
+          async clickCreate(type) {
             const path = this.contextItemPath;
 
             // 判断目标是目录还是文件
@@ -424,6 +421,28 @@
             targetPathItem.next.unshift(creationItem);
 
             this.hideMenu();
+          },
+          async createHandle(e) {
+            const { name, kind, handlePath } = e.data;
+
+            const afterFocusPath = `${handlePath}/${name}`;
+
+            const handle = await get(afterFocusPath, {
+              create: kind,
+            });
+
+            await this.loadProject();
+
+            setTimeout(() => {
+              // 稍后聚焦它
+              const targetItem = this.shadow.$(
+                `.file-list-item[data-path="${afterFocusPath}"]`
+              );
+
+              if (targetItem) {
+                targetItem.ele.click();
+              }
+            }, 150);
           },
           hideMenu() {
             this.shadow.$(".menu-mask").style.display = "none";
