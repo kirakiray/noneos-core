@@ -152,6 +152,10 @@
     .menu-item-icon {
       color: var(--md-sys-color-primary);
     }
+
+    .contextmenu-focus {
+      background-color: var(--md-ref-palette-translucent-primary60);
+    }
   </style>
   <h5>
     <n-icon icon="flat-color-icons:folder"></n-icon>
@@ -169,6 +173,7 @@
       <div
         class="file-list-item"
         class:active="$host.activePath === $data.path"
+        class:contextmenu-focus="$host.contextItemPath === $data.path"
         on:click="$host.clickItem($data)"
         on:dblclick="$host.dblclickItem($data)"
         attr:data-path="$data.path"
@@ -356,6 +361,7 @@
           list: [],
           activePath: "",
           projectName: "",
+          contextItemPath: "", // 右键菜单聚焦的文件
         },
         watch: {
           projectPath(path) {
@@ -386,7 +392,7 @@
             }, 150);
           },
           async clickCreate(type, event) {
-            const path = this._contextItemPath;
+            const path = this.contextItemPath;
 
             // 判断目标是目录还是文件
             const handle = await get(path);
@@ -422,6 +428,7 @@
           hideMenu() {
             this.shadow.$(".menu-mask").style.display = "none";
             this.shadow.$("#file-list-menu").open = "off";
+            this.contextItemPath = null;
           },
           itemContextMenu(event) {
             const target = $(event.target);
@@ -443,7 +450,7 @@
               // 显示菜单
               menuEl.open = "on";
 
-              this._contextItemPath = item.data.path;
+              this.contextItemPath = item.data.path;
 
               // 修正定位
               menuEl.style.top = `${event.pageY}px`;
