@@ -374,10 +374,18 @@
             const handle = await get(contextItemPath);
             this.hideMenu();
             const result = await confirm({
-              title: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
-              content: `确认删除 ${
-                handle.kind === "dir" ? "目录" : "文件"
-              } ${contextItemPath} 吗？此操作不可撤销。`,
+              title: getLocaleText({
+                cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
+                en: `Delete${handle.kind === "dir" ? " Directory" : " File"}`,
+              }),
+              content: getLocaleText({
+                cn: `确认删除 ${
+                  handle.kind === "dir" ? "目录" : "文件"
+                } ${contextItemPath} 吗？此操作不可撤销。`,
+                en: `Are you sure you want to delete ${
+                  handle.kind === "dir" ? "directory" : "file"
+                } ${contextItemPath}? This action cannot be undone.`,
+              }),
             });
 
             if (!result) {
