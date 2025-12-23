@@ -164,7 +164,7 @@
   <div class="list" on:create-handle="createHandle">
     <div class="list-inner" on:contextmenu="itemContextMenu">
       <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
-      <div style="height: 16px"></div>
+      <div style="height: 28px"></div>
     </div>
   </div>
   <template name="file-item">
@@ -250,7 +250,7 @@
       </p-menu>
     </p-menu-item>
     <hr />
-    <p-menu-item>
+    <p-menu-item on:click="clickCut">
       <n-icon
         icon="mdi:content-cut"
         slot="prefix"
@@ -261,7 +261,7 @@
         <span lang="en">Cut</span>
       </locale-text>
     </p-menu-item>
-    <p-menu-item>
+    <p-menu-item on:click="clickCopy">
       <n-icon
         icon="mdi:content-copy"
         slot="prefix"
@@ -272,7 +272,19 @@
         <span lang="en">Copy</span>
       </locale-text>
     </p-menu-item>
-    <p-menu-item>
+    <p-menu-item attr:disabled="!clipboard.type" on:click="clickPaste">
+      <n-icon
+        icon="mdi:content-paste"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">粘贴</span>
+        <span lang="en">Paste</span>
+      </locale-text>
+    </p-menu-item>
+    <hr />
+    <p-menu-item on:click="clickRename">
       <n-icon
         icon="mdi:rename-box-outline"
         slot="prefix"
@@ -295,6 +307,66 @@
       </locale-text>
     </p-menu-item>
   </p-menu>
+
+  <style>
+    .bottom {
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+      padding: 0 4px 0 16px;
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      width: calc(100% - 8px);
+      height: 24px;
+      border-radius: 15px;
+      font-size: 13px;
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      transition: all 0.2s ease-in-out;
+    }
+    .bottom.hide-bottom {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50px, 0);
+    }
+
+    .bottom-close-btn {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .bottom-close-btn:hover {
+      background-color: var(--md-sys-color-on-primary);
+      color: var(--md-sys-color-primary);
+    }
+  </style>
+
+  <div class="bottom" class:hide-bottom="!clipboard.type">
+    <o-if :value="clipboard.type === 'copy'">
+      <n-icon
+        icon="material-symbols:content-copy-outline"
+        style="font-size: 16px; margin-right: 4px"
+      ></n-icon>
+    </o-if>
+    <o-else>
+      <n-icon
+        icon="material-symbols:content-cut"
+        style="font-size: 16px; margin-right: 4px"
+      ></n-icon>
+    </o-else>
+    正在复制 {{ clipboard.path.split('/').pop() }}
+
+    <div class="bottom-close-btn" on:click="closeClipboard">
+      <n-icon icon="material-symbols:close"></n-icon>
+    </div>
+  </div>
   <script>
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
@@ -362,6 +434,10 @@
           activePath: "",
           projectName: "",
           contextItemPath: "", // 右键菜单聚焦的文件
+          clipboard: {
+            type: "", // copy or cut
+            path: "", // 剪贴板中的路径
+          },
         },
         watch: {
           projectPath(path) {
@@ -369,6 +445,40 @@
           },
         },
         proto: {
+          closeClipboard() {
+            this.clipboard.type = "";
+            this.clipboard.path = "";
+          },
+          async clickCut() {
+            this.clipboard.type = "cut";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickCopy() {
+            this.clipboard.type = "copy";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickPaste() {
+            const handle = await get(this.clipboard.path);
+            let targetHandle = await get(this.contextItemPath);
+            if (targetHandle.kind === "file") {
+              targetHandle = targetHandle.parent;
+            }
+            if (this.clipboard.type === "cut") {
+              await handle.moveTo(targetHandle);
+            } else if (this.clipboard.type === "copy") {
+              await handle.copyTo(targetHandle);
+            }
+
+            await this.loadProject();
+            this.closeClipboard();
+            this.hideMenu();
+          },
+          clickRename() {
+            this.hideMenu();
+            debugger;
+          },
           async clickDelete() {
             const { contextItemPath } = this;
             const handle = await get(contextItemPath);
