@@ -229,7 +229,7 @@
     watch:active-file="activePath"
   ></o-consumer>
 
-  <div class="menu-mask" style="display: none" on:click="hideMenu"></div>
+  <div class="menu-mask" style="display: none" on:mousedown="hideMenu"></div>
 
   <p-menu open="off" id="file-list-menu">
     <p-menu-item>
@@ -267,7 +267,7 @@
         </p-menu-item>
       </p-menu>
     </p-menu-item>
-    <p-menu-item>
+    <p-menu-item attr:disabled="!canPreview" on:click="previewFile">
       <n-icon
         icon="icon-park-outline:preview-open"
         class="menu-item-icon"
@@ -525,6 +525,13 @@
           },
         },
         proto: {
+          previewFile() {
+            window.open(`/$${this.contextItemPath}`);
+            this.hideMenu();
+          },
+          get canPreview() {
+            return /\.html?$/i.test(this.contextItemPath);
+          },
           async renameItem(data, event) {
             const result = event.target.value;
             const handle = await get(data.path);
@@ -725,6 +732,11 @@
               // 修正定位
               menuEl.style.top = `${event.pageY}px`;
               menuEl.style.left = `${event.pageX}px`;
+
+              // 菜单靠屏幕下方的时候，修正定位
+              if (event.pageY + menuEl.offsetHeight > window.innerHeight) {
+                menuEl.style.top = `${event.pageY - menuEl.offsetHeight}px`;
+              }
             } else {
               // 空白区域
             }
