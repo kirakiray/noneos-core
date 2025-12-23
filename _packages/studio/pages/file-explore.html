@@ -277,6 +277,30 @@
         <span lang="cn">预览</span>
         <span lang="en">Preview</span>
       </locale-text>
+      <p-menu>
+        <p-menu-item on:click="previewFile">
+          <n-icon
+            icon="streamline-ultimate-color:view-square"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">直接预览</span>
+            <span lang="en">Direct Preview</span>
+          </locale-text>
+        </p-menu-item>
+        <p-menu-item on:click="previewFile('new')">
+          <n-icon
+            icon="streamline-ultimate-color:view-square"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">新窗口预览</span>
+            <span lang="en">Preview in New Window</span>
+          </locale-text>
+        </p-menu-item>
+      </p-menu>
     </p-menu-item>
     <hr />
     <p-menu-item on:click="clickCut">
@@ -525,12 +549,14 @@
           },
         },
         proto: {
-          previewFile() {
-            // window.open(`/$${this.contextItemPath}`);
+          previewFile(type) {
+            if (type === "new") {
+              window.open(`/$${this.contextItemPath}`);
+              return;
+            }
 
             const studioProvider = this.getProvider("studio-data");
             studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
-            // studioProvider.activeFile = `${this.contextItemPath}##preview-web`;
 
             this.hideMenu();
           },
