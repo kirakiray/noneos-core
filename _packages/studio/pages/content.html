@@ -133,7 +133,16 @@
               return;
             }
 
-            const targetHandle = await get(this.activeFilePath);
+            let currentPath = this.activeFilePath;
+
+            if (this.activeFilePath.includes("##")) {
+              // 包含数据信息，进行拆解
+              const [path, data] = this.activeFilePath.split("##");
+              currentPath = path;
+              debugger;
+            }
+
+            const targetHandle = await get(currentPath);
 
             if (targetHandle.kind === "file") {
               if (this.picUrl) {
@@ -142,24 +151,25 @@
               }
 
               // 判断是否图片文件
-              if (isPic(this.activeFilePath)) {
+              if (isPic(currentPath)) {
                 this.mode = "img";
                 const file = await targetHandle.file();
                 this.picUrl = URL.createObjectURL(file);
                 return;
               }
 
+              // 编辑器模式
               this.mode = "edit";
 
               // 切换到当前文件状态
-              editor.switchState(this.activeFilePath);
+              editor.switchState(currentPath);
 
-              if (!fileHistoryContent[this.activeFilePath]) {
+              if (!fileHistoryContent[currentPath]) {
                 // 如果没有历史数据，从文件中读取内容
                 const content = await targetHandle.text();
-                fileOriginContent[this.activeFilePath] = content;
+                fileOriginContent[currentPath] = content;
                 editor.setValue(content);
-                const type = getType(this.activeFilePath);
+                const type = getType(currentPath);
                 editor.setLanguage(type);
               }
 
