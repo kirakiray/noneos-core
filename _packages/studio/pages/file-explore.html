@@ -167,6 +167,21 @@
       <div style="height: 28px"></div>
     </div>
   </div>
+
+  <style>
+    .item-name {
+      display: block;
+    }
+    .item-rename {
+      display: none;
+    }
+    .file-list-item.rename-mode .item-name {
+      display: none;
+    }
+    .file-list-item.rename-mode .item-rename {
+      display: block;
+    }
+  </style>
   <template name="file-item">
     <div>
       <!-- 文件/目录项 -->
@@ -196,6 +211,9 @@
         <!-- 文件/目录名称 -->
         <div class="item-name-container">
           <div class="item-name">{{ $data.name }}</div>
+          <div class="item-rename">
+            <input type="text" on:blur="$host.renameItem($data, $event)" />
+          </div>
         </div>
       </div>
 
@@ -458,58 +476,9 @@
           },
         },
         proto: {
-          closeClipboard() {
-            this.clipboard.type = "";
-            this.clipboard.path = "";
-          },
-          async clickCut() {
-            this.clipboard.type = "cut";
-            this.clipboard.path = this.contextItemPath;
-            this.hideMenu();
-          },
-          async clickCopy() {
-            this.clipboard.type = "copy";
-            this.clipboard.path = this.contextItemPath;
-            this.hideMenu();
-          },
-          async clickPaste() {
-            const handle = await get(this.clipboard.path);
-            let targetHandle = await get(this.contextItemPath);
-            if (targetHandle.kind === "file") {
-              targetHandle = targetHandle.parent;
-            }
-            if (this.clipboard.type === "cut") {
-              await handle.moveTo(targetHandle);
-            } else if (this.clipboard.type === "copy") {
-              await handle.copyTo(targetHandle);
-            }
-
-            await this.loadProject();
-            this.closeClipboard();
-            this.hideMenu();
-          },
-          async clickRename() {
-            const handle = await get(this.contextItemPath);
-
-            this.hideMenu();
-
-            const result = await prompt({
-              title:
-                getLocaleText({
-                  cn: "重命名",
-                  en: "Rename",
-                }) +
-                " " +
-                handle.name,
-              label: getLocaleText({
-                cn: "请输入新的名称",
-                en: "Please enter the new name",
-              }),
-            });
-
-            if (!result) {
-              return;
-            }
+          async renameItem(data, event) {
+            const result = event.target.value;
+            const handle = await get(data.path);
 
             // 判断是否有重复
             const siblingNames = [];
@@ -549,18 +518,50 @@
                 name: result,
               },
             });
+          },
+          closeClipboard() {
+            this.clipboard.type = "";
+            this.clipboard.path = "";
+          },
+          async clickCut() {
+            this.clipboard.type = "cut";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickCopy() {
+            this.clipboard.type = "copy";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickPaste() {
+            const handle = await get(this.clipboard.path);
+            let targetHandle = await get(this.contextItemPath);
+            if (targetHandle.kind === "file") {
+              targetHandle = targetHandle.parent;
+            }
+            if (this.clipboard.type === "cut") {
+              await handle.moveTo(targetHandle);
+            } else if (this.clipboard.type === "copy") {
+              await handle.copyTo(targetHandle);
+            }
 
-            // toast({
-            //   content: getLocaleText({
-            //     cn: `${handle.kind === "dir" ? "目录" : "文件"} ${
-            //       handle.name
-            //     } 重命名为 ${result}`,
-            //     en: `${handle.kind === "dir" ? "Directory" : "File"} ${
-            //       handle.name
-            //     } renamed to ${result}`,
-            //   }),
-            //   color: "success",
-            // });
+            await this.loadProject();
+            this.closeClipboard();
+            this.hideMenu();
+          },
+          async clickRename() {
+            const targetItem = this.shadow.$(
+              `.file-list-item[data-path="${this.contextItemPath}"]`
+            );
+            const handle = await get(this.contextItemPath);
+
+            targetItem.classList.add("rename-mode");
+
+            const renameInput = targetItem.$("input");
+            renameInput.ele.value = handle.name;
+            renameInput.ele.focus();
+
+            this.hideMenu();
           },
           async clickDelete() {
             const { contextItemPath } = this;
