@@ -455,6 +455,13 @@
           list.push(itemData);
         }
 
+        // 排序，目录优先
+        list.sort((a, b) => {
+          if (a.kind === "dir" && b.kind !== "dir") return -1;
+          if (a.kind !== "dir" && b.kind === "dir") return 1;
+          return a.name.localeCompare(b.name);
+        });
+
         rootItem.list = list;
       };
 
