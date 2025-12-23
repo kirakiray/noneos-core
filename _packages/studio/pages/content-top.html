@@ -150,6 +150,10 @@
             }
 
             this.refreshList();
+
+            // 保存到 sessionStorage
+
+            this.saveTabs();
           },
           refreshList() {
             // 让重复名的项目显示parentName
@@ -203,10 +207,7 @@
                 });
               }
 
-              sessionStorage.setItem(
-                "__studio_opened_tabs",
-                JSON.stringify(this.list)
-              );
+              this.saveTabs();
 
               this.refreshList();
             }
@@ -252,10 +253,7 @@
             this.list.splice(index, 1);
 
             // 保存到 sessionStorage
-            sessionStorage.setItem(
-              "__studio_opened_tabs",
-              JSON.stringify(this.list)
-            );
+            this.saveTabs();
             this.refreshList();
           },
           // 点击切换选中项
@@ -286,6 +284,9 @@
 
             this.refreshList();
             // 保存到 sessionStorage
+            this.saveTabs();
+          },
+          saveTabs() {
             sessionStorage.setItem(
               "__studio_opened_tabs",
               JSON.stringify(this.list)
