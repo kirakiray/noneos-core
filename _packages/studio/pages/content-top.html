@@ -183,12 +183,21 @@
               return;
             }
 
-            // 判断路径是否是文件，如果不是则不需要添加
-            const handle = await get(this.activeFilePath);
-            if (handle.kind !== "file") return;
+            const activeFilePath = this.activeFilePath;
+
+            const [fixedPath, previewType] = this.activeFilePath.split("##");
+
+            if (previewType) {
+              this.previewType = previewType;
+            }
+            // else {
+            //   // 激活目录
+            //   const handle = await get(activeFilePath);
+            //   if (handle.kind !== "file") return;
+            // }
 
             // 如果不在列表中，添加到列表
-            if (!this.list.some((item) => item.path === this.activeFilePath)) {
+            if (!this.list.some((item) => item.path === activeFilePath)) {
               // 判断是否有 permanent false，有则替换它
               const index = this.list.findIndex(
                 (item) => item.permanent === false
@@ -196,20 +205,24 @@
 
               if (index !== -1) {
                 this.list[index] = {
-                  name: this.activeFilePath.split("/").pop(),
-                  path: this.activeFilePath,
-                  permanent: false,
+                  name: activeFilePath.split("/").pop(),
+                  path: activeFilePath,
+                  permanent: previewType ? true : false,
                 };
               } else {
                 this.list.push({
-                  name: this.activeFilePath.split("/").pop(),
-                  path: this.activeFilePath,
-                  permanent: false,
+                  name: activeFilePath.split("/").pop(),
+                  path: activeFilePath,
+                  permanent: previewType ? true : false,
                 });
               }
 
-              this.saveTabs();
+              if (this._loadedFirst) {
+                // 忽略第一次加载的行为，不然等于直接清空
+                this.saveTabs();
+              }
 
+              this._loadedFirst = true;
               this.refreshList();
             }
           },

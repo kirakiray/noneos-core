@@ -526,7 +526,12 @@
         },
         proto: {
           previewFile() {
-            window.open(`/$${this.contextItemPath}`);
+            // window.open(`/$${this.contextItemPath}`);
+
+            const studioProvider = this.getProvider("studio-data");
+            studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
+            // studioProvider.activeFile = `${this.contextItemPath}##preview-web`;
+
             this.hideMenu();
           },
           get canPreview() {
