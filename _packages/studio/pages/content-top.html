@@ -117,6 +117,7 @@
     watch:project-path="projectPath"
     on:dblclick-file="dblclickFile"
     on:save="saveFile"
+    on:rename-item="renameItem"
   ></o-consumer>
   <script>
     export default async ({ load }) => {
@@ -139,6 +140,17 @@
           },
         },
         proto: {
+          renameItem(e) {
+            const { oldPath, newPath, name } = e.data;
+
+            const item = this.list.find((item) => item.path === oldPath);
+            if (item) {
+              item.name = name;
+              item.path = newPath;
+            }
+
+            this.refreshList();
+          },
           refreshList() {
             // 让重复名的项目显示parentName
             this.list.forEach((item) => {

@@ -385,7 +385,7 @@
         "/_packages/locale-text/get-locale-text.js"
       );
       load("/gh/ofajs/Punch-UI/packages/button/button.html");
-      const { confirm, prompt } = await load(
+      const { confirm, prompt, toast } = await load(
         "/gh/ofajs/Punch-UI/packages/util.js"
       );
 
@@ -489,7 +489,78 @@
             this.hideMenu();
           },
           async clickRename() {
+            const handle = await get(this.contextItemPath);
+
             this.hideMenu();
+
+            const result = await prompt({
+              title:
+                getLocaleText({
+                  cn: "重命名",
+                  en: "Rename",
+                }) +
+                " " +
+                handle.name,
+              label: getLocaleText({
+                cn: "请输入新的名称",
+                en: "Please enter the new name",
+              }),
+            });
+
+            if (!result) {
+              return;
+            }
+
+            // 判断是否有重复
+            const siblingNames = [];
+            for await (const item of handle.parent.values()) {
+              siblingNames.push(item.name);
+            }
+            if (siblingNames.includes(result)) {
+              toast({
+                content: getLocaleText({
+                  cn: `重命名失败，${result} 已存在`,
+                  en: `Rename failed, ${result} already exists`,
+                }),
+                color: "error",
+              });
+              return;
+            }
+
+            const oldPath = handle.path;
+
+            // 重命名文件/目录
+            await handle.moveTo(handle.parent, result);
+
+            this.loadProject();
+
+            const studioProvider = this.getProvider("studio-data");
+
+            const newPath = handle.parent.path + "/" + result;
+
+            if (studioProvider.activeFile === oldPath) {
+              studioProvider.activeFile = newPath;
+            }
+
+            studioProvider.dispatch("rename-item", {
+              data: {
+                oldPath: oldPath,
+                newPath: newPath,
+                name: result,
+              },
+            });
+
+            // toast({
+            //   content: getLocaleText({
+            //     cn: `${handle.kind === "dir" ? "目录" : "文件"} ${
+            //       handle.name
+            //     } 重命名为 ${result}`,
+            //     en: `${handle.kind === "dir" ? "Directory" : "File"} ${
+            //       handle.name
+            //     } renamed to ${result}`,
+            //   }),
+            //   color: "success",
+            // });
           },
           async clickDelete() {
             const { contextItemPath } = this;
