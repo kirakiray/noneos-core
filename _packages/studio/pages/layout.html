@@ -21,6 +21,7 @@
       height: 40px;
       margin: 8px;
       border-radius: 8px;
+      font-size: 22px;
       cursor: pointer;
     }
     .btn:hover {
@@ -42,13 +43,24 @@
       line-height: 26px;
       border-top: 1px solid rgba(204, 204, 204, 0.2);
     }
+    .btn.active {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
   </style>
   <o-provider
     name="studio-data"
-    project-path="/ggwave-master"
+    project-path="/drill.js"
     sync:active-file="activeFilePath"
   >
     <div class="container">
+      <div class="left">
+        <o-fill :value="btns">
+          <div class="btn" class:active="$host.activeId === $data.id">
+            <n-icon attr:icon="$data.icon"></n-icon>
+          </div>
+        </o-fill>
+      </div>
       <div class="main">
         <div class="mian-inner">
           <slot></slot>
@@ -63,6 +75,19 @@
     export default async ({ load }) => {
       return {
         data: {
+          btns: [
+            {
+              id: "file",
+              icon: "mdi:file-outline",
+              name: "文件",
+            },
+            {
+              id: "preview",
+              icon: "material-symbols:preview",
+              name: "预览",
+            },
+          ],
+          activeId: "file",
           activeFilePath: null, // 激活的文件路径，(只允许kind为file的文件)
           // selectedPaths: [], // 选中的文件路径数组
         },
