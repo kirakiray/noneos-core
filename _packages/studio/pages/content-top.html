@@ -6,14 +6,22 @@
     }
     .container {
       display: flex;
+      flex-wrap: wrap;
     }
     .tab {
       position: relative;
-      padding: 8px 6px 8px 12px;
+      padding: 12px 6px 12px 12px;
       font-size: 14px;
       cursor: pointer;
       display: flex;
       align-items: center;
+    }
+
+    .tab .parent-name {
+      font-size: 12px;
+      display: inline-block;
+      margin-left: 4px;
+      color: var(--md-sys-color-normal, #777);
     }
 
     .close-btn {
@@ -86,6 +94,10 @@
         <div class="active-mark"></div>
         <handle-icon :path="$data.path" style="margin-right: 4px"></handle-icon>
         {{$data.name}}
+        <o-if :value="$data.showParentName">
+          <span class="parent-name">.../{{ $data.parentName }}</span>
+        </o-if>
+
         <div class="close-btn" on:click="$host.closeTab($data,$event,$index)">
           <n-icon
             icon="material-symbols:close-small-rounded"
@@ -127,6 +139,17 @@
           },
         },
         proto: {
+          refreshList() {
+            // 让重复名的项目显示parentName
+            this.list.forEach((item) => {
+              if (this.list.filter((i) => i.name === item.name).length > 1) {
+                item.parentName = item.path.split("/").slice(-2)[0];
+                item.showParentName = true;
+              } else {
+                item.showParentName = false;
+              }
+            });
+          },
           saveFile(e) {
             const { path, content } = e.data;
 
@@ -135,6 +158,8 @@
             if (index !== -1) {
               this.list[index].permanent = true;
             }
+
+            this.refreshList();
           },
           async changeActiveFile() {
             if (!this.activeFilePath) {
@@ -170,6 +195,8 @@
                 "__studio_opened_tabs",
                 JSON.stringify(this.list)
               );
+
+              this.refreshList();
             }
           },
           loadHistory() {
@@ -183,8 +210,7 @@
             } catch (e) {}
 
             this.list = openedTabs;
-
-            // 修正激活态
+            this.refreshList();
           },
           closeTab(item, event, index) {
             event.stopPropagation();
@@ -218,6 +244,7 @@
               "__studio_opened_tabs",
               JSON.stringify(this.list)
             );
+            this.refreshList();
           },
           // 点击切换选中项
           clickItem(item) {
@@ -234,6 +261,8 @@
               if (item) {
                 item.permanent = true;
               }
+
+              this.refreshList();
               return;
             }
 
@@ -243,6 +272,7 @@
               permanent: true,
             });
 
+            this.refreshList();
             // 保存到 sessionStorage
             sessionStorage.setItem(
               "__studio_opened_tabs",
