@@ -267,6 +267,17 @@
         </p-menu-item>
       </p-menu>
     </p-menu-item>
+    <p-menu-item>
+      <n-icon
+        icon="icon-park-outline:preview-open"
+        class="menu-item-icon"
+        slot="prefix"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">预览</span>
+        <span lang="en">Preview</span>
+      </locale-text>
+    </p-menu-item>
     <hr />
     <p-menu-item on:click="clickCut">
       <n-icon
@@ -478,6 +489,37 @@
           },
         },
         watch: {
+          activePath() {
+            if (!this.activePath) {
+              return;
+            }
+
+            const targetItem = this.shadow.$(
+              `.file-list-item[data-path="${this.activePath}"]`
+            );
+
+            (async () => {
+              // 如果没有找到项目，就进行展开父目录
+              if (!targetItem) {
+                const pathParts = this.activePath.split("/");
+                // 去掉头尾的空字符串
+                pathParts.shift();
+                pathParts.pop();
+                let list = this.list;
+                for (let item of pathParts) {
+                  const targetItem = await list.find((e) => e.name === item);
+
+                  if (!targetItem) {
+                    break;
+                  }
+
+                  await this.loadDirectoryContents(targetItem);
+                  targetItem.expanded = true;
+                  list = targetItem.list;
+                }
+              }
+            })();
+          },
           projectPath(path) {
             this.loadProject();
           },
