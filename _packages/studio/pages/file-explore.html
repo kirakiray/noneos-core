@@ -361,8 +361,19 @@
         style="font-size: 16px; margin-right: 4px"
       ></n-icon>
     </o-else>
-    正在复制 {{ clipboard.path.split('/').pop() }}
-
+    <o-if :value="clipboard.type === 'cut'">
+      <locale-text>
+        <span lang="cn">正在剪切</span>
+        <span lang="en">Cutting</span>
+      </locale-text>
+    </o-if>
+    <o-else>
+      <locale-text>
+        <span lang="cn">正在复制</span>
+        <span lang="en">Copying</span>
+      </locale-text>
+    </o-else>
+    {{ clipboard.path.split('/').pop() }}
     <div class="bottom-close-btn" on:click="closeClipboard">
       <n-icon icon="material-symbols:close"></n-icon>
     </div>
@@ -374,7 +385,9 @@
         "/_packages/locale-text/get-locale-text.js"
       );
       load("/gh/ofajs/Punch-UI/packages/button/button.html");
-      const { confirm } = await load("/gh/ofajs/Punch-UI/packages/util.js");
+      const { confirm, prompt } = await load(
+        "/gh/ofajs/Punch-UI/packages/util.js"
+      );
 
       // 使用 Set 数据结构提高查找性能
       let expandedPathsSet;
@@ -475,9 +488,8 @@
             this.closeClipboard();
             this.hideMenu();
           },
-          clickRename() {
+          async clickRename() {
             this.hideMenu();
-            debugger;
           },
           async clickDelete() {
             const { contextItemPath } = this;
