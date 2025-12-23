@@ -230,10 +230,10 @@
               if (this._loadedFirst) {
                 // 忽略第一次加载的行为，不然等于直接清空
                 this.saveTabs();
+                this.refreshList();
               }
 
               this._loadedFirst = true;
-              this.refreshList();
             }
           },
           loadHistory() {
