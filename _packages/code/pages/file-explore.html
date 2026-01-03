@@ -1,6 +1,6 @@
 <template page>
-  <l-m src="/_packages/n-icon/n-icon.html"></l-m>
-  <l-m src="/_packages/locale-text/locale-text.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="/nos/locale-text/locale-text.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
   <l-m src="../comps/handle-icon.html"></l-m>
   <l-m src="../comps/create-handle.html"></l-m>
@@ -435,7 +435,7 @@
     export default async ({ load }) => {
       const { get } = await load("/nos/fs/handle/main.js");
       const { getLocaleText } = await load(
-        "/_packages/locale-text/get-locale-text.js"
+        "/nos/locale-text/get-locale-text.js"
       );
       load("/gh/ofajs/Punch-UI/packages/button/button.html");
       const { confirm, prompt, toast } = await load(
