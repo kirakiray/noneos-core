@@ -1,32 +1,177 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
       display: block;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
+        "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
     }
-    .container {
+
+    .welcome-page {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      padding: 40px 0 0;
+      box-sizing: border-box;
+    }
+
+    .welcome-page .container {
+      max-width: 800px;
+      min-height: 60%;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 10px;
+    }
+
+    .main {
+      display: flex;
+    }
+
+    .left,
+    .right {
+      flex: 1;
+    }
+
+    .welcome-page h2 {
+      font-size: 26px;
+      font-weight: normal;
+      margin: 0 0 20px;
+      color: var(--md-sys-color-normal);
+    }
+
+    .welcome-page h3 {
+      font-size: 18px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 10px;
+      opacity: 0.7;
+    }
+
+    .welcome-page section {
+      margin-bottom: 30px;
+    }
+
+    .recent-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .recent-list li {
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+
+    .recent-list li:hover {
+      background-color: #2a2d2e;
+    }
+
+    .recent-list li .folder-icon {
+      margin-right: 8px;
+      width: 16px;
+      height: 16px;
+      background-color: var(--md-sys-color-primary);
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .recent-list li .name {
+      font-weight: normal;
+    }
+
+    .recent-list li .path {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-left: auto;
+      padding-left: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .button-container {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    p-button {
+      min-width: 120px;
+    }
+
+    .empty-recent {
+      color: var(--md-sys-color-normal);
+      font-style: italic;
+      padding: 4px 8px;
     }
   </style>
-  <div class="container">
-    <h2>ofa.js Studio</h2>
-    <h3>启动程序</h3>
-    <p-button variant="text">打开文件夹</p-button>
-    <p-button variant="text">创建新项目</p-button>
-    <h3>最近打开</h3>
-    <p>暂无最近打开项目</p>
-    <h3>教程</h3>
-    <p-button variant="text">了解基础知识</p-button>
+  <div class="welcome-page">
+    <div class="container">
+      <h2>ofa.js Studio</h2>
+      <div class="main">
+        <div class="left">
+          <section>
+            <h3>开始</h3>
+            <div class="button-container">
+              <p-button variant="text">
+                <n-icon
+                  icon="material-symbols:folder-open"
+                  slot="prefix"
+                ></n-icon>
+                打开文件夹
+              </p-button>
+              <p-button variant="text">
+                <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
+                创建新项目
+              </p-button>
+              <p-button variant="text">
+                <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
+                从 GitHub 仓库下载副本
+              </p-button>
+            </div>
+          </section>
+
+          <section>
+            <h3>最近打开</h3>
+            <ul class="recent-list">
+              <li class="empty-recent">暂无最近打开项目</li>
+              <!-- Example recent items (uncomment when functionality is available)
+          <li>
+            <span class="folder-icon"></span>
+            <span class="name">Project Name</span>
+            <span class="path">/path/to/project</span>
+          </li>
+          -->
+            </ul>
+          </section>
+        </div>
+        <div class="right">
+          <section>
+            <h3>学习</h3>
+            <div class="button-container">
+              <p-button variant="text">了解基础知识</p-button>
+              <p-button variant="text">视频教程</p-button>
+              <p-button variant="text">社区支持</p-button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
   </div>
   <script>
     export default async ({ load }) => {
       return {
         data: {
-          title: "Projects",
+          title: "欢迎",
         },
       };
     };
