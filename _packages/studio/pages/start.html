@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/list/list.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
@@ -23,7 +24,9 @@
       min-height: 60%;
       width: 100%;
       margin: 0 auto;
-      padding: 0 10px;
+      padding: 28px;
+      border-radius: 28px;
+      /* border: var(--md-sys-color-on-normal) 1px solid; */
     }
 
     .main {
@@ -55,53 +58,11 @@
       margin-bottom: 30px;
     }
 
-    .recent-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .recent-list li {
-      padding: 6px 0;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      border-radius: 4px;
-      padding: 4px 8px;
-    }
-
-    .recent-list li:hover {
-      background-color: #2a2d2e;
-    }
-
-    .recent-list li .folder-icon {
-      margin-right: 8px;
-      width: 16px;
-      height: 16px;
-      background-color: var(--md-sys-color-primary);
-      display: inline-block;
-      vertical-align: middle;
-    }
-
-    .recent-list li .name {
-      font-weight: normal;
-    }
-
-    .recent-list li .path {
-      font-size: 12px;
-      opacity: 0.7;
-      margin-left: auto;
-      padding-left: 10px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
     .button-container {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 12px;
+      gap: 10px;
     }
 
     p-button {
@@ -112,6 +73,12 @@
       color: var(--md-sys-color-normal);
       font-style: italic;
       padding: 4px 8px;
+    }
+
+    p-list-item {
+      --pui-space-y: 6px;
+      margin: 2px;
+      border-radius: 12px;
     }
   </style>
   <div class="welcome-page">
@@ -142,26 +109,24 @@
 
           <section>
             <h3>最近打开</h3>
-            <ul class="recent-list">
-              <li class="empty-recent">暂无最近打开项目</li>
-              <!-- Example recent items (uncomment when functionality is available)
-          <li>
-            <span class="folder-icon"></span>
-            <span class="name">Project Name</span>
-            <span class="path">/path/to/project</span>
-          </li>
-          -->
-            </ul>
+            <p-list>
+              <p-list-item> 暂无最近打开项目 </p-list-item>
+            </p-list>
           </section>
         </div>
         <div class="right">
           <section>
             <h3>学习</h3>
-            <div class="button-container">
+            <p-list>
+              <p-list-item button disabled>了解基础知识</p-list-item>
+              <p-list-item button disabled>视频教程</p-list-item>
+              <p-list-item button>社区支持</p-list-item>
+            </p-list>
+            <!-- <div class="button-container">
               <p-button variant="text">了解基础知识</p-button>
               <p-button variant="text">视频教程</p-button>
               <p-button variant="text">社区支持</p-button>
-            </div>
+            </div> -->
           </section>
         </div>
       </div>
