@@ -1,4 +1,5 @@
 <template page>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
       display: block;
@@ -221,7 +222,7 @@
       <o-if :value="list.length === 0">
         <div style="text-align: center; padding: 40px 0; color: #999">
           <div class="item-icon">
-            <iconify-icon icon="mdi:folder"></iconify-icon>
+            <n-icon icon="mdi:folder"></n-icon>
           </div>
           <div class="item-name">Empty</div>
         </div>
@@ -235,10 +236,10 @@
         >
           <div class="item-icon">
             <o-if :value="$data.type === 'directory'">
-              <iconify-icon icon="mdi:folder"></iconify-icon>
+              <n-icon icon="mdi:folder"></n-icon>
             </o-if>
             <o-else>
-              <iconify-icon icon="mdi:file"></iconify-icon>
+              <n-icon icon="mdi:file"></n-icon>
             </o-else>
           </div>
           <div class="item-name">{{$data.name}}</div>
