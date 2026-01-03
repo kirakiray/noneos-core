@@ -1,35 +1,14 @@
 # NoneOS Core
 
-NoneOS Core 是一个用于运行 ofa.js 应用的核心引擎，让你在不需要安装任何额外软件的情况下，即可运行和开发 ofa.js 应用。
+NoneOS Core is a lightweight core engine designed specifically for running ofa.js applications. It allows one-click startup, development, and debugging of ofa.js projects without the need to install any additional software.
 
-NoneOS Core 是基于 NoneOS3 代码精简而来，通过化繁为简，得到最精炼的代码，让系统和应用进行切割，最后再基于NoneCore 重构 NoneOS4。
+The engine originates from NoneOS3, undergoing deep streamlining and architectural restructuring to achieve complete decoupling between the system and applications. In the future, NoneOS4 will be completely rebuilt based on NoneOS Core.
 
-## 特性
+Our vision: To create a universal, minimal, and cross-platform application runtime environment that enables various applications to achieve truly seamless, efficient, and stable operation across different operating systems.
 
-- **轻量化**：精简的代码结构，减少不必要的功能。
-- **高性能**：优化的底层引擎，提供稳定高效的运行环境。
-- **兼容性**：支持 ofa.js 应用的开发与运行。
-- **扩展性**：设计用于兼容各种前端框架。
+## Core Features
 
-## 安装
-
-请参考项目文档以获取安装指南。
-
-## 使用
-
-请参考项目文档以获取使用说明。
-
-## 项目目标
-
-- 打造代码精简的底层引擎，筑牢系统运行根基。
-- 用于搭建 ofa.js 应用的开发环境与运行容器，实现高效开发与稳定运行。
-- 后续将具备兼容任意前端框架的能力，打造通用运行容器。
-- 最终致力于构建一套极简且稳定的代码，保障系统的长期稳定性。
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request 来帮助改进项目。
-
-## 许可证
-
-请参阅 LICENSE 文件了解更多信息。
+- **Lightweight Design** - Streamlined code architecture, removing redundant functionality, keeping the core engine lean and efficient
+- **High-Performance Operation** - Optimized underlying engine providing a stable and efficient runtime environment, ensuring smooth application performance
+- **Complete Compatibility** - Full support for development and operation of ofa.js applications, seamlessly integrating with the existing ecosystem
+- **High Extensibility** - Modular design with the capability to support multiple front-end frameworks, reserving space for future expansion
