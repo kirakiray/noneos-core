@@ -106,18 +106,18 @@
         <n-icon icon="mdi:application-array-outline"></n-icon>
         <div class="card-text">ofa.js 应用</div>
       </div>
-      <div
+      <!-- <div
         class="card"
         class:active="type === 'component'"
         on:click="type = 'component'"
       >
         <n-icon icon="mingcute:components-line"></n-icon>
         <div class="card-text">ofa.js 组件</div>
-      </div>
+      </div> -->
     </div>
     <h3>项目信息</h3>
 
-    <p-input variant="filled">
+    <p-input variant="filled" sync:value="projectName">
       <label>项目名称</label>
     </p-input>
     <div
@@ -130,10 +130,22 @@
     >
       目录地址：
       <span>{{dirPath}}</span>
-      <p-button variant="outlined">选择目录</p-button>
+      <p-button
+        variant="outlined"
+        on:click="selectDir"
+        style="margin-left: 24px"
+      >
+        选择目录
+      </p-button>
     </div>
     <div style="margin-top: 16px">
-      <p-button style="width: 100px"> 确认 </p-button>
+      <p-button
+        style="width: 100px"
+        on:click="confirm"
+        attr:disabled="!projectName"
+      >
+        确认
+      </p-button>
     </div>
   </main-content>
   <script>
@@ -143,7 +155,16 @@
       return {
         data: {
           type: "app",
-          dirPath: "",
+          dirPath: "test",
+          projectName: "",
+        },
+        proto: {
+          async confirm() {
+            console.log("确认");
+          },
+          selectDir() {
+            console.log("选择目录");
+          },
         },
       };
     };
