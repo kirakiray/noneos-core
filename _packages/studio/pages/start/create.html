@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <style>
@@ -12,11 +13,17 @@
       height: 60px;
       align-items: center;
     }
+    h3 {
+      padding: 0;
+      margin: 32px 0 16px;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--md-sys-color-normal);
+    }
     .container {
       display: flex;
-      gap: 24px;
+      gap: 16px;
       flex-wrap: wrap;
-      margin-top: 24px;
     }
     .card {
       width: 100px;
@@ -46,6 +53,14 @@
       color: var(--md-sys-color-normal);
     }
 
+    .card.active {
+      background-color: var(--md-sys-color-on-primary);
+      border: 1px solid var(--md-sys-color-on-primary);
+      .card-text {
+        color: var(--md-sys-color-primary);
+      }
+    }
+
     /* 响应式设计 */
     @media (max-width: 768px) {
       .container {
@@ -63,9 +78,6 @@
     }
 
     @media (max-width: 480px) {
-      .container {
-        gap: 16px;
-      }
       .card {
         width: 130px;
         height: 130px;
@@ -83,20 +95,45 @@
   <main-content>
     <div class="header" slot="header">
       <p-button variant="text" on:click="back">
-        <n-icon icon="material-symbols:arrow-back"></n-icon>
+        <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
         返回
       </p-button>
     </div>
-    <h3>创建项目</h3>
+    <p>选择你要创建的项目类型</p>
+    <h3>项目类型</h3>
     <div class="container">
-      <div class="card">
+      <div class="card" class:active="type === 'app'" on:click="type = 'app'">
         <n-icon icon="mdi:application-array-outline"></n-icon>
-        <div class="card-text">创建应用</div>
+        <div class="card-text">ofa.js 应用</div>
       </div>
-      <div class="card">
+      <div
+        class="card"
+        class:active="type === 'component'"
+        on:click="type = 'component'"
+      >
         <n-icon icon="mingcute:components-line"></n-icon>
-        <div class="card-text">创建组件</div>
+        <div class="card-text">ofa.js 组件</div>
       </div>
+    </div>
+    <h3>项目信息</h3>
+
+    <p-input variant="filled">
+      <label>项目名称</label>
+    </p-input>
+    <div
+      style="
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+      "
+    >
+      目录地址：
+      <span>{{dirPath}}</span>
+      <p-button variant="outlined">选择目录</p-button>
+    </div>
+    <div style="margin-top: 16px">
+      <p-button style="width: 100px"> 确认 </p-button>
     </div>
   </main-content>
   <script>
@@ -105,7 +142,8 @@
     export default async ({ load }) => {
       return {
         data: {
-          title: "创建",
+          type: "app",
+          dirPath: "",
         },
       };
     };
