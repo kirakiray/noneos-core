@@ -1,0 +1,33 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      padding: 0 8px;
+    }
+    .header {
+      display: flex;
+      height: 60px;
+      align-items: center;
+    }
+  </style>
+  <div class="header">
+    <p-button variant="text" on:click="back">
+      <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
+      返回
+    </p-button>
+  </div>
+  创建项目
+  <script>
+    export const parent = "../layout.html";
+
+    export default async ({ load }) => {
+      return {
+        data: {
+          title: "创建",
+        },
+      };
+    };
+  </script>
+</template>

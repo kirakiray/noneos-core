@@ -97,7 +97,7 @@
                 ></n-icon>
                 打开文件夹
               </p-button>
-              <p-button variant="text">
+              <p-button variant="text" on:click="goto('./create.html')">
                 <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
                 创建新项目
               </p-button>
@@ -134,7 +134,7 @@
     </div>
   </div>
   <script>
-    export const parent = "./layout.html";
+    export const parent = "../layout.html";
 
     export default async ({ load }) => {
       return {

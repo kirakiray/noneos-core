@@ -45,7 +45,7 @@
   </style>
   <div class="container">
     <div class="left-bar">
-      <div class="left-btn" class:active="activeName === 'news'">
+      <div class="left-btn" class:active="activeName === 'start'">
         <n-icon icon="material-symbols:breaking-news-alt-1-outline"></n-icon>
       </div>
       <div class="left-btn">A</div>
@@ -62,7 +62,7 @@
     export default async ({ load }) => {
       return {
         data: {
-          activeName: "news",
+          activeName: "start",
         },
         proto: {},
       };
