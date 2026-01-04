@@ -12,15 +12,92 @@
       height: 60px;
       align-items: center;
     }
+    .container {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    .card {
+      width: 100px;
+      height: 100px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      transition: all 0.1s ease;
+      cursor: pointer;
+      text-align: center;
+      border: 1px solid var(--md-sys-color-on-normal);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      background-color: var(--md-sys-color-on-normal);
+    }
+    .card n-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      color: var(--md-sys-color-primary);
+    }
+    .card-text {
+      font-size: 14px;
+      color: var(--md-sys-color-normal);
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .container {
+        justify-content: center;
+      }
+      .card {
+        width: 140px;
+        height: 140px;
+        padding: 16px;
+      }
+      .card n-icon {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        gap: 16px;
+      }
+      .card {
+        width: 130px;
+        height: 130px;
+        padding: 16px;
+      }
+      .card n-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      .card-text {
+        font-size: 14px;
+      }
+    }
   </style>
   <main-content>
     <div class="header" slot="header">
       <p-button variant="text" on:click="back">
-        <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
+        <n-icon icon="material-symbols:arrow-back"></n-icon>
         返回
       </p-button>
     </div>
-    创建项目
+    <h3>创建项目</h3>
+    <div class="container">
+      <div class="card">
+        <n-icon icon="mdi:application-array-outline"></n-icon>
+        <div class="card-text">创建应用</div>
+      </div>
+      <div class="card">
+        <n-icon icon="mingcute:components-line"></n-icon>
+        <div class="card-text">创建组件</div>
+      </div>
+    </div>
   </main-content>
   <script>
     export const parent = "../layout.html";
