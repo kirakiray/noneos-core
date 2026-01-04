@@ -1,0 +1,35 @@
+<template component>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: flex;
+      align-items: center;
+    }
+    n-icon {
+      display: block;
+      margin-right: 4px;
+      font-size: 16px;
+      color: var(--md-sys-color-primary);
+    }
+  </style>
+  <n-icon icon="streamline-ultimate:network-browser"></n-icon>
+  虚拟系统
+  <span
+    style="display: block; margin: 0 4px; color: var(--md-sys-color-normal)"
+  >
+    /
+  </span>
+  <n-icon icon="flat-color-icons:folder"></n-icon>
+  {{path}}
+  <script>
+    export default async () => {
+      return {
+        tag: "path-view",
+        attrs: {
+          path: "",
+        },
+        proto: {},
+      };
+    };
+  </script>
+</template>

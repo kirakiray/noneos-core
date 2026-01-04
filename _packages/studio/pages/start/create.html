@@ -3,6 +3,7 @@
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
+  <l-m src="../../comps/path-view.html"></l-m>
   <style>
     :host {
       display: block;
@@ -99,7 +100,6 @@
         返回
       </p-button>
     </div>
-    <p>选择你要创建的项目类型</p>
     <h3>项目类型</h3>
     <div class="container">
       <div class="card" class:active="type === 'app'" on:click="type = 'app'">
@@ -128,8 +128,10 @@
         font-size: 14px;
       "
     >
-      目录地址：
-      <span>{{dirPath}}</span>
+      <span style="font-weight: 500; color: var(--md-sys-color-normal)">
+        目录地址：
+      </span>
+      <path-view :path="dirPath"></path-view>
       <p-button
         variant="outlined"
         on:click="selectDir"
@@ -144,7 +146,7 @@
         on:click="confirm"
         attr:disabled="!projectName"
       >
-        确认
+        确认创建
       </p-button>
     </div>
   </main-content>
@@ -155,7 +157,7 @@
       return {
         data: {
           type: "app",
-          dirPath: "test",
+          dirPath: "project-" + Date.now(),
           projectName: "",
         },
         proto: {
