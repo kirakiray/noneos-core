@@ -11,9 +11,30 @@
     }
 
     .left-bar {
-      width: 60px;
-      height: 100%;
-      background-color: var(--md-sys-color-on-normal);
+      width: 56px;
+      border-right: 1px solid rgba(132, 132, 132, 0.2);
+    }
+
+    .left-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* height: 56px; */
+      height: 40px;
+      margin: 8px;
+      border-radius: 8px;
+      font-size: 22px;
+      color: var(--md-sys-color-normal);
+      cursor: pointer;
+    }
+
+    .left-btn:hover {
+      background-color: var(--md-ref-palette-translucent-normal60);
+    }
+
+    .left-btn.active {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
     }
 
     .main {
@@ -23,7 +44,12 @@
     }
   </style>
   <div class="container">
-    <div class="left-bar"></div>
+    <div class="left-bar">
+      <div class="left-btn" class:active="activeName === 'news'">
+        <n-icon icon="material-symbols:breaking-news-alt-1-outline"></n-icon>
+      </div>
+      <div class="left-btn">A</div>
+    </div>
     <div class="main">
       <div
         style="position: absolute; top: 0; bottom: 0; width: 100%; height: 100%"
@@ -35,7 +61,9 @@
   <script>
     export default async ({ load }) => {
       return {
-        data: {},
+        data: {
+          activeName: "news",
+        },
         proto: {},
       };
     };
