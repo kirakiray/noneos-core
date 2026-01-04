@@ -1,10 +1,11 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="../../comps/main-content.html"></l-m>
   <style>
     :host {
       display: block;
-      padding: 0 8px;
+      height: 100%;
     }
     .header {
       display: flex;
@@ -12,13 +13,15 @@
       align-items: center;
     }
   </style>
-  <div class="header">
-    <p-button variant="text" on:click="back">
-      <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
-      返回
-    </p-button>
-  </div>
-  创建项目
+  <main-content>
+    <div class="header" slot="header">
+      <p-button variant="text" on:click="back">
+        <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
+        返回
+      </p-button>
+    </div>
+    创建项目
+  </main-content>
   <script>
     export const parent = "../layout.html";
 
