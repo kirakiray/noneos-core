@@ -126,6 +126,7 @@
         display: flex;
         align-items: center;
         font-size: 14px;
+        white-space: nowrap;
       "
     >
       <span style="font-weight: 500; color: var(--md-sys-color-normal)">
@@ -139,12 +140,22 @@
       >
         选择目录
       </p-button>
+      <p
+        style="
+          color: var(--md-sys-color-primary);
+          font-size: 12px;
+          margin-left: 8px;
+          white-space: wrap;
+        "
+      >
+        当选择目录后，系统会弹出权限确认弹窗，请连续点击“确认”以授予写入权限，否则项目将无法正常启动。
+      </p>
     </div>
     <div style="margin-top: 16px">
       <p-button
         style="width: 100px"
         on:click="confirm"
-        attr:disabled="!projectName"
+        attr:disabled="!projectName || !dirPath"
       >
         确认创建
       </p-button>
@@ -154,18 +165,22 @@
     export const parent = "../layout.html";
 
     export default async ({ load }) => {
+      const { mount } = await load("/nos/fs/main.js");
+
       return {
         data: {
           type: "app",
-          dirPath: "project-" + Date.now(),
+          //   dirPath: "project-" + Date.now(),
+          dirPath: "",
           projectName: "",
         },
         proto: {
+          async selectDir() {
+            const handle = await mount({ save: true });
+            this.dirPath = handle.path;
+          },
           async confirm() {
             console.log("确认");
-          },
-          selectDir() {
-            console.log("选择目录");
           },
         },
       };
