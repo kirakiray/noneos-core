@@ -67,50 +67,90 @@
   <main-content>
     <h2>OFA Studio</h2>
     <div class="main">
-      <div class="left">
-        <section>
-          <h3>开始</h3>
-          <div class="button-container">
-            <p-button variant="text">
-              <n-icon
-                icon="material-symbols:folder-open"
-                slot="prefix"
-              ></n-icon>
-              打开文件夹
-            </p-button>
-            <p-button variant="text" on:click="goto('./create.html')">
-              <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
-              创建新项目
-            </p-button>
-            <p-button variant="text">
-              <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
-              从 GitHub 仓库下载副本
-            </p-button>
+      <o-if :value="!canUse">
+        <locale-text>
+          <div lang="cn">
+            <p>
+              抱歉，您的浏览器暂不支持选择目录，请更换为 Chrome
+              或其他现代浏览器后再试。
+            </p>
+            <p>
+              本功能依赖
+              <a
+                href="https://developer.mozilla.org/zh-CN/docs/Web/API/Window/showOpenFilePicker"
+                >showOpenFilePicker API</a
+              >，仅在支持的浏览器中可用。
+            </p>
+            <p>
+              该 API
+              用于授予浏览器写入本地文件夹的权限；若不被支持，项目将无法正常运行。
+            </p>
           </div>
-        </section>
+          <div lang="en">
+            <p>
+              Sorry, your browser does not support the
+              <a
+                href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showOpenFilePicker"
+                >showOpenFilePicker API</a
+              >. Please use Chrome or other modern browsers.
+            </p>
+            <p>
+              This feature depends on the showOpenFilePicker API, which is only
+              available in supported browsers.
+            </p>
+            <p>
+              The API is used to grant the browser permission to write to local
+              folders; without it, the project may not function properly.
+            </p>
+          </div>
+        </locale-text>
+      </o-if>
+      <o-else>
+        <div class="left">
+          <section>
+            <h3>开始</h3>
+            <div class="button-container">
+              <p-button variant="text">
+                <n-icon
+                  icon="material-symbols:folder-open"
+                  slot="prefix"
+                ></n-icon>
+                打开文件夹
+              </p-button>
+              <p-button variant="text" on:click="goto('./create.html')">
+                <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
+                创建新项目
+              </p-button>
+              <p-button variant="text">
+                <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
+                从 GitHub 仓库下载副本
+              </p-button>
+            </div>
+          </section>
 
-        <section>
-          <h3>最近打开</h3>
-          <p-list>
-            <p-list-item> 暂无最近打开项目 </p-list-item>
-          </p-list>
-        </section>
-      </div>
-      <div class="right">
-        <section>
-          <h3>学习</h3>
-          <p-list>
-            <p-list-item button disabled>了解基础知识</p-list-item>
-            <p-list-item button disabled>视频教程</p-list-item>
-            <p-list-item button>社区支持</p-list-item>
-          </p-list>
-          <!-- <div class="button-container">
+          <section>
+            <h3>最近打开</h3>
+            <p-list>
+              <p-list-item> 暂无最近打开项目 </p-list-item>
+            </p-list>
+          </section>
+        </div>
+        <div class="right">
+          <section>
+            <h3>学习</h3>
+            <p-list>
+              <p-list-item button disabled>了解基础知识</p-list-item>
+              <p-list-item button disabled>视频教程</p-list-item>
+              <p-list-item button>社区支持</p-list-item>
+            </p-list>
+            <!-- <div class="button-container">
               <p-button variant="text">了解基础知识</p-button>
               <p-button variant="text">视频教程</p-button>
               <p-button variant="text">社区支持</p-button>
             </div> -->
-        </section>
-      </div>
+          </section>
+        </div>
+      </o-else>
     </div>
   </main-content>
   <script>
@@ -119,6 +159,7 @@
     export default async ({ load }) => {
       return {
         data: {
+          canUse: !!window.showOpenFilePicker,
           title: "欢迎",
         },
       };
