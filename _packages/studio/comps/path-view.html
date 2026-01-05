@@ -41,6 +41,8 @@
               this.isMount = true;
               const realPath = decodeURI(path.split(">")[1]);
               this.dirName = realPath.split("/").slice(-1)[0];
+            } else {
+              this.dirName = path.split("/").slice(-1)[0];
             }
           },
         },
