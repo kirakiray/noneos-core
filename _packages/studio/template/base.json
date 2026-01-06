@@ -1,10 +1,13 @@
 {
-  "files": [
-    "comps/o-punch/logo.svg",
-    "comps/o-punch/o-punch.html",
-    "pages/home.html",
-    "pages/about.html",
-    "app-config.js",
-    "index.html"
-  ]
+  "router": {
+    "name": "Router App",
+    "files": [
+      "comps/o-punch/logo.svg",
+      "comps/o-punch/o-punch.html",
+      "pages/home.html",
+      "pages/about.html",
+      "app-config.js",
+      "index.html"
+    ]
+  }
 }
