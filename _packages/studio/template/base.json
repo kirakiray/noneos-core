@@ -1,0 +1,9 @@
+{
+  "files": [
+    "comps/o-punch/logo.svg",
+    "comps/o-punch/o-punch.html",
+    "pages/home.html",
+    "app-config.js",
+    "index.html"
+  ]
+}

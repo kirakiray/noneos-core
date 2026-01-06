@@ -1,0 +1,41 @@
+<template page>
+  <l-m src="../comps/o-punch/o-punch.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :host {
+        background: #121212;
+        color: #e0e0e0;
+      }
+    }
+  </style>
+  <div class="container">
+    <o-punch>
+      <div>😫</div>
+      <div>😈</div>
+      <div>☹️</div>
+    </o-punch>
+  </div>
+  <script>
+    export default async ({ load }) => {
+      return {
+        data: {},
+        proto: {},
+      };
+    };
+  </script>
+</template>
