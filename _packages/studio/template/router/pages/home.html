@@ -16,11 +16,11 @@
       width: 100%;
     }
 
-    @media (prefers-color-scheme: dark) {
-      :host {
-        background: #121212;
-        color: #e0e0e0;
-      }
+    h2 {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--md-sys-color-normal);
+      margin-top: 32px;
     }
   </style>
   <div class="container">
@@ -29,6 +29,8 @@
       <div>😈</div>
       <div>☹️</div>
     </o-punch>
+    <h2>Welcome to Your ofa.js App</h2>
+    <a href="./about.html" olink>About</a>
   </div>
   <script>
     export default async ({ load }) => {
