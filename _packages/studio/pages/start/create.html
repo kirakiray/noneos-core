@@ -2,6 +2,7 @@
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/tooltips/tooltips.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <l-m src="../../comps/path-view.html"></l-m>
@@ -194,6 +195,20 @@
       </p-button>
     </div>
   </main-content>
+
+  <p-dialog :open="showCoverDialog">
+    <div slot="title">确认项目</div>
+    <p>选择的文件夹已经包含文件，是否确认覆盖原有的项目？</p>
+    <p-button slot="bottom" on:click="openProject" color="success">
+      直接打开项目
+    </p-button>
+    <p-button slot="bottom" on:click="showCoverDialog = false">
+      确认覆盖
+    </p-button>
+    <p-button slot="bottom" variant="outlined" on:click="clickCoverCancel">
+      取消
+    </p-button>
+  </p-dialog>
   <script>
     export const parent = "../layout.html";
 
@@ -210,9 +225,23 @@
           dirPath: "",
           projectName: "",
           _handle: null,
+          showCoverDialog: false,
           isCover: false,
         },
         proto: {
+          async openProject() {
+            debugger;
+          },
+          clickCoverCancel() {
+            this.showCoverDialog = false;
+            this.dirPath = "";
+            if (this.projectName === this._handle.name) {
+              this.projectName = "";
+            }
+            if (this.projectName) {
+            }
+            this.isCover = false;
+          },
           async selectDir() {
             const handle = (this._handle = await mount());
             this.dirPath = handle.path;
@@ -233,22 +262,7 @@
                 return;
               }
             } else if (fileLen > 0) {
-              // TODO: 存在文件，提示用户是否覆盖
-              const result = await confirm({
-                title: "确认覆盖目录？",
-                content: "目录中已存在文件，是否确认覆盖？",
-              });
-
-              if (!result) {
-                // 清空选择
-                this.dirPath = "";
-
-                if (this.projectName === handle.name) {
-                  this.projectName = "";
-                }
-                return;
-              }
-
+              this.showCoverDialog = true;
               this.isCover = true;
             }
           },
