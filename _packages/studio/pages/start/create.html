@@ -197,8 +197,8 @@
   </main-content>
 
   <p-dialog :open="showCoverDialog">
-    <div slot="title">确认项目</div>
-    <p>选择的文件夹已经包含文件，是否确认覆盖原有的项目？</p>
+    <div slot="title">项目已存在</div>
+    <p>当前目录下已有项目文件，是否覆盖并继续创建？</p>
     <p-button slot="bottom" on:click="openProject" color="success">
       直接打开项目
     </p-button>
@@ -230,7 +230,11 @@
         },
         proto: {
           async openProject() {
-            debugger;
+            await save(this._handle);
+
+            const path = encodeURIComponent(this._handle.path);
+
+            this.goto(`../dashboard.html?path=${path}`);
           },
           clickCoverCancel() {
             this.showCoverDialog = false;

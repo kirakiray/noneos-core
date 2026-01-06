@@ -1,0 +1,21 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+  <div>dashboard</div>
+  <div>{{query}}</div>
+  <script>
+    export const parent = "./layout.html";
+
+    export default async ({ load, query }) => {
+      return {
+        data: {
+          query,
+        },
+        proto: {},
+      };
+    };
+  </script>
+</template>
