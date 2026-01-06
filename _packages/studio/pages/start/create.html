@@ -232,9 +232,11 @@
           async openProject() {
             await save(this._handle);
 
-            const path = encodeURIComponent(this._handle.path);
+            await saveProject(this._handle.path);
 
-            this.goto(`../dashboard.html?path=${path}`);
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(this._handle.path)}`
+            );
           },
           clickCoverCancel() {
             this.showCoverDialog = false;
@@ -320,10 +322,24 @@
 
             await save(this._handle);
 
-            console.log("确认", templatePath);
+            await saveProject(this._handle.path);
+
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(this._handle.path)}`
+            );
           },
         },
       };
+    };
+
+    const saveProject = async (path) => {
+      const projects = JSON.parse(localStorage.getItem("projects") || "[]");
+
+      projects.push({
+        path,
+      });
+
+      localStorage.setItem("projects", JSON.stringify(projects));
     };
   </script>
 </template>

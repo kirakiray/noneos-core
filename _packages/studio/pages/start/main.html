@@ -130,9 +130,25 @@
 
           <section>
             <h3>最近打开</h3>
-            <p-list>
-              <p-list-item> 暂无最近打开项目 </p-list-item>
-            </p-list>
+            <o-if :value="projects.length">
+              <p-list>
+                <o-fill :value="projects">
+                  <p-list-item button on:click="$host.gotoProject($data.path)">
+                    <n-icon
+                      icon="material-symbols:folder"
+                      slot="prefix"
+                      style="margin-right: 4px"
+                    ></n-icon>
+                    {{ $host.getName($data.path) }}
+                  </p-list-item>
+                </o-fill>
+              </p-list>
+            </o-if>
+            <o-else>
+              <p-list>
+                <p-list-item> 暂无最近打开项目 </p-list-item>
+              </p-list>
+            </o-else>
           </section>
         </div>
         <div class="right">
@@ -161,6 +177,20 @@
         data: {
           canUse: !!window.showOpenFilePicker,
           title: "欢迎",
+          projects: [],
+        },
+        proto: {
+          getName(path) {
+            const repath = path.split(">").pop();
+            return repath.split("/").pop();
+          },
+          gotoProject(path) {
+            this.goto(`../dashboard.html?path=${encodeURIComponent(path)}`);
+          },
+        },
+        attached() {
+          const projects = JSON.parse(localStorage.getItem("projects") || "[]");
+          this.projects = projects;
         },
       };
     };

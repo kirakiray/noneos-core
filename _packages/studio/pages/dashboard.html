@@ -12,7 +12,7 @@
     export default async ({ load, query }) => {
       return {
         data: {
-          query,
+          query: decodeURIComponent(query.path),
         },
         proto: {},
       };
