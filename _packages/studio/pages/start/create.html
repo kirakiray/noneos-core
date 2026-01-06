@@ -1,6 +1,7 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/tooltips/tooltips.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <l-m src="../../comps/path-view.html"></l-m>
@@ -44,13 +45,14 @@
       transform: translateY(-2px);
       background-color: var(--md-sys-color-on-normal);
     }
-    .card n-icon {
+    .card .main-icon {
       font-size: 32px;
       margin-bottom: 12px;
       color: var(--md-sys-color-primary);
     }
     .card-text {
       font-size: 14px;
+      line-height: 1.4em;
       color: var(--md-sys-color-normal);
     }
 
@@ -102,9 +104,27 @@
     </div>
     <h3>项目类型</h3>
     <div class="container">
-      <div class="card" class:active="type === 'app'" on:click="type = 'app'">
-        <n-icon icon="mdi:application-array-outline"></n-icon>
-        <div class="card-text">ofa.js 应用</div>
+      <div
+        class="card"
+        class:active="type === 'app'"
+        on:click="type = 'app'"
+        data-temp-path="router"
+      >
+        <n-icon class="main-icon" icon="mdi:application-array-outline"></n-icon>
+        <div class="card-text">
+          ofa.js 应用 <br />（含路由）
+          <p-tooltips style="vertical-align: middle">
+            <n-icon
+              icon="stash:question"
+              style="
+                font-size: 20px;
+                display: inline-block;
+                vertical-align: middle;
+              "
+            ></n-icon>
+            <div slot="tips">路由支持页面跳转、参数传递等单页应用功能。</div>
+          </p-tooltips>
+        </div>
       </div>
       <!-- <div
         class="card"
@@ -133,6 +153,19 @@
         目录地址：
       </span>
       <path-view :path="dirPath"></path-view>
+      <o-if :value="isCover">
+        <p-tooltips>
+          <n-icon
+            icon="ep:warn-triangle-filled"
+            style="
+              color: var(--md-sys-color-primary);
+              margin-left: 4px;
+              font-size: 18px;
+            "
+          ></n-icon>
+          <div slot="tips">已确认覆盖原有的项目</div>
+        </p-tooltips>
+      </o-if>
       <p-button
         variant="outlined"
         on:click="selectDir"
@@ -164,8 +197,11 @@
   <script>
     export const parent = "../layout.html";
 
-    export default async ({ load }) => {
-      const { mount } = await load("/nos/fs/main.js");
+    export default async ({ load, url }) => {
+      const { mount, save } = await load("/nos/fs/main.js");
+      const { confirm, prompt, toast } = await load(
+        "/gh/ofajs/Punch-UI/packages/util.js"
+      );
 
       return {
         data: {
@@ -173,14 +209,100 @@
           //   dirPath: "project-" + Date.now(),
           dirPath: "",
           projectName: "",
+          _handle: null,
+          isCover: false,
         },
         proto: {
           async selectDir() {
-            const handle = await mount({ save: true });
+            const handle = (this._handle = await mount());
             this.dirPath = handle.path;
+
+            if (!this.projectName) {
+              this.projectName = handle.name;
+            }
+
+            const fileLen = await handle.length();
+
+            this.isCover = false;
+
+            if (fileLen === 1) {
+              // 判断是否有隐藏文件或DS_Store文件，只有DS_Store可以视为空
+              const dsStoreFile = await handle.get(".DS_Store");
+
+              if (!dsStoreFile) {
+                return;
+              }
+            } else if (fileLen > 0) {
+              // TODO: 存在文件，提示用户是否覆盖
+              const result = await confirm({
+                title: "确认覆盖目录？",
+                content: "目录中已存在文件，是否确认覆盖？",
+              });
+
+              if (!result) {
+                // 清空选择
+                this.dirPath = "";
+
+                if (this.projectName === handle.name) {
+                  this.projectName = "";
+                }
+                return;
+              }
+
+              this.isCover = true;
+            }
           },
           async confirm() {
-            console.log("确认");
+            const templatePath = this.shadow.$(`.card.active[data-temp-path]`)
+              .data.tempPath;
+
+            if (!templatePath) {
+              return;
+            }
+
+            const baseData = await load("../../template/base.json");
+
+            if (!baseData[templatePath]) {
+              return;
+            }
+
+            // 下载文件并覆盖文件
+            await Promise.all(
+              baseData[templatePath].files.map(async (path) => {
+                const fileContent = await fetch(
+                  new URL(`../../template/${templatePath}/${path}`, url)
+                ).then((e) => e.text());
+
+                const fileHandle = await this._handle.get(path, {
+                  create: "file",
+                });
+
+                await fileHandle.write(fileContent);
+              })
+            );
+
+            // 写入package.json
+            const packagejsonHandle = await this._handle.get("package.json", {
+              create: "file",
+            });
+
+            await packagejsonHandle.write(
+              JSON.stringify(
+                {
+                  name: this.projectName,
+                  version: "1.0.0",
+                  description: "",
+                  main: "index.html",
+                  ofaApp: true,
+                },
+                null,
+                2
+              )
+            );
+
+            await save(this._handle);
+
+            console.log("确认", templatePath);
           },
         },
       };

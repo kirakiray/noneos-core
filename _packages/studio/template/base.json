@@ -1,6 +1,6 @@
 {
   "router": {
-    "name": "Router App",
+    "name": "Router Temp",
     "files": [
       "comps/o-punch/logo.svg",
       "comps/o-punch/o-punch.html",

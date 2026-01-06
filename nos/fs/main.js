@@ -3,9 +3,10 @@ import {
   mount,
   getMounted,
   unmount,
+  save,
   get as mountedGet,
 } from "./handle/mount/mount.js";
-export { mount, getMounted, unmount };
+export { mount, getMounted, unmount, save };
 import { get as systemHandleGet } from "./handle/main.js";
 
 export const get = async (path, options) => {

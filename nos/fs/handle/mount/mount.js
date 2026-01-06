@@ -33,12 +33,19 @@ export const mount = async (options) => {
 
   const handle = new DirHandle(directoryHandle);
 
-  if (options.save) {
-    const id = await saveHandle(directoryHandle);
+  if (options?.save) {
+    await save(handle);
+  }
+
+  return handle;
+};
+
+export const save = async (handle) => {
+  if (!handle[RESET_PATH]) {
+    const id = await saveHandle(handle._handle);
 
     handle[RESET_PATH] = `$mount-${id}>${encodeURI(handle.name)}`;
   }
-
   return handle;
 };
 
