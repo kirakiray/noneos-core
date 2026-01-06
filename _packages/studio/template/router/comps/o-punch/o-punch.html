@@ -74,11 +74,13 @@
     }
   </style>
   <div class="content">
-    <slot></slot>
+    <slot name="fly"></slot>
   </div>
   <div class="main">
     <img src="./logo.svg" width="80px" />
-    <div class="logo-text">ofa.js</div>
+    <div class="logo-text">
+      <slot></slot>
+    </div>
   </div>
   <script>
     export default async ({ load }) => {
