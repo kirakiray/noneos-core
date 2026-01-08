@@ -36,8 +36,17 @@
       font-size: 14px;
     }
 
+    .theme-name {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
+
     .theme-container {
-      padding: 16px 0;
+      display: inline-block;
+      padding: 16px;
+      margin-bottom: 16px;
+      border-radius: 4px;
     }
 
     .theme-color-container {
@@ -63,8 +72,12 @@
   <div class="container">
     <h3>组合</h3>
     <o-fill :value="themes">
-      <div class="theme-container">
-        <div>{{$data.theme}}</div>
+      <div
+        class="theme-container"
+        :style.background="$data.surface"
+        :style.color="$data.onSurface"
+      >
+        <div class="theme-name">{{$data.theme}}</div>
         <div class="theme-color-container">
           <o-fill :value="$data.groups">
             <div class="theme-color-group">
@@ -156,7 +169,9 @@
               });
             });
 
-            themes.forEach(({ themeName, names }) => {
+            // 加载主题
+            themes.forEach(({ themeName, names, ...other }) => {
+              // 加载主题颜色
               const themeGroup = [];
               this.colors.forEach(({ colors, name: colorName }) => {
                 const themeItem = {
@@ -183,9 +198,21 @@
                 });
               });
 
+              // 计算surface颜色
+              const normalColorItem = this.colors.find(
+                (e) => e.name === "normal"
+              );
+
               this.themes.push({
                 theme: themeName,
                 groups: themeGroup,
+                surface: normalColorItem.colors.find(
+                  (e) => e.point === other.surface
+                ).color,
+                onSurface: normalColorItem.colors.find(
+                  (e) => e.point === other.onSurface
+                ).color,
+                // onSurface: other.onSurface,
               });
             });
           },
