@@ -3,9 +3,23 @@
     :host {
       display: block;
     }
+
+    h3 {
+      margin: 0;
+      padding-bottom: 16px;
+    }
+
+    .container {
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      box-sizing: border-box;
+    }
   </style>
-  <div>dashboard</div>
-  <div>{{query}}</div>
+  <div class="container">
+    <h3>看板</h3>
+    <div>{{query}}</div>
+  </div>
   <script>
     export const parent = "./layout.html";
 
