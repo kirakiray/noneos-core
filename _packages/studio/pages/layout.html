@@ -65,6 +65,7 @@
         class="left-btn"
         class:active="activeName === 'dashboard'"
         class:hide="activeName === 'start'"
+        on:click="goto('./dashboard.html?path=' + currentPath)"
       >
         <n-icon icon="material-symbols:dashboard-outline-rounded"></n-icon>
       </div>
@@ -93,6 +94,7 @@
       return {
         data: {
           activeName: "start",
+          currentPath: sessionStorage.getItem("currentPath"),
         },
         proto: {},
         ready() {

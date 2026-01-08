@@ -70,13 +70,16 @@
       return {
         data: {
           previewUrl: "/" + query.path + "/",
-          query: decodeURIComponent(query.path),
         },
         proto: {},
         attached() {
+          sessionStorage.setItem("currentPath", query.path);
+
           this.emit("active-page", {
             composed: true,
-            data: { name: "dashboard" },
+            data: {
+              name: "dashboard",
+            },
           });
         },
       };
