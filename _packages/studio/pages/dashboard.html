@@ -15,6 +15,12 @@
           query: decodeURIComponent(query.path),
         },
         proto: {},
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "dashboard" },
+          });
+        },
       };
     };
   </script>
