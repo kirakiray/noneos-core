@@ -212,8 +212,8 @@
   <script>
     export const parent = "../layout.html";
 
-    export default async ({ load, url }) => {
-      const { mount, save } = await load("/nos/fs/main.js");
+    export default async ({ load, url, query }) => {
+      const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
       const { confirm, prompt, toast } = await load(
         "/gh/ofajs/Punch-UI/packages/util.js"
       );
@@ -221,7 +221,6 @@
       return {
         data: {
           type: "app",
-          //   dirPath: "project-" + Date.now(),
           dirPath: "",
           projectName: "",
           _handle: null,
@@ -243,8 +242,6 @@
             this.dirPath = "";
             if (this.projectName === this._handle.name) {
               this.projectName = "";
-            }
-            if (this.projectName) {
             }
             this.isCover = false;
           },
@@ -329,17 +326,31 @@
             );
           },
         },
+        async attached() {
+          if (query.from === "create") {
+            const { getTempHandle } = await load("./main.html");
+            this._handle = getTempHandle();
+            this.dirPath = this._handle.path;
+            this.projectName = this._handle.name;
+          }
+        },
       };
     };
 
-    const saveProject = async (path) => {
+    export const saveProject = async (path) => {
       const projects = JSON.parse(localStorage.getItem("projects") || "[]");
 
       projects.push({
         path,
       });
 
-      localStorage.setItem("projects", JSON.stringify(projects));
+      // 去重
+      const uniqueProjects = projects.filter(
+        (item, index, arr) =>
+          arr.findIndex((i) => i.path === item.path) === index
+      );
+
+      localStorage.setItem("projects", JSON.stringify(uniqueProjects));
     };
   </script>
 </template>

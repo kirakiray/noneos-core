@@ -110,7 +110,7 @@
           <section>
             <h3>开始</h3>
             <div class="button-container">
-              <p-button variant="text">
+              <p-button variant="text" on:click="openFolderPicker">
                 <n-icon
                   icon="material-symbols:folder-open"
                   slot="prefix"
@@ -172,7 +172,13 @@
   <script>
     export const parent = "../layout.html";
 
+    let tempHandle = null;
+    export const getTempHandle = () => tempHandle;
+
     export default async ({ load }) => {
+      const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
+      const { confirm } = await load("/gh/ofajs/Punch-UI/packages/util.js");
+
       return {
         data: {
           canUse: !!window.showOpenFilePicker,
@@ -180,6 +186,33 @@
           projects: [],
         },
         proto: {
+          async openFolderPicker() {
+            const handle = await mount();
+
+            // 查看是否要是有效的项目文件
+            const packagejsonHandle = await handle.get("package.json");
+            if (!packagejsonHandle) {
+              const result = await confirm(
+                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+              );
+              tempHandle = handle;
+              this.goto(`./create.html?from=create`);
+              return;
+            }
+
+            const content = await packagejsonHandle.json();
+            if (!content.ofaApp) {
+              tempHandle = handle;
+              this.goto(`./create.html?from=create`);
+              return;
+            }
+
+            await save(handle);
+
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(handle.path)}`
+            );
+          },
           getName(path) {
             const repath = path.split(">").pop();
             return repath.split("/").pop();
