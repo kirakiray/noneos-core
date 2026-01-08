@@ -77,7 +77,7 @@
         :style.background="$data.surface"
         :style.color="$data.onSurface"
       >
-        <div class="theme-name">{{$data.theme}}</div>
+        <div class="theme-name">{{$data.theme}} Mode</div>
         <div class="theme-color-container">
           <o-fill :value="$data.groups">
             <div class="theme-color-group">
@@ -101,7 +101,7 @@
     <div class="color-container">
       <o-fill :value="colors">
         <div class="color-group" :style.border-color="$data.pick">
-          <div class="color-name">{{$data.name}}</div>
+          <div class="color-name" :style.color="$data.pick">{{$data.name}}</div>
           <o-fill :value="$data.colors">
             <div
               class="color-block"
@@ -160,6 +160,7 @@
               this.colors.push({
                 name: item.name,
                 pick: item.color,
+                middleColor: colors[Math.ceil(colors.length / 2)],
                 colors: colors.map((e, index) => {
                   return {
                     color: e,
@@ -204,7 +205,7 @@
               );
 
               this.themes.push({
-                theme: themeName,
+                theme: themeName.charAt(0).toUpperCase() + themeName.slice(1),
                 groups: themeGroup,
                 surface: normalColorItem.colors.find(
                   (e) => e.point === other.surface
