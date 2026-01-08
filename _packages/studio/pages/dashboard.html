@@ -1,4 +1,7 @@
 <template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+
   <style>
     :host {
       display: block;
@@ -19,9 +22,11 @@
   <div class="container">
     <h3>看板</h3>
     <div>
-      <a attr:href="previewUrl" target="_blank">点击从新窗口打开应用</a>
+      <p-button variant="outlined">
+        <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
+        <a attr:href="previewUrl" target="_blank">预览应用</a>
+      </p-button>
     </div>
-    <div>{{query}}</div>
   </div>
   <script>
     export const parent = "./layout.html";
