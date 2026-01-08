@@ -330,6 +330,9 @@
           if (query.from === "create") {
             const { getTempHandle } = await load("./main.html");
             this._handle = getTempHandle();
+            if (!this._handle) {
+              return;
+            }
             this.dirPath = this._handle.path;
             this.projectName = this._handle.name;
           }

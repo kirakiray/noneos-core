@@ -195,6 +195,9 @@
               const result = await confirm(
                 "该文件夹不是一个有效的OFA项目，是否进行创建？"
               );
+              if (!result) {
+                return;
+              }
               tempHandle = handle;
               this.goto(`./create.html?from=create`);
               return;
@@ -203,6 +206,15 @@
             const content = await packagejsonHandle.json();
             if (!content.ofaApp) {
               tempHandle = handle;
+
+              const result = await confirm(
+                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+              );
+
+              if (!result) {
+                return;
+              }
+
               this.goto(`./create.html?from=create`);
               return;
             }
