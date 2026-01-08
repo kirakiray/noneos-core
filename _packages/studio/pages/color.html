@@ -2,11 +2,16 @@
   <style>
     :host {
       display: block;
+      user-select: none;
     }
     .container {
+      position: absolute;
+      left: 0;
+      top: 0;
       width: 100%;
       height: 100%;
       padding: 16px;
+      overflow-y: auto;
       box-sizing: border-box;
     }
     .color-group {
@@ -28,9 +33,57 @@
       justify-content: center;
       width: 60px;
       height: 100px;
+      font-size: 14px;
+    }
+
+    .theme-container {
+      padding: 16px 0;
+    }
+
+    .theme-color-container {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .theme-color-group {
+      margin: 0 4px 4px 0;
+    }
+
+    .theme-color-block {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      width: 200px;
+      height: 60px;
+      font-size: 14px;
     }
   </style>
   <div class="container">
+    <h3>组合</h3>
+    <o-fill :value="themes">
+      <div class="theme-container">
+        <div>{{$data.theme}}</div>
+        <div class="theme-color-container">
+          <o-fill :value="$data.groups">
+            <div class="theme-color-group">
+              <o-fill :value="$data.blocks">
+                <div
+                  class="theme-color-block"
+                  :style.background="$data.color"
+                  :style.color="$data.fontColor"
+                >
+                  {{$data.name}}
+                  <div>{{$data.cssVar}}</div>
+                </div>
+              </o-fill>
+            </div>
+          </o-fill>
+        </div>
+      </div>
+    </o-fill>
+
     <h3>颜色</h3>
     <div class="color-container">
       <o-fill :value="colors">
@@ -55,10 +108,9 @@
     export default async ({ load }) => {
       const { Hct, getColors } = await load("../util/mcu-ts/index.js");
 
-      const points = [100, 98, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0];
-
       return {
         data: {
+          themes: [],
           colors: [],
         },
         proto: {
@@ -88,6 +140,7 @@
               },
             ];
 
+            // 加载颜色
             colors.forEach((item) => {
               const colors = getColors(item.color, points);
 
@@ -102,6 +155,36 @@
                 }),
               });
             });
+
+            themes.forEach(({ themeName, names }) => {
+              const themeGroup = [];
+              this.colors.forEach(({ colors, name: colorName }) => {
+                const themeItem = {
+                  name: colorName,
+                  blocks: [],
+                };
+
+                themeGroup.push(themeItem);
+
+                names.forEach(({ name, cssVar, num, reverseNum }) => {
+                  const targetColorItem = colors.find((e) => e.point === num);
+                  const reverseColorItem = colors.find(
+                    (e) => e.point === reverseNum
+                  );
+                  themeItem.blocks.push({
+                    name: name.replace("Main", colorName),
+                    cssVar: cssVar.replace("-main", "-" + colorName),
+                    color: targetColorItem.color,
+                    fontColor: this.getBlockColor(targetColorItem),
+                  });
+                });
+              });
+
+              this.themes.push({
+                theme: themeName,
+                groups: themeGroup,
+              });
+            });
           },
         },
         attached() {
@@ -114,5 +197,68 @@
         },
       };
     };
+
+    const themes = [
+      {
+        themeName: "light",
+        names: [
+          {
+            name: "Main",
+            cssVar: "--md-sys-color-main",
+            num: 40,
+            reverseNum: 100,
+          },
+          {
+            name: "On Main",
+            cssVar: "--md-sys-color-on-main",
+            num: 100,
+            reverseNum: 40,
+          },
+          {
+            name: "Main Container",
+            cssVar: "--md-sys-color-main-container",
+            num: 90,
+            reverseNum: 10,
+          },
+          {
+            name: "On Main Container",
+            cssVar: "--md-sys-color-on-main-container",
+            num: 10,
+            reverseNum: 90,
+          },
+        ],
+      },
+      {
+        themeName: "dark",
+        names: [
+          {
+            name: "Main",
+            cssVar: "--md-sys-color-main",
+            num: 80,
+            reverseNum: 20,
+          },
+          {
+            name: "On Main",
+            cssVar: "--md-sys-color-on-main",
+            num: 20,
+            reverseNum: 80,
+          },
+          {
+            name: "Main Container",
+            cssVar: "--md-sys-color-main-container",
+            num: 30,
+            reverseNum: 70,
+          },
+          {
+            name: "On Main Container",
+            cssVar: "--md-sys-color-on-main-container",
+            num: 90,
+            reverseNum: 70,
+          },
+        ],
+      },
+    ];
+
+    const points = [100, 98, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0];
   </script>
 </template>
