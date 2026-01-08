@@ -137,11 +137,11 @@
             const colors = [
               {
                 name: "primary",
-                color: "#0079d0",
+                color: "#1a7bd1",
               },
               {
                 name: "success",
-                color: "#396a25",
+                color: "#6b9e52",
               },
               {
                 name: "error",
@@ -160,7 +160,7 @@
               this.colors.push({
                 name: item.name,
                 pick: item.color,
-                middleColor: colors[Math.ceil(colors.length / 2)],
+                // middleColor: colors[Math.ceil(colors.length / 2)],
                 colors: colors.map((e, index) => {
                   return {
                     color: e,
@@ -213,7 +213,6 @@
                 onSurface: normalColorItem.colors.find(
                   (e) => e.point === other.onSurface
                 ).color,
-                // onSurface: other.onSurface,
               });
             });
           },
@@ -263,7 +262,7 @@
       },
       {
         themeName: "dark",
-        surface: 10,
+        surface: 6,
         onSurface: 90,
         names: [
           {
@@ -294,6 +293,6 @@
       },
     ];
 
-    const points = [100, 98, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0];
+    const points = [100, 98, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10, 6, 0];
   </script>
 </template>
