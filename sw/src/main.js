@@ -1,6 +1,7 @@
 import { handleGitHubRequest } from "./modules/github-handler.js";
 import { handleFileRequest } from "./modules/file-handler.js";
 import { handleNpmRequest } from "./modules/npm-handler.js";
+import { handleMountRequest } from "./modules/mount-handle.js";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -23,6 +24,15 @@ self.addEventListener("fetch", (event) => {
       // 从 NPM CDN 获取包文件
       return event.respondWith(
         handleNpmRequest({
+          path: pathname,
+          originUrl: request.url,
+        })
+      );
+    }
+
+    if (/^\/\$mount-/.test(pathname)) {
+      return event.respondWith(
+        handleMountRequest({
           path: pathname,
           originUrl: request.url,
         })
