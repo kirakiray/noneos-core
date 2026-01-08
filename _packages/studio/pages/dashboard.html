@@ -18,6 +18,9 @@
   </style>
   <div class="container">
     <h3>看板</h3>
+    <div>
+      <a attr:href="previewUrl" target="_blank">点击从新窗口打开应用</a>
+    </div>
     <div>{{query}}</div>
   </div>
   <script>
@@ -26,6 +29,7 @@
     export default async ({ load, query }) => {
       return {
         data: {
+          previewUrl: "/" + query.path,
           query: decodeURIComponent(query.path),
         },
         proto: {},
