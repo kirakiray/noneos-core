@@ -75,7 +75,7 @@
                   :style.color="$data.fontColor"
                 >
                   {{$data.name}}
-                  <div>{{$data.cssVar}}</div>
+                  <!-- <div>{{$data.cssVar}}</div> -->
                 </div>
               </o-fill>
             </div>
@@ -127,12 +127,12 @@
                 color: "#0079d0",
               },
               {
-                name: "error",
-                color: "#fb4747",
-              },
-              {
                 name: "success",
                 color: "#396a25",
+              },
+              {
+                name: "error",
+                color: "#fb4747",
               },
               {
                 name: "normal",
@@ -172,7 +172,10 @@
                     (e) => e.point === reverseNum
                   );
                   themeItem.blocks.push({
-                    name: name.replace("Main", colorName),
+                    name: name.replace(
+                      "Main",
+                      colorName.charAt(0).toUpperCase() + colorName.slice(1)
+                    ),
                     cssVar: cssVar.replace("-main", "-" + colorName),
                     color: targetColorItem.color,
                     fontColor: this.getBlockColor(targetColorItem),
@@ -201,6 +204,8 @@
     const themes = [
       {
         themeName: "light",
+        surface: 98,
+        onSurface: 10,
         names: [
           {
             name: "Main",
@@ -230,6 +235,8 @@
       },
       {
         themeName: "dark",
+        surface: 10,
+        onSurface: 90,
         names: [
           {
             name: "Main",
