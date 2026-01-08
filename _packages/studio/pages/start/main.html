@@ -236,6 +236,11 @@
         attached() {
           const projects = JSON.parse(localStorage.getItem("projects") || "[]");
           this.projects = projects;
+
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "start" },
+          });
         },
       };
     };

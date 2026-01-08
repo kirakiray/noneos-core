@@ -52,6 +52,9 @@
       <div class="left-btn" class:active="activeName === 'settings'">
         <n-icon icon="material-symbols:settings"></n-icon>
       </div>
+      <div class="left-btn" class:active="activeName === 'dashboard'">
+        <n-icon icon="material-symbols:dashboard-outline-rounded"></n-icon>
+      </div>
     </div>
     <div class="main">
       <div
@@ -65,9 +68,14 @@
     export default async ({ load }) => {
       return {
         data: {
-          activeName: "start",
+          activeName: "",
         },
         proto: {},
+        ready() {
+          this.on("active-page", ({ data }) => {
+            this.activeName = data.name;
+          });
+        },
       };
     };
   </script>

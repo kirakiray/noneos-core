@@ -327,6 +327,11 @@
           },
         },
         async attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "start" },
+          });
+
           if (query.from === "create") {
             const { getTempHandle } = await load("./main.html");
             this._handle = getTempHandle();
