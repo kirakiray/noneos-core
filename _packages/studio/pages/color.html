@@ -1,0 +1,118 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+    .container {
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .color-group {
+      display: inline-flex;
+      align-items: center;
+      margin-bottom: 8px;
+      border: 1px solid #000000;
+    }
+    .color-name {
+      font-size: 16px;
+      font-weight: bold;
+      width: 80px;
+      padding-left: 16px;
+    }
+
+    .color-block {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 60px;
+      height: 100px;
+    }
+  </style>
+  <div class="container">
+    <h3>颜色</h3>
+    <div class="color-container">
+      <o-fill :value="colors">
+        <div class="color-group" :style.border-color="$data.pick">
+          <div class="color-name">{{$data.name}}</div>
+          <o-fill :value="$data.colors">
+            <div
+              class="color-block"
+              :style.background="$data.color"
+              :style.color="$host.getBlockColor($data)"
+            >
+              {{$data.point}}
+            </div>
+          </o-fill>
+        </div>
+      </o-fill>
+    </div>
+  </div>
+  <script>
+    export const parent = "./layout.html";
+
+    export default async ({ load }) => {
+      const { Hct, getColors } = await load("../util/mcu-ts/index.js");
+
+      const points = [100, 98, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0];
+
+      return {
+        data: {
+          colors: [],
+        },
+        proto: {
+          getBlockColor(item) {
+            if (item.point > 50) {
+              return "#000000";
+            }
+            return "#ffffff";
+          },
+          loadColor() {
+            const colors = [
+              {
+                name: "primary",
+                color: "#0079d0",
+              },
+              {
+                name: "error",
+                color: "#fb4747",
+              },
+              {
+                name: "success",
+                color: "#396a25",
+              },
+              {
+                name: "normal",
+                color: "#808080",
+              },
+            ];
+
+            colors.forEach((item) => {
+              const colors = getColors(item.color, points);
+
+              this.colors.push({
+                name: item.name,
+                pick: item.color,
+                colors: colors.map((e, index) => {
+                  return {
+                    color: e,
+                    point: points[index],
+                  };
+                }),
+              });
+            });
+          },
+        },
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "color" },
+          });
+
+          this.loadColor();
+        },
+      };
+    };
+  </script>
+</template>

@@ -68,6 +68,14 @@
       >
         <n-icon icon="material-symbols:dashboard-outline-rounded"></n-icon>
       </div>
+      <div
+        class="left-btn"
+        class:active="activeName === 'color'"
+        class:hide="activeName === 'start'"
+        on:click="goto('./color.html')"
+      >
+        <n-icon icon="ic:outline-color-lens"></n-icon>
+      </div>
       <!-- <div class="left-btn" class:active="activeName === 'settings'">
         <n-icon icon="material-symbols:settings"></n-icon>
       </div> -->
