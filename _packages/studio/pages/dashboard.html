@@ -61,7 +61,9 @@
       更新项目
     </p-button> -->
     <h3>其他功能</h3>
-    <p-switch sync:value="studioConfig.useHCT"> 使用HCT色盘 </p-switch>
+    <p-switch sync:value="studioConfig.useHCT" on:change="changeUseHCT">
+      使用HCT色盘
+    </p-switch>
   </div>
   <script>
     export const parent = "./layout.html";
@@ -74,16 +76,27 @@
         data: {
           previewUrl: "/" + query.path + "/",
           studioConfig: {},
+          _rootHandle: null,
         },
-        proto: {},
+        proto: {
+          changeUseHCT() {
+            const useHCT = this.studioConfig.useHCT === "on";
+
+            if (useHCT) {
+              // index添加标签
+            }
+
+            debugger;
+          },
+        },
         async attached() {
           sessionStorage.setItem("currentPath", query.path);
 
           // 打开目标
-          this._handle = await get(query.path);
+          this._rootHandle = await get(query.path);
 
           // package.json
-          const packagejsonHandle = await this._handle.get("package.json");
+          const packagejsonHandle = await this._rootHandle.get("package.json");
           this._pgData = await createData(packagejsonHandle);
 
           // 判断是否有基础配置

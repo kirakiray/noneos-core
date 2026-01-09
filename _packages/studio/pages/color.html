@@ -106,7 +106,7 @@
                 <div
                   class="theme-color-block"
                   :style.background="$data.color"
-                  :style.color="$data.fontColor"
+                  :style.color="$host.getBlockColor($data)"
                   on:click="$host.copyCssVar($data)"
                 >
                   <o-if :value="$data.copySuccess">
@@ -179,9 +179,9 @@
   <script>
     export const parent = "./layout.html";
 
-    export default async ({ load }) => {
-      const { Hct, getColors } = await load("../util/mcu-ts/index.js");
+    import { Hct, getColors } from "../util/mcu-ts/index.js";
 
+    export default async ({ load }) => {
       return {
         data: {
           themes: [],
@@ -202,93 +202,11 @@
             return "#ffffff";
           },
           loadColor() {
-            const colors = [
-              {
-                name: "primary",
-                color: "#1a7bd1",
-              },
-              {
-                name: "success",
-                color: "#6b9e52",
-              },
-              {
-                name: "error",
-                color: "#fb4747",
-              },
-              {
-                name: "normal",
-                color: "#808080",
-              },
-            ];
-
-            // 加载颜色
-            colors.forEach((item) => {
-              const colors = getColors(item.color, points);
-
-              this.colors.push({
-                name: item.name,
-                pick: item.color,
-                colors: colors.map((e, index) => {
-                  return {
-                    cssVar: `--md-ref-palette-${item.name}${points[index]}`,
-                    color: e,
-                    point: points[index],
-                  };
-                }),
-              });
-            });
-
-            // 加载主题
-            themes.forEach(({ themeName, names, ...other }) => {
-              // 加载主题颜色
-              const themeGroup = [];
-              this.colors.forEach(({ colors, name: colorName }) => {
-                const themeItem = {
-                  name: colorName,
-                  blocks: [],
-                };
-
-                themeGroup.push(themeItem);
-
-                names.forEach(({ name, cssVar, num, reverseNum }) => {
-                  const targetColorItem = colors.find((e) => e.point === num);
-                  const reverseColorItem = colors.find(
-                    (e) => e.point === reverseNum
-                  );
-                  themeItem.blocks.push({
-                    name: name.replace(
-                      "Main",
-                      colorName.charAt(0).toUpperCase() + colorName.slice(1)
-                    ),
-                    cssVar: cssVar.replace("-main", "-" + colorName),
-                    color: targetColorItem.color,
-                    fontColor: this.getBlockColor(targetColorItem),
-                  });
-                });
-              });
-
-              // 计算surface颜色
-              const normalColorItem = this.colors.find(
-                (e) => e.name === "normal"
-              );
-
-              this.themes.push({
-                theme: themeName.charAt(0).toUpperCase() + themeName.slice(1),
-                groups: themeGroup,
-                surface: {
-                  cssVar: "--md-sys-color-surface",
-                  color: normalColorItem.colors.find(
-                    (e) => e.point === other.surface
-                  ).color,
-                },
-                onSurface: {
-                  cssVar: "--md-sys-color-on-surface",
-                  color: normalColorItem.colors.find(
-                    (e) => e.point === other.onSurface
-                  ).color,
-                },
-              });
-            });
+            const { themes, colors, paletteContent, themeStyles } =
+              getColorsData();
+            debugger;
+            this.themes = themes;
+            this.colors = colors;
           },
         },
         attached() {
@@ -299,6 +217,128 @@
 
           this.loadColor();
         },
+      };
+    };
+
+    export const getColorsData = () => {
+      let paletteContent = "";
+
+      const colors = [
+        {
+          name: "primary",
+          color: "#1a7bd1",
+        },
+        {
+          name: "success",
+          color: "#6b9e52",
+        },
+        {
+          name: "error",
+          color: "#fb4747",
+        },
+        {
+          name: "normal",
+          color: "#808080",
+        },
+      ];
+
+      const reColors = [];
+
+      // 加载颜色
+      colors.forEach((item) => {
+        const colors = getColors(item.color, points);
+
+        reColors.push({
+          name: item.name,
+          pick: item.color,
+          colors: colors.map((e, index) => {
+            const cssVar = `--md-ref-palette-${item.name}${points[index]}`;
+            paletteContent += `${cssVar}: ${e};\n`;
+
+            return {
+              cssVar,
+              color: e,
+              point: points[index],
+            };
+          }),
+        });
+      });
+
+      const reThemes = [];
+      const themeStyles = [];
+
+      // 加载主题
+      themes.forEach(({ themeName, names, ...other }) => {
+        let colorStyleContent = "";
+
+        // 加载主题颜色
+        const themeGroup = [];
+        reColors.forEach(({ colors, name: colorName }) => {
+          const themeItem = {
+            name: colorName,
+            blocks: [],
+          };
+
+          themeGroup.push(themeItem);
+
+          names.forEach(({ name, cssVar, num, reverseNum }) => {
+            const targetColorItem = colors.find((e) => e.point === num);
+            const reverseColorItem = colors.find((e) => e.point === reverseNum);
+
+            const finnalCssVar = cssVar.replace("-main", "-" + colorName);
+            colorStyleContent += `${finnalCssVar}: var(${targetColorItem.cssVar});\n`;
+
+            themeItem.blocks.push({
+              name: name.replace(
+                "Main",
+                colorName.charAt(0).toUpperCase() + colorName.slice(1)
+              ),
+              cssVar: finnalCssVar,
+              color: targetColorItem.color,
+              point: targetColorItem.point,
+            });
+          });
+        });
+
+        // 计算surface颜色
+        const normalColorItem = reColors.find((e) => e.name === "normal");
+
+        const surfaceItem = normalColorItem.colors.find(
+          (e) => e.point === other.surface
+        );
+        const onSurfaceItem = normalColorItem.colors.find(
+          (e) => e.point === other.onSurface
+        );
+
+        const reThemeItem = {
+          theme: themeName.charAt(0).toUpperCase() + themeName.slice(1),
+          groups: themeGroup,
+          surface: {
+            cssVar: "--md-sys-color-surface",
+            color: surfaceItem.color,
+          },
+          onSurface: {
+            cssVar: "--md-sys-color-on-surface",
+            color: onSurfaceItem.color,
+          },
+        };
+
+        reThemes.push(reThemeItem);
+
+        colorStyleContent += `${reThemeItem.surface.cssVar}: var(${surfaceItem.cssVar});\n`;
+        colorStyleContent += `${reThemeItem.onSurface.cssVar}: var(${onSurfaceItem.cssVar});\n`;
+
+        themeStyles.push({
+          theme: themeName,
+          content: colorStyleContent,
+        });
+      });
+
+      return {
+        paletteContent,
+        themeStyles,
+        themes: reThemes,
+        colors: reColors,
       };
     };
 
