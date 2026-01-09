@@ -68,6 +68,21 @@
       width: 200px;
       height: 60px;
       font-size: 14px;
+      cursor: pointer;
+    }
+
+    .theme-color-css-var {
+      display: none;
+    }
+
+    .theme-color-block:hover .theme-color-css-var {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .theme-color-block:hover .theme-color-name {
+      display: none;
     }
   </style>
   <div class="container">
@@ -87,9 +102,15 @@
                   class="theme-color-block"
                   :style.background="$data.color"
                   :style.color="$data.fontColor"
+                  on:click="$host.copyCssVar($data)"
                 >
-                  {{$data.name}}
-                  <!-- <div>{{$data.cssVar}}</div> -->
+                  <o-if :value="$data.copySuccess">
+                    <div class="theme-color-css-var">Copied</div>
+                  </o-if>
+                  <o-else>
+                    <div class="theme-color-name">{{$data.name}}</div>
+                    <div class="theme-color-css-var">{{$data.cssVar}}</div>
+                  </o-else>
                 </div>
               </o-fill>
             </div>
@@ -128,6 +149,13 @@
           colors: [],
         },
         proto: {
+          copyCssVar(data) {
+            navigator.clipboard.writeText(data.cssVar);
+            data.copySuccess = true;
+            setTimeout(() => {
+              data.copySuccess = false;
+            }, 500);
+          },
           getBlockColor(item) {
             if (item.point > 50) {
               return "#000000";
