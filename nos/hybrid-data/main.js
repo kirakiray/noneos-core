@@ -1,4 +1,4 @@
-import { HybirdData } from "./dir/hybird-data.js";
+import { HybridData } from "./dir/hybird-data.js";
 import { createSingleData } from "./file.js";
 
 export const createData = async (handle, options) => {
@@ -6,7 +6,7 @@ export const createData = async (handle, options) => {
     return createSingleData({ handle });
   }
 
-  const data = new HybirdData(
+  const data = new HybridData(
     {},
     {
       ...options,

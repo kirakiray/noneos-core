@@ -2,7 +2,7 @@ export const reservedKeys = ["dataStatus", "_dataId", "_spaceHandle"];
 
 export const Identification = "__dataid__";
 
-import { HybirdData } from "./hybird-data.js";
+import { HybridData } from "./hybird-data.js";
 
 // 需要保存的对象
 const needSaves = [];
@@ -126,7 +126,7 @@ const removeData = async (oldData, exitedData) => {
   // 从根上获取该对象
   const targetData = rootMapper.get(dataId);
 
-  // 如果不存在 hybirddata owner，可以删除
+  // 如果不存在 HybridData owner，可以删除
 
   if (!targetData) {
     console.log("targetData not found", dataId); // eslint-disable-line no-cons
@@ -164,7 +164,7 @@ const removeData = async (oldData, exitedData) => {
     // 如果存在一个未被删除的owner，那么不能删除数据
     if (
       Array.from(targetData.owner).some((e) => {
-        return e instanceof HybirdData && !e[NEEDREMOVEDATA];
+        return e instanceof HybridData && !e[NEEDREMOVEDATA];
       })
     ) {
       canDelete = false;

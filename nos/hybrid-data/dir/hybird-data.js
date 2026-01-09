@@ -10,7 +10,7 @@ import {
 const ROOTMAPPER = Symbol("rootMapper");
 const ROOTSPACEHANDLE = Symbol("rootSpaceHandle");
 
-export class HybirdData extends Stanz {
+export class HybridData extends Stanz {
   #dataId;
   #root;
   // [ROOTSPACEHANDLE] = null;
@@ -187,7 +187,7 @@ export class HybirdData extends Stanz {
       try {
         const subData = JSON.parse(subText);
 
-        const subHyData = new HybirdData(subData, {
+        const subHyData = new HybridData(subData, {
           _dataId: dataId,
           owner: this,
         });
@@ -259,7 +259,7 @@ export class HybirdData extends Stanz {
       // 监听所有子级对象
       await Promise.all(
         Object.values(this).map(async (value) => {
-          if (value instanceof HybirdData) {
+          if (value instanceof HybridData) {
             await value.ready(true);
           }
         })
@@ -270,7 +270,7 @@ export class HybirdData extends Stanz {
   }
 
   get __OriginStanz() {
-    return HybirdData;
+    return HybridData;
   }
 
   get _root() {
@@ -306,7 +306,7 @@ export class HybirdData extends Stanz {
         maxIndex = Math.max(maxIndex, parseInt(key));
       }
 
-      if (value instanceof HybirdData) {
+      if (value instanceof HybridData) {
         obj[key] = value.toJSON(); // 递归处理子对象
         return;
       }

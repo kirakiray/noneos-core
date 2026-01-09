@@ -61,19 +61,39 @@
       更新项目
     </p-button> -->
     <h3>其他功能</h3>
-    <p-switch> 使用HCT色盘 </p-switch>
+    <p-switch sync:value="studioConfig.useHCT"> 使用HCT色盘 </p-switch>
   </div>
   <script>
     export const parent = "./layout.html";
 
     export default async ({ load, query }) => {
+      const { get } = await load("/nos/fs/main.js");
+      const { createData } = await load("/nos/hybrid-data/main.js");
+
       return {
         data: {
           previewUrl: "/" + query.path + "/",
+          studioConfig: {},
         },
         proto: {},
-        attached() {
+        async attached() {
           sessionStorage.setItem("currentPath", query.path);
+
+          // 打开目标
+          this._handle = await get(query.path);
+
+          // package.json
+          const packagejsonHandle = await this._handle.get("package.json");
+          this._pgData = await createData(packagejsonHandle);
+
+          // 判断是否有基础配置
+          if (!this._pgData.ofaStudio) {
+            this._pgData.ofaStudio = {
+              useHCT: "off",
+            };
+          }
+
+          this.studioConfig = this._pgData.ofaStudio;
 
           this.emit("active-page", {
             composed: true,
@@ -81,6 +101,11 @@
               name: "dashboard",
             },
           });
+        },
+        detached() {
+          if (this._pgData) {
+            this._pgData.disconnect();
+          }
         },
       };
     };
