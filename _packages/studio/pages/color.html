@@ -35,6 +35,7 @@
       width: 60px;
       height: 100px;
       font-size: 14px;
+      cursor: pointer;
     }
 
     .theme-name {
@@ -90,8 +91,8 @@
     <o-fill :value="themes">
       <div
         class="theme-container"
-        :style.background="$data.surface"
-        :style.color="$data.onSurface"
+        :style.background="$data.surface.color"
+        :style.color="$data.onSurface.color"
       >
         <div class="theme-name">{{$data.theme}} Mode</div>
         <div class="theme-color-container">
@@ -116,6 +117,36 @@
             </div>
           </o-fill>
         </div>
+        <div style="display: flex">
+          <div
+            class="theme-color-block"
+            :style.background="$data.surface.color"
+            :style.color="$data.onSurface.color"
+            on:click="$host.copyCssVar($data.surface)"
+          >
+            <o-if :value="$data.surface.copySuccess">
+              <div class="theme-color-css-var">Copied</div>
+            </o-if>
+            <o-else>
+              <div class="theme-color-name">Surface</div>
+              <div class="theme-color-css-var">{{$data.surface.cssVar}}</div>
+            </o-else>
+          </div>
+          <div
+            class="theme-color-block"
+            :style.background="$data.onSurface.color"
+            :style.color="$data.surface.color"
+            on:click="$host.copyCssVar($data.onSurface)"
+          >
+            <o-if :value="$data.onSurface.copySuccess">
+              <div class="theme-color-css-var">Copied</div>
+            </o-if>
+            <o-else>
+              <div class="theme-color-name">On Surface</div>
+              <div class="theme-color-css-var">{{$data.onSurface.cssVar}}</div>
+            </o-else>
+          </div>
+        </div>
       </div>
     </o-fill>
 
@@ -129,8 +160,12 @@
               class="color-block"
               :style.background="$data.color"
               :style.color="$host.getBlockColor($data)"
+              on:click="$host.copyCssVar($data)"
             >
-              {{$data.point}}
+              <o-if :value="$data.copySuccess">
+                <div>Copied</div>
+              </o-if>
+              <o-else> {{$data.point}} </o-else>
             </div>
           </o-fill>
         </div>
@@ -189,9 +224,9 @@
               this.colors.push({
                 name: item.name,
                 pick: item.color,
-                // middleColor: colors[Math.ceil(colors.length / 2)],
                 colors: colors.map((e, index) => {
                   return {
+                    cssVar: `--md-ref-palette-${item.name}${points[index]}`,
                     color: e,
                     point: points[index],
                   };
@@ -236,12 +271,18 @@
               this.themes.push({
                 theme: themeName.charAt(0).toUpperCase() + themeName.slice(1),
                 groups: themeGroup,
-                surface: normalColorItem.colors.find(
-                  (e) => e.point === other.surface
-                ).color,
-                onSurface: normalColorItem.colors.find(
-                  (e) => e.point === other.onSurface
-                ).color,
+                surface: {
+                  cssVar: "--md-sys-color-surface",
+                  color: normalColorItem.colors.find(
+                    (e) => e.point === other.surface
+                  ).color,
+                },
+                onSurface: {
+                  cssVar: "--md-sys-color-on-surface",
+                  color: normalColorItem.colors.find(
+                    (e) => e.point === other.onSurface
+                  ).color,
+                },
               });
             });
           },
