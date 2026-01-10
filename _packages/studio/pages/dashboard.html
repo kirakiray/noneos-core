@@ -71,6 +71,7 @@
     export default async ({ load, query }) => {
       const { get } = await load("/nos/fs/main.js");
       const { createData } = await load("/nos/hybrid-data/main.js");
+      const { getColorsData } = await load("../util/colors.js");
 
       return {
         data: {
@@ -83,10 +84,20 @@
             const useHCT = this.studioConfig.useHCT === "on";
 
             if (useHCT) {
-              // index添加标签
-            }
+              let themeStyle = "";
 
-            debugger;
+              // 生成样式文件
+              const { paletteContent, themes } = getColorsData();
+
+              themeStyle += `
+              html{
+                ${paletteContent}
+              }
+              `;
+
+              // index添加标签
+              debugger;
+            }
           },
         },
         async attached() {
