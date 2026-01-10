@@ -4,6 +4,49 @@
  */
 
 import { getColors } from "./mcu-ts/index.js";
+import jsBeautify from "/npm/js-beautify@1.15.1/+esm";
+
+export const getStyleContent = () => {
+  const { themes, paletteContent } = getColorsData();
+
+  const paletteStyleContent = jsBeautify.css(`:root{${paletteContent}}`, {
+    indent_size: 2,
+    indent_char: " ",
+    preserve_newlines: false,
+  });
+
+  let themeStyleContent = "";
+
+  themes.forEach(({ theme, colorStyleContent }) => {
+    const themeName = theme.toLowerCase();
+    themeStyleContent += `
+    .theme-${themeName}-mode{
+  --pui-theme: ${themeName};
+  --pui-real-theme: ${themeName};
+    color-scheme: ${themeName};
+      ${colorStyleContent}
+    }
+
+    @media (prefers-color-scheme: ${themeName}){
+      html {
+        --pui-theme: auto;
+      ${colorStyleContent}
+      }
+    }
+    `;
+  });
+
+  themeStyleContent = jsBeautify.css(themeStyleContent, {
+    indent_size: 2,
+    indent_char: " ",
+    preserve_newlines: false,
+  });
+
+  return {
+    paletteStyleContent,
+    themeStyleContent,
+  };
+};
 
 export const getColorsData = () => {
   let paletteContent = "";

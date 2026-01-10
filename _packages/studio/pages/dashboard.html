@@ -61,7 +61,7 @@
       更新项目
     </p-button> -->
     <h3>其他功能</h3>
-    <p-switch sync:value="studioConfig.useHCT" on:change="changeUseHCT">
+    <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
       使用HCT色盘
     </p-switch>
   </div>
@@ -71,33 +71,92 @@
     export default async ({ load, query }) => {
       const { get } = await load("/nos/fs/main.js");
       const { createData } = await load("/nos/hybrid-data/main.js");
-      const { getColorsData } = await load("../util/colors.js");
+      const { getStyleContent } = await load("../util/theme.js");
+      const { default: jsBeautify } = await load(
+        "/npm/js-beautify@1.15.1/+esm"
+      );
 
       return {
         data: {
           previewUrl: "/" + query.path + "/",
-          studioConfig: {},
+          ofaConfig: {},
           _rootHandle: null,
         },
         proto: {
-          changeUseHCT() {
-            const useHCT = this.studioConfig.useHCT === "on";
+          async changeUseHCT() {
+            const useHCT = this.ofaConfig.useHCT === "on";
+
+            // 修正 index.html
+            const indexHandle = await this._rootHandle.get("index.html");
+            const indexContent = await indexHandle.text();
+
+            // 抽取 head 内容
+            const headContent = indexContent.match(/<head>(.*?)<\/head>/s)[1];
+            let replaceHeadContent = headContent; // 等待被替换的 head 内容
 
             if (useHCT) {
               let themeStyle = "";
 
               // 生成样式文件
-              const { paletteContent, themes } = getColorsData();
+              const { paletteStyleContent, themeStyleContent } =
+                getStyleContent();
 
-              themeStyle += `
-              html{
-                ${paletteContent}
-              }
-              `;
+              // 写入文件
+              const paletteHandle = await this._rootHandle.get(
+                "css/palette.css",
+                {
+                  create: "file",
+                }
+              );
 
-              // index添加标签
-              debugger;
+              await paletteHandle.write(paletteStyleContent);
+
+              // theme.css
+              const themeHandle = await this._rootHandle.get("css/theme.css", {
+                create: "file",
+              });
+              await themeHandle.write(themeStyleContent);
+
+              const tempContainer = $(
+                `<template>${replaceHeadContent}</template>`
+              );
+
+              $(tempContainer.ele.content).push(
+                `<link rel="stylesheet" href="css/palette.css" pui-colors>`
+              );
+              $(tempContainer.ele.content).push(
+                `<link rel="stylesheet" href="css/theme.css">`
+              );
+
+              replaceHeadContent = tempContainer.html;
+            } else {
+              // 去除所有相关元素
+              const tempContainer = $(
+                `<template>${replaceHeadContent}</template>`
+              );
+
+              $(tempContainer.ele.content)
+                .all(`link[href="css/palette.css"],link[href="css/theme.css"]`)
+                .forEach((e) => e.remove());
+
+              replaceHeadContent = tempContainer.html;
             }
+
+            // 替换内容
+            const finalContent = indexContent.replace(
+              /<head>(.*?)<\/head>/s,
+              `<head>${replaceHeadContent}<\/head>`
+            );
+
+            const reContent = jsBeautify.html(finalContent, {
+              indent_size: 2,
+              indent_char: " ",
+              eol: "\n",
+              preserve_newlines: false,
+            });
+
+            // 替换回 index.html
+            await indexHandle.write(reContent);
           },
         },
         async attached() {
@@ -106,18 +165,18 @@
           // 打开目标
           this._rootHandle = await get(query.path);
 
-          // package.json
-          const packagejsonHandle = await this._rootHandle.get("package.json");
-          this._pgData = await createData(packagejsonHandle);
+          const studioConfigHandle = await this._rootHandle.get(
+            "ofa-config.json",
+            {
+              create: "file",
+            }
+          );
 
-          // 判断是否有基础配置
-          if (!this._pgData.ofaStudio) {
-            this._pgData.ofaStudio = {
-              useHCT: "off",
-            };
+          this.ofaConfig = await createData(studioConfigHandle);
+
+          if (!this.ofaConfig.useHCT) {
+            this.ofaConfig.useHCT = "off";
           }
-
-          this.studioConfig = this._pgData.ofaStudio;
 
           this.emit("active-page", {
             composed: true,
@@ -127,8 +186,8 @@
           });
         },
         detached() {
-          if (this._pgData) {
-            this._pgData.disconnect();
+          if (this.ofaConfig) {
+            this.ofaConfig.disconnect();
           }
         },
       };
