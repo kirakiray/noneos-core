@@ -162,6 +162,8 @@
               composed: true,
               data: this.ofaConfig.toJSON(),
             });
+
+            this.shadow.$(".preview-frame").ele.contentWindow.location.reload();
           },
         },
         async attached() {
@@ -199,6 +201,9 @@
           if (this.ofaConfig) {
             this.ofaConfig.disconnect();
           }
+          this.ofaConfig = {
+            useHCT: "off",
+          };
         },
       };
     };
