@@ -60,7 +60,9 @@
       </p-switch>
     </div>
     <div class="container-right" style="flex: 1; margin-left: 16px">
-      <n-file-list></n-file-list>
+      <o-provider name="studio-data" attr:project-path="projectPath">
+        <n-file-list></n-file-list>
+      </o-provider>
     </div>
   </div>
   <script>
@@ -78,6 +80,7 @@
         data: {
           previewUrl: "/" + query.path + "/",
           ofaConfig: {},
+          projectPath: query.path,
           _rootHandle: null,
         },
         proto: {
@@ -170,6 +173,8 @@
         },
         async attached() {
           sessionStorage.setItem("currentPath", query.path);
+
+          // this.projectPath = query.path;
 
           // 打开目标
           this._rootHandle = await get(query.path);
