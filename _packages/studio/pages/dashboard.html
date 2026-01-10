@@ -3,6 +3,7 @@
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/switch/switch.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="../../file-list/file-list.html"></l-m>
 
   <style>
     :host {
@@ -37,33 +38,30 @@
       transform-origin: top left;
     }
   </style>
-  <div class="container">
-    <h3>预览</h3>
-    <div class="frame-contaner">
-      <iframe
-        class="preview-frame"
-        attr:src="previewUrl"
-        frameborder="0"
-      ></iframe>
+  <div class="container" style="display: flex">
+    <div class="container-left">
+      <h3 style="margin-top: 0">预览</h3>
+      <div style="padding-bottom: 16px">
+        <p-button variant="outlined">
+          <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
+          <a attr:href="previewUrl" target="_blank">新窗口预览应用</a>
+        </p-button>
+      </div>
+      <div class="frame-contaner">
+        <iframe
+          class="preview-frame"
+          attr:src="previewUrl"
+          frameborder="0"
+        ></iframe>
+      </div>
+      <h3>其他功能</h3>
+      <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
+        使用HCT色盘
+      </p-switch>
     </div>
-    <div style="padding-top: 16px">
-      <p-button variant="outlined">
-        <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
-        <a attr:href="previewUrl" target="_blank">新窗口预览应用</a>
-      </p-button>
+    <div class="container-right" style="flex: 1; margin-left: 16px">
+      <n-file-list></n-file-list>
     </div>
-    <!-- <h3>更新信息</h3>
-    <p-input style="width: 300px">
-      <label>项目名</label>
-    </p-input>
-    <p-button style="margin-top: 16px">
-      <n-icon icon="material-symbols:update" slot="prefix"></n-icon>
-      更新项目
-    </p-button> -->
-    <h3>其他功能</h3>
-    <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
-      使用HCT色盘
-    </p-switch>
   </div>
   <script>
     export const parent = "./layout.html";
