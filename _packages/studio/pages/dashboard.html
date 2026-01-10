@@ -163,7 +163,11 @@
               data: this.ofaConfig.toJSON(),
             });
 
-            this.shadow.$(".preview-frame").ele.contentWindow.location.reload();
+            setTimeout(() => {
+              this.shadow
+                .$(".preview-frame")
+                .ele.contentWindow.location.reload();
+            }, 200);
           },
         },
         async attached() {
