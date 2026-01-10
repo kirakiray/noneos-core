@@ -15,7 +15,10 @@ export const getStyleContent = () => {
     preserve_newlines: false,
   });
 
-  let themeStyleContent = "";
+  let themeStyleContent = `html{
+    background-color: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+  }`;
 
   themes.forEach(({ theme, colorStyleContent }) => {
     const themeName = theme.toLowerCase();
@@ -30,6 +33,7 @@ export const getStyleContent = () => {
     @media (prefers-color-scheme: ${themeName}){
       html {
         --pui-theme: auto;
+  --pui-real-theme: ${themeName};
       ${colorStyleContent}
       }
     }

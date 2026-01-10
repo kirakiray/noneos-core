@@ -97,11 +97,18 @@
         data: {
           activeName: "start",
           currentPath: sessionStorage.getItem("currentPath"),
+          ofaConfig: {
+            useHCT: "off",
+          },
         },
         proto: {},
         ready() {
           this.on("active-page", ({ data }) => {
             this.activeName = data.name;
+          });
+
+          this.on("update-ofa-config", ({ data }) => {
+            this.ofaConfig = data;
           });
         },
       };

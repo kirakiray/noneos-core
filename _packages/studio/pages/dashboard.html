@@ -157,6 +157,11 @@
 
             // 替换回 index.html
             await indexHandle.write(reContent);
+
+            this.emit("update-ofa-config", {
+              composed: true,
+              data: this.ofaConfig.toJSON(),
+            });
           },
         },
         async attached() {
@@ -183,6 +188,11 @@
             data: {
               name: "dashboard",
             },
+          });
+
+          this.emit("update-ofa-config", {
+            composed: true,
+            data: this.ofaConfig.toJSON(),
           });
         },
         detached() {
