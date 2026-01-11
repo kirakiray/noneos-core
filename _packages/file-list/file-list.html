@@ -552,13 +552,21 @@
         },
         proto: {
           previewFile(type) {
-            if (type === "new") {
-              window.open(`/$${this.contextItemPath}`);
-              return;
-            }
-
             const studioProvider = this.getProvider("studio-data");
-            studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
+
+            studioProvider.emit("preview-file", {
+              data: {
+                path: this.contextItemPath,
+              },
+            });
+
+            // debugger;
+            // if (type === "new") {
+            //   window.open(`/$${this.contextItemPath}`);
+            //   return;
+            // }
+
+            // studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
 
             this.hideMenu();
           },
@@ -669,19 +677,32 @@
             const { contextItemPath } = this;
             const handle = await get(contextItemPath);
             this.hideMenu();
+
+            const fileName = handle.name;
+
             const result = await confirm({
-              title: getLocaleText({
-                cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
-                en: `Delete${handle.kind === "dir" ? " Directory" : " File"}`,
-              }),
-              content: getLocaleText({
-                cn: `确认删除 ${
-                  handle.kind === "dir" ? "目录" : "文件"
-                } ${contextItemPath} 吗？此操作不可撤销。`,
-                en: `Are you sure you want to delete ${
-                  handle.kind === "dir" ? "directory" : "file"
-                } ${contextItemPath}? This action cannot be undone.`,
-              }),
+              title: getLocaleText(
+                {
+                  cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
+                  en: `Delete ${handle.kind === "dir" ? "Directory" : "File"}`,
+                },
+                {
+                  var: [handle.kind],
+                }
+              ),
+              content: getLocaleText(
+                {
+                  cn: `确认删除 ${
+                    handle.kind === "dir" ? "目录" : "文件"
+                  } ${fileName} 吗？此操作不可撤销。`,
+                  en: `Are you sure you want to delete ${
+                    handle.kind === "dir" ? "directory" : "file"
+                  } ${fileName}? This action cannot be undone.`,
+                },
+                {
+                  var: [handle.kind, fileName],
+                }
+              ),
             });
 
             if (!result) {

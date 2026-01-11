@@ -11,8 +11,9 @@
     name="studio-data"
     :project-path="projectPath"
     :active-path="activePath"
+    on:preview-file="previewFile"
   >
-    <n-file-list></n-file-list>
+    <n-file-list style="padding-left: 8px"></n-file-list>
   </o-provider>
 
   <script>
@@ -23,6 +24,13 @@
         data: {
           projectPath: query.path,
           activePath: "",
+        },
+        proto: {
+          previewFile(e) {
+            const { path } = e.data;
+
+            window.open(`/${path}`);
+          },
         },
         attached() {
           this.emit("active-page", {
