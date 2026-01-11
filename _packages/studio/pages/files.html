@@ -1,0 +1,38 @@
+<template page>
+  <l-m src="../../file-list/file-list.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+  </style>
+
+  <o-provider
+    name="studio-data"
+    :project-path="projectPath"
+    :active-path="activePath"
+  >
+    <n-file-list></n-file-list>
+  </o-provider>
+
+  <script>
+    export const parent = "./layout.html";
+
+    export default async ({ load, query }) => {
+      return {
+        data: {
+          projectPath: query.path,
+          activePath: "",
+        },
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: {
+              name: "files",
+            },
+          });
+        },
+      };
+    };
+  </script>
+</template>

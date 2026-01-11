@@ -73,6 +73,14 @@
       </div>
       <div
         class="left-btn"
+        class:active="activeName === 'files'"
+        class:hide="activeName === 'start'"
+        on:click="goto('./files.html?path=' + currentPath)"
+      >
+        <n-icon icon="material-symbols:folder-outline"></n-icon>
+      </div>
+      <div
+        class="left-btn"
         class:active="activeName === 'color'"
         class:hide="activeName === 'start' || ofaConfig.useHCT === 'off'"
         on:click="goto('./color.html')"

@@ -58,7 +58,7 @@
 
     .file-list-item.active,
     .file-list-item.selected.active {
-      background-color: rgba(0, 122, 204, 0.2);
+      background-color: var(--md-sys-color-primary-container);
     }
 
     /* 图标样式 */
@@ -155,7 +155,7 @@
     }
 
     .contextmenu-focus {
-      background-color: var(--md-ref-palette-translucent-primary60);
+      background-color: var(--md-sys-color-normal-container);
     }
   </style>
   <h5>
@@ -580,6 +580,7 @@
                     `.file-list-item[data-path="${this.contextItemPath}"]`
                   );
                   targetItem.classList.remove("rename-mode");
+                  this.contextItemPath = null;
                   return;
                 }
 
@@ -590,10 +591,13 @@
                   }),
                   color: "error",
                 });
+
+                this.contextItemPath = null;
                 return;
               }
             }
 
+            this.contextItemPath = null;
             const oldPath = handle.path;
 
             // 重命名文件/目录
@@ -659,7 +663,7 @@
             renameInput.ele.value = handle.name;
             renameInput.ele.focus();
 
-            this.hideMenu();
+            this.hideMenu(false);
           },
           async clickDelete() {
             const { contextItemPath } = this;
@@ -744,10 +748,10 @@
               }
             }, 150);
           },
-          hideMenu() {
+          hideMenu(bool = true) {
             this.shadow.$(".menu-mask").style.display = "none";
             this.shadow.$("#file-list-menu").open = "off";
-            // this.contextItemPath = null;
+            bool && (this.contextItemPath = null);
           },
           itemContextMenu(event) {
             const target = $(event.target);
