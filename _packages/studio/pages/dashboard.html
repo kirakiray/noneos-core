@@ -39,7 +39,12 @@
     }
   </style>
   <div class="container" style="display: flex">
-    <div class="container-left">
+    <div class="container-left" style="flex: 1; margin-right: 16px">
+      <o-provider name="studio-data" :project-path="projectPath">
+        <n-file-list></n-file-list>
+      </o-provider>
+    </div>
+    <div class="container-right">
       <h3 style="margin-top: 0">预览</h3>
       <div style="padding-bottom: 16px">
         <p-button variant="outlined">
@@ -58,11 +63,6 @@
       <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
         使用HCT色盘
       </p-switch>
-    </div>
-    <div class="container-right" style="flex: 1; margin-left: 16px">
-      <o-provider name="studio-data" attr:project-path="projectPath">
-        <n-file-list></n-file-list>
-      </o-provider>
     </div>
   </div>
   <script>
@@ -173,8 +173,6 @@
         },
         async attached() {
           sessionStorage.setItem("currentPath", query.path);
-
-          // this.projectPath = query.path;
 
           // 打开目标
           this._rootHandle = await get(query.path);

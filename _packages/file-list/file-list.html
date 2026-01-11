@@ -2,6 +2,7 @@
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="/nos/locale-text/locale-text.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
   <l-m src="./handle-icon.html"></l-m>
   <l-m src="./create-handle.html"></l-m>
   <style>
@@ -433,11 +434,11 @@
   </div>
   <script>
     export default async ({ load }) => {
-      const { get } = await load("/nos/fs/handle/main.js");
+      const { get } = await load("/nos/fs/main.js");
       const { getLocaleText } = await load(
         "/nos/locale-text/get-locale-text.js"
       );
-      load("/gh/ofajs/Punch-UI/packages/button/button.html");
+
       const { confirm, prompt, toast } = await load(
         "/gh/ofajs/Punch-UI/packages/util.js"
       );
@@ -569,19 +570,28 @@
             const handle = await get(data.path);
 
             // 判断是否有重复
-            const siblingNames = [];
             for await (const item of handle.parent.values()) {
-              siblingNames.push(item.name);
-            }
-            if (siblingNames.includes(result)) {
-              toast({
-                content: getLocaleText({
-                  cn: `重命名失败，${result} 已存在`,
-                  en: `Rename failed, ${result} already exists`,
-                }),
-                color: "error",
-              });
-              return;
+              if (item.name === result) {
+                // 已经有同名的，判断是否是原来的文件；是原来的文件则不用理，并去除重命名模式
+                const isSame = await item.isSame(handle);
+
+                if (isSame) {
+                  const targetItem = this.shadow.$(
+                    `.file-list-item[data-path="${this.contextItemPath}"]`
+                  );
+                  targetItem.classList.remove("rename-mode");
+                  return;
+                }
+
+                toast({
+                  content: getLocaleText({
+                    cn: `重命名失败，${result} 已存在`,
+                    en: `Rename failed, ${result} already exists`,
+                  }),
+                  color: "error",
+                });
+                return;
+              }
             }
 
             const oldPath = handle.path;
@@ -737,7 +747,7 @@
           hideMenu() {
             this.shadow.$(".menu-mask").style.display = "none";
             this.shadow.$("#file-list-menu").open = "off";
-            this.contextItemPath = null;
+            // this.contextItemPath = null;
           },
           itemContextMenu(event) {
             const target = $(event.target);
