@@ -268,7 +268,7 @@
         </p-menu-item>
       </p-menu>
     </p-menu-item>
-    <p-menu-item attr:disabled="!canPreview" on:click="previewFile">
+    <!-- <p-menu-item attr:disabled="!canPreview" on:click="previewFile">
       <n-icon
         icon="material-symbols:preview-outline"
         class="menu-item-icon"
@@ -302,7 +302,7 @@
           </locale-text>
         </p-menu-item>
       </p-menu>
-    </p-menu-item>
+    </p-menu-item> -->
     <hr />
     <p-menu-item on:click="clickCut">
       <n-icon
@@ -551,28 +551,28 @@
           },
         },
         proto: {
-          previewFile(type) {
-            const studioProvider = this.getProvider("studio-data");
+          // previewFile(type) {
+          //   const studioProvider = this.getProvider("studio-data");
 
-            studioProvider.emit("preview-file", {
-              data: {
-                path: this.contextItemPath,
-              },
-            });
+          //   studioProvider.emit("preview-file", {
+          //     data: {
+          //       path: this.contextItemPath,
+          //     },
+          //   });
 
-            // debugger;
-            // if (type === "new") {
-            //   window.open(`/$${this.contextItemPath}`);
-            //   return;
-            // }
+          //   // debugger;
+          //   // if (type === "new") {
+          //   //   window.open(`/$${this.contextItemPath}`);
+          //   //   return;
+          //   // }
 
-            // studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
+          //   // studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
 
-            this.hideMenu();
-          },
-          get canPreview() {
-            return /\.html?$/i.test(this.contextItemPath);
-          },
+          //   this.hideMenu();
+          // },
+          // get canPreview() {
+          //   return /\.html?$/i.test(this.contextItemPath);
+          // },
           async renameItem(data, event) {
             const result = event.target.value;
             const handle = await get(data.path);
