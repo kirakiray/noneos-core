@@ -14,23 +14,52 @@
     on:preview-file="previewFile"
   >
     <n-file-list
-      on:contextmenu-item="contextmenuItem"
-      style="padding-left: 8px"
-    ></n-file-list>
+      on:item-contextmenu="itemContextmenu"
+      style="padding-left: 8px; --item-size: 18px"
+    >
+      <p-menu-item
+        slot="create-menu"
+        on:click="clickCreate('component',$event)"
+      >
+        <n-icon
+          icon="mynaui:component"
+          style="color: var(--md-sys-color-primary)"
+          slot="prefix"
+        ></n-icon>
+        <locale-text>
+          <span lang="cn">创建组件</span>
+          <span lang="en">Create Component</span>
+        </locale-text>
+      </p-menu-item>
+      <hr slot="create-menu" />
+    </n-file-list>
   </o-provider>
 
   <script>
     export const parent = "./layout.html";
 
     export default async ({ load, query }) => {
+      const { get } = await load("/nos/fs/main.js");
+
       return {
         data: {
           projectPath: query.path,
           activePath: "",
         },
         proto: {
-          async contextmenuItem(e) {
-            debugger;
+          clickCreate(type, e) {
+            this.shadow.$("n-file-list").hideMenu();
+
+            const handle = this._contextmenuTargetHandle;
+
+            console.log("clickCreate: ", type);
+          },
+          async itemContextmenu(e) {
+            const { path } = e.data;
+
+            const handle = (this._contextmenuTargetHandle = await get(path));
+
+            console.log("itemContextmenuItem: ", path);
           },
           previewFile(e) {
             const { path } = e.data;

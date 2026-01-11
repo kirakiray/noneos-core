@@ -10,6 +10,7 @@
       display: flex;
       flex-direction: column;
       height: 100%;
+      --item-size: 16px;
     }
 
     /* 项目标题样式 */
@@ -34,9 +35,11 @@
     .file-list-item {
       display: flex;
       align-items: center;
-      padding: 4px 12px;
+      /* padding: 4px 12px; */
+      padding: calc(var(--item-size) / 4);
+      /* font-size: 16px; */
+      font-size: var(--item-size);
       margin-right: 6px;
-      font-size: 15px;
       transition: background-color 0.03s ease-in-out;
       cursor: pointer;
       user-select: none;
@@ -63,8 +66,9 @@
 
     /* 图标样式 */
     .item-icon {
-      margin-right: 4px;
-      font-size: 16px;
+      /* margin-right: 4px;
+      font-size: 16px; */
+      margin-right: calc(var(--item-size) / 2);
     }
 
     /* 折叠/展开图标容器样式 */
@@ -72,9 +76,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      /* width: 20px; */
-      width: 20px;
-      height: 20px;
+      /* width: 20px;
+      height: 20px; */
+      width: calc(var(--item-size) * 1.25);
+      height: calc(var(--item-size) * 1.25);
       transition: transform 0.1s ease-in-out;
     }
 
@@ -96,7 +101,8 @@
     .item-name-container {
       flex: 1;
       position: relative;
-      height: 20px;
+      /* height: 20px; */
+      height: calc(var(--item-size) * 1.25);
     }
 
     .item-name {
@@ -244,6 +250,7 @@
         <span lang="en">New</span>
       </locale-text>
       <p-menu>
+        <slot name="create-menu"></slot>
         <p-menu-item on:click="clickCreate('file',$event)">
           <n-icon
             icon="mdi:file-document-plus-outline"
@@ -268,41 +275,6 @@
         </p-menu-item>
       </p-menu>
     </p-menu-item>
-    <!-- <p-menu-item attr:disabled="!canPreview" on:click="previewFile">
-      <n-icon
-        icon="material-symbols:preview-outline"
-        class="menu-item-icon"
-        slot="prefix"
-      ></n-icon>
-      <locale-text>
-        <span lang="cn">预览</span>
-        <span lang="en">Preview</span>
-      </locale-text>
-      <p-menu>
-        <p-menu-item on:click="previewFile">
-          <n-icon
-            icon="material-symbols:preview-outline"
-            class="menu-item-icon"
-            slot="prefix"
-          ></n-icon>
-          <locale-text>
-            <span lang="cn">直接预览</span>
-            <span lang="en">Direct Preview</span>
-          </locale-text>
-        </p-menu-item>
-        <p-menu-item on:click="previewFile('new')">
-          <n-icon
-            icon="icon-park-outline:preview-open"
-            class="menu-item-icon"
-            slot="prefix"
-          ></n-icon>
-          <locale-text>
-            <span lang="cn">新窗口预览</span>
-            <span lang="en">Preview in New Window</span>
-          </locale-text>
-        </p-menu-item>
-      </p-menu>
-    </p-menu-item> -->
     <hr />
     <p-menu-item on:click="clickCut">
       <n-icon
@@ -551,28 +523,6 @@
           },
         },
         proto: {
-          // previewFile(type) {
-          //   const studioProvider = this.getProvider("studio-data");
-
-          //   studioProvider.emit("preview-file", {
-          //     data: {
-          //       path: this.contextItemPath,
-          //     },
-          //   });
-
-          //   // debugger;
-          //   // if (type === "new") {
-          //   //   window.open(`/$${this.contextItemPath}`);
-          //   //   return;
-          //   // }
-
-          //   // studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
-
-          //   this.hideMenu();
-          // },
-          // get canPreview() {
-          //   return /\.html?$/i.test(this.contextItemPath);
-          // },
           async renameItem(data, event) {
             const result = event.target.value;
             const handle = await get(data.path);
@@ -788,6 +738,12 @@
             }
 
             if (item) {
+              this.emit("item-contextmenu", {
+                data: {
+                  path: item.data.path,
+                },
+              });
+
               this.shadow.$(".menu-mask").style.display = "block";
               const menuEl = this.shadow.$("#file-list-menu");
 
