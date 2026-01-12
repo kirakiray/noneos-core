@@ -10,9 +10,18 @@
       return {
         tag: "empty-component",
         data: {
+          // Properties after component instantiation
           testContent: "I am Component",
         },
-        proto: {},
+        attrs: {
+          // Attributes of this component
+        },
+        proto: {
+          // Methods owned by this component
+          // sayHello() {
+          //   console.log("Hello, I am Component");
+          // },
+        },
         attached() {
           // Called when the component is added to the DOM
         },

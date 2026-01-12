@@ -164,7 +164,14 @@
                 `tag: "${this.fileName}",`
               );
             } else {
-              debugger;
+              templateContent = await fetch(
+                new URL("../../template/empty-page.html", url)
+              );
+              templateContent = await templateContent.text();
+              templateContent = templateContent.replace(
+                `<h1>empty page</h1>`,
+                `<h1>${this.fileName}</h1>,`
+              );
             }
 
             await handle.write(templateContent);

@@ -9,15 +9,21 @@
       margin: 0;
     }
   </style>
-  <h1>I am empty page</h1>
+  <h1>empty page</h1>
   <p>{{testContent}}</p>
   <script>
     export default async ({ load, query }) => {
       return {
         data: {
+          // Properties after component instantiation
           testContent: "I am Page",
         },
-        proto: {},
+        proto: {
+          // Methods owned by this component
+          //   sayHello() {
+          //     console.log("Hello, I am Component");
+          //   },
+        },
         attached() {
           // Called when the page is added to the DOM
         },
