@@ -1,0 +1,30 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+
+    h1 {
+      padding: 16px;
+      margin: 0;
+    }
+  </style>
+  <h1>I am empty page</h1>
+  <p>{{testContent}}</p>
+  <script>
+    export default async ({ load, query }) => {
+      return {
+        data: {
+          testContent: "I am Page",
+        },
+        proto: {},
+        attached() {
+          // Called when the page is added to the DOM
+        },
+        detached() {
+          // Called when the page is removed from the DOM
+        },
+      };
+    };
+  </script>
+</template>

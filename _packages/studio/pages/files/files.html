@@ -46,13 +46,15 @@
   </o-provider>
 
   <o-page
-    src="./files/create.html"
+    src="./create.html"
     sync:open="showCreateDialog"
+    on:create-success="createSuccess"
+    :create-type="createType"
     :contextmenu-path="contextmenuPath"
   ></o-page>
 
   <script>
-    export const parent = "./layout.html";
+    export const parent = "../layout.html";
 
     export default async ({ load, query }) => {
       const { get } = await load("/nos/fs/main.js");
@@ -61,15 +63,20 @@
         data: {
           projectPath: query.path,
           activePath: "",
+          createType: "", // component or page
           showCreateDialog: false,
           contextmenuPath: "", // 右键点击的路径
         },
         proto: {
+          createSuccess() {
+            this.shadow.$("n-file-list").loadProject();
+          },
           clickCreateMenu(type, e) {
             this.shadow.$("n-file-list").hideMenu();
 
             const handle = this._contextmenuTargetHandle;
 
+            this.createType = type;
             this.showCreateDialog = true;
           },
           async itemContextmenu(e) {

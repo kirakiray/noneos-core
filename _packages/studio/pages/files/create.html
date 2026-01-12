@@ -14,9 +14,14 @@
         将要创建{{createTypeLabel}}
         <span style="color: var(--md-sys-color-normal)">
           {{ createPath }}/
+          <o-if :value="inputName.trim()">
+            <span style="color: var(--md-sys-color-primary)">
+              {{fullFileName}}
+            </span>
+          </o-if>
         </span>
       </div>
-      <p-input variant="filled" sync:value="newFileName" id="create-name-input">
+      <p-input variant="filled" sync:value="inputName" id="create-name-input">
         <label>{{createTypeLabel}}名称</label>
       </p-input>
     </div>
@@ -39,8 +44,9 @@
   </p-dialog>
 
   <script>
-    export default async ({ load }) => {
+    export default async ({ load, url }) => {
       const { get } = await load("/nos/fs/main.js");
+      const { toast } = await load("/gh/ofajs/Punch-UI/packages/util.js");
 
       return {
         data: {
@@ -48,7 +54,7 @@
           createPath: "", // 创建文件的文件夹路径
           contextmenuPath: "", // 文件列表中被点击项的路径
           open: false, // 对话框是否打开
-          newFileName: "", // 要创建的文件名称
+          inputName: "", // 输入框中的文件名
         },
         watch: {
           async contextmenuPath(path) {
@@ -62,6 +68,8 @@
               handle = handle.parent;
             }
 
+            this._finalDirHandle = handle;
+
             this.createPath = handle.path.split(">")[1];
           },
           open() {
@@ -72,18 +80,98 @@
           },
         },
         proto: {
+          get fileName() {
+            if (!this.inputName) {
+              return "";
+            }
+
+            const fileName = this.inputName.trim().replace(/\s+/g, "-");
+
+            // 大写要专成小写-
+            return fileName.replace(/([A-Z])/g, "-$1").toLowerCase();
+          },
+          get fullFileName() {
+            return this.fileName + ".html";
+          },
           get createTypeLabel() {
             return this.createType === "component" ? "组件" : "页面";
           },
           get canSubmit() {
-            if (!this.newFileName.trim()) {
+            if (!this.inputName.trim()) {
               return false;
             }
 
             return true;
           },
           async createFile() {
-            debugger;
+            // fileName只允许是英文，空格点和-构成
+            if (!/^[a-zA-Z\s.-]+$/.test(this.fileName)) {
+              toast({
+                content: `组件名称只能包含英文、空格、点和连字符“-”`,
+                color: "error",
+                click() {
+                  window.open(
+                    "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
+                  );
+                },
+              });
+              return;
+            }
+
+            if (this.createType === "component") {
+              // 必须带有-
+              if (!this.fileName.includes("-")) {
+                toast({
+                  content: `组件名称必须包含连字符“-”，例如：“my-component”`,
+                  color: "error",
+                  click() {
+                    window.open(
+                      "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
+                    );
+                  },
+                });
+                return;
+              }
+            }
+
+            const fullFileName = this.fullFileName;
+
+            // 判断是否有旧的文件
+            let handle = await this._finalDirHandle.get(fullFileName);
+
+            if (handle) {
+              toast({
+                content: `${fullFileName} 已存在`,
+                type: "error",
+              });
+              return;
+            }
+
+            handle = await this._finalDirHandle.get(fullFileName, {
+              create: "file",
+            });
+
+            // 获取空白模板内容
+            let templateContent = "";
+
+            if (this.createType === "component") {
+              templateContent = await fetch(
+                new URL("../../template/empty-component.html", url)
+              );
+              templateContent = await templateContent.text();
+              templateContent = templateContent.replace(
+                `tag: "empty-component",`,
+                `tag: "${this.fileName}",`
+              );
+            } else {
+              debugger;
+            }
+
+            await handle.write(templateContent);
+
+            this.emit("create-success");
+
+            this.open = false;
           },
         },
       };

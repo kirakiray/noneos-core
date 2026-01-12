@@ -1,0 +1,25 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+  <p>{{testContent}}</p>
+  <script>
+    export default async ({ load, query }) => {
+      return {
+        tag: "empty-component",
+        data: {
+          testContent: "I am Component",
+        },
+        proto: {},
+        attached() {
+          // Called when the component is added to the DOM
+        },
+        detached() {
+          // Called when the component is removed from the DOM
+        },
+      };
+    };
+  </script>
+</template>
