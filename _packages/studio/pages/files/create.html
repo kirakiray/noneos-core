@@ -1,0 +1,92 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="../../../file-list/file-list.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+
+  <p-dialog :open="open" on:click-mask="open = false">
+    <div slot="title">创建{{ createTypeLabel }}</div>
+    <div style="max-width: 540px; width: 60vw">
+      <div style="padding-bottom: 16px">
+        将要创建{{createTypeLabel}}
+        <span style="color: var(--md-sys-color-normal)">
+          {{ createPath }}/
+        </span>
+      </div>
+      <p-input variant="filled" sync:value="newFileName" id="create-name-input">
+        <label>{{createTypeLabel}}名称</label>
+      </p-input>
+    </div>
+    <p-button
+      slot="bottom"
+      attr:disabled="!canSubmit"
+      style="margin-left: auto"
+      on:click="createFile"
+    >
+      创建
+    </p-button>
+    <p-button
+      slot="bottom"
+      variant="outlined"
+      color="normal"
+      on:click="open = false"
+    >
+      取消
+    </p-button>
+  </p-dialog>
+
+  <script>
+    export default async ({ load }) => {
+      const { get } = await load("/nos/fs/main.js");
+
+      return {
+        data: {
+          createType: "", // component or page
+          createPath: "", // 创建文件的文件夹路径
+          contextmenuPath: "", // 文件列表中被点击项的路径
+          open: false, // 对话框是否打开
+          newFileName: "", // 要创建的文件名称
+        },
+        watch: {
+          async contextmenuPath(path) {
+            if (!path) {
+              return;
+            }
+
+            let handle = await get(path);
+
+            if (handle.kind === "file") {
+              handle = handle.parent;
+            }
+
+            this.createPath = handle.path.split(">")[1];
+          },
+          open() {
+            setTimeout(() => {
+              this.shadow.$("#create-name-input") &&
+                this.shadow.$("#create-name-input").focus();
+            }, 100);
+          },
+        },
+        proto: {
+          get createTypeLabel() {
+            return this.createType === "component" ? "组件" : "页面";
+          },
+          get canSubmit() {
+            if (!this.newFileName.trim()) {
+              return false;
+            }
+
+            return true;
+          },
+          async createFile() {
+            debugger;
+          },
+        },
+      };
+    };
+  </script>
+</template>
