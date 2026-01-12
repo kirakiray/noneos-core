@@ -1,4 +1,5 @@
 <template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="../../file-list/file-list.html"></l-m>
   <style>
     :host {
@@ -19,7 +20,7 @@
     >
       <p-menu-item
         slot="create-menu"
-        on:click="clickCreate('component',$event)"
+        on:click="clickCreateMenu('component',$event)"
       >
         <n-icon
           icon="mynaui:component"
@@ -31,9 +32,47 @@
           <span lang="en">Create Component</span>
         </locale-text>
       </p-menu-item>
+      <p-menu-item slot="create-menu" on:click="clickCreateMenu('page',$event)">
+        <n-icon
+          icon="ri:pages-line"
+          style="color: var(--md-sys-color-primary)"
+          slot="prefix"
+        ></n-icon>
+        <locale-text>
+          <span lang="cn">创建页面</span>
+          <span lang="en">Create Page</span>
+        </locale-text>
+      </p-menu-item>
       <hr slot="create-menu" />
     </n-file-list>
   </o-provider>
+
+  <p-dialog :open="showCreateDialog" on:click-mask="showCreateDialog = false">
+    <div slot="title">创建{{ createTypeLabel }}</div>
+    <div style="max-width: 540px; width: 60vw">
+      <div style="padding-bottom: 16px">
+        将在
+        <span style="color: var(--md-sys-color-normal)">
+          {{ createPath }}/
+        </span>
+        进行创建
+      </div>
+      <p-input variant="filled" id="create-name-input">
+        <label> {{createTypeLabel}}名称</label>
+      </p-input>
+    </div>
+    <p-button slot="bottom" style="margin-left: auto" on:click="createFile">
+      创建
+    </p-button>
+    <p-button
+      slot="bottom"
+      variant="outlined"
+      color="normal"
+      on:click="showCreateDialog = false"
+    >
+      取消
+    </p-button>
+  </p-dialog>
 
   <script>
     export const parent = "./layout.html";
@@ -45,19 +84,41 @@
         data: {
           projectPath: query.path,
           activePath: "",
+          createType: "",
+          createPath: "",
+          showCreateDialog: false,
         },
         proto: {
-          clickCreate(type, e) {
+          get createTypeLabel() {
+            return this.createType === "component" ? "组件" : "页面";
+          },
+          clickCreateMenu(type, e) {
             this.shadow.$("n-file-list").hideMenu();
 
             const handle = this._contextmenuTargetHandle;
 
-            console.log("clickCreate: ", type);
+            this.createPath = handle.path.split(">")[1];
+
+            this.createType = type;
+            this.showCreateDialog = true;
+
+            setTimeout(() => {
+              this.shadow.$("#create-name-input").focus();
+            }, 100);
+          },
+          async createFile() {
+            debugger;
           },
           async itemContextmenu(e) {
             const { path } = e.data;
 
-            const handle = (this._contextmenuTargetHandle = await get(path));
+            let handle = await get(path);
+
+            if (handle.kind === "file") {
+              handle = handle.parent;
+            }
+
+            this._contextmenuTargetHandle = handle;
 
             console.log("itemContextmenuItem: ", path);
           },
