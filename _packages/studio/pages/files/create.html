@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="/nos/locale-text/locale-text.html"></l-m>
   <l-m src="../../../file-list/file-list.html"></l-m>
   <style>
     :host {
@@ -8,10 +9,18 @@
   </style>
 
   <p-dialog :open="open" on:click-mask="open = false">
-    <div slot="title">创建{{ createTypeLabel }}</div>
+    <div slot="title">
+      <locale-text>
+        <span lang="cn">创建{{ createTypeLabel }}</span>
+        <span lang="en">Create {{ createTypeLabel }}</span>
+      </locale-text>
+    </div>
     <div style="max-width: 540px; width: 60vw">
       <div style="padding-bottom: 16px">
-        将要创建{{createTypeLabel}}
+        <locale-text>
+          <span lang="cn">将要创建{{createTypeLabel}}</span>
+          <span lang="en">Will create {{createTypeLabel}}</span>
+        </locale-text>
         <span style="color: var(--md-sys-color-normal)">
           {{ createPath }}/
           <o-if :value="inputName.trim()">
@@ -22,7 +31,12 @@
         </span>
       </div>
       <p-input variant="filled" sync:value="inputName" id="create-name-input">
-        <label>{{createTypeLabel}}名称</label>
+        <label>
+          <locale-text>
+            <span lang="cn">{{createTypeLabel}}名称</span>
+            <span lang="en">{{createTypeLabel}} Name</span>
+          </locale-text>
+        </label>
       </p-input>
     </div>
     <p-button
@@ -31,7 +45,10 @@
       style="margin-left: auto"
       on:click="createFile"
     >
-      创建
+      <locale-text>
+        <span lang="cn">创建</span>
+        <span lang="en">Create</span>
+      </locale-text>
     </p-button>
     <p-button
       slot="bottom"
@@ -39,13 +56,19 @@
       color="normal"
       on:click="open = false"
     >
-      取消
+      <locale-text>
+        <span lang="cn">取消</span>
+        <span lang="en">Cancel</span>
+      </locale-text>
     </p-button>
   </p-dialog>
 
   <script>
     export default async ({ load, url }) => {
       const { get } = await load("/nos/fs/main.js");
+      const { getLocaleText } = await load(
+        "/nos/locale-text/get-locale-text.js"
+      );
       const { toast } = await load("/gh/ofajs/Punch-UI/packages/util.js");
 
       return {
@@ -94,7 +117,9 @@
             return this.fileName + ".html";
           },
           get createTypeLabel() {
-            return this.createType === "component" ? "组件" : "页面";
+            return this.createType === "component"
+              ? getLocaleText({ cn: "组件", en: "Component" })
+              : getLocaleText({ cn: "页面", en: "Page" });
           },
           get canSubmit() {
             if (!this.inputName.trim()) {
@@ -107,7 +132,10 @@
             // fileName只允许是英文，空格点和-构成
             if (!/^[a-zA-Z\s.-]+$/.test(this.fileName)) {
               toast({
-                content: `组件名称只能包含英文、空格、点和连字符“-”`,
+                content: getLocaleText({
+                  cn: `组件名称只能包含英文、空格、点和连字符“-”`,
+                  en: `Component name can only contain English letters, spaces, dots and hyphens "-"`,
+                }),
                 color: "error",
                 click() {
                   window.open(
@@ -122,7 +150,10 @@
               // 必须带有-
               if (!this.fileName.includes("-")) {
                 toast({
-                  content: `组件名称必须包含连字符“-”，例如：“my-component”`,
+                  content: getLocaleText({
+                    cn: `组件名称必须包含连字符“-”，例如：“my-component”`,
+                    en: `Component name must contain a hyphen "-", for example: "my-component"`,
+                  }),
                   color: "error",
                   click() {
                     window.open(
@@ -141,7 +172,10 @@
 
             if (handle) {
               toast({
-                content: `${fullFileName} 已存在`,
+                content: getLocaleText({
+                  cn: `${fullFileName} 已存在`,
+                  en: `${fullFileName} already exists`,
+                }),
                 type: "error",
               });
               return;
