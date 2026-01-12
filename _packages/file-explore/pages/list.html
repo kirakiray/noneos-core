@@ -1,0 +1,481 @@
+<template page>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+    .container {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #fafafa;
+    }
+
+    .breadcrumb {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .breadcrumb-item {
+      color: #1890ff;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .breadcrumb-item:hover {
+      background-color: #e6f7ff;
+      text-decoration: underline;
+    }
+
+    .breadcrumb-separator {
+      color: #999;
+      margin: 0 4px;
+    }
+
+    .current-path {
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+      word-break: break-all;
+      padding: 8px 12px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      padding: 12px 24px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background-color 0.2s ease;
+    }
+
+    .item:hover {
+      background-color: #f5f9ff;
+    }
+
+    .item-icon {
+      margin-right: 12px;
+      font-size: 18px;
+      min-width: 18px;
+    }
+
+    .directory .item-icon {
+      color: #ffd666;
+    }
+
+    .file .item-icon {
+      color: #bfbfbf;
+    }
+
+    .item-name {
+      flex: 1;
+      font-size: 14px;
+      color: #444;
+      word-break: break-word;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .header {
+        padding: 12px 16px;
+      }
+
+      .breadcrumb {
+        font-size: 12px;
+      }
+
+      .current-path {
+        font-size: 14px;
+        padding: 6px 10px;
+      }
+
+      .item {
+        padding: 10px 16px;
+      }
+
+      .item-icon {
+        margin-right: 10px;
+        font-size: 16px;
+      }
+
+      .item-name {
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        max-width: 100%;
+      }
+
+      .header {
+        padding: 10px 12px;
+      }
+
+      .breadcrumb {
+        font-size: 11px;
+      }
+
+      .breadcrumb-item {
+        padding: 3px 6px;
+      }
+
+      .current-path {
+        font-size: 13px;
+        padding: 5px 8px;
+      }
+
+      .item {
+        padding: 8px 12px;
+      }
+
+      .item-icon {
+        margin-right: 8px;
+        font-size: 14px;
+      }
+
+      .item-name {
+        font-size: 12px;
+      }
+    }
+
+    .item-size {
+      font-size: 12px;
+      color: #999;
+      padding: 0 8px;
+    }
+  </style>
+  <div class="container">
+    <div class="header">
+      <div class="breadcrumb">
+        <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')">
+          Root
+        </span>
+        <o-if :value="path !== '/' && breadcrumbItems.length > 0">
+          <span class="breadcrumb-separator">/</span>
+          <o-fill :value="breadcrumbItems">
+            <div style="display: inline-block">
+              <span
+                class="breadcrumb-item"
+                on:click="$host.handleBreadcrumbClick($data.path)"
+                >{{$data.name}}</span
+              >
+              <o-if :value="$index < $host.breadcrumbItems.length - 1">
+                <span class="breadcrumb-separator">/</span>
+              </o-if>
+            </div>
+          </o-fill>
+        </o-if>
+        <button
+          on:click="handleCopyPath($event)"
+          id="copy-path-button"
+          style="float: right"
+        >
+          Copy
+        </button>
+      </div>
+      <div style="text-align: right">
+        <button on:click="handleCreateDirectory($event)">
+          Create Directory
+        </button>
+        <button on:click="shadow.$('#import-file').ele.click()">
+          Import File
+        </button>
+        <button on:click="shadow.$('#import-directory').ele.click()">
+          Import Directory
+        </button>
+        <input
+          type="file"
+          id="import-file"
+          style="display: none"
+          multiple
+          on:change="handleImportFile($event)"
+        />
+        <input
+          type="file"
+          id="import-directory"
+          style="display: none"
+          webkitdirectory
+          on:change="handleImportDirectory($event)"
+        />
+      </div>
+    </div>
+    <div class="list">
+      <o-if :value="list.length === 0">
+        <div style="text-align: center; padding: 40px 0; color: #999">
+          <div class="item-icon">
+            <n-icon icon="mdi:folder"></n-icon>
+          </div>
+          <div class="item-name">Empty</div>
+        </div>
+      </o-if>
+      <o-fill :value="list" fill-key="name">
+        <div
+          class="item"
+          class:directory="$data.type === 'directory'"
+          class:file="$data.type === 'file'"
+          on:click="$host.handleClick($data)"
+        >
+          <div class="item-icon">
+            <o-if :value="$data.type === 'directory'">
+              <n-icon icon="mdi:folder"></n-icon>
+            </o-if>
+            <o-else>
+              <n-icon icon="mdi:file"></n-icon>
+            </o-else>
+          </div>
+          <div class="item-name">{{$data.name}}</div>
+          <o-if :value="$data.type === 'file'">
+            <div class="item-size">{{$data.size}}</div>
+          </o-if>
+          <button on:click="$host.handleDelete($data,$event)">Delete</button>
+        </div>
+      </o-fill>
+    </div>
+  </div>
+  <script>
+    export default async ({ load, query }) => {
+      const currentPath = query.path || "/";
+
+      return {
+        data: {
+          path: currentPath,
+          list: [],
+          breadcrumbItems: [],
+        },
+        proto: {
+          handleCopyPath(event) {
+            navigator.clipboard.writeText(this.path);
+            this.shadow.$("#copy-path-button").text = "Copied";
+            setTimeout(() => {
+              this.shadow.$("#copy-path-button").text = "Copy";
+            }, 1000);
+          },
+          getSize(size) {
+            if (size < 1024) {
+              return `${size} B`;
+            } else if (size < 1024 * 1024) {
+              return `${(size / 1024).toFixed(2)} KB`;
+            } else if (size < 1024 * 1024 * 1024) {
+              return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+            } else {
+              return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+            }
+          },
+          async handleCreateDirectory() {
+            const currentHandle = await this.getCurrentHandle();
+            const directoryName = prompt("Enter directory name:");
+
+            if (!directoryName) {
+              return;
+            }
+
+            await currentHandle.getDirectoryHandle(directoryName, {
+              create: true,
+            });
+
+            this.loadFile();
+          },
+
+          async handleImportFile(event) {
+            const files = event.target.files;
+
+            if (files.length === 0) {
+              return;
+            }
+
+            const currentHandle = await this.getCurrentHandle();
+
+            for (const file of files) {
+              const handle = await currentHandle.getFileHandle(file.name, {
+                create: true,
+              });
+
+              const writer = await handle.createWritable();
+              await writer.write(file);
+              await writer.close();
+            }
+
+            this.loadFile();
+          },
+
+          async handleImportDirectory(event) {
+            const files = event.target.files;
+
+            if (files.length === 0) {
+              return;
+            }
+
+            const currentHandle = await this.getCurrentHandle();
+
+            // 创建一个映射来跟踪已创建的目录
+            const directoryHandles = new Map();
+
+            // 处理每个文件
+            for (const file of files) {
+              // 获取文件的相对路径
+              const relativePath = file.webkitRelativePath;
+              const pathParts = relativePath.split("/");
+              const fileName = pathParts.pop(); // 最后一个是文件名
+              const directoryPath = pathParts; // 剩余的是目录路径
+
+              // 创建必要的目录结构
+              let targetDirectoryHandle = currentHandle;
+              let currentPath = "";
+
+              for (const dirName of directoryPath) {
+                currentPath += "/" + dirName;
+                if (!directoryHandles.has(currentPath)) {
+                  const dirHandle =
+                    await targetDirectoryHandle.getDirectoryHandle(dirName, {
+                      create: true,
+                    });
+                  directoryHandles.set(currentPath, dirHandle);
+                  targetDirectoryHandle = dirHandle;
+                } else {
+                  targetDirectoryHandle = directoryHandles.get(currentPath);
+                }
+              }
+
+              // 在目标目录中创建文件
+              const fileHandle = await targetDirectoryHandle.getFileHandle(
+                fileName,
+                {
+                  create: true,
+                }
+              );
+
+              const writer = await fileHandle.createWritable();
+              await writer.write(file);
+              await writer.close();
+            }
+
+            this.loadFile();
+          },
+
+          async handleClick(data) {
+            if (data.type === "directory") {
+              this.goto(`./list.html?path=${data.path}`);
+            } else {
+              if (/^\/_/.test(data.path)) {
+                window.open(data.path);
+              } else {
+                window.open(`/$${data.path.replace("/", "")}`);
+              }
+            }
+          },
+          async handleDelete(data, event) {
+            event.stopPropagation();
+
+            const currentHandle = await this.getCurrentHandle();
+
+            if (data.type === "directory") {
+              const result = confirm(
+                "Are you sure you want to delete this directory and all its contents?"
+              );
+
+              if (!result) {
+                return;
+              }
+
+              await currentHandle.removeEntry(data.name, {
+                recursive: true,
+              });
+            } else {
+              await currentHandle.removeEntry(data.name);
+            }
+
+            this.loadFile();
+          },
+          async handleBreadcrumbClick(path) {
+            this.goto(`./list.html?path=${path}`);
+          },
+          generateBreadcrumbItems(currentPath) {
+            if (currentPath === "/") {
+              this.breadcrumbItems = [];
+              return;
+            }
+
+            const paths = currentPath.split("/").filter((item) => item !== "");
+            this.breadcrumbItems = paths.map((path, index) => {
+              const fullPath = "/" + paths.slice(0, index + 1).join("/");
+              return {
+                name: path,
+                path: fullPath,
+              };
+            });
+          },
+          async getCurrentHandle() {
+            const rootHandle = await navigator.storage.getDirectory();
+            let currentHandle = rootHandle;
+
+            if (currentPath !== "/") {
+              let paths = currentPath.split("/");
+              paths = paths.filter((item) => item !== "");
+              for (const path of paths) {
+                currentHandle = await currentHandle.getDirectoryHandle(path);
+              }
+            }
+
+            return currentHandle;
+          },
+          async loadFile() {
+            const currentHandle = await this.getCurrentHandle();
+
+            const list = [];
+
+            for await (const entry of currentHandle.values()) {
+              const obj = {
+                name: entry.name,
+                type: entry.kind === "directory" ? "directory" : "file",
+                path:
+                  currentPath === "/"
+                    ? `/${entry.name}`
+                    : `${currentPath}/${entry.name}`,
+              };
+
+              if (entry.kind === "file") {
+                const file = await entry.getFile();
+                obj.size = this.getSize(file.size);
+              }
+
+              list.push(obj);
+            }
+
+            this.list = list;
+          },
+        },
+        attached() {
+          this.generateBreadcrumbItems(this.path);
+          this.loadFile();
+
+          const lastName = currentPath.split("/").pop();
+
+          if (lastName) {
+            $("title").text = lastName;
+          } else {
+            $("title").text = "Root";
+          }
+        },
+      };
+    };
+  </script>
+</template>

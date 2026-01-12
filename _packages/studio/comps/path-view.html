@@ -1,0 +1,56 @@
+<template component>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: flex;
+      align-items: center;
+    }
+    n-icon {
+      display: block;
+      margin-right: 4px;
+      font-size: 16px;
+      color: var(--md-sys-color-primary);
+    }
+  </style>
+  <!-- <n-icon icon="streamline-ultimate:network-browser"></n-icon>
+  虚拟系统
+  <span
+    style="display: block; margin: 0 4px; color: var(--md-sys-color-normal)"
+  >
+    /
+  </span>
+  <n-icon icon="flat-color-icons:folder"></n-icon>
+  {{path}} -->
+
+  <o-if :value="!path"> 未选择目录 </o-if>
+  <o-else>
+    <n-icon icon="flat-color-icons:folder"></n-icon>
+    {{dirName}}
+  </o-else>
+  <script>
+    export default async () => {
+      return {
+        tag: "path-view",
+        attrs: {
+          path: "",
+          dirName: "",
+        },
+        watch: {
+          path(path) {
+            if (/\$mount-/.test(path)) {
+              this.isMount = true;
+              const realPath = decodeURI(path.split(">")[1]);
+              this.dirName = realPath.split("/").slice(-1)[0];
+            } else {
+              this.dirName = path.split("/").slice(-1)[0];
+            }
+          },
+        },
+        data: {
+          isMount: false,
+        },
+        proto: {},
+      };
+    };
+  </script>
+</template>

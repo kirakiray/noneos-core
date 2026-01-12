@@ -1,0 +1,207 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/switch/switch.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+
+  <style>
+    :host {
+      display: block;
+    }
+
+    h3 {
+      font-size: 18px;
+    }
+
+    .container {
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .frame-contaner {
+      --frame-width: 360px;
+      --frame-height: 400px;
+      --frame-scale: 0.75;
+      width: var(--frame-width);
+      height: var(--frame-height);
+      border-radius: 4px;
+      border: 1px solid var(--md-sys-color-primary);
+    }
+
+    .preview-frame {
+      width: calc(var(--frame-width) / var(--frame-scale));
+      height: calc(var(--frame-height) / var(--frame-scale));
+      transform: scale(var(--frame-scale));
+      transform-origin: top left;
+    }
+  </style>
+  <div class="container">
+    <h3 style="margin-top: 0">预览</h3>
+    <div style="padding-bottom: 16px">
+      <p-button variant="outlined">
+        <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
+        <a attr:href="previewUrl" target="_blank">新窗口预览应用</a>
+      </p-button>
+    </div>
+    <div class="frame-contaner">
+      <iframe
+        class="preview-frame"
+        attr:src="previewUrl"
+        frameborder="0"
+      ></iframe>
+    </div>
+    <h3>其他功能</h3>
+    <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
+      使用HCT色盘
+    </p-switch>
+  </div>
+  <script>
+    export const parent = "./layout.html";
+
+    export default async ({ load, query }) => {
+      const { get } = await load("/nos/fs/main.js");
+      const { createData } = await load("/nos/hybrid-data/main.js");
+      const { getStyleContent } = await load("../util/theme.js");
+      const { default: jsBeautify } = await load(
+        "/npm/js-beautify@1.15.1/+esm"
+      );
+
+      return {
+        data: {
+          previewUrl: "/" + query.path + "/",
+          ofaConfig: {},
+          _rootHandle: null,
+        },
+        proto: {
+          async changeUseHCT() {
+            const useHCT = this.ofaConfig.useHCT === "on";
+
+            // 修正 index.html
+            const indexHandle = await this._rootHandle.get("index.html");
+            const indexContent = await indexHandle.text();
+
+            // 抽取 head 内容
+            const headContent = indexContent.match(/<head>(.*?)<\/head>/s)[1];
+            let replaceHeadContent = headContent; // 等待被替换的 head 内容
+
+            if (useHCT) {
+              let themeStyle = "";
+
+              // 生成样式文件
+              const { paletteStyleContent, themeStyleContent } =
+                getStyleContent();
+
+              // 写入文件
+              const paletteHandle = await this._rootHandle.get(
+                "css/palette.css",
+                {
+                  create: "file",
+                }
+              );
+
+              await paletteHandle.write(paletteStyleContent);
+
+              // theme.css
+              const themeHandle = await this._rootHandle.get("css/theme.css", {
+                create: "file",
+              });
+              await themeHandle.write(themeStyleContent);
+
+              const tempContainer = $(
+                `<template>${replaceHeadContent}</template>`
+              );
+
+              $(tempContainer.ele.content).push(
+                `<link rel="stylesheet" href="css/palette.css" pui-colors>`
+              );
+              $(tempContainer.ele.content).push(
+                `<link rel="stylesheet" href="css/theme.css">`
+              );
+
+              replaceHeadContent = tempContainer.html;
+            } else {
+              // 去除所有相关元素
+              const tempContainer = $(
+                `<template>${replaceHeadContent}</template>`
+              );
+
+              $(tempContainer.ele.content)
+                .all(`link[href="css/palette.css"],link[href="css/theme.css"]`)
+                .forEach((e) => e.remove());
+
+              replaceHeadContent = tempContainer.html;
+            }
+
+            // 替换内容
+            const finalContent = indexContent.replace(
+              /<head>(.*?)<\/head>/s,
+              `<head>${replaceHeadContent}<\/head>`
+            );
+
+            const reContent = jsBeautify.html(finalContent, {
+              indent_size: 2,
+              indent_char: " ",
+              eol: "\n",
+              preserve_newlines: false,
+            });
+
+            // 替换回 index.html
+            await indexHandle.write(reContent);
+
+            this.emit("update-ofa-config", {
+              composed: true,
+              data: this.ofaConfig.toJSON(),
+            });
+
+            setTimeout(() => {
+              this.shadow
+                .$(".preview-frame")
+                .ele.contentWindow.location.reload();
+            }, 200);
+          },
+        },
+        async attached() {
+          sessionStorage.setItem("currentPath", query.path);
+
+          // 打开目标
+          this._rootHandle = await get(query.path);
+
+          const studioConfigHandle = await this._rootHandle.get(
+            "ofa-config.json",
+            {
+              create: "file",
+            }
+          );
+
+          this.ofaConfig = await createData(studioConfigHandle);
+
+          if (!this.ofaConfig.useHCT) {
+            this.ofaConfig.useHCT = "off";
+          }
+
+          this.emit("active-page", {
+            composed: true,
+            data: {
+              name: "dashboard",
+            },
+          });
+
+          this.emit("update-ofa-config", {
+            composed: true,
+            data: this.ofaConfig.toJSON(),
+          });
+        },
+        detached() {
+          if (this.ofaConfig) {
+            this.ofaConfig.disconnect();
+          }
+          this.ofaConfig = {
+            useHCT: "off",
+          };
+        },
+      };
+    };
+  </script>
+</template>

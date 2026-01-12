@@ -1,0 +1,364 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/tooltips/tooltips.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/dialog/dialog.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="../../comps/main-content.html"></l-m>
+  <l-m src="../../comps/path-view.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+    .header {
+      display: flex;
+      height: 60px;
+      align-items: center;
+    }
+    h3 {
+      padding: 0;
+      margin: 32px 0 16px;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--md-sys-color-normal);
+    }
+    .container {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .card {
+      width: 100px;
+      height: 100px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      transition: all 0.1s ease;
+      cursor: pointer;
+      text-align: center;
+      border: 1px solid var(--md-sys-color-on-normal);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      background-color: var(--md-sys-color-on-normal);
+    }
+    .card .main-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      color: var(--md-sys-color-primary);
+    }
+    .card-text {
+      font-size: 14px;
+      line-height: 1.4em;
+      color: var(--md-sys-color-normal);
+    }
+
+    .card.active {
+      background-color: var(--md-sys-color-on-primary);
+      border: 1px solid var(--md-sys-color-on-primary);
+      .card-text {
+        color: var(--md-sys-color-primary);
+      }
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .container {
+        justify-content: center;
+      }
+      .card {
+        width: 140px;
+        height: 140px;
+        padding: 16px;
+      }
+      .card n-icon {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        width: 130px;
+        height: 130px;
+        padding: 16px;
+      }
+      .card n-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      .card-text {
+        font-size: 14px;
+      }
+    }
+  </style>
+  <main-content>
+    <div class="header" slot="header">
+      <p-button variant="text" on:click="back">
+        <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
+        返回
+      </p-button>
+    </div>
+    <h3>项目类型</h3>
+    <div class="container">
+      <div
+        class="card"
+        class:active="type === 'app'"
+        on:click="type = 'app'"
+        data-temp-path="router"
+      >
+        <n-icon class="main-icon" icon="mdi:application-array-outline"></n-icon>
+        <div class="card-text">
+          ofa.js 应用 <br />（含路由）
+          <p-tooltips style="vertical-align: middle">
+            <n-icon
+              icon="stash:question"
+              style="
+                font-size: 20px;
+                display: inline-block;
+                vertical-align: middle;
+              "
+            ></n-icon>
+            <div slot="tips">路由支持页面跳转、参数传递等单页应用功能。</div>
+          </p-tooltips>
+        </div>
+      </div>
+      <!-- <div
+        class="card"
+        class:active="type === 'component'"
+        on:click="type = 'component'"
+      >
+        <n-icon icon="mingcute:components-line"></n-icon>
+        <div class="card-text">ofa.js 组件</div>
+      </div> -->
+    </div>
+    <h3>项目信息</h3>
+
+    <p-input variant="filled" sync:value="projectName">
+      <label>项目名称</label>
+    </p-input>
+    <div
+      style="
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        white-space: nowrap;
+      "
+    >
+      <span style="font-weight: 500; color: var(--md-sys-color-normal)">
+        目录地址：
+      </span>
+      <path-view :path="dirPath"></path-view>
+      <o-if :value="isCover">
+        <p-tooltips>
+          <n-icon
+            icon="ep:warn-triangle-filled"
+            style="
+              color: var(--md-sys-color-primary);
+              margin-left: 4px;
+              font-size: 18px;
+            "
+          ></n-icon>
+          <div slot="tips">已确认覆盖原有的项目</div>
+        </p-tooltips>
+      </o-if>
+      <p-button
+        variant="outlined"
+        on:click="selectDir"
+        style="margin-left: 24px"
+      >
+        选择目录
+      </p-button>
+      <p
+        style="
+          color: var(--md-sys-color-primary);
+          font-size: 12px;
+          margin-left: 8px;
+          white-space: wrap;
+        "
+      >
+        当选择目录后，系统会弹出权限确认弹窗，请连续点击“确认”以授予写入权限，否则项目将无法正常启动。
+      </p>
+    </div>
+    <div style="margin-top: 16px">
+      <p-button
+        style="width: 100px"
+        on:click="confirm"
+        attr:disabled="!projectName || !dirPath"
+      >
+        确认创建
+      </p-button>
+    </div>
+  </main-content>
+
+  <p-dialog :open="showCoverDialog">
+    <div slot="title">项目已存在</div>
+    <p>当前目录下已有项目文件，是否覆盖并继续创建？</p>
+    <p-button slot="bottom" on:click="openProject" color="success">
+      直接打开项目
+    </p-button>
+    <p-button slot="bottom" on:click="showCoverDialog = false">
+      确认覆盖
+    </p-button>
+    <p-button slot="bottom" variant="outlined" on:click="clickCoverCancel">
+      取消
+    </p-button>
+  </p-dialog>
+  <script>
+    export const parent = "../layout.html";
+
+    export default async ({ load, url, query }) => {
+      const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
+      const { confirm, prompt, toast } = await load(
+        "/gh/ofajs/Punch-UI/packages/util.js"
+      );
+
+      return {
+        data: {
+          type: "app",
+          dirPath: "",
+          projectName: "",
+          _handle: null,
+          showCoverDialog: false,
+          isCover: false,
+        },
+        proto: {
+          async openProject() {
+            await save(this._handle);
+
+            await saveProject(this._handle.path);
+
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(this._handle.path)}`
+            );
+          },
+          clickCoverCancel() {
+            this.showCoverDialog = false;
+            this.dirPath = "";
+            if (this.projectName === this._handle.name) {
+              this.projectName = "";
+            }
+            this.isCover = false;
+          },
+          async selectDir() {
+            const handle = (this._handle = await mount());
+            this.dirPath = handle.path;
+
+            if (!this.projectName) {
+              this.projectName = handle.name;
+            }
+
+            const fileLen = await handle.length();
+
+            this.isCover = false;
+
+            if (fileLen === 1) {
+              // 判断是否有隐藏文件或DS_Store文件，只有DS_Store可以视为空
+              const dsStoreFile = await handle.get(".DS_Store");
+
+              if (!dsStoreFile) {
+                return;
+              }
+            } else if (fileLen > 0) {
+              this.showCoverDialog = true;
+              this.isCover = true;
+            }
+          },
+          async confirm() {
+            const templatePath = this.shadow.$(`.card.active[data-temp-path]`)
+              .data.tempPath;
+
+            if (!templatePath) {
+              return;
+            }
+
+            const baseData = await load("../../template/base.json");
+
+            if (!baseData[templatePath]) {
+              return;
+            }
+
+            // 下载文件并覆盖文件
+            await Promise.all(
+              baseData[templatePath].files.map(async (path) => {
+                const fileContent = await fetch(
+                  new URL(`../../template/${templatePath}/${path}`, url)
+                ).then((e) => e.text());
+
+                const fileHandle = await this._handle.get(path, {
+                  create: "file",
+                });
+
+                await fileHandle.write(fileContent);
+              })
+            );
+
+            // 写入package.json
+            const packagejsonHandle = await this._handle.get("package.json", {
+              create: "file",
+            });
+
+            await packagejsonHandle.write(
+              JSON.stringify(
+                {
+                  name: this.projectName,
+                  version: "1.0.0",
+                  description: "",
+                  main: "index.html",
+                  ofaApp: true,
+                },
+                null,
+                2
+              )
+            );
+
+            await save(this._handle);
+
+            await saveProject(this._handle.path);
+
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(this._handle.path)}`
+            );
+          },
+        },
+        async attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "start" },
+          });
+
+          if (query.from === "create") {
+            const { getTempHandle } = await load("./main.html");
+            this._handle = getTempHandle();
+            if (!this._handle) {
+              return;
+            }
+            this.dirPath = this._handle.path;
+            this.projectName = this._handle.name;
+          }
+        },
+      };
+    };
+
+    export const saveProject = async (path) => {
+      const projects = JSON.parse(localStorage.getItem("projects") || "[]");
+
+      projects.push({
+        path,
+      });
+
+      // 去重
+      const uniqueProjects = projects.filter(
+        (item, index, arr) =>
+          arr.findIndex((i) => i.path === item.path) === index
+      );
+
+      localStorage.setItem("projects", JSON.stringify(uniqueProjects));
+    };
+  </script>
+</template>

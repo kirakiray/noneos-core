@@ -1,0 +1,221 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
+  <l-m src="/nos/locale-text/locale-text.html"></l-m>
+  <l-m src="../../../file-list/file-list.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+
+  <p-dialog :open="open" on:click-mask="open = false">
+    <div slot="title">
+      <locale-text>
+        <span lang="cn">创建{{ createTypeLabel }}</span>
+        <span lang="en">Create {{ createTypeLabel }}</span>
+      </locale-text>
+    </div>
+    <div style="max-width: 540px; width: 60vw">
+      <div style="padding-bottom: 16px">
+        <locale-text>
+          <span lang="cn">将要创建{{createTypeLabel}}</span>
+          <span lang="en">Will create {{createTypeLabel}}</span>
+        </locale-text>
+        <span style="color: var(--md-sys-color-normal)">
+          {{ createPath }}/
+          <o-if :value="inputName.trim()">
+            <span style="color: var(--md-sys-color-primary)">
+              {{fullFileName}}
+            </span>
+          </o-if>
+        </span>
+      </div>
+      <p-input variant="filled" sync:value="inputName" id="create-name-input">
+        <label>
+          <locale-text>
+            <span lang="cn">{{createTypeLabel}}名称</span>
+            <span lang="en">{{createTypeLabel}} Name</span>
+          </locale-text>
+        </label>
+      </p-input>
+    </div>
+    <p-button
+      slot="bottom"
+      attr:disabled="!canSubmit"
+      style="margin-left: auto"
+      on:click="createFile"
+    >
+      <locale-text>
+        <span lang="cn">创建</span>
+        <span lang="en">Create</span>
+      </locale-text>
+    </p-button>
+    <p-button
+      slot="bottom"
+      variant="outlined"
+      color="normal"
+      on:click="open = false"
+    >
+      <locale-text>
+        <span lang="cn">取消</span>
+        <span lang="en">Cancel</span>
+      </locale-text>
+    </p-button>
+  </p-dialog>
+
+  <script>
+    export default async ({ load, url }) => {
+      const { get } = await load("/nos/fs/main.js");
+      const { getLocaleText } = await load(
+        "/nos/locale-text/get-locale-text.js"
+      );
+      const { toast } = await load("/gh/ofajs/Punch-UI/packages/util.js");
+
+      return {
+        data: {
+          createType: "", // component or page
+          createPath: "", // 创建文件的文件夹路径
+          contextmenuPath: "", // 文件列表中被点击项的路径
+          open: false, // 对话框是否打开
+          inputName: "", // 输入框中的文件名
+        },
+        watch: {
+          async contextmenuPath(path) {
+            if (!path) {
+              return;
+            }
+
+            let handle = await get(path);
+
+            if (handle.kind === "file") {
+              handle = handle.parent;
+            }
+
+            this._finalDirHandle = handle;
+
+            this.createPath = handle.path.split(">")[1];
+          },
+          open() {
+            setTimeout(() => {
+              this.shadow.$("#create-name-input") &&
+                this.shadow.$("#create-name-input").focus();
+            }, 100);
+          },
+        },
+        proto: {
+          get fileName() {
+            if (!this.inputName) {
+              return "";
+            }
+
+            const fileName = this.inputName.trim().replace(/\s+/g, "-");
+
+            // 大写要专成小写-
+            return fileName.replace(/([A-Z])/g, "-$1").toLowerCase();
+          },
+          get fullFileName() {
+            return this.fileName + ".html";
+          },
+          get createTypeLabel() {
+            return this.createType === "component"
+              ? getLocaleText({ cn: "组件", en: "Component" })
+              : getLocaleText({ cn: "页面", en: "Page" });
+          },
+          get canSubmit() {
+            if (!this.inputName.trim()) {
+              return false;
+            }
+
+            return true;
+          },
+          async createFile() {
+            // fileName只允许是英文，空格点和-构成
+            if (!/^[a-zA-Z\s.-]+$/.test(this.fileName)) {
+              toast({
+                content: getLocaleText({
+                  cn: `组件名称只能包含英文、空格、点和连字符“-”`,
+                  en: `Component name can only contain English letters, spaces, dots and hyphens "-"`,
+                }),
+                color: "error",
+                click() {
+                  window.open(
+                    "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
+                  );
+                },
+              });
+              return;
+            }
+
+            if (this.createType === "component") {
+              // 必须带有-
+              if (!this.fileName.includes("-")) {
+                toast({
+                  content: getLocaleText({
+                    cn: `组件名称必须包含连字符“-”，例如：“my-component”`,
+                    en: `Component name must contain a hyphen "-", for example: "my-component"`,
+                  }),
+                  color: "error",
+                  click() {
+                    window.open(
+                      "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
+                    );
+                  },
+                });
+                return;
+              }
+            }
+
+            const fullFileName = this.fullFileName;
+
+            // 判断是否有旧的文件
+            let handle = await this._finalDirHandle.get(fullFileName);
+
+            if (handle) {
+              toast({
+                content: getLocaleText({
+                  cn: `${fullFileName} 已存在`,
+                  en: `${fullFileName} already exists`,
+                }),
+                type: "error",
+              });
+              return;
+            }
+
+            handle = await this._finalDirHandle.get(fullFileName, {
+              create: "file",
+            });
+
+            // 获取空白模板内容
+            let templateContent = "";
+
+            if (this.createType === "component") {
+              templateContent = await fetch(
+                new URL("../../template/empty-component.html", url)
+              );
+              templateContent = await templateContent.text();
+              templateContent = templateContent.replace(
+                `tag: "empty-component",`,
+                `tag: "${this.fileName}",`
+              );
+            } else {
+              templateContent = await fetch(
+                new URL("../../template/empty-page.html", url)
+              );
+              templateContent = await templateContent.text();
+              templateContent = templateContent.replace(
+                `<h1>empty page</h1>`,
+                `<h1>${this.fileName}</h1>,`
+              );
+            }
+
+            await handle.write(templateContent);
+
+            this.emit("create-success");
+
+            this.open = false;
+          },
+        },
+      };
+    };
+  </script>
+</template>

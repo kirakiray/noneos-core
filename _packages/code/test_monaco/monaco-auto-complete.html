@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monaco Editor - 自定义代码补全</title>
+    <style>
+      #container {
+        height: 600px;
+        border: 1px solid #ccc;
+      }
+      .info {
+        padding: 10px;
+        background: #f0f0f0;
+        margin-bottom: 10px;
+      }
+      code {
+        background: #ddd;
+        padding: 2px 4px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info">
+      <strong>提示：</strong>输入 <code>html5</code> 或
+      <code>!</code> 试试自定义代码片段补全！
+    </div>
+    <div id="container"></div>
+
+    <script type="module">
+      import * as monaco from "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/+esm";
+
+      // 创建编辑器
+      const editor = monaco.editor.create(
+        document.getElementById("container"),
+        {
+          language: "html",
+          theme: "vs-dark",
+          tabSize: 2,
+          insertSpaces: true,
+          fontSize: 14,
+          automaticLayout: true,
+          wordWrap: "on",
+        }
+      );
+
+      // 设置初始内容
+      editor.setValue("<!-- 输入 html5 或 ! 触发代码补全 -->\n");
+
+      // ==================== 方案1：简单的代码片段补全 ====================
+      monaco.languages.registerCompletionItemProvider("html", {
+        provideCompletionItems: function (model, position) {
+          // 获取当前行的内容直到光标位置
+          const lineContent = model.getValueInRange({
+            startLineNumber: position.lineNumber,
+            startColumn: 1,
+            endLineNumber: position.lineNumber,
+            endColumn: position.column,
+          });
+
+          // 如果行首是 ! 或者 html，提供HTML5模板补全
+          if (
+            lineContent.trim() === "!" ||
+            lineContent.trim().toLowerCase() === "html"
+          ) {
+            return {
+              suggestions: [
+                {
+                  label: "html5-template",
+                  kind: monaco.languages.CompletionItemKind.Snippet,
+                  documentation: "HTML5 标准模板",
+                  insertText: `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>\${1:Document}</title>
+</head>
+<body>
+  \${0}
+</body>
+</html>`,
+                  insertTextRules:
+                    monaco.languages.CompletionItemInsertTextRule
+                      .InsertAsSnippet,
+                  range: {
+                    startLineNumber: position.lineNumber,
+                    endLineNumber: position.lineNumber,
+                    startColumn: 1,
+                    endColumn: position.column,
+                  },
+                },
+              ],
+            };
+          }
+
+          return { suggestions: [] };
+        },
+        triggerCharacters: ["!", "h"],
+      });
+
+      // ==================== 方案2：更丰富的HTML标签补全 ====================
+//       monaco.languages.registerCompletionItemProvider("html", {
+//         provideCompletionItems: function (model, position) {
+//           const suggestions = [
+//             // 常用HTML结构
+//             {
+//               label: "html5-boilerplate",
+//               kind: monaco.languages.CompletionItemKind.Snippet,
+//               documentation: "完整的HTML5模板",
+//               insertText: `<!DOCTYPE html>
+// <html lang="zh-CN">
+// <head>
+//   <meta charset="UTF-8">
+//   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//   <meta http-equiv="X-UA-Compatible" content="ie=edge">
+//   <title>\${1:页面标题}</title>
+//   <style>
+//     \${2}
+//   </style>
+// </head>
+// <body>
+//   <header>
+//     <h1>\${3:主标题}</h1>
+//   </header>
+//   <main>
+//     \${0}
+//   </main>
+//   <footer>
+//     <p>&copy; 2024 \${4:公司名称}</p>
+//   </footer>
+// </body>
+// </html>`,
+//               insertTextRules:
+//                 monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+//             },
+//             {
+//               label: "form-basic",
+//               kind: monaco.languages.CompletionItemKind.Snippet,
+//               documentation: "基础表单结构",
+//               insertText: `<form action="\${1:/submit}" method="\${2|get,post|}">
+//   <div class="form-group">
+//     <label for="\${3:username}">用户名：</label>
+//     <input type="text" id="\${3}" name="\${3}" class="form-control" required>
+//   </div>
+//   \${0}
+//   <button type="submit" class="btn btn-primary">提交</button>
+// </form>`,
+//               insertTextRules:
+//                 monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+//             },
+//             {
+//               label: "table-responsive",
+//               kind: monaco.languages.CompletionItemKind.Snippet,
+//               documentation: "响应式表格",
+//               insertText: `<div class="table-responsive">
+//   <table class="table table-striped table-bordered">
+//     <thead>
+//       <tr>
+//         <th>\${1:列1}</th>
+//         <th>\${2:列2}</th>
+//         <th>\${3:列3}</th>
+//       </tr>
+//     </thead>
+//     <tbody>
+//       <tr>
+//         <td>\${0:数据}</td>
+//         <td></td>
+//         <td></td>
+//       </tr>
+//     </tbody>
+//   </table>
+// </div>`,
+//               insertTextRules:
+//                 monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+//             },
+//           ];
+
+//           return { suggestions: suggestions };
+//         },
+//         triggerCharacters: [">"],
+//       });
+
+      // ==================== 方案3：Bootstrap 组件补全 ====================
+      monaco.languages.registerCompletionItemProvider("html", {
+        provideCompletionItems: function (model, position) {
+          const bootstrapComponents = [
+            {
+              label: "bs-button",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              documentation: "Bootstrap 按钮",
+              insertText: `<button type="button" class="btn btn-\${1|primary,secondary,success,danger,warning,info,light,dark|}">\${2:按钮文本}</button>\${0}`,
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            },
+            {
+              label: "bs-card",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              documentation: "Bootstrap 卡片",
+              insertText: `<div class="card" style="width: 18rem;">
+  <img src="\${1:https://via.placeholder.com/150}" class="card-img-top" alt="\${2:图片}">
+  <div class="card-body">
+    <h5 class="card-title">\${3:标题}</h5>
+    <p class="card-text">\${4:文本内容}</p>
+    <a href="\${5:#}" class="btn btn-primary">\${6:按钮}</a>
+  </div>
+</div>\${0}`,
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            },
+            {
+              label: "bs-navbar",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              documentation: "Bootstrap 导航栏",
+              insertText: `<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="\${1:#}">\${2:品牌}</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link active" href="\${3:#}">首页</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="\${4:#}">功能</a>
+        </li>
+        \${0}
+      </ul>
+    </div>
+  </div>
+</nav>`,
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            },
+          ];
+
+          return { suggestions: bootstrapComponents };
+        },
+      });
+
+      console.log("✅ 自定义代码补全功能已加载！");
+      console.log("📋 支持的代码片段：");
+      console.log("   - ! 或 html: 快速插入HTML5模板");
+      console.log("   - html5-boilerplate: 完整HTML5模板");
+      console.log("   - form-basic: 基础表单");
+      console.log("   - table-responsive: 响应式表格");
+      console.log("   - bs-button: Bootstrap按钮");
+      console.log("   - bs-card: Bootstrap卡片");
+      console.log("   - bs-navbar: Bootstrap导航栏");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monaco Editor</title>
+    <style>
+      html,
+      body {
+        background-color: #181818;
+        color: rgb(204, 204, 204);
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      #container {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <!-- 使用全局变量 CDN -->
+    <script src="/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script> -->
+
+    <script type="module">
+      require.config({ paths: { vs: "/npm/monaco-editor@0.44.0/min/vs" } });
+      // require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
+
+      require(["vs/editor/editor.main"], function () {
+        // 创建编辑器
+        window.editor = monaco.editor.create(
+          document.getElementById("container"),
+          {
+            language: "html",
+            theme: "vs-dark",
+            tabSize: 2,
+            insertSpaces: true,
+            fontSize: 14,
+            automaticLayout: true,
+            wordWrap: "on",
+          }
+        );
+
+        // 监听编辑器内容变化
+        editor.onDidChangeModelContent(() => {
+          // 向父窗口发送内容变化消息
+          postMessage("contentChange");
+        });
+
+        // 绑定 Ctrl+S 快捷键
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, (e) => {
+          // 通知父窗口保存
+          postMessage("save");
+        });
+
+        function postMessage(type, data = {}) {
+          const frameId = new URLSearchParams(location.search).get("frameId");
+          window.parent.postMessage(
+            {
+              id: frameId,
+              type,
+              ...data,
+            },
+            "*"
+          );
+        }
+
+        const stateHistory = {};
+
+        window.onmessage = (event) => {
+          switch (event.data.type) {
+            case "setValue":
+              editor.setValue(event.data.value);
+              editor.setScrollPosition({ scrollTop: 0 });
+              break;
+            case "getValue":
+              postMessage("getValue", { value: editor.getValue() });
+              break;
+            case "setLanguage":
+              monaco.editor.setModelLanguage(
+                editor.getModel(),
+                event.data.lang
+              );
+              break;
+            case "setPlugins":
+              event.data.plugins.split(" ").forEach(async (plugin) => {
+                // 统一加载并初始化插件
+                let pluginUrl = plugin;
+
+                if (plugin === "prettier") {
+                  // 注意：在全局变量模式下，import.meta.resolve 不可用
+                  // 需要使用其他方式解析路径
+                  pluginUrl = "./plugins/prettier.js";
+                }
+
+                const { default: init } = await import(pluginUrl);
+                init({ editor, monaco });
+              });
+              break;
+            case "switchState": {
+              const id = event.data.id;
+              if (editor._stateId) {
+                // 已经存在的状况下，要先保存当前内容
+                const model = editor.getModel();
+                const viewState = editor.saveViewState();
+
+                stateHistory[editor._stateId] = { model, viewState };
+              }
+
+              editor._stateId = id;
+
+              // 是否存在过该状态
+              if (stateHistory[id]) {
+                const { model, viewState } = stateHistory[id];
+                editor.setModel(model);
+                editor.restoreViewState(viewState);
+              } else {
+                editor.setModel(monaco.editor.createModel());
+              }
+
+              // editor.setModel(editor.createModel(event.data.filePath));
+              break;
+            }
+            case "focus":
+              editor.focus();
+              break;
+          }
+        };
+
+        postMessage("initialized", { initialized: true });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,248 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/list/list.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="../../comps/main-content.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
+        "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+      background-color: var(--md-sys-color-normal-on-container);
+    }
+
+    .main {
+      display: flex;
+    }
+
+    .left,
+    .right {
+      flex: 1;
+    }
+
+    .welcome-page h2 {
+      font-size: 26px;
+      font-weight: normal;
+      margin: 0 0 20px;
+      color: var(--md-sys-color-normal);
+    }
+
+    .welcome-page h3 {
+      font-size: 18px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 10px;
+      opacity: 0.7;
+    }
+
+    .welcome-page section {
+      margin-bottom: 30px;
+    }
+
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    p-button {
+      min-width: 120px;
+    }
+
+    .empty-recent {
+      color: var(--md-sys-color-normal);
+      font-style: italic;
+      padding: 4px 8px;
+    }
+
+    p-list-item {
+      --pui-space-y: 6px;
+      margin: 2px;
+      border-radius: 12px;
+    }
+  </style>
+  <main-content>
+    <h2>OFA Studio</h2>
+    <div class="main">
+      <o-if :value="!canUse">
+        <locale-text>
+          <div lang="cn">
+            <p>
+              抱歉，您的浏览器暂不支持选择目录，请更换为 Chrome
+              或其他现代浏览器后再试。
+            </p>
+            <p>
+              本功能依赖
+              <a
+                href="https://developer.mozilla.org/zh-CN/docs/Web/API/Window/showOpenFilePicker"
+                >showOpenFilePicker API</a
+              >，仅在支持的浏览器中可用。
+            </p>
+            <p>
+              该 API
+              用于授予浏览器写入本地文件夹的权限；若不被支持，项目将无法正常运行。
+            </p>
+          </div>
+          <div lang="en">
+            <p>
+              Sorry, your browser does not support the
+              <a
+                href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showOpenFilePicker"
+                >showOpenFilePicker API</a
+              >. Please use Chrome or other modern browsers.
+            </p>
+            <p>
+              This feature depends on the showOpenFilePicker API, which is only
+              available in supported browsers.
+            </p>
+            <p>
+              The API is used to grant the browser permission to write to local
+              folders; without it, the project may not function properly.
+            </p>
+          </div>
+        </locale-text>
+      </o-if>
+      <o-else>
+        <div class="left">
+          <section>
+            <h3>开始</h3>
+            <div class="button-container">
+              <p-button variant="text" on:click="openFolderPicker">
+                <n-icon
+                  icon="material-symbols:folder-open"
+                  slot="prefix"
+                ></n-icon>
+                打开文件夹
+              </p-button>
+              <p-button variant="text" on:click="goto('./create.html')">
+                <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
+                创建新项目
+              </p-button>
+              <p-button variant="text">
+                <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
+                从 GitHub 仓库下载副本
+              </p-button>
+            </div>
+          </section>
+
+          <section>
+            <h3>最近打开</h3>
+            <o-if :value="projects.length">
+              <p-list>
+                <o-fill :value="projects">
+                  <p-list-item button on:click="$host.gotoProject($data.path)">
+                    <n-icon
+                      icon="material-symbols:folder"
+                      slot="prefix"
+                      style="margin-right: 4px"
+                    ></n-icon>
+                    {{ $host.getName($data.path) }}
+                  </p-list-item>
+                </o-fill>
+              </p-list>
+            </o-if>
+            <o-else>
+              <p-list>
+                <p-list-item> 暂无最近打开项目 </p-list-item>
+              </p-list>
+            </o-else>
+          </section>
+        </div>
+        <div class="right">
+          <section>
+            <h3>学习</h3>
+            <p-list>
+              <p-list-item button disabled>了解基础知识</p-list-item>
+              <p-list-item button disabled>视频教程</p-list-item>
+              <p-list-item button>社区支持</p-list-item>
+            </p-list>
+            <!-- <div class="button-container">
+              <p-button variant="text">了解基础知识</p-button>
+              <p-button variant="text">视频教程</p-button>
+              <p-button variant="text">社区支持</p-button>
+            </div> -->
+          </section>
+        </div>
+      </o-else>
+    </div>
+  </main-content>
+  <script>
+    export const parent = "../layout.html";
+
+    let tempHandle = null;
+    export const getTempHandle = () => tempHandle;
+
+    export default async ({ load }) => {
+      const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
+      const { confirm } = await load("/gh/ofajs/Punch-UI/packages/util.js");
+
+      return {
+        data: {
+          canUse: !!window.showOpenFilePicker,
+          title: "欢迎",
+          projects: [],
+        },
+        proto: {
+          async openFolderPicker() {
+            const handle = await mount();
+
+            // 查看是否要是有效的项目文件
+            const packagejsonHandle = await handle.get("package.json");
+            if (!packagejsonHandle) {
+              const result = await confirm(
+                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+              );
+              if (!result) {
+                return;
+              }
+              tempHandle = handle;
+              this.goto(`./create.html?from=create`);
+              return;
+            }
+
+            const content = await packagejsonHandle.json();
+            if (!content.ofaApp) {
+              tempHandle = handle;
+
+              const result = await confirm(
+                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+              );
+
+              if (!result) {
+                return;
+              }
+
+              this.goto(`./create.html?from=create`);
+              return;
+            }
+
+            await save(handle);
+
+            this.goto(
+              `../dashboard.html?path=${encodeURIComponent(handle.path)}`
+            );
+          },
+          getName(path) {
+            const repath = path.split(">").pop();
+            return repath.split("/").pop();
+          },
+          gotoProject(path) {
+            this.goto(`../dashboard.html?path=${encodeURIComponent(path)}`);
+          },
+        },
+        attached() {
+          const projects = JSON.parse(localStorage.getItem("projects") || "[]");
+          this.projects = projects;
+
+          this.emit("active-page", {
+            composed: true,
+            data: { name: "start" },
+          });
+        },
+      };
+    };
+  </script>
+</template>

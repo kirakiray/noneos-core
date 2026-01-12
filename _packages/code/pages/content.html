@@ -1,0 +1,309 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+
+    .hide {
+      display: none;
+    }
+  </style>
+  <monaco-editor
+    class:hide="mode !== 'edit'"
+    style="width: 100%; height: 100%"
+    plugins="prettier"
+    on:change="changeCode"
+    on:save="saveCode"
+  ></monaco-editor>
+  <o-if :value="mode === 'img'">
+    <div
+      style="
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        width: 100%;
+      "
+    >
+      <img attr:src="picUrl" alt="" style="max-width: 80%; max-height: 80%" />
+    </div>
+  </o-if>
+  <o-else-if :value="mode === 'preview-web'">
+    <style>
+      /* 模拟浏览器窗口 */
+      .browser-window {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: var(--browser-bg, #f5f5f5);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      /* 浏览器地址栏 */
+      .browser-bar {
+        height: 40px;
+        background: var(--bar-bg, #e0e0e0);
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--bar-border, #ccc);
+      }
+      .browser-dots {
+        display: flex;
+        gap: 6px;
+        margin-right: 10px;
+      }
+      .browser-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+      .dot-red {
+        background: #ff5f57;
+      }
+      .dot-yellow {
+        background: #ffbd2e;
+      }
+      .dot-green {
+        background: #28ca42;
+      }
+      .browser-url {
+        flex: 1;
+        height: 26px;
+        background: var(--url-bg, #fff);
+        color: var(--url-color, #333);
+        border-radius: 4px;
+        border: 1px solid var(--url-border, #bbb);
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 12px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      /* 浏览器内容区 */
+      .browser-content {
+        flex: 1;
+        position: relative;
+        background: var(--content-bg, #fff);
+      }
+      .browser-iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      /* 黑夜模式变量覆盖 */
+      @media (prefers-color-scheme: dark) {
+        :host {
+          --browser-bg: #1e1e1e;
+          --bar-bg: #2d2d2d;
+          --bar-border: #444;
+          --url-bg: #252525;
+          --url-color: #d4d4d4;
+          --url-border: #555;
+          --content-bg: #1e1e1e;
+        }
+      }
+    </style>
+
+    <!-- 模拟浏览器窗口 -->
+    <div class="browser-window">
+      <!-- 浏览器地址栏 -->
+      <div class="browser-bar">
+        <div class="browser-dots">
+          <span class="browser-dot dot-red"></span>
+          <span class="browser-dot dot-yellow"></span>
+          <span class="browser-dot dot-green"></span>
+        </div>
+        <div class="browser-url">{{previewWebUrl}}</div>
+      </div>
+      <!-- 浏览器内容区 -->
+      <div class="browser-content">
+        <iframe class="browser-iframe" attr:src="previewWebUrl"></iframe>
+      </div>
+    </div>
+  </o-else-if>
+
+  <!-- <monaco-editor
+    style="width: 100%; height: 100%"
+    plugins="http://localhost:3002/_packages/editor/comps/plugins/prettier.js"
+  ></monaco-editor> -->
+  <o-consumer
+    name="studio-data"
+    watch:project-path="projectPath"
+    watch:active-file="activeFilePath"
+  ></o-consumer>
+  <script>
+    // 映射文件是否有改动
+    export const hasChangedPaths = $.stanz([]);
+
+    const fileOriginContent = {}; // 记录文件原始内容，用于判断是否有改动
+    const fileHistoryContent = {}; // 记录修改文件后的内容，用于判断是否有改动
+
+    export default async ({ load }) => {
+      await load("../comps/monaco-editor.html");
+      const { getType } = await load("../util/get-type.js");
+      const { get } = await load("/nos/fs/handle/main.js");
+
+      return {
+        data: {
+          activeFilePath: "",
+          mode: "edit",
+          picUrl: "",
+          previewWebUrl: "",
+          _oldActiveFilePath: "", // 上一个activeFilePath
+        },
+        watch: {
+          activeFilePath() {
+            this.loadFile().then(() => {
+              // 记录上一个activeFilePath
+              this._oldActiveFilePath = this.activeFilePath;
+            });
+          },
+        },
+        proto: {
+          changeCode() {
+            clearTimeout(this._changeTimer);
+
+            this._changeTimer = setTimeout(async () => {
+              this._changeTimer = null;
+
+              const code = await this.shadow.$("monaco-editor").getValue();
+
+              // 查看是否有数据变动
+              const provider = this.getProvider("studio-data");
+              provider.dispatch("change", {
+                data: {
+                  content: code,
+                },
+              });
+
+              fileHistoryContent[this.activeFilePath] = code;
+
+              this.refreshHasChangedPaths();
+            }, 100);
+          },
+          async saveCode() {
+            const code = await this.shadow.$("monaco-editor").getValue();
+
+            const handle = await get(this.activeFilePath);
+
+            await handle.write(code);
+
+            fileOriginContent[this.activeFilePath] = code;
+            fileHistoryContent[this.activeFilePath] = code;
+
+            this.refreshHasChangedPaths();
+
+            this.getProvider("studio-data").dispatch("save", {
+              data: {
+                path: this.activeFilePath,
+                content: code,
+              },
+            });
+          },
+
+          refreshHasChangedPaths() {
+            const code = fileHistoryContent[this.activeFilePath];
+
+            // 判断文件是否有改动
+            if (fileOriginContent[this.activeFilePath] !== code) {
+              // 不在hasChangedPaths中，添加
+              if (!hasChangedPaths.includes(this.activeFilePath)) {
+                hasChangedPaths.push(this.activeFilePath);
+              }
+            } else {
+              // 在hasChangedPaths中，移除
+              const index = hasChangedPaths.indexOf(this.activeFilePath);
+              if (index !== -1) {
+                hasChangedPaths.splice(index, 1);
+              }
+            }
+          },
+          async loadFile() {
+            const editor = this.shadow.$("monaco-editor");
+
+            if (!this.activeFilePath) {
+              editor.setValue("");
+              return;
+            }
+
+            let currentPath = this.activeFilePath;
+
+            if (this.activeFilePath.includes("##")) {
+              // 包含数据信息，进行拆解
+              const [path, previewType] = this.activeFilePath.split("##");
+              currentPath = path;
+
+              if (previewType === "preview-web") {
+                this.mode = "preview-web";
+                this.previewWebUrl = path;
+                return;
+              }
+            }
+
+            const targetHandle = await get(currentPath);
+
+            if (targetHandle.kind === "file") {
+              if (this.picUrl) {
+                URL.revokeObjectURL(this.picUrl);
+                this.picUrl = "";
+              }
+
+              // 判断是否图片文件
+              if (isPic(currentPath)) {
+                this.mode = "img";
+                const file = await targetHandle.file();
+                this.picUrl = URL.createObjectURL(file);
+                return;
+              }
+
+              // 编辑器模式
+              this.mode = "edit";
+
+              // 切换到当前文件状态
+              editor.switchState(currentPath);
+
+              if (!fileHistoryContent[currentPath]) {
+                // 如果没有历史数据，从文件中读取内容
+                const content = await targetHandle.text();
+                fileOriginContent[currentPath] = content;
+                editor.setValue(content);
+                const type = getType(currentPath);
+                editor.setLanguage(type);
+              }
+
+              editor.focus();
+            }
+          },
+        },
+        async attached() {
+          await this.shadow.$("monaco-editor")._initialized;
+        },
+        detached() {},
+      };
+    };
+
+    const isPic = (path) => {
+      const imgExts = [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".svg",
+        ".webp",
+        ".ico",
+      ];
+      return imgExts.some((ext) => path.toLowerCase().endsWith(ext));
+    };
+  </script>
+</template>

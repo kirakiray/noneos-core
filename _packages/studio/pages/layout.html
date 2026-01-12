@@ -1,0 +1,125 @@
+<template page>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+
+    .container {
+      display: flex;
+      height: 100%;
+    }
+
+    .left-bar {
+      width: 56px;
+      /* border-right: 1px solid rgba(132, 132, 132, 0.2); */
+      border-right: 1px solid
+        rgb(from var(--md-ref-palette-normal50) r g b / 0.5);
+    }
+
+    .left-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* height: 56px; */
+      height: 40px;
+      margin: 8px 8px 0 8px;
+      border-radius: 8px;
+      font-size: 22px;
+      color: var(--md-sys-color-normal);
+      cursor: pointer;
+      overflow: hidden;
+      transition: all 0.1s ease-in-out;
+    }
+
+    .left-btn:hover {
+      background-color: var(--md-ref-palette-translucent-normal60);
+    }
+
+    .left-btn.active {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .left-btn.hide {
+      height: 0;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .main {
+      position: relative;
+      height: 100%;
+      flex: 1;
+    }
+  </style>
+  <div class="container">
+    <div class="left-bar">
+      <div
+        class="left-btn"
+        class:active="activeName === 'start'"
+        class:hide="activeName !== 'start'"
+      >
+        <n-icon icon="material-symbols:add-ad"></n-icon>
+      </div>
+      <div
+        class="left-btn"
+        class:active="activeName === 'dashboard'"
+        class:hide="activeName === 'start'"
+        on:click="goto('./dashboard.html?path=' + currentPath)"
+      >
+        <n-icon icon="material-symbols:dashboard-outline-rounded"></n-icon>
+      </div>
+      <div
+        class="left-btn"
+        class:active="activeName === 'files'"
+        class:hide="activeName === 'start'"
+        on:click="goto('./files/files.html?path=' + currentPath)"
+      >
+        <n-icon icon="material-symbols:folder-outline"></n-icon>
+      </div>
+      <div
+        class="left-btn"
+        class:active="activeName === 'color'"
+        class:hide="activeName === 'start' || ofaConfig.useHCT === 'off'"
+        on:click="goto('./color.html')"
+      >
+        <n-icon icon="ic:outline-color-lens"></n-icon>
+      </div>
+      <!-- <div class="left-btn" class:active="activeName === 'settings'">
+        <n-icon icon="material-symbols:settings"></n-icon>
+      </div> -->
+    </div>
+    <div class="main">
+      <div
+        style="position: absolute; top: 0; bottom: 0; width: 100%; height: 100%"
+      >
+        <slot></slot>
+      </div>
+    </div>
+  </div>
+  <script>
+    export default async ({ load }) => {
+      return {
+        data: {
+          activeName: "start",
+          currentPath: sessionStorage.getItem("currentPath"),
+          ofaConfig: {
+            useHCT: "on",
+          },
+        },
+        proto: {},
+        ready() {
+          this.on("active-page", ({ data }) => {
+            this.activeName = data.name;
+          });
+
+          this.on("update-ofa-config", ({ data }) => {
+            this.ofaConfig = data;
+          });
+        },
+      };
+    };
+  </script>
+</template>

@@ -1,0 +1,117 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .container {
+      display: flex;
+      height: calc(100% - 26px);
+    }
+    .left {
+      width: 56px;
+      border-right: 1px solid rgba(204, 204, 204, 0.2);
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* height: 56px; */
+      height: 40px;
+      margin: 8px;
+      border-radius: 8px;
+      font-size: 22px;
+      color: var(--md-sys-color-normal);
+      cursor: pointer;
+    }
+    .btn:hover {
+      /* background-color: rgba(204, 204, 204, 0.2); */
+      background-color: var(--md-ref-palette-translucent-normal60);
+    }
+    .main {
+      position: relative;
+      flex: 1;
+    }
+    .mian-inner {
+      position: absolute;
+      height: 100%;
+      width: 100%;
+      left: 0;
+      top: 0;
+    }
+    .frame-bottom {
+      height: 26px;
+      line-height: 26px;
+      border-top: 1px solid rgba(204, 204, 204, 0.2);
+    }
+    .btn.active {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+  </style>
+  <o-provider
+    name="studio-data"
+    project-path="/drill.js"
+    sync:active-file="activeFilePath"
+  >
+    <div class="container">
+      <div class="left">
+        <o-fill :value="btns">
+          <div class="btn" class:active="$host.activeId === $data.id">
+            <n-icon attr:icon="$data.icon"></n-icon>
+          </div>
+        </o-fill>
+      </div>
+      <div class="main">
+        <div class="mian-inner">
+          <slot></slot>
+        </div>
+      </div>
+    </div>
+    <div class="frame-bottom">
+      <o-page src="./frame-bottom.html"></o-page>
+    </div>
+  </o-provider>
+  <script>
+    export default async ({ load }) => {
+      return {
+        data: {
+          btns: [
+            {
+              id: "file",
+              icon: "mdi:file-outline",
+              name: "文件",
+            },
+            {
+              id: "preview",
+              icon: "material-symbols:preview",
+              name: "预览",
+            },
+          ],
+          activeId: "file",
+          activeFilePath: null, // 激活的文件路径，(只允许kind为file的文件)
+          // selectedPaths: [], // 选中的文件路径数组
+        },
+        watch: {
+          activeFilePath() {
+            if (this.activeFilePath === null) {
+              return;
+            }
+
+            sessionStorage.setItem("__studio_active_file", this.activeFilePath);
+          },
+        },
+        attached() {
+          try {
+            this.activeFilePath = sessionStorage.getItem(
+              "__studio_active_file"
+            );
+          } catch (e) {
+            console.warn("读取会话存储失败:", e);
+          }
+        },
+      };
+    };
+  </script>
+</template>

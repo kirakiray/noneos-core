@@ -1,0 +1,104 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+  </style>
+
+  <o-provider
+    name="studio-data"
+    :project-path="projectPath"
+    :active-path="activePath"
+    on:preview-file="previewFile"
+  >
+    <n-file-list
+      on:item-contextmenu="itemContextmenu"
+      style="padding-left: 8px; --item-size: 18px"
+    >
+      <p-menu-item
+        slot="create-menu"
+        on:click="clickCreateMenu('component',$event)"
+      >
+        <n-icon
+          icon="mynaui:component"
+          style="color: var(--md-sys-color-primary)"
+          slot="prefix"
+        ></n-icon>
+        <locale-text>
+          <span lang="cn">创建组件</span>
+          <span lang="en">Create Component</span>
+        </locale-text>
+      </p-menu-item>
+      <p-menu-item slot="create-menu" on:click="clickCreateMenu('page',$event)">
+        <n-icon
+          icon="ri:pages-line"
+          style="color: var(--md-sys-color-primary)"
+          slot="prefix"
+        ></n-icon>
+        <locale-text>
+          <span lang="cn">创建页面</span>
+          <span lang="en">Create Page</span>
+        </locale-text>
+      </p-menu-item>
+      <hr slot="create-menu" />
+    </n-file-list>
+  </o-provider>
+
+  <o-page
+    src="./create.html"
+    sync:open="showCreateDialog"
+    on:create-success="createSuccess"
+    :create-type="createType"
+    :contextmenu-path="contextmenuPath"
+  ></o-page>
+
+  <script>
+    export const parent = "../layout.html";
+
+    export default async ({ load, query }) => {
+      const { get } = await load("/nos/fs/main.js");
+
+      return {
+        data: {
+          projectPath: query.path,
+          activePath: "",
+          createType: "", // component or page
+          showCreateDialog: false,
+          contextmenuPath: "", // 右键点击的路径
+        },
+        proto: {
+          createSuccess() {
+            this.shadow.$("n-file-list").loadProject();
+          },
+          clickCreateMenu(type, e) {
+            this.shadow.$("n-file-list").hideMenu();
+
+            const handle = this._contextmenuTargetHandle;
+
+            this.createType = type;
+            this.showCreateDialog = true;
+          },
+          async itemContextmenu(e) {
+            const { path } = e.data;
+
+            this.contextmenuPath = path;
+          },
+          previewFile(e) {
+            const { path } = e.data;
+
+            window.open(`/${path}`);
+          },
+        },
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: {
+              name: "files",
+            },
+          });
+        },
+      };
+    };
+  </script>
+</template>

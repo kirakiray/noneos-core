@@ -1,0 +1,157 @@
+<template component>
+  <style>
+    :host {
+      position: relative;
+      display: block;
+      height: 100%;
+    }
+    iframe {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+  <!-- <iframe src="./monaco-editor-inner.html?frameid=123" frameborder="0"></iframe> -->
+  <script>
+    export default async ({ load, url }) => {
+      const frameSrc = new URL("./monaco-editor-inner.html", url).href;
+
+      return {
+        tag: "monaco-editor",
+        data: {
+          _editorFrame: null,
+          _frameId: null,
+          _initialized: null,
+        },
+        proto: {
+          _postMessage(type, data = {}) {
+            if (this._editorFrame && this._editorFrame.contentWindow) {
+              this._editorFrame.contentWindow.postMessage(
+                {
+                  type,
+                  ...data,
+                },
+                frameSrc
+              );
+            }
+          },
+        },
+        attrs: {
+          plugins: null,
+        },
+        watch: {
+          async plugins() {
+            await this._initialized;
+
+            if (this.plugins) {
+              this._postMessage("setPlugins", { plugins: this.plugins });
+            }
+          },
+        },
+        proto: {
+          _postMessage(type, data = {}) {
+            if (this._editorFrame && this._editorFrame.contentWindow) {
+              this._editorFrame.contentWindow.postMessage(
+                {
+                  type,
+                  ...data,
+                },
+                frameSrc
+              );
+            }
+          },
+          async setLanguage(lang) {
+            await this._initialized;
+
+            this._postMessage("setLanguage", { lang });
+          },
+          async setValue(value) {
+            await this._initialized;
+
+            this._postMessage("setValue", { value });
+          },
+          async getValue() {
+            await this._initialized;
+
+            this._postMessage("getValue");
+
+            return new Promise((resolve) => {
+              let f;
+
+              window.addEventListener(
+                "message",
+                (f = (event) => {
+                  if (
+                    event.data.id === this._frameId &&
+                    event.data.type === "getValue"
+                  ) {
+                    // 移除事件监听
+                    window.removeEventListener("message", f);
+                    resolve(event.data.value);
+                  }
+                })
+              );
+            });
+          },
+          async switchState(id) {
+            await this._initialized;
+
+            this._postMessage("switchState", { id });
+          },
+          async focus() {
+            await this._initialized;
+
+            this._postMessage("focus");
+          },
+        },
+        ready() {
+          this._frameId = Math.random().toString(36).slice(2);
+
+          let initResolve;
+          this._initialized = new Promise((resolve) => {
+            initResolve = resolve;
+          });
+
+          // 监听初始化完成消息
+          window.addEventListener("message", (event) => {
+            if (event.data.id === this._frameId && event.data.initialized) {
+              // 初始化完成
+              initResolve();
+              this.emit("initialized");
+              return;
+            }
+
+            if (
+              event.data.id === this._frameId &&
+              event.data.type === "contentChange"
+            ) {
+              // 内容改变
+              this.emit("change", {
+                bubbles: false,
+              });
+              return;
+            }
+
+            if (event.data.id === this._frameId && event.data.type === "save") {
+              // 保存触发
+              this.emit("save", {
+                bubbles: false,
+              });
+              return;
+            }
+          });
+
+          this.shadow.push(
+            `<iframe src="${frameSrc}?frameId=${this._frameId}" frameborder="0"></iframe>`
+          );
+
+          this._editorFrame = this.shadow.$("iframe").ele;
+        },
+      };
+    };
+  </script>
+</template>

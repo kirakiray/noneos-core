@@ -1,0 +1,837 @@
+<template page>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="/nos/locale-text/locale-text.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
+  <l-m src="../comps/handle-icon.html"></l-m>
+  <l-m src="../comps/create-handle.html"></l-m>
+  <style>
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* 项目标题样式 */
+    h5 {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      margin: 0;
+      font-size: 15px;
+    }
+    h5 n-icon {
+      margin-right: 4px;
+      font-size: 20px;
+    }
+
+    .list {
+      position: relative;
+      flex: 1;
+    }
+
+    /* 文件/目录项基础样式 */
+    .file-list-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 12px;
+      margin-right: 6px;
+      font-size: 15px;
+      transition: background-color 0.03s ease-in-out;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+    }
+
+    /* 悬停和激活状态样式 */
+    .file-list-item:hover {
+      background-color: rgba(204, 204, 204, 0.1);
+    }
+
+    .file-list-item.selected {
+      background-color: rgba(204, 204, 204, 0.2);
+    }
+
+    .file-list-item.selected:hover {
+      background-color: rgba(204, 204, 204, 0.25);
+    }
+
+    .file-list-item.active,
+    .file-list-item.selected.active {
+      background-color: rgba(0, 122, 204, 0.2);
+    }
+
+    /* 图标样式 */
+    .item-icon {
+      margin-right: 4px;
+      font-size: 16px;
+    }
+
+    /* 折叠/展开图标容器样式 */
+    .item-prefix {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* width: 20px; */
+      width: 20px;
+      height: 20px;
+      transition: transform 0.1s ease-in-out;
+    }
+
+    .item-prefix.expanded {
+      transform: rotate(90deg);
+    }
+
+    /* 隐藏元素的工具类 */
+    .hide {
+      display: none !important;
+    }
+
+    /* 子项缩进样式 */
+    .item-child {
+      padding-left: 10px;
+    }
+
+    /* 文件名文本截断容器 */
+    .item-name-container {
+      flex: 1;
+      position: relative;
+      height: 20px;
+    }
+
+    .item-name {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .list-inner {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      /* 自定义滚动条样式 */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+    .list-inner::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .list-inner::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .list-inner::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .list-inner::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .menu-mask {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 30;
+    }
+
+    #file-list-menu {
+      position: fixed;
+      z-index: 31;
+    }
+
+    .menu-item-icon {
+      color: var(--md-sys-color-primary);
+    }
+
+    .contextmenu-focus {
+      background-color: var(--md-ref-palette-translucent-primary60);
+    }
+  </style>
+  <h5>
+    <n-icon icon="flat-color-icons:folder"></n-icon>
+    {{ projectName }}
+  </h5>
+  <div class="list" on:create-handle="createHandle">
+    <div class="list-inner" on:contextmenu="itemContextMenu">
+      <o-fill :value="list" fill-key="path" name="file-item"> </o-fill>
+      <div style="height: 28px"></div>
+    </div>
+  </div>
+
+  <style>
+    .item-name {
+      display: block;
+    }
+    .item-rename {
+      display: none;
+    }
+    .file-list-item.rename-mode .item-name {
+      display: none;
+    }
+    .file-list-item.rename-mode .item-rename {
+      display: block;
+    }
+  </style>
+  <template name="file-item">
+    <div>
+      <!-- 文件/目录项 -->
+      <div
+        class="file-list-item"
+        class:active="$host.activePath === $data.path"
+        class:contextmenu-focus="$host.contextItemPath === $data.path"
+        on:click="$host.clickItem($data)"
+        on:dblclick="$host.dblclickItem($data)"
+        attr:data-path="$data.path"
+      >
+        <!-- 折叠/展开图标 -->
+        <div class="item-prefix" class:expanded="$data.expanded">
+          <n-icon
+            icon="mingcute:right-line"
+            class:hide="$data.kind !== 'dir'"
+          ></n-icon>
+        </div>
+
+        <!-- 文件类型图标 -->
+        <handle-icon
+          :path="$data.path"
+          :item="$data"
+          class="item-icon"
+        ></handle-icon>
+
+        <!-- 文件/目录名称 -->
+        <div class="item-name-container">
+          <div class="item-name">{{ $data.name }}</div>
+          <div class="item-rename">
+            <input type="text" on:blur="$host.renameItem($data, $event)" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 子项容器 -->
+      <div class="item-child">
+        <o-fill :value="$data.list" fill-key="path" name="file-item"></o-fill>
+      </div>
+    </div>
+  </template>
+  <o-consumer
+    name="studio-data"
+    watch:project-path="projectPath"
+    watch:active-file="activePath"
+  ></o-consumer>
+
+  <div class="menu-mask" style="display: none" on:mousedown="hideMenu"></div>
+
+  <p-menu open="off" id="file-list-menu">
+    <p-menu-item>
+      <n-icon
+        icon="mdi:plus-circle"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">新建</span>
+        <span lang="en">New</span>
+      </locale-text>
+      <p-menu>
+        <p-menu-item on:click="clickCreate('file',$event)">
+          <n-icon
+            icon="mdi:file-document-plus-outline"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">新建文件</span>
+            <span lang="en">New File</span>
+          </locale-text>
+        </p-menu-item>
+        <p-menu-item on:click="clickCreate('dir',$event)">
+          <n-icon
+            icon="mdi:folder-plus-outline"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">新建目录</span>
+            <span lang="en">New Directory</span>
+          </locale-text>
+        </p-menu-item>
+      </p-menu>
+    </p-menu-item>
+    <p-menu-item attr:disabled="!canPreview" on:click="previewFile">
+      <n-icon
+        icon="material-symbols:preview-outline"
+        class="menu-item-icon"
+        slot="prefix"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">预览</span>
+        <span lang="en">Preview</span>
+      </locale-text>
+      <p-menu>
+        <p-menu-item on:click="previewFile">
+          <n-icon
+            icon="material-symbols:preview-outline"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">直接预览</span>
+            <span lang="en">Direct Preview</span>
+          </locale-text>
+        </p-menu-item>
+        <p-menu-item on:click="previewFile('new')">
+          <n-icon
+            icon="icon-park-outline:preview-open"
+            class="menu-item-icon"
+            slot="prefix"
+          ></n-icon>
+          <locale-text>
+            <span lang="cn">新窗口预览</span>
+            <span lang="en">Preview in New Window</span>
+          </locale-text>
+        </p-menu-item>
+      </p-menu>
+    </p-menu-item>
+    <hr />
+    <p-menu-item on:click="clickCut">
+      <n-icon
+        icon="mdi:content-cut"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">剪切</span>
+        <span lang="en">Cut</span>
+      </locale-text>
+    </p-menu-item>
+    <p-menu-item on:click="clickCopy">
+      <n-icon
+        icon="mdi:content-copy"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">复制</span>
+        <span lang="en">Copy</span>
+      </locale-text>
+    </p-menu-item>
+    <p-menu-item attr:disabled="!clipboard.type" on:click="clickPaste">
+      <n-icon
+        icon="mdi:content-paste"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">粘贴</span>
+        <span lang="en">Paste</span>
+      </locale-text>
+    </p-menu-item>
+    <hr />
+    <p-menu-item on:click="clickRename">
+      <n-icon
+        icon="mdi:rename-box-outline"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">重命名</span>
+        <span lang="en">Rename</span>
+      </locale-text>
+    </p-menu-item>
+    <p-menu-item on:click="clickDelete">
+      <n-icon
+        icon="mdi:delete-forever-outline"
+        slot="prefix"
+        class="menu-item-icon"
+      ></n-icon>
+      <locale-text>
+        <span lang="cn">删除</span>
+        <span lang="en">Delete</span>
+      </locale-text>
+    </p-menu-item>
+  </p-menu>
+
+  <style>
+    .bottom {
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+      padding: 0 4px 0 16px;
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      width: calc(100% - 8px);
+      height: 24px;
+      border-radius: 15px;
+      font-size: 13px;
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      transition: all 0.2s ease-in-out;
+    }
+    .bottom.hide-bottom {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50px, 0);
+    }
+
+    .bottom-close-btn {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .bottom-close-btn:hover {
+      background-color: var(--md-sys-color-on-primary);
+      color: var(--md-sys-color-primary);
+    }
+  </style>
+
+  <div class="bottom" class:hide-bottom="!clipboard.type">
+    <o-if :value="clipboard.type === 'copy'">
+      <n-icon
+        icon="material-symbols:content-copy-outline"
+        style="font-size: 16px; margin-right: 4px"
+      ></n-icon>
+    </o-if>
+    <o-else>
+      <n-icon
+        icon="material-symbols:content-cut"
+        style="font-size: 16px; margin-right: 4px"
+      ></n-icon>
+    </o-else>
+    <o-if :value="clipboard.type === 'cut'">
+      <locale-text>
+        <span lang="cn">正在剪切</span>
+        <span lang="en">Cutting</span>
+      </locale-text>
+    </o-if>
+    <o-else>
+      <locale-text>
+        <span lang="cn">正在复制</span>
+        <span lang="en">Copying</span>
+      </locale-text>
+    </o-else>
+    {{ clipboard.path.split('/').pop() }}
+    <div class="bottom-close-btn" on:click="closeClipboard">
+      <n-icon icon="material-symbols:close"></n-icon>
+    </div>
+  </div>
+  <script>
+    export default async ({ load }) => {
+      const { get } = await load("/nos/fs/handle/main.js");
+      const { getLocaleText } = await load(
+        "/nos/locale-text/get-locale-text.js"
+      );
+      load("/gh/ofajs/Punch-UI/packages/button/button.html");
+      const { confirm, prompt, toast } = await load(
+        "/gh/ofajs/Punch-UI/packages/util.js"
+      );
+
+      // 使用 Set 数据结构提高查找性能
+      let expandedPathsSet;
+      try {
+        const expandedPathsArray = JSON.parse(
+          sessionStorage.getItem("__expandedPaths") || "[]"
+        );
+        expandedPathsSet = new Set(expandedPathsArray);
+      } catch (e) {
+        expandedPathsSet = new Set();
+      }
+
+      // 保存展开路径到 sessionStorage 的函数
+      const saveExpandedPaths = () => {
+        sessionStorage.setItem(
+          "__expandedPaths",
+          JSON.stringify(Array.from(expandedPathsSet))
+        );
+      };
+
+      // 创建文件/目录项数据的通用函数
+      const createItemData = (item, isExpanded = false) => ({
+        kind: item.kind,
+        expanded: isExpanded,
+        list: [],
+        name: item.name,
+        path: item.path,
+      });
+
+      // 递归加载目录内容的函数
+      const loadDirectoryContents = async (rootItem) => {
+        const dirHandle = await get(rootItem.path);
+        const list = [];
+
+        for await (const item of dirHandle.values()) {
+          // 忽略 .DS_Store 文件
+          if (item.name === ".DS_Store") continue;
+
+          const isExpanded = expandedPathsSet.has(item.path);
+          const itemData = createItemData(item, isExpanded);
+
+          // 如果目录是展开状态，递归加载其内容
+          if (isExpanded && item.kind === "dir") {
+            await loadDirectoryContents(itemData);
+          }
+
+          list.push(itemData);
+        }
+
+        // 排序，目录优先
+        list.sort((a, b) => {
+          if (a.kind === "dir" && b.kind !== "dir") return -1;
+          if (a.kind !== "dir" && b.kind === "dir") return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        rootItem.list = list;
+      };
+
+      return {
+        data: {
+          projectPath: "",
+          list: [],
+          activePath: "",
+          projectName: "",
+          contextItemPath: "", // 右键菜单聚焦的文件
+          clipboard: {
+            type: "", // copy or cut
+            path: "", // 剪贴板中的路径
+          },
+        },
+        watch: {
+          activePath() {
+            if (!this.activePath) {
+              return;
+            }
+
+            const targetItem = this.shadow.$(
+              `.file-list-item[data-path="${this.activePath}"]`
+            );
+
+            (async () => {
+              // 如果没有找到项目，就进行展开父目录
+              if (!targetItem) {
+                const pathParts = this.activePath.split("/");
+                // 去掉头尾的空字符串
+                pathParts.shift();
+                pathParts.pop();
+                let list = this.list;
+                for (let item of pathParts) {
+                  const targetItem = await list.find((e) => e.name === item);
+
+                  if (!targetItem) {
+                    break;
+                  }
+
+                  await this.loadDirectoryContents(targetItem);
+                  targetItem.expanded = true;
+                  list = targetItem.list;
+                }
+              }
+            })();
+          },
+          projectPath(path) {
+            this.loadProject();
+          },
+        },
+        proto: {
+          previewFile(type) {
+            if (type === "new") {
+              window.open(`/$${this.contextItemPath}`);
+              return;
+            }
+
+            const studioProvider = this.getProvider("studio-data");
+            studioProvider.activeFile = `/$${this.contextItemPath}##preview-web`;
+
+            this.hideMenu();
+          },
+          get canPreview() {
+            return /\.html?$/i.test(this.contextItemPath);
+          },
+          async renameItem(data, event) {
+            const result = event.target.value;
+            const handle = await get(data.path);
+
+            // 判断是否有重复
+            const siblingNames = [];
+            for await (const item of handle.parent.values()) {
+              siblingNames.push(item.name);
+            }
+            if (siblingNames.includes(result)) {
+              toast({
+                content: getLocaleText({
+                  cn: `重命名失败，${result} 已存在`,
+                  en: `Rename failed, ${result} already exists`,
+                }),
+                color: "error",
+              });
+              return;
+            }
+
+            const oldPath = handle.path;
+
+            // 重命名文件/目录
+            await handle.moveTo(handle.parent, result);
+
+            this.loadProject();
+
+            const studioProvider = this.getProvider("studio-data");
+
+            const newPath = handle.parent.path + "/" + result;
+
+            if (studioProvider.activeFile === oldPath) {
+              studioProvider.activeFile = newPath;
+            }
+
+            studioProvider.dispatch("rename-item", {
+              data: {
+                oldPath: oldPath,
+                newPath: newPath,
+                name: result,
+              },
+            });
+          },
+          closeClipboard() {
+            this.clipboard.type = "";
+            this.clipboard.path = "";
+          },
+          async clickCut() {
+            this.clipboard.type = "cut";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickCopy() {
+            this.clipboard.type = "copy";
+            this.clipboard.path = this.contextItemPath;
+            this.hideMenu();
+          },
+          async clickPaste() {
+            const handle = await get(this.clipboard.path);
+            let targetHandle = await get(this.contextItemPath);
+            if (targetHandle.kind === "file") {
+              targetHandle = targetHandle.parent;
+            }
+            if (this.clipboard.type === "cut") {
+              await handle.moveTo(targetHandle);
+            } else if (this.clipboard.type === "copy") {
+              await handle.copyTo(targetHandle);
+            }
+
+            await this.loadProject();
+            this.closeClipboard();
+            this.hideMenu();
+          },
+          async clickRename() {
+            const targetItem = this.shadow.$(
+              `.file-list-item[data-path="${this.contextItemPath}"]`
+            );
+            const handle = await get(this.contextItemPath);
+
+            targetItem.classList.add("rename-mode");
+
+            const renameInput = targetItem.$("input");
+            renameInput.ele.value = handle.name;
+            renameInput.ele.focus();
+
+            this.hideMenu();
+          },
+          async clickDelete() {
+            const { contextItemPath } = this;
+            const handle = await get(contextItemPath);
+            this.hideMenu();
+            const result = await confirm({
+              title: getLocaleText({
+                cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
+                en: `Delete${handle.kind === "dir" ? " Directory" : " File"}`,
+              }),
+              content: getLocaleText({
+                cn: `确认删除 ${
+                  handle.kind === "dir" ? "目录" : "文件"
+                } ${contextItemPath} 吗？此操作不可撤销。`,
+                en: `Are you sure you want to delete ${
+                  handle.kind === "dir" ? "directory" : "file"
+                } ${contextItemPath}? This action cannot be undone.`,
+              }),
+            });
+
+            if (!result) {
+              return;
+            }
+
+            await handle.remove();
+
+            this.loadProject();
+          },
+          async clickCreate(type) {
+            const path = this.contextItemPath;
+
+            // 判断目标是目录还是文件
+            const handle = await get(path);
+            const kind = handle.kind;
+
+            // 目标目录句柄
+            let targetDirHandle;
+
+            if (kind === "dir") {
+              targetDirHandle = handle;
+            } else {
+              targetDirHandle = handle.parent;
+            }
+
+            const targetPathItem = this.shadow.$(
+              `.file-list-item[data-path="${targetDirHandle.path}"]`
+            );
+
+            const siblingNames = [];
+            for await (const item of targetDirHandle.values()) {
+              siblingNames.push(item.name);
+            }
+
+            // 添加创建文件的item
+            const creationItem = $(`<create-handle-item></create-handle-item>`);
+            creationItem.kind = type;
+            creationItem.handlePath = targetDirHandle.path;
+            creationItem.siblingNames = siblingNames;
+            targetPathItem.next.unshift(creationItem);
+
+            this.hideMenu();
+          },
+          async createHandle(e) {
+            const { name, kind, handlePath } = e.data;
+
+            const afterFocusPath = `${handlePath}/${name}`;
+
+            const handle = await get(afterFocusPath, {
+              create: kind,
+            });
+
+            await this.loadProject();
+
+            setTimeout(() => {
+              // 稍后聚焦它
+              const targetItem = this.shadow.$(
+                `.file-list-item[data-path="${afterFocusPath}"]`
+              );
+
+              if (targetItem) {
+                targetItem.ele.click();
+              }
+            }, 150);
+          },
+          hideMenu() {
+            this.shadow.$(".menu-mask").style.display = "none";
+            this.shadow.$("#file-list-menu").open = "off";
+            this.contextItemPath = null;
+          },
+          itemContextMenu(event) {
+            const target = $(event.target);
+            event.preventDefault();
+
+            let item;
+            if (target.is(".file-list-item")) {
+              item = target;
+            } else {
+              item = target.parents.find(
+                (e) => e?.tag && e.is(".file-list-item")
+              );
+            }
+
+            if (item) {
+              this.shadow.$(".menu-mask").style.display = "block";
+              const menuEl = this.shadow.$("#file-list-menu");
+
+              // 显示菜单
+              menuEl.open = "on";
+
+              this.contextItemPath = item.data.path;
+
+              // 修正定位
+              menuEl.style.top = `${event.pageY}px`;
+              menuEl.style.left = `${event.pageX}px`;
+
+              // 菜单靠屏幕下方的时候，修正定位
+              if (event.pageY + menuEl.offsetHeight > window.innerHeight) {
+                menuEl.style.top = `${event.pageY - menuEl.offsetHeight}px`;
+              }
+            } else {
+              // 空白区域
+            }
+          },
+          async dblclickItem(item) {
+            if (item.kind === "dir") return;
+
+            const studioProvider = await this.getProvider("studio-data");
+
+            // 触发双击事件
+            studioProvider.dispatch("dblclick-file", {
+              data: {
+                path: item.path,
+              },
+            });
+          },
+          clickItem(item) {
+            const provider = this.getProvider("studio-data");
+            // provider.selectedPaths = [item.path];
+
+            const projectData = this.getProvider("studio-data");
+            projectData.selected = item.path;
+
+            if (item.kind === "dir") {
+              if (!item.expanded) {
+                // 展开目录
+                item.expanded = true;
+                expandedPathsSet.add(item.path);
+                saveExpandedPaths();
+                this.loadDirectoryContents(item);
+              } else {
+                // 折叠目录
+                item.expanded = false;
+                item.list = [];
+                expandedPathsSet.delete(item.path);
+                saveExpandedPaths();
+              }
+            } else {
+              provider.activeFile = item.path;
+            }
+          },
+          async loadDirectoryContents(rootItem) {
+            await loadDirectoryContents(rootItem);
+          },
+          async loadProject() {
+            if (!this.projectPath) {
+              return;
+            }
+
+            // 加载项目文件
+            const projectHandle = await get(this.projectPath);
+
+            // 加载项目名称
+            this.projectName = projectHandle.name;
+
+            // 加载根目录内容
+            const rootItem = createItemData(projectHandle);
+            await loadDirectoryContents(rootItem);
+            this.list = rootItem.list;
+          },
+        },
+        attached() {},
+        detached() {},
+      };
+    };
+  </script>
+</template>

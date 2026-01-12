@@ -1,0 +1,89 @@
+<template component>
+  <l-m src="/gh/ofajs/Punch-UI/packages/menu/menu.html"></l-m>
+  <l-m src="./handle-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+
+    .file-list-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 12px;
+      margin-right: 6px;
+      font-size: 15px;
+      transition: background-color 0.03s ease-in-out;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+    }
+
+    #create-mark-item {
+      margin-left: 20px;
+    }
+
+    .error {
+      background-color: var(--md-sys-color-error);
+    }
+  </style>
+  <div class="file-list-item" id="create-mark-item" class:error="isError">
+    <o-if :value="kind === 'file'">
+      <handle-icon :path="newName"></handle-icon>
+      <!-- <n-icon :icon="vscode-icons:file-type-text" class="item-icon"></n-icon> -->
+    </o-if>
+    <o-else>
+      <n-icon icon="vscode-icons:default-folder" class="item-icon"></n-icon>
+    </o-else>
+    <input
+      type="text"
+      sync:value="newName"
+      on:blur="blurInput"
+      style="margin-left: 4px"
+    />
+  </div>
+  <script>
+    export default async ({ load }) => {
+      return {
+        tag: "create-handle-item",
+        data: {
+          kind: "file", // 文件/目录
+          newName: "", // 新创建的文件名/目录名
+          siblingNames: [], // 同级文件/目录名
+          handlePath: "", // 处理路径
+          isError: false,
+        },
+        watch: {
+          newName(newName) {
+            if (this.siblingNames.includes(newName)) {
+              this.isError = true;
+            } else {
+              this.isError = false;
+            }
+          },
+        },
+        proto: {
+          blurInput() {
+            if (!this.isError) {
+              this.emit("create-handle", {
+                data: {
+                  name: this.newName,
+                  kind: this.kind,
+                  handlePath: this.handlePath,
+                },
+              });
+            }
+
+            setTimeout(() => {
+              this.remove(); // 移除组件
+            }, 100);
+          },
+        },
+        attached() {
+          setTimeout(() => {
+            this.shadow.$("input").ele.focus();
+          }, 100);
+        },
+      };
+    };
+  </script>
+</template>

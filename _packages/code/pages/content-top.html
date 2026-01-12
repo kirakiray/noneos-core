@@ -1,0 +1,329 @@
+<template page>
+  <l-m src="../comps/handle-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .tab {
+      position: relative;
+      padding: 12px 6px 12px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      user-select: none;
+    }
+
+    .tab .parent-name {
+      font-size: 12px;
+      display: inline-block;
+      margin-left: 4px;
+      color: var(--md-sys-color-normal, #777);
+    }
+
+    .close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+      width: 18px;
+      height: 18px;
+      margin-left: 8px;
+      cursor: pointer;
+      border-radius: 10px;
+      opacity: 0;
+    }
+
+    .close-btn:hover {
+      opacity: 1;
+      background-color: rgba(114, 114, 114, 0.4);
+    }
+
+    .tab.focus {
+      z-index: 3;
+      background-color: #1e1e1e;
+      cursor: default;
+    }
+
+    .active-mark {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background-color: #007acc;
+    }
+
+    .tab .active-mark {
+      display: none;
+    }
+    .tab.focus .active-mark {
+      display: block;
+    }
+    .italic {
+      font-style: italic;
+    }
+
+    .alter-icon {
+      display: none;
+    }
+
+    .tab.has-changed .close-btn {
+      opacity: 1;
+    }
+    .tab.has-changed .alter-icon {
+      display: block;
+    }
+    .tab.has-changed .close-btn .close-icon {
+      display: none;
+    }
+  </style>
+  <div class="container">
+    <o-fill :value="list">
+      <div
+        class="tab"
+        class:italic="!$data.permanent"
+        on:mousedown="$host.clickItem($data)"
+        class:focus="$data.path === $host.activeFilePath"
+        class:has-changed="$host.hasChangedPaths.includes($data.path)"
+      >
+        <div class="active-mark"></div>
+        <o-if :value="$data.previewType">
+          <n-icon
+            icon="streamline-ultimate-color:view-square"
+            style="margin-right: 4px"
+          ></n-icon>
+        </o-if>
+        <o-else>
+          <handle-icon
+            :path="$data.path"
+            style="margin-right: 4px"
+          ></handle-icon>
+        </o-else>
+        {{$data.name}}
+        <o-if :value="$data.showParentName">
+          <span class="parent-name">.../{{ $data.parentName }}</span>
+        </o-if>
+
+        <div class="close-btn" on:click="$host.closeTab($data,$event,$index)">
+          <n-icon
+            icon="material-symbols:close-small-rounded"
+            class="close-icon"
+          ></n-icon>
+          <n-icon
+            icon="material-symbols:launcher-assistant-off"
+            class="alter-icon"
+          ></n-icon>
+        </div>
+      </div>
+    </o-fill>
+  </div>
+  <o-consumer
+    name="studio-data"
+    watch:active-file="activeFilePath"
+    watch:project-path="projectPath"
+    on:dblclick-file="dblclickFile"
+    on:save="saveFile"
+    on:rename-item="renameItem"
+  ></o-consumer>
+  <script>
+    export default async ({ load }) => {
+      const { get } = await load("/nos/fs/handle/main.js");
+      const { hasChangedPaths } = await load("./content.html");
+
+      return {
+        data: {
+          activeFilePath: "",
+          projectPath: "",
+          hasChangedPaths: [],
+          list: [],
+        },
+        watch: {
+          activeFilePath() {
+            this.changeActiveFile();
+          },
+          projectPath() {
+            this.loadHistory();
+          },
+        },
+        proto: {
+          renameItem(e) {
+            const { oldPath, newPath, name } = e.data;
+
+            const item = this.list.find((item) => item.path === oldPath);
+            if (item) {
+              item.name = name;
+              item.path = newPath;
+            }
+
+            this.refreshList();
+
+            // 保存到 sessionStorage
+
+            this.saveTabs();
+          },
+          refreshList() {
+            // 让重复名的项目显示parentName
+            this.list.forEach((item) => {
+              if (this.list.filter((i) => i.name === item.name).length > 1) {
+                item.parentName = item.path.split("/").slice(-2)[0];
+                item.showParentName = true;
+              } else {
+                item.showParentName = false;
+              }
+            });
+          },
+          saveFile(e) {
+            const { path, content } = e.data;
+
+            // 将对应path的permanent设置为true
+            const index = this.list.findIndex((item) => item.path === path);
+            if (index !== -1) {
+              this.list[index].permanent = true;
+            }
+
+            this.refreshList();
+          },
+          async changeActiveFile() {
+            if (!this.activeFilePath) {
+              return;
+            }
+
+            const activeFilePath = this.activeFilePath;
+
+            const [fixedPath, previewType] = this.activeFilePath.split("##");
+
+            // else {
+            //   // 激活目录
+            //   const handle = await get(activeFilePath);
+            //   if (handle.kind !== "file") return;
+            // }
+
+            // 如果不在列表中，添加到列表
+            if (!this.list.some((item) => item.path === activeFilePath)) {
+              // 判断是否有 permanent false，有则替换它
+              const index = this.list.findIndex(
+                (item) => item.permanent === false
+              );
+
+              if (index !== -1) {
+                this.list[index] = {
+                  name: activeFilePath.split("/").pop(),
+                  path: activeFilePath,
+                  previewType,
+                  permanent: previewType ? true : false,
+                };
+              } else {
+                this.list.push({
+                  name: activeFilePath.split("/").pop(),
+                  path: activeFilePath,
+                  previewType,
+                  permanent: previewType ? true : false,
+                });
+              }
+
+              if (this._loadedFirst) {
+                // 忽略第一次加载的行为，不然等于直接清空
+                this.saveTabs();
+                this.refreshList();
+              }
+
+              this._loadedFirst = true;
+            }
+          },
+          loadHistory() {
+            if (!this.projectPath) return;
+
+            let openedTabs = [];
+            try {
+              openedTabs =
+                JSON.parse(sessionStorage.getItem("__studio_opened_tabs")) ||
+                [];
+            } catch (e) {}
+
+            this.list = openedTabs;
+            this.refreshList();
+          },
+          closeTab(item, event, index) {
+            event.stopPropagation();
+
+            if (index === 0 && this.list.length > 1) {
+              // 切换到下一个
+              this.clickItem(this.list[index + 1]);
+              this.list.splice(0, 1);
+              return;
+            }
+
+            if (this.list.length <= 1) {
+              // 清空内容
+              // this.activeFilePath = "";
+              const provider = this.getProvider("studio-data");
+              provider.activeFile = "";
+              this.list = [];
+              return;
+            }
+
+            // 如果是处于激活tab，切换到前一个
+            if (item.path === this.activeFilePath) {
+              const prevIndex = index === 0 ? index : index - 1;
+              this.clickItem(this.list[prevIndex]);
+            }
+
+            this.list.splice(index, 1);
+
+            // 保存到 sessionStorage
+            this.saveTabs();
+            this.refreshList();
+          },
+          // 点击切换选中项
+          clickItem(item) {
+            const provider = this.getProvider("studio-data");
+            provider.activeFile = item.path;
+          },
+          dblclickFile(e) {
+            const { path } = e.data;
+
+            // 已经存在的不重复添加
+            if (this.list.some((item) => item.path === path)) {
+              // 如果permanent为false，则修正为true
+              const item = this.list.find((item) => item.path === path);
+              if (item) {
+                item.permanent = true;
+              }
+
+              this.refreshList();
+              return;
+            }
+
+            this.list.push({
+              name: path.split("/").pop(),
+              path,
+              permanent: true,
+            });
+
+            this.refreshList();
+            // 保存到 sessionStorage
+            this.saveTabs();
+          },
+          saveTabs() {
+            sessionStorage.setItem(
+              "__studio_opened_tabs",
+              JSON.stringify(this.list)
+            );
+          },
+        },
+        attached() {
+          this.hasChangedPaths = hasChangedPaths;
+        },
+        detached() {
+          this.hasChangedPaths = [];
+        },
+      };
+    };
+  </script>
+</template>
