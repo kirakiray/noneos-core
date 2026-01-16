@@ -380,14 +380,18 @@
               create: "file",
             });
 
+            const originText = await packagejsonHandle.text();
+            const originJson = originText ? JSON.parse(originText) : {};
+
             await packagejsonHandle.write(
               JSON.stringify(
                 {
                   name: this.projectName,
                   version: "1.0.0",
                   description: "",
-                  main: "index.html",
+                  ...originJson,
                   ofaApp: true,
+                  main: "index.html",
                 },
                 null,
                 2

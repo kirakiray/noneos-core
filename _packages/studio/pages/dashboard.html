@@ -45,7 +45,7 @@
       </locale-text>
     </h3>
     <div style="padding-bottom: 16px">
-      <p-button variant="outlined">
+      <p-button variant="outlined" on:click="previewInNewWindow">
         <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
         <locale-text>
           <span lang="cn">新窗口预览应用</span>
@@ -70,7 +70,7 @@
       <locale-text>
         <span lang="cn">使用HCT色盘</span>
         <span lang="en">Use HCT Color Palette</span>
-      </locale-text>  
+      </locale-text>
     </p-switch>
   </div>
   <script>
@@ -91,6 +91,9 @@
           _rootHandle: null,
         },
         proto: {
+          previewInNewWindow() {
+            window.open(this.previewUrl);
+          },
           async changeUseHCT() {
             const useHCT = this.ofaConfig.useHCT === "on";
 
