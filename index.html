@@ -3,9 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
+    <title>NoneOS Core</title>
+    <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
+    <script src="/gh/kirakiray/ofa.js/libs/router/dist/router.min.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, Segoe UI,
+          Microsoft Yahei, Helvetica, Arial, sans-serif, Apple Color Emoji,
+          Segoe UI Emoji;
+      }
+
+      article {
+        padding: 32px 16px;
+        display: flex;
+        min-height: 60vh;
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.6em;
+      }
+    </style>
+    <link rel="stylesheet" href="css/palette.css" pui-colors="" />
+    <link rel="stylesheet" href="css/theme.css" />
   </head>
   <body>
-    <script src="/_sw.js" type="module"></script>
+    <l-m src="/nos/locale-text/locale-text.html"></l-m>
+    <article>
+      <p>
+        <locale-text>
+          <span lang="cn">
+            NoneOS Core 是一款轻量级核心引擎，专为运行 ofa.js
+            应用而设计。无需额外安装任何软件，即可一键启动、开发与调试 ofa.js
+            项目。
+          </span>
+        </locale-text>
+      </p>
+    </article>
   </body>
 </html>
