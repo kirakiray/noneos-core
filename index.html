@@ -26,11 +26,47 @@
         margin: 0 auto;
         line-height: 1.6em;
       }
+
+      /* Loading Animation Styles */
+      .loading-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--md-sys-color-surface, rgba(255, 255, 255, 0.8));
+      }
+
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid var(--md-sys-color-surface, #f3f3f3);
+        border-top: 5px solid var(--md-sys-color-primary, #3498db);
+        border-radius: 50%;
+        animation: spin 0.5s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
     </style>
     <link rel="stylesheet" href="css/palette.css" pui-colors="" />
     <link rel="stylesheet" href="css/theme.css" />
   </head>
   <body>
+    <!-- Loading Animation -->
+    <div id="loading" class="loading-container">
+      <div class="spinner"></div>
+    </div>
+
     <l-m src="/nos/locale-text/locale-text.html"></l-m>
     <article>
       <p>
@@ -40,8 +76,30 @@
             应用而设计。无需额外安装任何软件，即可一键启动、开发与调试 ofa.js
             项目。
           </span>
+          <span lang="en">
+            NoneOS Core is a lightweight core engine designed to run ofa.js
+            applications. It does not require any additional software to be
+            installed, and can be started, developed, and debugged with just a
+            single click.
+          </span>
         </locale-text>
       </p>
     </article>
+
+    <script>
+      // Hide loading when page is loaded with fade effect
+      window.addEventListener("load", function () {
+        const loadingElement = document.getElementById("loading");
+        if (loadingElement) {
+          // Add fade out effect before hiding
+          loadingElement.style.opacity = "0";
+          loadingElement.style.transition = "opacity 0.5s ease-out";
+
+          setTimeout(function () {
+            loadingElement.style.display = "none";
+          }, 500);
+        }
+      });
+    </script>
   </body>
 </html>
