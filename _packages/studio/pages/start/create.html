@@ -100,10 +100,18 @@
     <div class="header" slot="header">
       <p-button variant="text" on:click="back">
         <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
-        返回
+        <locale-text>
+          <span lang="cn">返回</span>
+          <span lang="en">Back</span>
+        </locale-text>
       </p-button>
     </div>
-    <h3>项目类型</h3>
+    <h3>
+      <locale-text>
+        <span lang="cn">项目类型</span>
+        <span lang="en">Project Type</span>
+      </locale-text>
+    </h3>
     <div class="container">
       <div
         class="card"
@@ -113,7 +121,10 @@
       >
         <n-icon class="main-icon" icon="mdi:application-array-outline"></n-icon>
         <div class="card-text">
-          ofa.js 应用 <br />（含路由）
+          <locale-text>
+            <span lang="cn">ofa.js 应用 <br />（含路由）</span>
+            <span lang="en">ofa.js Application <br />（with Router）</span>
+          </locale-text>
           <p-tooltips style="vertical-align: middle">
             <n-icon
               icon="stash:question"
@@ -123,7 +134,17 @@
                 vertical-align: middle;
               "
             ></n-icon>
-            <div slot="tips">路由支持页面跳转、参数传递等单页应用功能。</div>
+            <div slot="tips">
+              <locale-text>
+                <span lang="cn"
+                  >路由支持页面跳转、参数传递等单页应用功能。</span
+                >
+                <span lang="en"
+                  >Router supports page navigation, parameter passing, etc. for
+                  single-page applications.</span
+                >
+              </locale-text>
+            </div>
           </p-tooltips>
         </div>
       </div>
@@ -136,10 +157,20 @@
         <div class="card-text">ofa.js 组件</div>
       </div> -->
     </div>
-    <h3>项目信息</h3>
+    <h3>
+      <locale-text>
+        <span lang="cn">项目信息</span>
+        <span lang="en">Project Information</span>
+      </locale-text>
+    </h3>
 
     <p-input variant="filled" sync:value="projectName">
-      <label>项目名称</label>
+      <label>
+        <locale-text>
+          <span lang="cn">项目名称</span>
+          <span lang="en">Project Name</span>
+        </locale-text>
+      </label>
     </p-input>
     <div
       style="
@@ -151,7 +182,10 @@
       "
     >
       <span style="font-weight: 500; color: var(--md-sys-color-normal)">
-        目录地址：
+        <locale-text>
+          <span lang="cn">目录地址：</span>
+          <span lang="en">Directory Path:</span>
+        </locale-text>
       </span>
       <path-view :path="dirPath"></path-view>
       <o-if :value="isCover">
@@ -164,7 +198,12 @@
               font-size: 18px;
             "
           ></n-icon>
-          <div slot="tips">已确认覆盖原有的项目</div>
+          <div slot="tips">
+            <locale-text>
+              <span lang="cn">已确认覆盖原有的项目</span>
+              <span lang="en">Confirmed to overwrite the existing project</span>
+            </locale-text>
+          </div>
         </p-tooltips>
       </o-if>
       <p-button
@@ -172,7 +211,10 @@
         on:click="selectDir"
         style="margin-left: 24px"
       >
-        选择目录
+        <locale-text>
+          <span lang="cn">选择目录</span>
+          <span lang="en">Select Directory</span>
+        </locale-text>
       </p-button>
       <p
         style="
@@ -182,7 +224,17 @@
           white-space: wrap;
         "
       >
-        当选择目录后，系统会弹出权限确认弹窗，请连续点击“确认”以授予写入权限，否则项目将无法正常启动。
+        <locale-text>
+          <span lang="cn"
+            >当选择目录后，系统会弹出权限确认弹窗，请连续点击“确认”以授予写入权限，否则项目将无法正常启动。</span
+          >
+          <span lang="en"
+            >When selecting a directory, the system will pop up a permission
+            confirmation dialog. Please click "Confirm" continuously to grant
+            write permissions, otherwise the project will not start
+            normally.</span
+          >
+        </locale-text>
       </p>
     </div>
     <div style="margin-top: 16px">
@@ -191,22 +243,47 @@
         on:click="confirm"
         attr:disabled="!projectName || !dirPath"
       >
-        确认创建
+        <locale-text>
+          <span lang="cn">确认创建</span>
+          <span lang="en">Confirm Create</span>
+        </locale-text>
       </p-button>
     </div>
   </main-content>
 
   <p-dialog :open="showCoverDialog">
-    <div slot="title">项目已存在</div>
-    <p>当前目录下已有项目文件，是否覆盖并继续创建？</p>
+    <div slot="title">
+      <locale-text>
+        <span lang="cn">项目已存在</span>
+        <span lang="en">Project Exists</span>
+      </locale-text>
+    </div>
+    <p>
+      <locale-text>
+        <span lang="cn">当前目录下已有项目文件，是否覆盖并继续创建？</span>
+        <span lang="en"
+          >The current directory already has project files. Do you want to
+          overwrite and continue creating?</span
+        >
+      </locale-text>
+    </p>
     <p-button slot="bottom" on:click="openProject" color="success">
-      直接打开项目
+      <locale-text>
+        <span lang="cn">直接打开项目</span>
+        <span lang="en">Open Project</span>
+      </locale-text>
     </p-button>
     <p-button slot="bottom" on:click="showCoverDialog = false">
-      确认覆盖
+      <locale-text>
+        <span lang="cn">确认覆盖</span>
+        <span lang="en">Confirm Overwrite</span>
+      </locale-text>
     </p-button>
     <p-button slot="bottom" variant="outlined" on:click="clickCoverCancel">
-      取消
+      <locale-text>
+        <span lang="cn">取消</span>
+        <span lang="en">Cancel</span>
+      </locale-text>
     </p-button>
   </p-dialog>
   <script>
