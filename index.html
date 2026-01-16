@@ -20,7 +20,6 @@
 
       article {
         padding: 32px 16px;
-        display: flex;
         min-height: 60vh;
         max-width: 800px;
         margin: 0 auto;
@@ -57,6 +56,10 @@
           transform: rotate(360deg);
         }
       }
+
+      a {
+        color: var(--md-sys-color-primary);
+      }
     </style>
     <link rel="stylesheet" href="css/palette.css" pui-colors="" />
     <link rel="stylesheet" href="css/theme.css" />
@@ -67,7 +70,6 @@
       <div class="spinner"></div>
     </div>
 
-    <!-- <l-m src="/nos/locale-text/locale-text.html"></l-m> -->
     <article>
       <p>
         <locale-text>
@@ -84,6 +86,16 @@
           </span>
         </locale-text>
       </p>
+      <ul>
+        <li>
+          <locale-text>
+            <span lang="cn">
+              <a href="/_packages/studio/">OFA Studio</a> ： 用于开发 ofa.js
+              项目的集成开发环境（IDE）
+            </span>
+          </locale-text>
+        </li>
+      </ul>
     </article>
 
     <script type="module">
