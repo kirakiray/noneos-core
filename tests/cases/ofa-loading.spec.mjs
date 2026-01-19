@@ -3,7 +3,11 @@ import { test, expect } from "@playwright/test";
 
 test("should load ofa.js successfully in root directory reference mode", async ({
   page,
+  browserName,
 }) => {
+  // 跳过 firefox测试: sw使用file system 会报错
+  test.skip(browserName === 'firefox', 'Skipping Firefox');
+
   // Navigate to the test page
   await page.goto("/tests/cases/get-ofajs.html");
 

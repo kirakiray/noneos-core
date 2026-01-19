@@ -61,7 +61,7 @@ export default defineConfig({
       },
     },
 
-    // safari 不支持 private browsing
+    // safari 不支持 private browsing 的 OPFS
     // {
     //   name: 'webkit',
     //   use: { 
