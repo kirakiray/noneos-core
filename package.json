@@ -16,10 +16,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
-    "static": "http-server -p 3002 -c-1",
+    "static": "NODE_NO_WARNINGS=1 http-server -p 3002 -c-1",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "npx playwright test"
+    "test": "NODE_NO_WARNINGS=1 npx playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
