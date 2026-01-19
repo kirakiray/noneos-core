@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -6,7 +6,7 @@
     <title>Observe Method Test</title>
   </head>
   <body>
-    <script src="/sw/register.js" type="module"></script>
+    <script src="/_sw.js" type="module"></script>
     <script type="module">
       import { init } from "/nos/fs/main.js";
       import { test } from "/nos/ok-test/main.js";
@@ -24,6 +24,7 @@
           console.log("收到文件变化事件:", event);
           events.push(event);
         });
+
         console.log("已创建观察者");
 
         // 创建文件并写入内容
@@ -103,6 +104,7 @@
         });
 
         const unobserve2 = await testDir.observe((event) => {
+          console.log("change: ", event);
           events2.push(event);
         });
 

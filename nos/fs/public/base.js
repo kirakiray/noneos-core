@@ -33,7 +33,7 @@ export class PublicBaseHandle {
       targetHandle,
       name,
       "copy",
-      this
+      this,
     );
 
     // 如果是文件，直接复制文件内容
@@ -64,7 +64,7 @@ export class PublicBaseHandle {
       targetHandle,
       name,
       "move",
-      this
+      this,
     );
 
     // 如果是文件，直接移动文件
@@ -103,6 +103,24 @@ export class PublicBaseHandle {
 
   // 监听文件系统变化
   async observe(func) {
+    // if (!!window.FileSystemObserver) {
+    //   // 未来可能的API（提案阶段）
+    //   const observer = new FileSystemObserver((records) => {
+    //     for (const record of records) {
+    //       console.log(`${record.changedHandle.name} 发生 ${record.type} 事件`);
+    //     }
+
+    //     func();
+    //   });
+
+    //   // 监听目录
+    //   await observer.observe(this._handle);
+
+    //   return () => {
+    //     observer.disconnect();
+    //   };
+    // }
+
     const obj = {
       func,
       handle: this,
@@ -124,7 +142,7 @@ castChannel.onmessage = (event) => {
     {
       ...event.data,
     },
-    true
+    true,
   );
 };
 
