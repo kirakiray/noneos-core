@@ -103,23 +103,50 @@ export class PublicBaseHandle {
 
   // 监听文件系统变化
   async observe(func) {
-    // if (!!window.FileSystemObserver) {
-    //   // 未来可能的API（提案阶段）
-    //   const observer = new FileSystemObserver((records) => {
-    //     for (const record of records) {
-    //       console.log(`${record.changedHandle.name} 发生 ${record.type} 事件`);
-    //     }
+    if (!!window.FileSystemObserver) {
+      // 未来可能的API（提案阶段）
+      const observer = new FileSystemObserver((records) => {
+        for (const record of records) {
+          console.log(`record: `, record);
+          const path =
+            this.path + "/" + record.relativePathComponents.join("/");
 
-    //     func();
-    //   });
+          if (record.type === "appeared") {
+            continue;
+          }
 
-    //   // 监听目录
-    //   await observer.observe(this._handle);
+          let type;
 
-    //   return () => {
-    //     observer.disconnect();
-    //   };
-    // }
+          switch (record.type) {
+            // case "appeared":
+            //   type = "create";
+            //   break;
+            case "disappeared":
+              type = "remove";
+              break;
+            case "modified":
+              type = "write";
+              break;
+          }
+
+          func({
+            type,
+            path,
+          });
+        }
+
+        // func();
+      });
+
+      // 监听目录
+      await observer.observe(this._handle, {
+        recursive: true,
+      });
+
+      return () => {
+        observer.disconnect();
+      };
+    }
 
     const obj = {
       func,

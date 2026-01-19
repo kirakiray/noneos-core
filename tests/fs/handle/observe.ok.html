@@ -71,11 +71,12 @@
 
         // 观察父目录
         const unobserve = await parentDir.observe((event) => {
+          console.log("收到子目录变化事件:", event);
           events.push(event);
         });
 
         // 在子目录中创建和修改文件
-        const file = await subDir.get("test.txt", { create: "file" });
+        const file = await subDir.get("test3.txt", { create: "file" });
         await file.write("Hello");
         await file.remove();
 
