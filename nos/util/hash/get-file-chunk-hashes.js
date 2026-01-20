@@ -28,7 +28,7 @@ export const getFileChunkHashes = async (
 
     // 添加对Nodejs Buffer的支持
     if (typeof Buffer !== "undefined" && file instanceof Buffer) {
-      return file.buffer;
+      return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
     }
 
     console.error("不支持的文件类型: ", typeof file, file);
