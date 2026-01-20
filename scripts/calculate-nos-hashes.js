@@ -1,13 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
-
-function calculateFileHash(filePath) {
-  const fileBuffer = fs.readFileSync(filePath);
-  const hashSum = crypto.createHash('sha256');
-  hashSum.update(fileBuffer);
-  return hashSum.digest('hex');
-}
+import { getFileHash } from '../nos/util/hash/get-file-hash.js';
 
 function getFileSize(filePath) {
   const stats = fs.statSync(filePath);
@@ -31,29 +24,35 @@ function getAllFiles(dirPath, arrayOfFiles = []) {
   return arrayOfFiles;
 }
 
-const nosDir = 'nos';
-const outputFilePath = 'hashes.json';
+async function main() {
+  const nosDir = 'nos';
+  const outputFilePath = 'hashes.json';
 
-console.log('Scanning files in nos directory...');
-const allFiles = getAllFiles(nosDir);
+  console.log('Scanning files in nos directory...');
+  const allFiles = getAllFiles(nosDir);
 
-console.log(`Found ${allFiles.length} files. Calculating hashes...`);
+  console.log(`Found ${allFiles.length} files. Calculating hashes...`);
 
-const results = allFiles.map(filePath => {
-  console.log(`Processing: ${filePath}`);
-  const hash = calculateFileHash(filePath);
-  const size = getFileSize(filePath);
-  const relativePath = path.relative(nosDir, filePath);
+  const results = [];
+  for (const filePath of allFiles) {
+    console.log(`Processing: ${filePath}`);
+    const fileBuffer = fs.readFileSync(filePath);
+    const hash = await getFileHash(fileBuffer);
+    const size = getFileSize(filePath);
+    const relativePath = path.relative(nosDir, filePath);
 
-  return {
-    path: relativePath,
-    hash: hash,
-    size: size
-  };
-});
+    results.push({
+      path: relativePath,
+      hash: hash,
+      size: size
+    });
+  }
 
-console.log('Writing results to hashes.json...');
-fs.writeFileSync(outputFilePath, JSON.stringify(results, null, 2));
+  console.log('Writing results to hashes.json...');
+  fs.writeFileSync(outputFilePath, JSON.stringify(results, null, 2));
 
-console.log(`Done! Processed ${results.length} files.`);
-console.log(`Results saved to: ${outputFilePath}`);
+  console.log(`Done! Processed ${results.length} files.`);
+  console.log(`Results saved to: ${outputFilePath}`);
+}
+
+main().catch(console.error);
