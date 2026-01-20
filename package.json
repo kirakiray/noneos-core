@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
     "static": "NODE_NO_WARNINGS=1 http-server -p 3002 -c-1",
+    "build:hashes": "node scripts/calculate-nos-hashes.js",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
     "test": "NODE_NO_WARNINGS=1 npx playwright test"
