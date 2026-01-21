@@ -1,7 +1,7 @@
 {
   "version": "4.0.0",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769009563370,
+  "signTime": 1769009923149,
   "hashes": [
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -129,6 +129,11 @@
       "size": 3331
     },
     {
+      "path": "root-cert.json",
+      "hash": "9a63f4c8c49b868fab18273986c81778e543a5c0f9d0b657ded7352fbcd3cf0d",
+      "size": 325
+    },
+    {
       "path": "util/async-pool.js",
       "hash": "849891bdc7295beace91fcdadf5b52581c1882af3fe8cfedb7145a8a175e8518",
       "size": 1814
@@ -174,5 +179,5 @@
       "size": 1692
     }
   ],
-  "signature": "2xSwGp1bd2DhJUPY26zJiJt5Prr09ONWzaJao38WOP7ZuNSlmUxJ4SlThKnyI7dRen6qJtXzHfUHXR1WX9/gXw=="
+  "signature": "1L1hdlmrE0EFAdNOl0ZnIfVTX1Rvx+4gdIp+1SLOLfBTVE1EnABrSElixaCZe/OZz6p2aUPge3pvHxL0uHiYug=="
 }

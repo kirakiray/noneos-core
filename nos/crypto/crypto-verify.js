@@ -11,7 +11,7 @@ import { createVerifier } from "./crypto-ecdsa.js";
  * @param {string} params.signature - base64 编码的签名
  * @returns {Promise<boolean>} 验证结果
  */
-export const verifyData = async ({ data, signature }) => {
+export const verifyData = async ({ signature, ...data }) => {
   const { publicKey } = data;
 
   // 生成验证器
@@ -20,7 +20,7 @@ export const verifyData = async ({ data, signature }) => {
   try {
     // 将 base64 转换回原始格式并验证签名
     const signatureBuffer = new Uint8Array(
-      [...atob(signature)].map((c) => c.charCodeAt(0))
+      [...atob(signature)].map((c) => c.charCodeAt(0)),
     ).buffer;
 
     const result = await verify(JSON.stringify(data), signatureBuffer);
