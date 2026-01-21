@@ -4,34 +4,34 @@ import { verifyData } from "/nos/crypto/crypto-verify.js";
 export const install = async () => {
   // 获取根证书，并生成验证器
   const rootCert = await fetch("/nos/root-cert.json").then((e) => e.json());
-  const result1 = await verifyData(rootCert);
+  const isRootCertValid = await verifyData(rootCert);
 
-  if (!result1) {
+  if (!isRootCertValid) {
     throw new Error("Root certificate verification failed");
   }
 
   // 查看在线 nos.json 文件
-  const nosJSON = await fetch("./nos.json").then((res) => res.json());
+  const onlineNosConfig = await fetch("./nos.json").then((res) => res.json());
 
   // 验证nos.json 中的 hashes 是否被擅改
-  const result2 = await verifyData(nosJSON);
+  const isNosJsonValid = await verifyData(onlineNosConfig);
 
-  if (!result2) {
+  if (!isNosJsonValid) {
     throw new Error("nos.json verification failed");
   }
 
   // 获取本地 nos.json 文件配置
   await init("nos-config");
-  const baseConfigHandle = await get("nos-config/system.json", {
+  const configHandle = await get("nos-config/system.json", {
     create: "file",
   });
 
   // 写入 nos.json 文件配置
-  await baseConfigHandle.write(
+  await configHandle.write(
     JSON.stringify({
-      version: nosJSON.version,
-      mode: "online", // online: 从在线获取nos模块文件；local: 从本地获取nos模块文件
-      nosMapPath: "nos", // nos 映射路径
+      version: onlineNosConfig.version,
+      mode: "online",
+      nosMapPath: "nos",
     }),
   );
 };
