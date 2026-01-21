@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
     "static": "http-server -p 3002 -c-1",
+    "build": "npm run build:hashes && node scripts/pack-nos.js &&  npm run build:sw",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
@@ -26,6 +27,7 @@
     "@playwright/test": "^1.57.0",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
+    "archiver": "^7.0.1",
     "http-server": "^14.1.1",
     "rollup": "^3.0.0"
   }
