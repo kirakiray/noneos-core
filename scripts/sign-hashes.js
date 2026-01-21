@@ -19,7 +19,7 @@ const data = {
 const signature = await sign(JSON.stringify(data));
 
 const finalData = {
-  data,
+  ...data,
   signature: btoa(String.fromCharCode(...new Uint8Array(signature))),
 };
 

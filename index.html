@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,8 +13,15 @@
         padding: 0;
         margin: 0;
         overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, Segoe UI,
-          Microsoft Yahei, Helvetica, Arial, sans-serif, Apple Color Emoji,
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          Segoe UI,
+          Microsoft Yahei,
+          Helvetica,
+          Arial,
+          sans-serif,
+          Apple Color Emoji,
           Segoe UI Emoji;
       }
 
@@ -97,6 +104,13 @@
         </li>
       </ul>
     </article>
+
+    <script type="module">
+      import { install } from "/_install.js";
+
+      await install();
+      
+    </script>
 
     <script type="module" src="/_sw.js"></script>
 
