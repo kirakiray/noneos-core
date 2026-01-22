@@ -25,33 +25,34 @@ const handlePack = ({ id, path, file, isEnd }) => {
   zips.set(id, zip);
 
   if (isEnd) {
-    zip.generateAsync({ type: "blob" }).then(content => {
+    zip.generateAsync({ type: "blob" }).then((content) => {
       self.postMessage({ id, content });
       zips.delete(id);
     });
   }
 };
 
-const unzipFile = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = async ({ target: { result } }) => {
-    try {
-      const zip = await JSZip.loadAsync(result);
-      const tasks = [];
+const unzipFile = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async ({ target: { result } }) => {
+      try {
+        const zip = await JSZip.loadAsync(result);
+        const tasks = [];
 
-      for (const [name, zipEntry] of Object.entries(zip.files)) {
-        const entryName = name.split("/").pop();
-        if (entryName && entryName !== ".DS_Store") {
-          const content = await zipEntry.async("blob");
-          tasks.push({ path: name, file: new File([content], entryName) });
+        for (const [name, zipEntry] of Object.entries(zip.files)) {
+          const entryName = name.split("/").pop();
+          if (entryName && entryName !== ".DS_Store") {
+            const content = await zipEntry.async("blob");
+            tasks.push({ path: name, file: new File([content], entryName) });
+          }
         }
-      }
 
-      resolve(tasks);
-    } catch (err) {
-      reject(err);
-    }
-  };
-  reader.onerror = reject;
-  reader.readAsArrayBuffer(file);
-});
+        resolve(tasks);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
