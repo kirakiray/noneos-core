@@ -1,7 +1,7 @@
 {
-  "version": "4.0.0",
+  "version": "4.0.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769087271331,
+  "signTime": 1769088606310,
   "hashes": [
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -189,5 +189,5 @@
       "size": 1470
     }
   ],
-  "signature": "i1hEs2OKo85Bx31zXiVEzKFCjiV6JRPch21Ie9EjTk7hYHUvPvx4pOPR2WC8rgiBy5P6fYf2ujMiGnrHPGXG+Q=="
+  "signature": "uRu1Sy2QhsUFbevy5aGqSMQBOYZUo2a4UaGZ+Co48CtTeHKI01wCh22gzGGWXaIcYpd8UshMfpIU8cCDdrVewA=="
 }
