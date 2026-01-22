@@ -1,67 +1,48 @@
-let worker;
 const workerPath = import.meta.resolve("./worker.js");
 
-try {
-  worker = new Worker(workerPath);
-} catch (err) {
-  const workerBlob = await fetch(workerPath).then((e) => e.blob());
-  const workerUrl = URL.createObjectURL(workerBlob);
-  worker = new Worker(workerUrl);
-}
+const createWorker = async () => {
+  try {
+    return new Worker(workerPath);
+  } catch {
+    const blob = await fetch(workerPath).then(r => r.blob());
+    return new Worker(URL.createObjectURL(blob));
+  }
+};
 
-const getTaskId = () => Math.random().toString("16").slice(2);
+const worker = await createWorker();
+const resolvers = new Map();
 
-const resolver = {};
+const generateId = typeof crypto !== 'undefined' && crypto.randomUUID
+  ? () => crypto.randomUUID()
+  : () => Math.random().toString(16).slice(2, 18);
 
 worker.onmessage = (e) => {
-  if (e.data.error) {
-    resolver[e.data.id].reject(e.data.error);
-  } else {
-    resolver[e.data.id].resolve(e.data.content);
+  const { id, error, content } = e.data;
+  const task = resolvers.get(id);
+  if (task) {
+    error ? task.reject(error) : task.resolve(content);
+    resolvers.delete(id);
   }
-  resolver[e.data.id] = null;
 };
 
 export async function unzip(file) {
-  const taskID = getTaskId();
-
-  const files = new Promise((resolve, reject) => {
-    resolver[taskID] = { resolve, reject };
-  });
-
-  worker.postMessage({
-    taskType: "unzip",
-    id: taskID,
-    file,
-  });
-
-  return files;
+  const id = generateId();
+  const promise = new Promise((resolve, reject) => resolvers.set(id, { resolve, reject }));
+  worker.postMessage({ taskType: "unzip", id, file });
+  return promise;
 }
 
 export function zips(files) {
-  if (!files.length) {
-    return null;
-  }
+  if (!files.length) return null;
 
-  const taskID = getTaskId();
+  const id = generateId();
+  const { resolve, promise } = Promise.withResolvers();
+  resolvers.set(id, { resolve, reject: () => {} });
 
-  const reobj = new Promise((resolve, reject) => {
-    resolver[taskID] = { resolve, reject };
+  const lastIndex = files.length - 1;
+  files.forEach(({ file, path }, index) => {
+    worker.postMessage({ id, path, file, isEnd: index === lastIndex });
   });
 
-  let len = files.length;
-
-  for (let e of files) {
-    const { file, path } = e;
-    len--;
-
-    worker.postMessage({
-      id: taskID,
-      path,
-      file,
-      isEnd: !len,
-    });
-  }
-
-  return reobj;
+  return promise;
 }
