@@ -57,7 +57,7 @@ export const install = async (callback) => {
     throw new Error(errors.join("\n"));
   }
 
-  const nosMapPath = "nos";
+  const nosMapPath = "nos-" + onlineNosConfig.version;
 
   // 写入到本地
   for (let { path, file } of needWriteFiles) {
