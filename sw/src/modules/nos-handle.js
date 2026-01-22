@@ -2,7 +2,8 @@ import { getFileHandle } from "./file-system.js";
 import { getContentType } from "./mime-types.js";
 
 export const handleNosRequest = async ({ path, request, systemConfig }) => {
-  if (systemConfig.mode === "online") {
+  if (!systemConfig || !systemConfig.mode || systemConfig.mode === "online") {
+    // 没有配置数据时，直接返回线上数据
     return fetch(request);
   }
 
