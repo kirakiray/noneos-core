@@ -357,20 +357,71 @@
     }
   };
 
+  const handleNosRequest = async ({ path, request, systemConfig }) => {
+    if (systemConfig.mode === "online") {
+      return fetch(request);
+    }
+
+    if (systemConfig.mode === "local") {
+      try {
+        const rePath = path.replace(/^\/nos\//, systemConfig.nosMapPath + "/");
+
+        let targetHandle = await getFileHandle({ path: rePath }).catch(
+          () => null,
+        );
+
+        if (targetHandle) {
+          const fileStream = await targetHandle.getFile();
+
+          if (fileStream.size) {
+            return new Response(fileStream, {
+              headers: {
+                "Content-Type": getContentType(path),
+              },
+            });
+          }
+        }
+
+        return fetch(request);
+      } catch (err) {
+        return fetch(request);
+      }
+    }
+  };
+
+  // 当前系统的配置信息
+  // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
+  let systemConfig = {};
+
   self.addEventListener("fetch", (event) => {
     const { request } = event;
     const { pathname } = new URL(request.url);
 
     // console.log("pathname: ", pathname);
 
+    if (pathname === "/__update_config") {
+      return event.respondWith(reloadSystemConfig());
+    }
+
     try {
+      if (/^\/nos\//.test(pathname)) {
+        return event.respondWith(
+          handleNosRequest({
+            path: pathname,
+            request,
+            systemConfig,
+          }),
+        );
+      }
+
       if (/^\/gh\//.test(pathname)) {
         // 从 GitHub 仓库获取文件
         return event.respondWith(
           handleGitHubRequest({
             path: pathname,
             originUrl: request.url,
-          })
+            systemConfig,
+          }),
         );
       }
 
@@ -380,7 +431,8 @@
           handleNpmRequest({
             path: pathname,
             originUrl: request.url,
-          })
+            systemConfig,
+          }),
         );
       }
 
@@ -389,7 +441,8 @@
           handleMountRequest({
             path: pathname,
             originUrl: request.url,
-          })
+            systemConfig,
+          }),
         );
       }
 
@@ -398,7 +451,8 @@
           handleFileRequest({
             path: pathname,
             originUrl: request.url,
-          })
+            systemConfig,
+          }),
         );
       }
     } catch (err) {
@@ -421,7 +475,32 @@
   self.addEventListener("activate", () => {
     self.clients.claim();
     console.log("NoneOS server activation successful");
+
+    setTimeout(() => {
+      reloadSystemConfig();
+    }, 1000);
   });
+
+  const reloadSystemConfig = async () => {
+    try {
+      const rootHandle = await navigator.storage.getDirectory();
+      const configHandle = await rootHandle.getDirectoryHandle("nos-config");
+      const configFileHandle = await configHandle.getFileHandle("system.json");
+      const file = await configFileHandle.getFile();
+      const content = await file.text();
+
+      if (content) {
+        systemConfig = JSON.parse(content);
+      }
+
+      return new Response(JSON.stringify(systemConfig));
+    } catch (err) {
+      console.error("Reload system config failed:", err);
+      return new Response("Reload failed: " + (err.message || err), {
+        status: 500,
+      });
+    }
+  };
 
 })();
 //# sourceMappingURL=dist.js.map

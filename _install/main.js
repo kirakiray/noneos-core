@@ -70,7 +70,7 @@ export const install = async (callback) => {
   await configHandle.write(
     JSON.stringify({
       version: onlineNosConfig.version,
-      mode: "online",
+      mode: "local",
       nosMapPath,
     }),
   );

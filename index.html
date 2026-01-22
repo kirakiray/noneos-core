@@ -106,12 +106,14 @@
     </article>
 
     <script type="module">
+      import { ready } from "/_install/register.js";
+
+      await ready;
+
       import { install } from "/_install/main.js";
 
       await install();
     </script>
-
-    <script type="module" src="/_install/register.js"></script>
 
     <script type="module">
       const load = lm(import.meta);
