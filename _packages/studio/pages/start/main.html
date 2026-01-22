@@ -108,28 +108,47 @@
       <o-else>
         <div class="left">
           <section>
-            <h3>开始</h3>
+            <h3>
+              <locale-text>
+                <span lang="cn">开始</span>
+                <span lang="en">Get Started</span>
+              </locale-text>
+            </h3>
             <div class="button-container">
               <p-button variant="text" on:click="openFolderPicker">
                 <n-icon
                   icon="material-symbols:folder-open"
                   slot="prefix"
                 ></n-icon>
-                打开文件夹
+                <locale-text>
+                  <span lang="cn">打开文件夹</span>
+                  <span lang="en">Open Folder</span>
+                </locale-text>
               </p-button>
               <p-button variant="text" on:click="goto('./create.html')">
                 <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
-                创建新项目
+                <locale-text>
+                  <span lang="cn">创建新项目</span>
+                  <span lang="en">Create New Project</span>
+                </locale-text>
               </p-button>
               <p-button variant="text">
                 <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
-                从 GitHub 仓库下载副本
+                <locale-text>
+                  <span lang="cn">从 GitHub 仓库下载副本</span>
+                  <span lang="en">Download Project from GitHub</span>
+                </locale-text>
               </p-button>
             </div>
           </section>
 
           <section>
-            <h3>最近打开</h3>
+            <h3>
+              <locale-text>
+                <span lang="cn">最近打开</span>
+                <span lang="en">Recent Projects</span>
+              </locale-text>
+            </h3>
             <o-if :value="projects.length">
               <p-list>
                 <o-fill :value="projects">
@@ -146,18 +165,43 @@
             </o-if>
             <o-else>
               <p-list>
-                <p-list-item> 暂无最近打开项目 </p-list-item>
+                <p-list-item>
+                  <locale-text>
+                    <span lang="cn">暂无最近打开项目</span>
+                    <span lang="en">No Recent Projects</span>
+                  </locale-text>
+                </p-list-item>
               </p-list>
             </o-else>
           </section>
         </div>
         <div class="right">
           <section>
-            <h3>学习</h3>
+            <h3>
+              <locale-text>
+                <span lang="cn">学习</span>
+                <span lang="en">Learning</span>
+              </locale-text>
+            </h3>
             <p-list>
-              <p-list-item button disabled>了解基础知识</p-list-item>
-              <p-list-item button disabled>视频教程</p-list-item>
-              <p-list-item button>社区支持</p-list-item>
+              <p-list-item button disabled>
+                <locale-text>
+                  <span lang="cn">了解基础知识</span>
+                  <span lang="en">Basic Knowledge</span>
+                </locale-text>
+              </p-list-item>
+              <p-list-item button disabled>
+                <locale-text>
+                  <span lang="cn">视频教程</span>
+                  <span lang="en">Video Tutorials</span>
+                </locale-text>
+              </p-list-item>
+              <p-list-item button>
+                <locale-text>
+                  <span lang="cn">社区支持</span>
+                  <span lang="en">Community Support</span>
+                </locale-text>
+              </p-list-item>
             </p-list>
             <!-- <div class="button-container">
               <p-button variant="text">了解基础知识</p-button>
@@ -177,12 +221,14 @@
 
     export default async ({ load }) => {
       const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
+      const { getLocaleText } = await load(
+        "/nos/locale-text/get-locale-text.js"
+      );
       const { confirm } = await load("/gh/ofajs/Punch-UI/packages/util.js");
 
       return {
         data: {
           canUse: !!window.showOpenFilePicker,
-          title: "欢迎",
           projects: [],
         },
         proto: {
@@ -193,7 +239,10 @@
             const packagejsonHandle = await handle.get("package.json");
             if (!packagejsonHandle) {
               const result = await confirm(
-                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+                getLocaleText({
+                  cn: "该文件夹不是一个有效的OFA项目，是否进行创建？",
+                  en: "This folder is not a valid OFA project, do you want to create it?",
+                })
               );
               if (!result) {
                 return;
@@ -208,7 +257,10 @@
               tempHandle = handle;
 
               const result = await confirm(
-                "该文件夹不是一个有效的OFA项目，是否进行创建？"
+                getLocaleText({
+                  cn: "该文件夹不是一个有效的OFA项目，是否进行创建？",
+                  en: "This folder is not a valid OFA project, do you want to create it?",
+                })
               );
 
               if (!result) {

@@ -1,11 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>test html</title>
+    <title>NoneOS Core</title>
+    <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js/dist/ofa.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js/libs/router/dist/router.min.js"></script>
+    <!-- <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script> -->
+    <!-- <script src="/gh/kirakiray/ofa.js/libs/router/dist/router.min.js"></script> -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          Segoe UI,
+          Microsoft Yahei,
+          Helvetica,
+          Arial,
+          sans-serif,
+          Apple Color Emoji,
+          Segoe UI Emoji;
+      }
+
+      article {
+        padding: 32px 16px;
+        min-height: 60vh;
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.6em;
+      }
+
+      /* Loading Animation Styles */
+      .loading-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--md-sys-color-surface, rgba(255, 255, 255, 0.8));
+      }
+
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 4px solid var(--md-sys-color-surface, #f3f3f3);
+        border-top: 4px solid var(--md-sys-color-primary, #3498db);
+        border-radius: 50%;
+        animation: spin 0.5s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      a {
+        color: var(--md-sys-color-primary);
+      }
+    </style>
+    <link rel="stylesheet" href="css/palette.css" pui-colors="" />
+    <link rel="stylesheet" href="css/theme.css" />
   </head>
   <body>
-    <script src="/_sw.js" type="module"></script>
+    <!-- Loading Animation -->
+    <div id="loading" class="loading-container">
+      <div class="spinner"></div>
+    </div>
+
+    <article>
+      <p>
+        <locale-text>
+          <span lang="cn">
+            NoneOS Core 是一款轻量级核心引擎，专为运行 ofa.js
+            应用而设计。无需额外安装任何软件，即可一键启动、开发与调试 ofa.js
+            项目。
+          </span>
+          <span lang="en">
+            NoneOS Core is a lightweight core engine designed to run ofa.js
+            applications. It does not require any additional software to be
+            installed, and can be started, developed, and debugged with just a
+            single click.
+          </span>
+        </locale-text>
+      </p>
+      <ul>
+        <li>
+          <locale-text>
+            <span lang="cn">
+              <a href="/_packages/studio/">OFA Studio</a> ： 用于开发 ofa.js
+              项目的集成开发环境（IDE）
+            </span>
+            <span lang="en">
+              <a href="/_packages/studio/">OFA Studio</a> ： Integrated
+              Development Environment (IDE) for ofa.js projects
+            </span>
+          </locale-text>
+        </li>
+        <li>
+          <locale-text>
+            <span lang="cn">
+              <a href="/_packages/file-explore/">File Explore</a
+              >：查看虚拟文件系统
+            </span>
+            <span lang="en">
+              <a href="/_packages/file-explore/">File Explore</a>：View the
+              virtual file system
+            </span>
+          </locale-text>
+        </li>
+      </ul>
+    </article>
+
+    <script type="module">
+      import { install } from "/_install/main.js";
+      await install();
+    </script>
+
+    <script type="module">
+      import { ready } from "/_install/register.js";
+      await ready;
+
+      const load = lm(import.meta);
+
+      await load("/nos/locale-text/locale-text.html");
+
+      const loadingElement = $("#loading");
+      if (loadingElement) {
+        // 添加淡出效果后再隐藏
+        loadingElement.css = {
+          opacity: "0",
+          transition: "opacity 0.5s ease-out",
+        };
+        setTimeout(() => {
+          loadingElement.css = {
+            display: "none",
+          };
+        }, 500);
+      }
+    </script>
   </body>
 </html>

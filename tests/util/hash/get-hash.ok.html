@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Get File Hash Test</title>
+    <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <script src="/_install/register.js" type="module"></script>
+    <script type="module">
+      import { test } from "/nos/ok-test/main.js";
+      import { getFileHash } from "/nos/util/hash/get-file-hash.js";
+
+      const createRandomFile = (sizeInBytes) => {
+        const randomBytes = new Uint8Array(sizeInBytes);
+        for (let i = 0; i < sizeInBytes; i++) {
+          randomBytes[i] = Math.floor(Math.random() * 256);
+        }
+
+        return new Blob([randomBytes], { type: "application/octet-stream" });
+      };
+
+      await test("getFileHash - 1KB File Consistency Test", async () => {
+        const file = createRandomFile(1 * 1024);
+        const hashes = [];
+
+        for (let i = 0; i < 10; i++) {
+          const hash = await getFileHash(file);
+          hashes.push(hash);
+        }
+
+        const allEqual = hashes.every((hash) => hash === hashes[0]);
+
+        return {
+          assert: allEqual,
+          content: {
+            message: "1KB 文件哈希一致性测试",
+            fileSize: "1KB",
+            iterations: 10,
+            allResultsEqual: allEqual,
+            hashLength: hashes[0].length,
+            uniqueHashes: new Set(hashes).size,
+          },
+        };
+      });
+
+      await test("getFileHash - 10KB File Consistency Test", async () => {
+        const file = createRandomFile(10 * 1024);
+        const hashes = [];
+
+        for (let i = 0; i < 10; i++) {
+          const hash = await getFileHash(file);
+          hashes.push(hash);
+        }
+
+        const allEqual = hashes.every((hash) => hash === hashes[0]);
+
+        return {
+          assert: allEqual,
+          content: {
+            message: "10KB 文件哈希一致性测试",
+            fileSize: "10KB",
+            iterations: 10,
+            allResultsEqual: allEqual,
+            hashLength: hashes[0].length,
+            uniqueHashes: new Set(hashes).size,
+          },
+        };
+      });
+
+      await test("getFileHash - 500KB File Consistency Test", async () => {
+        const file = createRandomFile(500 * 1024);
+        const hashes = [];
+
+        for (let i = 0; i < 10; i++) {
+          const hash = await getFileHash(file);
+          hashes.push(hash);
+        }
+
+        const allEqual = hashes.every((hash) => hash === hashes[0]);
+
+        return {
+          assert: allEqual,
+          content: {
+            message: "500KB 文件哈希一致性测试",
+            fileSize: "500KB",
+            iterations: 10,
+            allResultsEqual: allEqual,
+            hashLength: hashes[0].length,
+            uniqueHashes: new Set(hashes).size,
+          },
+        };
+      });
+
+      await test("getFileHash - 1MB File Consistency Test", async () => {
+        const file = createRandomFile(1 * 1024 * 1024);
+        const hashes = [];
+
+        for (let i = 0; i < 10; i++) {
+          const hash = await getFileHash(file);
+          hashes.push(hash);
+        }
+
+        const allEqual = hashes.every((hash) => hash === hashes[0]);
+
+        return {
+          assert: allEqual,
+          content: {
+            message: "1MB 文件哈希一致性测试",
+            fileSize: "1MB",
+            iterations: 10,
+            allResultsEqual: allEqual,
+            hashLength: hashes[0].length,
+            uniqueHashes: new Set(hashes).size,
+          },
+        };
+      });
+
+      await test("getFileHash - Different Files Different Hashes Test", async () => {
+        const file1 = createRandomFile(10 * 1024);
+        const file2 = createRandomFile(10 * 1024);
+        const file3 = createRandomFile(10 * 1024);
+
+        const hash1 = await getFileHash(file1);
+        const hash2 = await getFileHash(file2);
+        const hash3 = await getFileHash(file3);
+
+        const allDifferent =
+          hash1 !== hash2 && hash2 !== hash3 && hash1 !== hash3;
+
+        return {
+          assert: allDifferent,
+          content: {
+            message: "不同文件应产生不同哈希值",
+            fileSize: "10KB",
+            filesCount: 3,
+            allHashesDifferent: allDifferent,
+            hash1Length: hash1.length,
+            hash2Length: hash2.length,
+            hash3Length: hash3.length,
+          },
+        };
+      });
+
+      await test("getFileHash - Same Content Same Hash Test", async () => {
+        const content = "Test content for hash verification";
+        const encoder = new TextEncoder();
+        const data = encoder.encode(content);
+
+        const file1 = new Blob([data], { type: "text/plain" });
+        const file2 = new Blob([data], { type: "text/plain" });
+
+        const hash1 = await getFileHash(file1);
+        const hash2 = await getFileHash(file2);
+
+        return {
+          assert: hash1 === hash2,
+          content: {
+            message: "相同内容应产生相同哈希值",
+            contentLength: content.length,
+            hash1Length: hash1.length,
+            hash2Length: hash2.length,
+            hashesEqual: hash1 === hash2,
+          },
+        };
+      });
+    </script>
+  </body>
+</html>

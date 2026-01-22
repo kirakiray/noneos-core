@@ -2,6 +2,11 @@ import { handleGitHubRequest } from "./modules/github-handler.js";
 import { handleFileRequest } from "./modules/file-handler.js";
 import { handleNpmRequest } from "./modules/npm-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
+import { handleNosRequest } from "./modules/nos-handle.js";
+
+// 当前系统的配置信息
+// let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
+let systemConfig = {};
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -9,14 +14,29 @@ self.addEventListener("fetch", (event) => {
 
   // console.log("pathname: ", pathname);
 
+  if (pathname === "/__config") {
+    return event.respondWith(reloadSystemConfig());
+  }
+
   try {
+    if (/^\/nos\//.test(pathname)) {
+      return event.respondWith(
+        handleNosRequest({
+          path: pathname,
+          request,
+          systemConfig,
+        }),
+      );
+    }
+
     if (/^\/gh\//.test(pathname)) {
       // 从 GitHub 仓库获取文件
       return event.respondWith(
         handleGitHubRequest({
           path: pathname,
           originUrl: request.url,
-        })
+          systemConfig,
+        }),
       );
     }
 
@@ -26,7 +46,8 @@ self.addEventListener("fetch", (event) => {
         handleNpmRequest({
           path: pathname,
           originUrl: request.url,
-        })
+          systemConfig,
+        }),
       );
     }
 
@@ -35,7 +56,8 @@ self.addEventListener("fetch", (event) => {
         handleMountRequest({
           path: pathname,
           originUrl: request.url,
-        })
+          systemConfig,
+        }),
       );
     }
 
@@ -44,7 +66,8 @@ self.addEventListener("fetch", (event) => {
         handleFileRequest({
           path: pathname,
           originUrl: request.url,
-        })
+          systemConfig,
+        }),
       );
     }
   } catch (err) {
@@ -67,4 +90,29 @@ self.addEventListener("install", () => {
 self.addEventListener("activate", () => {
   self.clients.claim();
   console.log("NoneOS server activation successful");
+
+  setTimeout(() => {
+    reloadSystemConfig();
+  }, 1000);
 });
+
+const reloadSystemConfig = async () => {
+  try {
+    const rootHandle = await navigator.storage.getDirectory();
+    const configHandle = await rootHandle.getDirectoryHandle("nos-config");
+    const configFileHandle = await configHandle.getFileHandle("system.json");
+    const file = await configFileHandle.getFile();
+    const content = await file.text();
+
+    if (content) {
+      systemConfig = JSON.parse(content);
+    }
+
+    return new Response(JSON.stringify(systemConfig));
+  } catch (err) {
+    console.error("Reload system config failed:", err);
+    return new Response("Reload failed: " + (err.message || err), {
+      status: 500,
+    });
+  }
+};

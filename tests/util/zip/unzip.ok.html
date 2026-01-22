@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unzip Test</title>
+    <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <script type="module">
+      import { ready } from "/_install/register.js";
+      await ready;
+
+      import { test } from "/nos/ok-test/main.js";
+
+      const { unzip } = await import("/nos/util/zip/main.js");
+
+      const createTextFile = (content, filename) => {
+        const blob = new Blob([content], { type: "text/plain" });
+        return new File([blob], filename, { type: "text/plain" });
+      };
+
+      const createZipFile = async (files) => {
+        const { zips } = await import("/nos/util/zip/main.js");
+        const blob = await zips(files);
+        return blob;
+      };
+
+      await test("unzip - Single File Extraction Test", async () => {
+        const files = [
+          {
+            file: createTextFile("Hello World", "hello.txt"),
+            path: "hello.txt",
+          },
+        ];
+        const zipFile = await createZipFile(files);
+        const extractedFiles = await unzip(zipFile);
+
+        return {
+          assert:
+            extractedFiles.length === 1 &&
+            extractedFiles[0].path === "hello.txt",
+          content: {
+            message: "解压单个文件测试",
+            originalFilesCount: 1,
+            extractedFilesCount: extractedFiles.length,
+            extractedFiles: extractedFiles.map((f) => ({
+              path: f.path,
+              name: f.file.name,
+            })),
+          },
+        };
+      });
+
+      await test("unzip - Multiple Files Extraction Test", async () => {
+        const files = [
+          { file: createTextFile("Content 1", "file1.txt"), path: "file1.txt" },
+          { file: createTextFile("Content 2", "file2.txt"), path: "file2.txt" },
+          { file: createTextFile("Content 3", "file3.txt"), path: "file3.txt" },
+        ];
+        const zipFile = await createZipFile(files);
+        const extractedFiles = await unzip(zipFile);
+
+        const allFilesExtracted =
+          extractedFiles.length === 3 &&
+          extractedFiles.some((f) => f.path === "file1.txt") &&
+          extractedFiles.some((f) => f.path === "file2.txt") &&
+          extractedFiles.some((f) => f.path === "file3.txt");
+
+        return {
+          assert: allFilesExtracted,
+          content: {
+            message: "解压多个文件测试",
+            originalFilesCount: 3,
+            extractedFilesCount: extractedFiles.length,
+            extractedFiles: extractedFiles.map((f) => ({
+              path: f.path,
+              name: f.file.name,
+            })),
+          },
+        };
+      });
+
+      await test("unzip - Nested Directory Test", async () => {
+        const files = [
+          { file: createTextFile("Root File", "root.txt"), path: "root.txt" },
+          {
+            file: createTextFile("Nested File", "nested.txt"),
+            path: "folder/nested.txt",
+          },
+          {
+            file: createTextFile("Deep Nested File", "deep.txt"),
+            path: "folder/deep/deep.txt",
+          },
+        ];
+        const zipFile = await createZipFile(files);
+        const extractedFiles = await unzip(zipFile);
+
+        const hasNestedFiles =
+          extractedFiles.length >= 2 &&
+          extractedFiles.some((f) => f.path.includes("folder"));
+
+        return {
+          assert: hasNestedFiles,
+          content: {
+            message: "解压嵌套目录测试",
+            originalFilesCount: 3,
+            extractedFilesCount: extractedFiles.length,
+            extractedFiles: extractedFiles.map((f) => ({
+              path: f.path,
+              name: f.file.name,
+            })),
+          },
+        };
+      });
+
+      await test("unzip - File Content Integrity Test", async () => {
+        const originalContent =
+          "This is test content for integrity verification";
+        const files = [
+          {
+            file: createTextFile(originalContent, "content.txt"),
+            path: "content.txt",
+          },
+        ];
+        const zipFile = await createZipFile(files);
+        const extractedFiles = await unzip(zipFile);
+
+        const extractedContent = await extractedFiles[0].file.text();
+        const contentMatch = extractedContent === originalContent;
+
+        return {
+          assert: contentMatch,
+          content: {
+            message: "解压文件内容完整性测试",
+            originalContentLength: originalContent.length,
+            extractedContentLength: extractedContent.length,
+            contentMatch,
+          },
+        };
+      });
+    </script>
+  </body>
+</html>

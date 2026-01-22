@@ -38,11 +38,19 @@
     }
   </style>
   <div class="container">
-    <h3 style="margin-top: 0">预览</h3>
+    <h3 style="margin-top: 0">
+      <locale-text>
+        <span lang="cn">预览</span>
+        <span lang="en">Preview</span>
+      </locale-text>
+    </h3>
     <div style="padding-bottom: 16px">
-      <p-button variant="outlined">
+      <p-button variant="outlined" on:click="previewInNewWindow">
         <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
-        <a attr:href="previewUrl" target="_blank">新窗口预览应用</a>
+        <locale-text>
+          <span lang="cn">新窗口预览应用</span>
+          <span lang="en">Preview Application in New Window</span>
+        </locale-text>
       </p-button>
     </div>
     <div class="frame-contaner">
@@ -52,9 +60,17 @@
         frameborder="0"
       ></iframe>
     </div>
-    <h3>其他功能</h3>
+    <h3>
+      <locale-text>
+        <span lang="cn">其他功能</span>
+        <span lang="en">Other Features</span>
+      </locale-text>
+    </h3>
     <p-switch sync:value="ofaConfig.useHCT" on:change="changeUseHCT">
-      使用HCT色盘
+      <locale-text>
+        <span lang="cn">使用HCT色盘</span>
+        <span lang="en">Use HCT Color Palette</span>
+      </locale-text>
     </p-switch>
   </div>
   <script>
@@ -75,6 +91,9 @@
           _rootHandle: null,
         },
         proto: {
+          previewInNewWindow() {
+            window.open(this.previewUrl);
+          },
           async changeUseHCT() {
             const useHCT = this.ofaConfig.useHCT === "on";
 

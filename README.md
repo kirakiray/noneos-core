@@ -2,7 +2,7 @@
 
 NoneOS Core is a lightweight core engine designed specifically for running ofa.js applications. It allows one-click startup, development, and debugging of ofa.js projects without the need to install any additional software.
 
-The engine originates from NoneOS3, undergoing deep streamlining and architectural restructuring to achieve complete decoupling between the system and applications. In the future, NoneOS4 will be completely rebuilt based on NoneOS Core.
+The engine originates from NoneOS3, undergoing deep streamlining and architectural restructuring to achieve complete decoupling between the system and applications.
 
 Our vision: To create a universal, minimal, and cross-platform application runtime environment that enables various applications to achieve truly seamless, efficient, and stable operation across different operating systems.
 

@@ -36,7 +36,7 @@ export default defineConfig({
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:3003',
+    baseURL: 'http://localhost:3002',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -61,7 +61,7 @@ export default defineConfig({
       },
     },
 
-    // safari 不支持 private browsing
+    // safari 不支持 private browsing 的 OPFS
     // {
     //   name: 'webkit',
     //   use: { 
@@ -99,8 +99,8 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'PORT=3003 npm run static',
-    port: 3003,
+    command: 'PORT=3002 npm run static',
+    port: 3002,
     reuseExistingServer: !process.env.CI,
   },
 });
