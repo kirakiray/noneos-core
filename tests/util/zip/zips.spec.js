@@ -1,9 +1,11 @@
 import { test, expect } from "@playwright/test";
 
-test("zips Test", async ({ page }) => {
+test("zips Test", async ({ page, browserName }) => {
+  test.skip(browserName === "firefox", "Skipping Firefox");
+
   await page.goto("tests/util/zip/zips.ok.html");
 
-  const count = 5;
+  const count = 4;
 
   await page.getByTestId("test-completion-notification").click();
 

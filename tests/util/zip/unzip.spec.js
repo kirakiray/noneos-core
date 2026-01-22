@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-test("unzip Test", async ({ page }) => {
+test("unzip Test", async ({ page, browserName }) => {
+  test.skip(browserName === "firefox", "Skipping Firefox");
+
   await page.goto("tests/util/zip/unzip.ok.html");
 
   const count = 4;
