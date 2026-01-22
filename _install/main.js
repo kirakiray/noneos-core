@@ -16,9 +16,22 @@ export const install = async (callback) => {
   // 判断本地已有数据
   const configData = await configHandle.json().catch(() => null);
 
-  if (configData && configData.version === onlineNosConfig.version) {
-    // 版本相同，无需重新安装
-    return;
+  if (configData) {
+    if (configData.version === onlineNosConfig.version) {
+      // 版本相同，无需重新安装
+      return;
+    }
+
+    // 版本不同，需要重新安装前，设置使用在线文件
+    await configHandle.write(
+      JSON.stringify({
+        ...configData,
+        mode: "online",
+      }),
+    );
+
+    // const newConfigData = await fetch("/__config").then((e) => e.json()); // 触发更新配置文件
+    await fetch("/__config").then((e) => e.json()); // 更新配置文件
   }
 
   // 下载zip包
@@ -74,4 +87,6 @@ export const install = async (callback) => {
       nosMapPath,
     }),
   );
+
+  await fetch("/__config"); // 更新配置文件
 };
