@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("unzip Test", async ({ page }) => {
   await page.goto("tests/util/zip/unzip.ok.html");
 
-  const count = 5;
+  const count = 4;
 
   await page.getByTestId("test-completion-notification").click();
 

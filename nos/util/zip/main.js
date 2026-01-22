@@ -39,6 +39,10 @@ export async function unzip(file) {
 }
 
 export function zips(files) {
+  if (!files.length) {
+    return null;
+  }
+
   const taskID = getTaskId();
 
   const reobj = new Promise((resolve, reject) => {

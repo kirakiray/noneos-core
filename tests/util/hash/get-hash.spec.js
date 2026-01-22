@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("get-hash Test", async ({ page }) => {
-  await page.goto("tests/hash/get-hash.ok.html");
+  await page.goto("tests/util/hash/get-hash.ok.html");
 
   const count = 6;
 
