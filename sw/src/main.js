@@ -14,7 +14,7 @@ self.addEventListener("fetch", (event) => {
 
   // console.log("pathname: ", pathname);
 
-  if (pathname === "/__update_config") {
+  if (pathname === "/__config") {
     return event.respondWith(reloadSystemConfig());
   }
 
