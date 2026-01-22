@@ -1,6 +1,5 @@
 import { defineConfig } from "rollup";
-// import nodeResolve from '@rollup/plugin-node-resolve';
-// import commonjs from '@rollup/plugin-commonjs';
+import terser from "@rollup/plugin-terser";
 
 export default defineConfig({
   input: "sw/src/main.js",
@@ -10,8 +9,7 @@ export default defineConfig({
     sourcemap: true,
   },
   plugins: [
-    // nodeResolve(),
-    // commonjs()
+    terser()
   ],
   watch: {
     include: "sw/src/**",
