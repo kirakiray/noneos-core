@@ -38,6 +38,9 @@ export const install = async () => {
 
   const errors = [];
 
+  // 等待被写入的文件
+  const needWriteFiles = [];
+
   for (let { hash, path } of hashes) {
     const targetItem = files.find((item) => item.path === path);
 
@@ -53,13 +56,20 @@ export const install = async () => {
     if (fileHash !== hash) {
       errors.push(`File ${path} hash verification failed`);
     }
+
+    needWriteFiles.push({ path, file });
   }
 
   if (errors.length > 0) {
     throw new Error(errors.join("\n"));
   }
 
-  debugger;
+  // 写入到本地
+  for (let { path, file } of needWriteFiles) {
+    await init("nos");
+    const handle = await get(`nos/${path}`, { create: "file" });
+    await handle.write(file);
+  }
 
   // 写入 nos.json 文件配置
   await configHandle.write(
