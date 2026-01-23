@@ -1,4 +1,5 @@
-importScripts("/npm/jszip@3.10.1/dist/jszip.min.js");
+// importScripts("/npm/jszip@3.10.1/dist/jszip.min.js");
+importScripts(location.origin + "/npm/jszip@3.10.1/dist/jszip.min.js");
 
 const zips = new Map();
 

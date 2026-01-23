@@ -9,6 +9,8 @@ const createWorker = async () => {
   }
 };
 
+debugger
+
 const worker = await createWorker();
 const resolvers = new Map();
 
