@@ -1,7 +1,7 @@
 {
   "version": "4.0.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769166292580,
+  "signTime": 1769171417392,
   "hashes": [
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -185,9 +185,9 @@
     },
     {
       "path": "util/zip/worker.js",
-      "hash": "b6b22a3ae9c833e070bd28fa18b2405c656a62f52f8fbd984719b52d200ccdb6",
-      "size": 1612
+      "hash": "cfae11dbe861db34bf06e12f5d67ae50a78e408822d9bf7106aadca7e65df0a6",
+      "size": 1622
     }
   ],
-  "signature": "yv2Tpt31Dg3QiELWsEb0OgNqzfulIeeBnI1+ImZoi3I8CXnb/kGKz/6iifgjGa2vW578G+xSo+dF98c+EQTjUA=="
+  "signature": "gxAMY15HKjVvccFGywCGjxE65eExc6aNDfa9Xg+3QRj8ZxV1kz6mPWC1KCpINVzpPGn8D74lqOcDF4Q/FNDICw=="
 }

@@ -2,15 +2,18 @@ const workerPath = import.meta.resolve("./worker.js");
 
 const createWorker = async () => {
   try {
-    return new Worker(workerPath);
+    return new Worker(workerPath, {
+      // type: "module",
+    });
   } catch {
     const blob = await fetch(workerPath).then((r) => r.blob());
     return new Worker(URL.createObjectURL(blob));
   }
 };
 
-const worker = await createWorker();
 const resolvers = new Map();
+
+const worker = await createWorker();
 
 const generateId =
   typeof crypto !== "undefined" && crypto.randomUUID

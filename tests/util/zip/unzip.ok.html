@@ -13,7 +13,7 @@
 
       import { test } from "/nos/ok-test/main.js";
 
-      const { unzip } = await import("/nos/util/zip/main.js");
+      const { unzip } = await import("/nos-tool/util/zip/main.js");
 
       const createTextFile = (content, filename) => {
         const blob = new Blob([content], { type: "text/plain" });
@@ -21,7 +21,7 @@
       };
 
       const createZipFile = async (files) => {
-        const { zips } = await import("/nos/util/zip/main.js");
+        const { zips } = await import("/nos-tool/util/zip/main.js");
         const blob = await zips(files);
         return blob;
       };

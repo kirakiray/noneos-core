@@ -11,7 +11,7 @@
     "url": "git+https://github.com/kirakiray/noneos-core.git"
   },
   "license": "Apache-2.0",
-  "author": "",
+  "author": "Yao",
   "type": "module",
   "main": "index.js",
   "scripts": {

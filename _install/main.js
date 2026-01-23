@@ -1,6 +1,5 @@
 export { ready } from "./register.js";
 import { get, init } from "../nos/fs/handle/main.js";
-import { unzip } from "../nos/util/zip/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
 import { getOnlineData } from "./online-data.js";
 
@@ -39,6 +38,8 @@ export const install = async (callback) => {
   const zipBlob = await fetch(import.meta.resolve("../nos.zip")).then((res) =>
     res.blob(),
   );
+
+  const { unzip } = await import("../nos-tool/util/zip/main.js");
 
   // 解压缩文件
   const files = await unzip(zipBlob);
