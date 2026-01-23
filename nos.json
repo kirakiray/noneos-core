@@ -1,7 +1,7 @@
 {
-  "version": "4.0.1",
+  "version": "4.0.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769154257481,
+  "signTime": 1769158973497,
   "hashes": [
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -180,14 +180,14 @@
     },
     {
       "path": "util/zip/main.js",
-      "hash": "f86cbbd4d55ca24a21bf53acf2bf7698bc23bdcf99de708c49ea24db04405753",
-      "size": 1306
+      "hash": "684bf127216e4935ac9667771802ecc6fad00f386a062bc6d6b8b9b430fc3161",
+      "size": 1316
     },
     {
       "path": "util/zip/worker.js",
-      "hash": "57c8cf9e6f85e28fbea63a2c7e83189adf30c34df13cd401558966a9aee18a74",
-      "size": 1470
+      "hash": "b6b22a3ae9c833e070bd28fa18b2405c656a62f52f8fbd984719b52d200ccdb6",
+      "size": 1612
     }
   ],
-  "signature": "5XoT2B8qRk8hD++FE79XXeBZYgcIe8VC7tUShmJP9dLpJaG6JcyN2dAM961YbKaK+tUP7rSveyqZ//LAGlJW4Q=="
+  "signature": "W55xOM//5Szl0jdPB6Izso5yuLF8mlCj85FgK94OovJWxXbDw46Xxphq31vQPaGdCn4ytk+XrxZ+w8rDqByCgw=="
 }
