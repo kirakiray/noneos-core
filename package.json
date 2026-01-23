@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -11,7 +11,7 @@
     "url": "git+https://github.com/kirakiray/noneos-core.git"
   },
   "license": "Apache-2.0",
-  "author": "",
+  "author": "Yao",
   "type": "module",
   "main": "index.js",
   "scripts": {

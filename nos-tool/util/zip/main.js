@@ -9,8 +9,9 @@ const createWorker = async () => {
   }
 };
 
-const worker = await createWorker();
 const resolvers = new Map();
+
+const worker = await createWorker();
 
 const generateId =
   typeof crypto !== "undefined" && crypto.randomUUID
