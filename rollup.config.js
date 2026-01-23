@@ -19,9 +19,9 @@ export default defineConfig({
   plugins: [
     terser({
       format: {
-        comments: /version:/
-      }
-    })
+        comments: /version:/,
+      },
+    }),
   ],
   watch: {
     include: "sw/src/**",
