@@ -15,6 +15,7 @@ export const ready = (async () => {
       });
     });
   }
+
   return registration;
 })();
 

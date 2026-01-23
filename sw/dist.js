@@ -1,3 +1,549 @@
-/* version: 4.0.4 */
-!function(){"use strict";let e=null;const t=async()=>(e||(e=await navigator.storage.getDirectory()),e),s=async({path:e,create:s})=>{const a=await t(),n=e.split("/");""===n[0]&&n.shift();let r=a,c=n.length-1;for(let e=0;e<c&&e!=c;e++){const t=n[e];r=await r.getDirectoryHandle(t,{create:s})}return await r.getFileHandle(n[n.length-1],{create:s})},a=e=>{switch(e.split(".").slice(-1)[0]){case"html":case"htm":return"text/html; charset=utf-8";case"txt":case"md":return"text/plain; charset=utf-8";case"js":case"mjs":return"application/javascript; charset=utf-8";case"json":return"application/json; charset=utf-8";case"css":return"text/css; charset=utf-8";case"xml":return"application/xml; charset=utf-8";case"svg":return"image/svg+xml; charset=utf-8";case"csv":return"text/csv; charset=utf-8";case"ics":return"text/calendar; charset=utf-8";case"pdf":return"application/pdf; charset=utf-8";case"doc":case"docx":return"application/msword; charset=utf-8";case"xls":case"xlsx":return"application/vnd.ms-excel; charset=utf-8";case"ppt":case"pptx":return"application/vnd.ms-powerpoint; charset=utf-8";case"zip":return"application/zip; charset=utf-8";case"gz":return"application/gzip; charset=utf-8";case"tar":return"application/x-tar; charset=utf-8";case"jpg":case"jpeg":return"image/jpeg";case"png":return"image/png";case"gif":return"image/gif";case"bmp":case"bmp":return"image/bmp";case"ico":return"image/x-icon";case"webp":return"image/webp";case"mp3":return"audio/mpeg";case"wav":return"audio/wav";case"mp4":case"m4v":return"video/mp4";case"mov":return"video/quicktime";case"avi":return"video/x-msvideo";default:return e.split("/").slice(-1)[0].includes("esm")?"application/javascript; charset=utf-8":"application/octet-stream"}};let n=null;const r=async e=>{const t=await(async()=>n||new Promise(e=>{const t=indexedDB.open("handles-db",1);t.onupgradeneeded=()=>t.result.createObjectStore("handles",{keyPath:"id"}),t.onsuccess=()=>{n=t.result,e(t.result)},t.onerror=e=>{n=null},t.onblocked=()=>{n=null}}))();return new Promise((s,a)=>{const n=t.transaction("handles").objectStore("handles").get(e);n.onsuccess=e=>{const t=e.target.result;s(t?t.handle:null)},n.onerror=()=>{a(n.error)}})};let c={};self.addEventListener("fetch",e=>{const{request:t}=e,{pathname:n}=new URL(t.url);if("/__version"===n)return e.respondWith(new Response("noneos-core@4.0.4".replace("noneos-core@","")));if("/__config"===n)return e.respondWith(o());try{if(globalThis?.SERVER_OPTIONS?.useNosTool&&/^\/nos-tool\//.test(n))return e.respondWith((async({request:e})=>{const t=location.host;if("localhost:3002"===t)return fetch(e);if(/^localhost:/.test(t)){const t=e.url.replace(/:(\d+)/,":3002");try{return await fetch(t)}catch{return await fetch(e.url)}}const s=e.url.replace(/^https?:\/\/[^\/]+\//,"");return fetch(`https://core.noneos.com/${s}`)})({path:n,request:t,systemConfig:c}));if(/^\/nos\//.test(n))return e.respondWith((async({path:e,request:t,systemConfig:n})=>{if(!n||!n.mode||"online"===n.mode)return fetch(t);if("local"===n.mode)try{const r=e.replace(/^\/nos\//,n.nosMapPath+"/");let c=await s({path:r}).catch(()=>null);if(c){const t=await c.getFile();if(t.size)return new Response(t,{headers:{"Content-Type":a(e)}})}return fetch(t)}catch(e){return fetch(t)}})({path:n,request:t,systemConfig:c}));if(/^\/gh\//.test(n))return e.respondWith((async({path:e})=>{const t=e.replace(/^\/gh\//,"https://cdn.jsdelivr.net/gh/");let n=await s({path:e}).catch(()=>null);if(n){const t=await n.getFile();if(t.size)return new Response(t,{headers:{"Content-Type":a(e)}})}const r=await fetch(t),c=await r.blob();n=await s({path:e,create:!0});const o=await n.createWritable();return await o.write(c),await o.close(),new Response(c,{headers:{"Content-Type":a(e)}})})({path:n,originUrl:t.url,systemConfig:c}));if(/^\/npm\//.test(n))return e.respondWith((async({path:e})=>{const t=e.replace(/^\/npm\//,"https://cdn.jsdelivr.net/npm/");console.log("npm request: ",t);let n=await s({path:e}).catch(()=>null);if(n){const t=await n.getFile();if(t.size){const s=t.type||a(e);return new Response(t,{headers:{"Content-Type":s}})}}try{const r=await fetch(t);if(!r.ok)throw new Error(`Failed to fetch ${t}: ${r.status} ${r.statusText}`);const c=await r.blob();n=await s({path:e,create:!0});const o=await n.createWritable();await o.write(c),await o.close();const i=c.type||a(e);return new Response(c,{headers:{"Content-Type":i}})}catch(e){return console.error("Error fetching npm package:",e),new Response(`Error fetching npm package: ${e.message}`,{status:500,headers:{"Content-Type":"text/plain; charset=utf-8"}})}})({path:n,originUrl:t.url,systemConfig:c}));if(/^\/\$mount-/.test(n))return e.respondWith((async({path:e,originUrl:t})=>{let s=decodeURIComponent(e);/\/$/.test(e)&&(s+="index.html");const n=s.replace(/\/\$mount\-(.+)>.+/,"$1"),c=s.split("/").slice(2);try{const e=await r(n);if(!e)throw new Error(`Mounted ID ${n} not found`);let t=e;for(let e=0;e<c.length;e++){let s=c[e];e===c.length-1?(""===s&&(s="index.html"),t=await t.getFileHandle(s)):t=await t.getDirectoryHandle(s)}const o=s.split(".").pop();return new Response(await t.getFile(),{status:200,headers:{"Content-Type":a(o)}})}catch(e){return new Response(e.stack||e.toString(),{status:400})}})({path:n,originUrl:t.url,systemConfig:c}));if(/^\/\$/.test(n))return e.respondWith((async({path:e})=>{const t=e.replace(/^\/\$/,""),n=await s({path:t}).catch(()=>null);if(n){const t=await n.getFile();if(t.size)return new Response(t,{headers:{"Content-Type":a(e)}})}return new Response("Not Found",{status:404,headers:{"Content-Type":a(e)}})})({path:n,originUrl:t.url,systemConfig:c}))}catch(e){return new Response(e.stack||e.toString(),{status:400})}/^\/_/.test(n)}),self.addEventListener("install",()=>{self.skipWaiting(),console.log("NoneOS installation successful")}),self.addEventListener("activate",()=>{self.clients.claim(),console.log("NoneOS server activation successful"),setTimeout(()=>{o()},1e3)});const o=async()=>{try{const e=await navigator.storage.getDirectory(),t=await e.getDirectoryHandle("nos-config"),s=await t.getFileHandle("system.json"),a=await s.getFile(),n=await a.text();return n&&(c=JSON.parse(n)),new Response(JSON.stringify(c))}catch(e){return console.error("Reload system config failed:",e),new Response("Reload failed: "+(e.message||e),{status:500})}}}();
+/* noneos-core version: 4.0.5 */
+(function () {
+  'use strict';
+
+  let rootHandle = null;
+
+  /**
+   * 获取根目录句柄
+   * @returns {Promise<FileSystemDirectoryHandle>} 根目录句柄
+   */
+  const getRootDirectory = async () => {
+    if (!rootHandle) {
+      rootHandle = await navigator.storage.getDirectory();
+    }
+
+    return rootHandle;
+  };
+
+  /**
+   * 获取文件句柄
+   * @param {Object} options - 选项
+   * @param {string} options.path - 文件路径
+   * @param {boolean} [options.create] - 是否创建文件（如果不存在）
+   * @returns {Promise<FileSystemFileHandle>} 文件句柄
+   */
+  const getFileHandle = async ({ path, create }) => {
+    const rootHandle = await getRootDirectory();
+
+    const paths = path.split("/");
+    if (paths[0] === "") {
+      paths.shift();
+    }
+
+    let currentHandle = rootHandle;
+    let lastId = paths.length - 1;
+    for (let i = 0; i < lastId; i++) {
+      if (i == lastId) {
+        break;
+      }
+      const p = paths[i];
+      currentHandle = await currentHandle.getDirectoryHandle(p, { create });
+    }
+
+    const fileHandle = await currentHandle.getFileHandle(
+      paths[paths.length - 1],
+      { create }
+    );
+
+    return fileHandle;
+  };
+
+  /**
+   * 根据文件扩展名获取 Content-Type
+   * @param {string} path - 文件路径
+   * @returns {string} Content-Type 值
+   */
+  const getContentType = (path) => {
+    const prefix = path.split(".").slice(-1)[0];
+
+    switch (prefix) {
+      case "html":
+      case "htm":
+        return "text/html; charset=utf-8";
+      case "txt":
+      case "md":
+        return "text/plain; charset=utf-8";
+      case "js":
+      case "mjs":
+        return "application/javascript; charset=utf-8";
+      case "json":
+        return "application/json; charset=utf-8";
+      case "css":
+        return "text/css; charset=utf-8";
+      case "xml":
+        return "application/xml; charset=utf-8";
+      case "svg":
+        return "image/svg+xml; charset=utf-8";
+      case "csv":
+        return "text/csv; charset=utf-8";
+      case "ics":
+        return "text/calendar; charset=utf-8";
+      case "pdf":
+        return "application/pdf; charset=utf-8";
+      case "doc":
+      case "docx":
+        return "application/msword; charset=utf-8";
+      case "xls":
+      case "xlsx":
+        return "application/vnd.ms-excel; charset=utf-8";
+      case "ppt":
+      case "pptx":
+        return "application/vnd.ms-powerpoint; charset=utf-8";
+      case "zip":
+        return "application/zip; charset=utf-8";
+      case "gz":
+        return "application/gzip; charset=utf-8";
+      case "tar":
+        return "application/x-tar; charset=utf-8";
+      case "jpg":
+      case "jpeg":
+        return "image/jpeg";
+      case "png":
+        return "image/png";
+      case "gif":
+        return "image/gif";
+      case "bmp":
+        return "image/bmp";
+      case "ico":
+        return "image/x-icon";
+      case "webp":
+        return "image/webp";
+      case "bmp":
+        return "image/bmp";
+      case "mp3":
+        return "audio/mpeg";
+      case "wav":
+        return "audio/wav";
+      case "mp4":
+      case "m4v":
+        return "video/mp4";
+      case "mov":
+        return "video/quicktime";
+      case "avi":
+        return "video/x-msvideo";
+      default:
+        if (path.split("/").slice(-1)[0].includes("esm")) {
+          return "application/javascript; charset=utf-8";
+        }
+
+        return "application/octet-stream";
+    }
+  };
+
+  /**
+   * 从 GitHub 仓库获取文件
+   * @param {Object} options - 选项
+   * @param {string} options.path - 请求路径
+   * @param {string} options.originUrl - 原始请求 URL
+   * @returns {Promise<Response>} 响应对象
+   */
+  const handleGitHubRequest = async ({ path }) => {
+    // 将 /gh/ 路径转换为 jsDelivr CDN URL
+    const rePath = path.replace(/^\/gh\//, "https://cdn.jsdelivr.net/gh/");
+    // const rePath = path.replace(/^\/gh\//, "https://cdn.statically.io/gh/");
+    // console.log("gh: ", rePath);
+
+    let targetHandle = await getFileHandle({ path }).catch(() => null);
+
+    if (targetHandle) {
+      const fileStream = await targetHandle.getFile();
+      if (fileStream.size) {
+        return new Response(fileStream, {
+          headers: {
+            "Content-Type": getContentType(path),
+          },
+        });
+      }
+    }
+
+    // 请求实际文件
+    const response = await fetch(rePath);
+    const blob = await response.blob();
+
+    // 写入缓存
+    targetHandle = await getFileHandle({ path, create: true });
+    const writeStream = await targetHandle.createWritable();
+    await writeStream.write(blob);
+    await writeStream.close();
+
+    // 转化为新的 Response 对象
+    return new Response(blob, {
+      headers: {
+        "Content-Type": getContentType(path),
+      },
+    });
+  };
+
+  /**
+   * 从本地文件系统获取文件
+   * @param {Object} options - 选项
+   * @param {string} options.path - 请求路径
+   * @param {string} options.originUrl - 原始请求 URL
+   * @returns {Promise<Response>} 响应对象
+   */
+  const handleFileRequest = async ({ path }) => {
+    const rePath = path.replace(/^\/\$/, "");
+
+    const fileHandle = await getFileHandle({ path: rePath }).catch(() => null);
+
+    if (fileHandle) {
+      const fileStream = await fileHandle.getFile();
+      if (fileStream.size) {
+        return new Response(fileStream, {
+          headers: {
+            "Content-Type": getContentType(path),
+          },
+        });
+      }
+    }
+
+    return new Response("Not Found", {
+      status: 404,
+      headers: {
+        "Content-Type": getContentType(path),
+      },
+    });
+  };
+
+  /**
+   * 从 NPM CDN 获取包文件
+   * @param {Object} options - 选项
+   * @param {string} options.path - 请求路径
+   * @param {string} options.originUrl - 原始请求 URL
+   * @returns {Promise<Response>} 响应对象
+   */
+  const handleNpmRequest = async ({ path }) => {
+    // 将 /npm/ 路径转换为 jsDelivr CDN URL
+    // 例如: /npm/jquery@3.6.0/dist/jquery.min.js
+    // 转换为: https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js
+    const rePath = path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/");
+
+    console.log("npm request: ", rePath);
+
+    let targetHandle = await getFileHandle({ path }).catch(() => null);
+
+    if (targetHandle) {
+      const fileStream = await targetHandle.getFile();
+      if (fileStream.size) {
+        const type = fileStream.type || getContentType(path);
+        return new Response(fileStream, {
+          headers: {
+            "Content-Type": type,
+          },
+        });
+      }
+    }
+
+    try {
+      // 请求实际文件
+      const response = await fetch(rePath);
+
+      // 检查响应状态
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${rePath}: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+
+      // 写入缓存
+      targetHandle = await getFileHandle({ path, create: true });
+      const writeStream = await targetHandle.createWritable();
+      await writeStream.write(blob);
+      await writeStream.close();
+
+      const type = blob.type || getContentType(path);
+
+      // 转化为新的 Response 对象
+      return new Response(blob, {
+        headers: {
+          "Content-Type": type,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching npm package:", error);
+
+      return new Response(`Error fetching npm package: ${error.message}`, {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+      });
+    }
+  };
+
+  // db相关的操作
+  let _handleDB = null;
+  const getHandleDB = async () => {
+    if (_handleDB) return _handleDB;
+
+    return new Promise((resolve) => {
+      const req = indexedDB.open("handles-db", 1);
+      req.onupgradeneeded = () =>
+        req.result.createObjectStore("handles", { keyPath: "id" });
+      req.onsuccess = () => {
+        _handleDB = req.result;
+        resolve(req.result);
+      };
+      req.onerror = (e) => {
+        _handleDB = null;
+      };
+      req.onblocked = () => {
+        _handleDB = null;
+      };
+    });
+  };
+
+  // 加载指定ID的句柄
+  const loadHandle = async (id) => {
+    const db = await getHandleDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction("handles").objectStore("handles").get(id);
+      req.onsuccess = (e) => {
+        const result = e.target.result;
+        resolve(result ? result.handle : null);
+      };
+      req.onerror = () => {
+        reject(req.error);
+      };
+    });
+  };
+
+  const handleMountRequest = async ({ path, originUrl }) => {
+    let pathname = decodeURIComponent(path);
+
+    if (/\/$/.test(path)) {
+      pathname += "index.html";
+    }
+
+    const mountedId = pathname.replace(/\/\$mount\-(.+)>.+/, "$1");
+    const pathsArr = pathname.split("/").slice(2);
+
+    // 改用直接的 opfs 读取文件方法
+    try {
+      const rootHandle = await loadHandle(mountedId);
+
+      if (!rootHandle) {
+        throw new Error(`Mounted ID ${mountedId} not found`);
+      }
+
+      let finalHandle = rootHandle;
+      for (let i = 0; i < pathsArr.length; i++) {
+        let part = pathsArr[i];
+        const isLast = i === pathsArr.length - 1;
+        if (isLast) {
+          if (part === "") {
+            part = "index.html";
+          }
+          finalHandle = await finalHandle.getFileHandle(part);
+        } else {
+          finalHandle = await finalHandle.getDirectoryHandle(part);
+        }
+      }
+
+      const prefix = pathname.split(".").pop();
+
+      return new Response(await finalHandle.getFile(), {
+        status: 200,
+        headers: {
+          "Content-Type": getContentType(prefix),
+        },
+      });
+    } catch (err) {
+      return new Response(err.stack || err.toString(), {
+        status: 400,
+      });
+    }
+  };
+
+  const handleNosRequest = async ({ path, request, systemConfig }) => {
+    if (!systemConfig || !systemConfig.mode || systemConfig.mode === "online") {
+      // 没有配置数据时，直接返回线上数据
+      return fetch(request);
+    }
+
+    if (systemConfig.mode === "local") {
+      try {
+        const rePath = path.replace(/^\/nos\//, systemConfig.nosMapPath + "/");
+
+        let targetHandle = await getFileHandle({ path: rePath }).catch(
+          () => null,
+        );
+
+        if (targetHandle) {
+          const fileStream = await targetHandle.getFile();
+
+          if (fileStream.size) {
+            return new Response(fileStream, {
+              headers: {
+                "Content-Type": getContentType(path),
+              },
+            });
+          }
+        }
+
+        return fetch(request);
+      } catch (err) {
+        return fetch(request);
+      }
+    }
+  };
+
+  const handleNosToolRequest = async ({ request }) => {
+    const host = location.host;
+
+    if (host === "localhost:3002") {
+      return fetch(request);
+    }
+
+    if (/^localhost:/.test(host)) {
+      const newUrl = request.url.replace(/:(\d+)/, ":3002");
+      try {
+        return await fetch(newUrl);
+      } catch {
+        return await fetch(request.url);
+      }
+    }
+
+    const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+    return fetch(`https://core.noneos.com/${afterHost}`);
+  };
+
+  // 当前系统的配置信息
+  // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
+  let systemConfig = {};
+
+  const NONEOS_CORE_VERSION = "noneos-core@4.0.5";
+
+  self.addEventListener("fetch", (event) => {
+    const { request } = event;
+    const { pathname } = new URL(request.url);
+
+    // console.log("pathname: ", pathname);
+
+    if (pathname === "/__version") {
+      return event.respondWith(
+        new Response(NONEOS_CORE_VERSION.replace("noneos-core@", "")),
+      );
+    }
+
+    if (pathname === "/__config") {
+      return event.respondWith(reloadSystemConfig());
+    }
+
+    try {
+      if (
+        globalThis?.SERVER_OPTIONS?.useNosTool &&
+        /^\/nos-tool\//.test(pathname)
+      ) {
+        return event.respondWith(
+          handleNosToolRequest({
+            path: pathname,
+            request,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/nos\//.test(pathname)) {
+        return event.respondWith(
+          handleNosRequest({
+            path: pathname,
+            request,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/gh\//.test(pathname)) {
+        // 从 GitHub 仓库获取文件
+        return event.respondWith(
+          handleGitHubRequest({
+            path: pathname,
+            originUrl: request.url,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/npm\//.test(pathname)) {
+        // 从 NPM CDN 获取包文件
+        return event.respondWith(
+          handleNpmRequest({
+            path: pathname,
+            originUrl: request.url,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/\$mount-/.test(pathname)) {
+        return event.respondWith(
+          handleMountRequest({
+            path: pathname,
+            originUrl: request.url,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/\$/.test(pathname)) {
+        return event.respondWith(
+          handleFileRequest({
+            path: pathname,
+            originUrl: request.url,
+            systemConfig,
+          }),
+        );
+      }
+    } catch (err) {
+      return new Response(err.stack || err.toString(), {
+        status: 400,
+      });
+    }
+
+    if (/^\/_/.test(pathname)) {
+      // 隐藏目录开头的，属于本地文件，无需代理
+      return;
+    }
+  });
+
+  self.addEventListener("install", () => {
+    self.skipWaiting();
+    console.log("NoneOS installation successful");
+  });
+
+  self.addEventListener("activate", () => {
+    self.clients.claim();
+    console.log("NoneOS server activation successful");
+
+    setTimeout(() => {
+      reloadSystemConfig();
+    }, 1000);
+  });
+
+  const reloadSystemConfig = async () => {
+    try {
+      const rootHandle = await navigator.storage.getDirectory();
+      const configHandle = await rootHandle.getDirectoryHandle("nos-config");
+      const configFileHandle = await configHandle.getFileHandle("system.json");
+      const file = await configFileHandle.getFile();
+      const content = await file.text();
+
+      if (content) {
+        systemConfig = JSON.parse(content);
+      }
+
+      return new Response(JSON.stringify(systemConfig));
+    } catch (err) {
+      console.error("Reload system config failed:", err);
+      return new Response("Reload failed: " + (err.message || err), {
+        status: 500,
+      });
+    }
+  };
+
+})();
 //# sourceMappingURL=dist.js.map
