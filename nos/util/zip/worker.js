@@ -1,5 +1,5 @@
 // importScripts("/npm/jszip@3.10.1/dist/jszip.min.js");
-importScripts(location.origin + "/npm/jszip@3.10.1/dist/jszip.min.js");
+importScripts(location.origin + "/npm/jszip@3.10.1/dist/jszip.min.js"); // 在 worker会使用当前源地址的host，就无法使用/npm
 
 const zips = new Map();
 
