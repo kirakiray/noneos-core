@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -16,8 +16,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
-    "static": "http-server -p 3002 -c-1",
-    "build": "npm run build:hashes && node scripts/pack-nos.js &&  npm run build:sw",
+    "static": "http-server -p 3002 -c-1 --cors",
+    "bump": "node scripts/bump.js && npm i && npm run build",
+    "build": "npm run build:hashes && node scripts/pack-nos.js && npm run build:sw",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",

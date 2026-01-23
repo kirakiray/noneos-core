@@ -70,8 +70,8 @@
         color: var(--md-sys-color-primary);
       }
     </style>
-    <link rel="stylesheet" href="css/palette.css" pui-colors="" />
-    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="/nos-tool/css/palette.css" pui-colors="" />
+    <link rel="stylesheet" href="/nos-tool/css/theme.css" />
   </head>
   <body>
     <!-- Loading Animation -->
@@ -99,11 +99,11 @@
         <li>
           <locale-text>
             <span lang="cn">
-              <a href="/_packages/studio/">OFA Studio</a> ： 用于开发 ofa.js
+              <a href="/nos-tool/studio/">OFA Studio</a> ： 用于开发 ofa.js
               项目的集成开发环境（IDE）
             </span>
             <span lang="en">
-              <a href="/_packages/studio/">OFA Studio</a> ： Integrated
+              <a href="/nos-tool/studio/">OFA Studio</a> ： Integrated
               Development Environment (IDE) for ofa.js projects
             </span>
           </locale-text>
@@ -111,11 +111,11 @@
         <li>
           <locale-text>
             <span lang="cn">
-              <a href="/_packages/file-explore/">File Explore</a
+              <a href="/nos-tool/file-explore/">File Explore</a
               >：查看虚拟文件系统
             </span>
             <span lang="en">
-              <a href="/_packages/file-explore/">File Explore</a>：View the
+              <a href="/nos-tool/file-explore/">File Explore</a>：View the
               virtual file system
             </span>
           </locale-text>
@@ -124,13 +124,9 @@
     </article>
 
     <script type="module">
-      import { install } from "/_install/main.js";
-      await install();
-    </script>
-
-    <script type="module">
-      import { ready } from "/_install/register.js";
+      import { install, ready } from "/_install/main.js";
       await ready;
+      await install();
 
       const load = lm(import.meta);
 
