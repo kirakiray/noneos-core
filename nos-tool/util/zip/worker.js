@@ -1,6 +1,6 @@
 // import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
-// import JSZip from "./jszip.js";
-import JSZip from "/npm/jszip@3.10.1/+esm";
+// import JSZip from "/npm/jszip@3.10.1/+esm";
+import JSZip from "./jszip.js";
 
 const zips = new Map();
 
