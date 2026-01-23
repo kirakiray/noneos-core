@@ -4,19 +4,18 @@ const createWorker = async () => {
   try {
     return new Worker(workerPath);
   } catch {
-    const blob = await fetch(workerPath).then(r => r.blob());
+    const blob = await fetch(workerPath).then((r) => r.blob());
     return new Worker(URL.createObjectURL(blob));
   }
 };
 
-debugger
-
 const worker = await createWorker();
 const resolvers = new Map();
 
-const generateId = typeof crypto !== 'undefined' && crypto.randomUUID
-  ? () => crypto.randomUUID()
-  : () => Math.random().toString(16).slice(2, 18);
+const generateId =
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? () => crypto.randomUUID()
+    : () => Math.random().toString(16).slice(2, 18);
 
 worker.onmessage = (e) => {
   const { id, error, content } = e.data;
@@ -29,7 +28,9 @@ worker.onmessage = (e) => {
 
 export async function unzip(file) {
   const id = generateId();
-  const promise = new Promise((resolve, reject) => resolvers.set(id, { resolve, reject }));
+  const promise = new Promise((resolve, reject) =>
+    resolvers.set(id, { resolve, reject }),
+  );
   worker.postMessage({ taskType: "unzip", id, file });
   return promise;
 }
