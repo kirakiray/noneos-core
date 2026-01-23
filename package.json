@@ -18,7 +18,7 @@
     "dev": "npm run static & npm run watch:sw",
     "static": "http-server -p 3002 -c-1",
     "bump": "node scripts/bump.js && npm i && npm run build",
-    "build": "npm run build:hashes && node scripts/pack-nos.js &&  npm run build:sw",
+    "build": "npm run build:hashes && node scripts/pack-nos.js && npm run build:sw",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
