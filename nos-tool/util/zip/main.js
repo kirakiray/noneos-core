@@ -2,9 +2,7 @@ const workerPath = import.meta.resolve("./worker.js");
 
 const createWorker = async () => {
   try {
-    return new Worker(workerPath, {
-      // type: "module",
-    });
+    return new Worker(workerPath);
   } catch {
     const blob = await fetch(workerPath).then((r) => r.blob());
     return new Worker(URL.createObjectURL(blob));
