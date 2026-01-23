@@ -123,14 +123,12 @@
       </ul>
     </article>
 
-    <script type="module">
-      import { install } from "/_install/main.js";
-      await install();
-    </script>
+    <script type="module"></script>
 
     <script type="module">
-      import { ready } from "/_install/register.js";
+      import { install, ready } from "/_install/main.js";
       await ready;
+      await install();
 
       const load = lm(import.meta);
 

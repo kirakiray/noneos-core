@@ -1,3 +1,4 @@
+export { ready } from "./register.js";
 import { get, init } from "/nos/fs/handle/main.js";
 import { unzip } from "/nos/util/zip/main.js";
 import { getFileHash } from "/nos/util/hash/get-file-hash.js";
