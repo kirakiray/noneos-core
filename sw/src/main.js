@@ -28,7 +28,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   try {
-    if (SERVER_OPTIONS?.useNosTool && /^\/nos-tool\//.test(pathname)) {
+    if (
+      globalThis?.SERVER_OPTIONS?.useNosTool &&
+      /^\/nos-tool\//.test(pathname)
+    ) {
       return event.respondWith(
         handleNosToolRequest({
           path: pathname,
