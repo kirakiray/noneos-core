@@ -3,6 +3,7 @@ import { handleFileRequest } from "./modules/file-handler.js";
 import { handleNpmRequest } from "./modules/npm-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
+import { handleNosToolRequest } from "./modules/nostool-handle.js";
 
 // 当前系统的配置信息
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
@@ -27,6 +28,16 @@ self.addEventListener("fetch", (event) => {
   }
 
   try {
+    if (SERVER_OPTIONS?.useNosTool && /^\/nos-tool\//.test(pathname)) {
+      return event.respondWith(
+        handleNosToolRequest({
+          path: pathname,
+          request,
+          systemConfig,
+        }),
+      );
+    }
+
     if (/^\/nos\//.test(pathname)) {
       return event.respondWith(
         handleNosRequest({
