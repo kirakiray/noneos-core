@@ -20,7 +20,7 @@ export const check = async () => {
 
   let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
-  let serviceWorkerVersion = await fetch("/__version")
+  let serviceWorkerVersion = await fetch("/__sw_version")
     .then((e) => e.text())
     .catch(() => "");
 

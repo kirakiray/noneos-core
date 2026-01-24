@@ -423,7 +423,7 @@
 
     // console.log("pathname: ", pathname);
 
-    if (pathname === "/__version") {
+    if (pathname === "/__sw_version") {
       return event.respondWith(
         new Response(NONEOS_CORE_VERSION.replace("noneos-core@", "")),
       );
