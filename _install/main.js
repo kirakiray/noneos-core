@@ -1,6 +1,6 @@
 import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
-import { getOnlineData } from "./online-data.js";
+import { getOnlineData } from "./util.js";
 
 // 执行安装程序
 export const install = async () => {
@@ -9,18 +9,17 @@ export const install = async () => {
 
 // 检查系统的状况
 export const check = async () => {
-  const configHandle = await get("nos-config/system.json", {
+  const systemConfigFile = await get("nos-config/system.json", {
     create: "file",
   });
 
-  let configData = (await configHandle.json().catch(() => null)) || {};
+  let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
-  const swVersion = await fetch("/__version")
+  const serviceWorkerVersion = await fetch("/__version")
     .then((e) => e.text())
     .catch(() => null);
 
-  if (!swVersion || !configData.version) {
-    // 没有注册sw 或者 配置文件没有版本号，都是未安装或者安装失败
+  if (!serviceWorkerVersion || !systemConfig.version) {
     return {
       state: "uninstalled",
     };
@@ -28,77 +27,71 @@ export const check = async () => {
 
   const { onlineNosConfig } = await getOnlineData();
 
-  if (configData.version !== onlineNosConfig.version) {
+  if (systemConfig.version !== onlineNosConfig.version) {
     return {
       state: "upgradable",
-      localVersion: configData.version,
-      swVersion,
+      localVersion: systemConfig.version,
+      onlineVersion: onlineNosConfig.version,
+      serviceWorkerVersion,
     };
   }
 
   return {
     state: "installed",
-    version: configData.version,
+    version: systemConfig.version,
   };
 };
 
 // 安装系统文件
 export const installSystemFile = async (callback) => {
-  // 获取根证书，并生成验证器
   const { onlineNosConfig } = await getOnlineData();
 
-  // 设置为在线模式
   await updateSystemConfig({
     mode: "online",
   });
 
-  // 下载zip包
   const zipBlob = await fetch(import.meta.resolve("../nos.zip")).then((res) =>
     res.blob(),
   );
 
   const { unzip } = await import("../nos-tool/util/zip/main.js");
 
-  // 解压缩文件
-  const files = await unzip(zipBlob);
+  const extractedFiles = await unzip(zipBlob);
 
-  const hashes = onlineNosConfig.hashes;
-
+  const fileHashes = onlineNosConfig.hashes;
   const errors = [];
+  const pendingWriteFiles = [];
 
-  // 等待被写入的文件
-  const needWriteFiles = [];
+  for (const { hash, path } of fileHashes) {
+    const matchedFile = extractedFiles.find((item) => item.path === path);
 
-  for (let { hash, path } of hashes) {
-    const targetItem = files.find((item) => item.path === path);
-
-    if (!targetItem) {
+    if (!matchedFile) {
       errors.push(`File ${path} not found in zip`);
       continue;
     }
 
-    // 确保文件没被篡改
-    const { file } = targetItem;
-    const fileHash = await getFileHash(file);
+    const { file: targetFile } = matchedFile;
+    const computedHash = await getFileHash(targetFile);
 
-    if (fileHash !== hash) {
+    if (computedHash !== hash) {
       errors.push(`File ${path} hash verification failed`);
+    } else {
+      pendingWriteFiles.push({ path, file: targetFile });
     }
-
-    needWriteFiles.push({ path, file });
   }
 
   if (errors.length > 0) {
-    throw new Error(errors.join("\n"));
+    throw new AggregateError(errors, "File verification failed");
   }
 
   const nosMapPath = "nos-" + onlineNosConfig.version;
 
-  // 写入到本地
-  for (let { path, file } of needWriteFiles) {
-    await init(nosMapPath);
-    const handle = await get(`${nosMapPath}/${path}`, { create: "file" });
-    await handle.write(file);
+  await init(nosMapPath);
+
+  for (const { path, file } of pendingWriteFiles) {
+    const fileHandle = await get(`${nosMapPath}/${path}`, { create: "file" });
+    await fileHandle.write(file);
+    callback?.(path);
   }
 
   await updateSystemConfig({
@@ -112,22 +105,20 @@ export const installSystemFile = async (callback) => {
 const updateSystemConfig = async (options) => {
   await init("nos-config");
 
-  const configHandle = await get("nos-config/system.json", {
+  const systemConfigFile = await get("nos-config/system.json", {
     create: "file",
   });
 
-  let configData = (await configHandle.json().catch(() => null)) || {};
+  let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
-  configData = {
-    ...configData,
+  systemConfig = {
+    ...systemConfig,
     ...options,
   };
 
-  // 设置为在线模式
-  await configHandle.write(JSON.stringify(configData));
+  await systemConfigFile.write(JSON.stringify(systemConfig));
 
-  // const newConfigData = await fetch("/__config").then((e) => e.json()); // 触发更新配置文件
-  await fetch("/__config").then((e) => e.json()); // 更新配置文件
+  await fetch("/__config").then((e) => e.json());
 
-  return configData;
+  return systemConfig;
 };

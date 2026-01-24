@@ -121,13 +121,16 @@
           </locale-text>
         </li>
       </ul>
+
+      <div id="status"></div>
     </article>
 
     <script type="module">
       import { check } from "/_install/main.js";
 
       const stateData = await check();
-      console.log(stateData);
+
+      $("#status").text = stateData;
 
       const load = lm(import.meta);
 
