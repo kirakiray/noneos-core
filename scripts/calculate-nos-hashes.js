@@ -11,6 +11,8 @@ function getAllFiles(dirPath, arrayOfFiles = []) {
   const files = fs.readdirSync(dirPath);
 
   files.forEach(file => {
+    if (file === '.DS_Store') return;
+
     const fullPath = path.join(dirPath, file);
     const stat = fs.statSync(fullPath);
 

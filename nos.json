@@ -1,13 +1,8 @@
 {
-  "version": "4.0.8",
+  "version": "4.0.9",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769263499027,
+  "signTime": 1769274325027,
   "hashes": [
-    {
-      "path": ".DS_Store",
-      "hash": "02819dbc07cf19a4f8093964f9bc266dbeb75a25f0c56f1b67f8daadb3c93954",
-      "size": 8196
-    },
     {
       "path": "crypto/crypto-ecdsa.js",
       "hash": "d1243d0aefa3b93b12c80a765d641574b920eeecff6ac9043f78593f3a9aeab4",
@@ -139,11 +134,6 @@
       "size": 325
     },
     {
-      "path": "util/.DS_Store",
-      "hash": "14026453e901b62052c3146ad0b795ec979a5de84cf5c801d10020ab9dad2ad4",
-      "size": 6148
-    },
-    {
       "path": "util/async-pool.js",
       "hash": "849891bdc7295beace91fcdadf5b52581c1882af3fe8cfedb7145a8a175e8518",
       "size": 1814
@@ -189,5 +179,5 @@
       "size": 1692
     }
   ],
-  "signature": "CVg1ahrbz85PSMGYxzAMl8STk4RoopX8tUx4xc4Hd6IYs+OIktGL3rTKFUTHUKWjz8GTWtM6+9JfEilEElhMAA=="
+  "signature": "SVixL55OyY97rCO4xHviiFRiRTDW4NnHkdkGwL6K3JJatUYUIEJWnZW04+bU1khageK4EGRj6/P77nKRCL1SmQ=="
 }
