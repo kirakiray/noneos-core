@@ -1,3 +1,4 @@
+// 注册 Service Worker
 export const register = async (name) => {
   const registration = await navigator.serviceWorker.register("/" + name);
 
@@ -19,6 +20,7 @@ export const register = async (name) => {
   return registration;
 };
 
+// 清除所有 Service Worker 注册
 export const clear = async () => {
   const registrations = await navigator.serviceWorker.getRegistrations();
   for (const registration of registrations) {

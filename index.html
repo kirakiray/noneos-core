@@ -124,8 +124,10 @@
     </article>
 
     <script type="module">
-      import { install } from "/_install/main.js";
-      await install();
+      import { check } from "/_install/main.js";
+
+      const stateData = await check();
+      console.log(stateData);
 
       const load = lm(import.meta);
 

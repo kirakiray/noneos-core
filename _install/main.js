@@ -2,8 +2,44 @@ import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
 import { getOnlineData } from "./online-data.js";
 
+// 执行安装程序
 export const install = async () => {
   await installSystemFile();
+};
+
+// 检查系统的状况
+export const check = async () => {
+  const configHandle = await get("nos-config/system.json", {
+    create: "file",
+  });
+
+  let configData = (await configHandle.json().catch(() => null)) || {};
+
+  const swVersion = await fetch("/__version")
+    .then((e) => e.text())
+    .catch(() => null);
+
+  if (!swVersion || !configData.version) {
+    // 没有注册sw 或者 配置文件没有版本号，都是未安装或者安装失败
+    return {
+      state: "uninstalled",
+    };
+  }
+
+  const { onlineNosConfig } = await getOnlineData();
+
+  if (configData.version !== onlineNosConfig.version) {
+    return {
+      state: "upgradable",
+      localVersion: configData.version,
+      swVersion,
+    };
+  }
+
+  return {
+    state: "installed",
+    version: configData.version,
+  };
 };
 
 // 安装系统文件
@@ -73,10 +109,10 @@ export const installSystemFile = async (callback) => {
 };
 
 // 设置使用在线文件
-export const updateSystemConfig = async (options) => {
+const updateSystemConfig = async (options) => {
   await init("nos-config");
 
-  let configHandle = await get("nos-config/system.json", {
+  const configHandle = await get("nos-config/system.json", {
     create: "file",
   });
 

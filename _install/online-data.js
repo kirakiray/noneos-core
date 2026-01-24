@@ -5,6 +5,7 @@ export const getOnlineData = async () => {
   const rootCert = await fetch(
     import.meta.resolve("../nos/root-cert.json"),
   ).then((e) => e.json());
+
   const isRootCertValid = await verifyData(rootCert);
 
   if (!isRootCertValid) {
