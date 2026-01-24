@@ -504,10 +504,10 @@
       });
     }
 
-    if (/^\/_/.test(pathname)) {
-      // 隐藏目录开头的，属于本地文件，无需代理
-      return;
-    }
+    // if (/^\/_/.test(pathname)) {
+    //   // 隐藏目录开头的，属于本地文件，无需代理
+    //   return;
+    // }
   });
 
   self.addEventListener("install", () => {

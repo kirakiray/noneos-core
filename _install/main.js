@@ -19,9 +19,14 @@ export const check = async () => {
 
   let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
-  const serviceWorkerVersion = await fetch("/__version")
+  let serviceWorkerVersion = await fetch("/__version")
     .then((e) => e.text())
-    .catch(() => null);
+    .catch(() => "");
+
+  // 如果不是版本号格式，说明服务工作线程未安装，清空内容
+  if (!/^\d+\.\d+\.\d+$/.test(serviceWorkerVersion)) {
+    serviceWorkerVersion = "";
+  }
 
   if (!serviceWorkerVersion || !systemConfig.version) {
     return {
