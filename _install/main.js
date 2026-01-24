@@ -78,11 +78,7 @@ export const installSystemFile = async (callback) => {
     res.blob(),
   );
 
-  debugger;
-
   const extractedFiles = await unzip(zipBlob);
-
-  debugger;
 
   const fileHashes = onlineNosConfig.hashes;
   const errors = [];
