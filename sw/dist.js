@@ -1,4 +1,4 @@
-/* noneos-core version: 4.0.7 */
+/* noneos-core version: 4.0.8 */
 (function () {
   'use strict';
 
@@ -415,7 +415,7 @@
   // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
   let systemConfig = {};
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.0.7";
+  const NONEOS_CORE_VERSION = "noneos-core@4.0.8";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
@@ -423,7 +423,7 @@
 
     // console.log("pathname: ", pathname);
 
-    if (pathname === "/__version") {
+    if (pathname === "/__sw_version") {
       return event.respondWith(
         new Response(NONEOS_CORE_VERSION.replace("noneos-core@", "")),
       );
@@ -544,6 +544,8 @@
       });
     }
   };
+
+  reloadSystemConfig();
 
 })();
 //# sourceMappingURL=dist.js.map

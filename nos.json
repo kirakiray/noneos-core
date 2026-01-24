@@ -1,7 +1,7 @@
 {
-  "version": "4.0.7",
+  "version": "4.0.8",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1769260746242,
+  "signTime": 1769263499027,
   "hashes": [
     {
       "path": ".DS_Store",
@@ -189,5 +189,5 @@
       "size": 1692
     }
   ],
-  "signature": "wMkffKqYSINHrr3OdhYRXkn59SNAwUUUp8c7Lz/XWViLYX2f9R+VVz/SHxAxCIbPuuzvPa5/eazM2vRm1Wt0Pw=="
+  "signature": "CVg1ahrbz85PSMGYxzAMl8STk4RoopX8tUx4xc4Hd6IYs+OIktGL3rTKFUTHUKWjz8GTWtM6+9JfEilEElhMAA=="
 }

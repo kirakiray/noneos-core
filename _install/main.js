@@ -20,7 +20,7 @@ export const check = async () => {
 
   let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
-  let serviceWorkerVersion = await fetch("/__version")
+  let serviceWorkerVersion = await fetch("/__sw_version")
     .then((e) => e.text())
     .catch(() => "");
 
@@ -124,7 +124,7 @@ export const installSystemFile = async (callback) => {
 };
 
 // 设置使用在线文件
-const updateSystemConfig = async (options) => {
+export const updateSystemConfig = async (options) => {
   await init("nos-config");
 
   const systemConfigFile = await get("nos-config/system.json", {
