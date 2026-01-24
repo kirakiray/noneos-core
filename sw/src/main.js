@@ -138,3 +138,5 @@ const reloadSystemConfig = async () => {
     });
   }
 };
+
+reloadSystemConfig();

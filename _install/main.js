@@ -140,8 +140,6 @@ export const updateSystemConfig = async (options) => {
 
   await systemConfigFile.write(JSON.stringify(systemConfig));
 
-  await new Promise((resolve) => setTimeout(resolve, 100)); // 如果直接读取，可能太快导致读取到旧值，所以等待 100ms 确保写入完成
-
   await fetch("/__config").then((e) => e.json());
 
   return systemConfig;
