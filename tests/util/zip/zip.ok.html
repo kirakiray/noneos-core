@@ -3,27 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Zips Test</title>
+    <title>Zip Test</title>
     <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
   </head>
   <body>
     <script type="module">
       import { test } from "/nos/ok-test/main.js";
-      const { zips, unzip } = await import("/nos-tool/util/zip/main.js");
+      const { zip, unzip } = await import("/nos-tool/util/zip/main.js");
 
       const createTextFile = (content, filename) => {
         const blob = new Blob([content], { type: "text/plain" });
         return new File([blob], filename, { type: "text/plain" });
       };
 
-      await test("zips - Single File Compression Test", async () => {
+      await test("zip - Single File Compression Test", async () => {
         const files = [
           {
             file: createTextFile("Hello World", "hello.txt"),
             path: "hello.txt",
           },
         ];
-        const zipBlob = await zips(files);
+        const zipBlob = await zip(files);
 
         return {
           assert: zipBlob instanceof Blob && zipBlob.size > 0,
@@ -31,18 +31,18 @@
             message: "单个文件压缩测试",
             filesCount: 1,
             isBlob: zipBlob instanceof Blob,
-            zipSize: zipBlob.size,
+            zipize: zipBlob.size,
           },
         };
       });
 
-      await test("zips - Multiple Files Compression Test", async () => {
+      await test("zip - Multiple Files Compression Test", async () => {
         const files = [
           { file: createTextFile("Content 1", "file1.txt"), path: "file1.txt" },
           { file: createTextFile("Content 2", "file2.txt"), path: "file2.txt" },
           { file: createTextFile("Content 3", "file3.txt"), path: "file3.txt" },
         ];
-        const zipBlob = await zips(files);
+        const zipBlob = await zip(files);
         const extractedFiles = await unzip(zipBlob);
 
         const allFilesCompressed =
@@ -63,7 +63,7 @@
         };
       });
 
-      await test("zips - Nested Directory Compression Test", async () => {
+      await test("zip - Nested Directory Compression Test", async () => {
         const files = [
           { file: createTextFile("Root File", "root.txt"), path: "root.txt" },
           {
@@ -75,7 +75,7 @@
             path: "folder/deep/deep.txt",
           },
         ];
-        const zipBlob = await zips(files);
+        const zipBlob = await zip(files);
         const extractedFiles = await unzip(zipBlob);
 
         const hasNestedStructure =
@@ -94,7 +94,7 @@
         };
       });
 
-      await test("zips - Content Integrity Test", async () => {
+      await test("zip - Content Integrity Test", async () => {
         const originalContent = "Integrity test content for compression";
         const files = [
           {
@@ -102,7 +102,7 @@
             path: "integrity.txt",
           },
         ];
-        const zipBlob = await zips(files);
+        const zipBlob = await zip(files);
         const extractedFiles = await unzip(zipBlob);
         const extractedContent = await extractedFiles[0].file.text();
 

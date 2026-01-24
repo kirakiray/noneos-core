@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("zips Test", async ({ page, browserName }) => {
   test.skip(browserName === "firefox", "Skipping Firefox");
 
-  await page.goto("tests/util/zip/zips.ok.html");
+  await page.goto("tests/util/zip/zip.ok.html");
 
   const count = 4;
 

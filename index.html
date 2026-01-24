@@ -123,15 +123,16 @@
       </ul>
 
       <div id="status"></div>
+
+      <button id="install-btn">ReInstall</button>
     </article>
 
     <script type="module">
-      import {
-        check,
-        install,
-        installServiceWorker,
-        installSystemFile,
-      } from "/_install/main.js";
+      import { check, install } from "/_install/main.js";
+
+      $("#install-btn").on("click", async () => {
+        install();
+      });
 
       const stateData = await check();
 

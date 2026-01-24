@@ -2,6 +2,7 @@ import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
 import { getOnlineData } from "./util.js";
 import { registerSw, clearSw } from "./util.js";
+import { unzip } from "../nos-tool/util/zip/main.js";
 
 // 执行安装程序
 export const install = async () => {
@@ -77,9 +78,11 @@ export const installSystemFile = async (callback) => {
     res.blob(),
   );
 
-  const { unzip } = await import("../nos-tool/util/zip/main.js");
+  debugger;
 
   const extractedFiles = await unzip(zipBlob);
+
+  debugger;
 
   const fileHashes = onlineNosConfig.hashes;
   const errors = [];

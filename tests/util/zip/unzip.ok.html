@@ -19,8 +19,8 @@
       };
 
       const createZipFile = async (files) => {
-        const { zips } = await import("/nos-tool/util/zip/main.js");
-        const blob = await zips(files);
+        const { zip } = await import("/nos-tool/util/zip/main.js");
+        const blob = await zip(files);
         return blob;
       };
 

@@ -1,52 +1,89 @@
-const workerPath = import.meta.resolve("./worker.js");
-
-const createWorker = async () => {
-  try {
-    return new Worker(workerPath, { type: "module" });
-  } catch {
-    const blob = await fetch(workerPath).then((r) => r.blob());
-    return new Worker(URL.createObjectURL(blob), { type: "module" });
-  }
-};
-
-const resolvers = new Map();
-
-const worker = await createWorker();
-
-const generateId =
-  typeof crypto !== "undefined" && crypto.randomUUID
-    ? () => crypto.randomUUID()
-    : () => Math.random().toString(16).slice(2, 18);
-
-worker.onmessage = (e) => {
-  const { id, error, content } = e.data;
-  const task = resolvers.get(id);
-  if (task) {
-    error ? task.reject(error) : task.resolve(content);
-    resolvers.delete(id);
-  }
-};
+import { Unzip, UnzipInflate, zip as fflateZip } from "./fflate.mjs";
 
 export async function unzip(file) {
-  const id = generateId();
-  const promise = new Promise((resolve, reject) =>
-    resolvers.set(id, { resolve, reject }),
-  );
-  worker.postMessage({ taskType: "unzip", id, file });
-  return promise;
+  const unzipper = new Unzip();
+
+  // ⚠️ 关键：注册 DEFLATE 压缩处理器（type 8）
+  unzipper.register(UnzipInflate);
+
+  const files = [];
+  let pendingFiles = 0;
+
+  unzipper.onfile = (fileInfo) => {
+    pendingFiles++;
+    const chunks = [];
+    let totalSize = 0;
+
+    fileInfo.ondata = (err, chunk, final) => {
+      if (err) {
+        console.error("解压错误:", err);
+        return;
+      }
+      chunks.push(chunk);
+      totalSize += chunk.length;
+
+      if (final) {
+        // 合并所有 chunks
+        const result = new Uint8Array(totalSize);
+        let offset = 0;
+        for (const c of chunks) {
+          result.set(c, offset);
+          offset += c.length;
+        }
+
+        pendingFiles--;
+
+        if (!fileInfo.name.endsWith("/")) {
+          files.push({
+            path: fileInfo.name,
+            file: new File([result], fileInfo.name.split("/").pop()),
+          });
+        }
+
+        // console.log(`✅ 完成: ${fileInfo.name} (${totalSize} bytes)`);
+      }
+    };
+
+    // 开始解压该文件
+    fileInfo.start();
+  };
+
+  // 流式读取文件
+  const stream = file.stream();
+  const reader = stream.getReader();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      // 喂数据给解压器
+      unzipper.push(value || new Uint8Array(0), done);
+      if (done) break;
+    }
+  } catch (err) {
+    console.error("读取文件流错误:", err);
+    throw err;
+  }
+
+  return files;
 }
 
-export function zips(files) {
+export const zip = async (files) => {
   if (!files.length) return null;
 
-  const id = generateId();
-  const { resolve, promise } = Promise.withResolvers();
-  resolvers.set(id, { resolve, reject: () => {} });
+  const fileObj = {};
 
-  const lastIndex = files.length - 1;
-  files.forEach(({ file, path }, index) => {
-    worker.postMessage({ id, path, file, isEnd: index === lastIndex });
+  for (const { file, path } of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    fileObj[path] = new Uint8Array(arrayBuffer);
+  }
+
+  return new Promise((resolve, reject) => {
+    fflateZip(fileObj, (err, data) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(new Blob([data], { type: "application/zip" }));
+      }
+    });
   });
-
-  return promise;
-}
+};
