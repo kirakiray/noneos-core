@@ -22,6 +22,8 @@ archive.on('error', (err) => {
   throw err;
 });
 
-archive.directory(nosPath, false);
+archive.directory(nosPath, false, {
+  ignore: ['.DS_Store']
+});
 archive.pipe(output);
 await archive.finalize();
