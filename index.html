@@ -126,9 +126,18 @@
     </article>
 
     <script type="module">
-      import { check } from "/_install/main.js";
+      import {
+        check,
+        install,
+        installServiceWorker,
+        installSystemFile,
+      } from "/_install/main.js";
 
       const stateData = await check();
+
+      if (stateData.state === "uninstalled") {
+        await install();
+      }
 
       $("#status").text = stateData;
 

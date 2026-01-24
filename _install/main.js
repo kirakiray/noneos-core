@@ -1,14 +1,18 @@
 import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
 import { getOnlineData } from "./util.js";
+import { registerSw, clearSw } from "./util.js";
 
 // 执行安装程序
 export const install = async () => {
+  await installServiceWorker();
   await installSystemFile();
 };
 
 // 检查系统的状况
 export const check = async () => {
+  await init("nos-config");
+
   const systemConfigFile = await get("nos-config/system.json", {
     create: "file",
   });
@@ -22,6 +26,8 @@ export const check = async () => {
   if (!serviceWorkerVersion || !systemConfig.version) {
     return {
       state: "uninstalled",
+      systemConfig,
+      serviceWorkerVersion,
     };
   }
 
@@ -40,6 +46,18 @@ export const check = async () => {
     state: "installed",
     version: systemConfig.version,
   };
+};
+
+export const installServiceWorker = async () => {
+  // 先清除所有的注册
+  await clearSw();
+
+  // 先获取最新的版本号
+  const { onlineNosConfig } = await getOnlineData();
+
+  const registration = await registerSw("sw.js?v=" + onlineNosConfig.version);
+
+  return registration;
 };
 
 // 安装系统文件
