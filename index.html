@@ -124,8 +124,7 @@
     </article>
 
     <script type="module">
-      import { install, ready } from "/_install/main.js";
-      await ready;
+      import { install } from "/_install/main.js";
       await install();
 
       const load = lm(import.meta);

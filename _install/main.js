@@ -1,38 +1,20 @@
-export { ready } from "./register.js";
 import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
 import { getOnlineData } from "./online-data.js";
 
-export const install = async (callback) => {
+export const install = async () => {
+  await installSystemFile();
+};
+
+// 安装系统文件
+export const installSystemFile = async (callback) => {
   // 获取根证书，并生成验证器
   const { onlineNosConfig } = await getOnlineData();
 
-  // 获取本地 nos.json 文件配置
-  await init("nos-config");
-  let configHandle = await get("nos-config/system.json", {
-    create: "file",
+  // 设置为在线模式
+  await updateSystemConfig({
+    mode: "online",
   });
-
-  // 判断本地已有数据
-  const configData = await configHandle.json().catch(() => null);
-
-  if (configData) {
-    if (configData.version === onlineNosConfig.version) {
-      // 版本相同，无需重新安装
-      return;
-    }
-
-    // 版本不同，需要重新安装前，设置使用在线文件
-    await configHandle.write(
-      JSON.stringify({
-        ...configData,
-        mode: "online",
-      }),
-    );
-
-    // const newConfigData = await fetch("/__config").then((e) => e.json()); // 触发更新配置文件
-    await fetch("/__config").then((e) => e.json()); // 更新配置文件
-  }
 
   // 下载zip包
   const zipBlob = await fetch(import.meta.resolve("../nos.zip")).then((res) =>
@@ -83,14 +65,33 @@ export const install = async (callback) => {
     await handle.write(file);
   }
 
-  // 写入 nos.json 文件配置
-  await configHandle.write(
-    JSON.stringify({
-      version: onlineNosConfig.version,
-      mode: "local",
-      nosMapPath,
-    }),
-  );
+  await updateSystemConfig({
+    version: onlineNosConfig.version,
+    mode: "local",
+    nosMapPath,
+  });
+};
 
-  await fetch("/__config"); // 更新配置文件
+// 设置使用在线文件
+export const updateSystemConfig = async (options) => {
+  await init("nos-config");
+
+  let configHandle = await get("nos-config/system.json", {
+    create: "file",
+  });
+
+  let configData = (await configHandle.json().catch(() => null)) || {};
+
+  configData = {
+    ...configData,
+    ...options,
+  };
+
+  // 设置为在线模式
+  await configHandle.write(JSON.stringify(configData));
+
+  // const newConfigData = await fetch("/__config").then((e) => e.json()); // 触发更新配置文件
+  await fetch("/__config").then((e) => e.json()); // 更新配置文件
+
+  return configData;
 };
