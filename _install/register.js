@@ -1,28 +1,15 @@
-export const ready = (async () => {
-  const registration = await navigator.serviceWorker.register("/sw.js");
+// 这个文件用于快速注册service worker，多用于测试环境使用；
+// 正式产品建议使用 main.js 先检查，后执行安装流程
+import { registerSw } from "./util.js";
 
-  // 等待 Service Worker 成功激活后才返回
-  await navigator.serviceWorker.ready;
+let registration;
 
-  if (registration.active.state !== "activated") {
-    // 监听 Service Worker 激活事件
-    await new Promise((resolve, reject) => {
-      registration.active.addEventListener("statechange", () => {
-        if (registration.active.state === "activated") {
-          console.log("Service Worker activated: ", registration.scope);
-          resolve(registration);
-        }
-      });
-    });
-  }
+try {
+  registration = await registerSw("sw.js");
+  console.log("Service Worker registered:", registration.scope);
+} catch (error) {
+  console.error("Service Worker registration failed:", error);
+  throw error;
+}
 
-  return registration;
-})();
-
-export const clear = async () => {
-  const registrations = await navigator.serviceWorker.getRegistrations();
-  for (const registration of registrations) {
-    await registration.unregister();
-    console.log("Service Worker unregistered: ", registration.scope);
-  }
-};
+export default registration;

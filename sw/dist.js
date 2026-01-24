@@ -1,4 +1,4 @@
-/* noneos-core version: 4.0.5 */
+/* noneos-core version: 4.0.6 */
 (function () {
   'use strict';
 
@@ -415,7 +415,7 @@
   // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
   let systemConfig = {};
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.0.5";
+  const NONEOS_CORE_VERSION = "noneos-core@4.0.6";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
@@ -504,10 +504,10 @@
       });
     }
 
-    if (/^\/_/.test(pathname)) {
-      // 隐藏目录开头的，属于本地文件，无需代理
-      return;
-    }
+    // if (/^\/_/.test(pathname)) {
+    //   // 隐藏目录开头的，属于本地文件，无需代理
+    //   return;
+    // }
   });
 
   self.addEventListener("install", () => {
