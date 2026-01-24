@@ -74,9 +74,9 @@ export const installSystemFile = async (callback) => {
     mode: "online",
   });
 
-  const zipBlob = await fetch(import.meta.resolve("../nos.zip")).then((res) =>
-    res.blob(),
-  );
+  const zipBlob = await fetch(import.meta.resolve("../nos.zip"), {
+    cache: "no-store",
+  }).then((res) => res.blob());
 
   const extractedFiles = await unzip(zipBlob);
 
