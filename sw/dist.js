@@ -531,7 +531,7 @@
       return new Response(
         JSON.stringify({
           serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
-          config: systemConfig,
+          systemConfig,
         }),
       );
     } catch (err) {
