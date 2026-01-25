@@ -419,7 +419,11 @@
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
-    const { pathname } = new URL(request.url);
+    const { pathname, hostname } = new URL(request.url);
+
+    if (location.hostname !== hostname) {
+      return;
+    }
 
     if (pathname === "/__config") {
       return event.respondWith(reloadSystemConfig());
