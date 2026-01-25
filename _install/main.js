@@ -21,8 +21,7 @@ export const check = async () => {
       config: {},
     }));
 
-  const serviceWorkerVersion = configData.serviceWorkerVersion;
-  const systemConfig = configData.config;
+  const { systemConfig, serviceWorkerVersion } = configData;
 
   if (!serviceWorkerVersion || !systemConfig.version) {
     return {
