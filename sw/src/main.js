@@ -9,19 +9,11 @@ import { handleNosToolRequest } from "./modules/nostool-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-const NONEOS_CORE_VERSION = "noneos-core@4.0.9";
+const NONEOS_CORE_VERSION = "noneos-core@4.0.10";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const { pathname } = new URL(request.url);
-
-  // console.log("pathname: ", pathname);
-
-  if (pathname === "/__sw_version") {
-    return event.respondWith(
-      new Response(NONEOS_CORE_VERSION.replace("noneos-core@", "")),
-    );
-  }
 
   if (pathname === "/__config") {
     return event.respondWith(reloadSystemConfig());
@@ -130,7 +122,12 @@ const reloadSystemConfig = async () => {
       systemConfig = JSON.parse(content);
     }
 
-    return new Response(JSON.stringify(systemConfig));
+    return new Response(
+      JSON.stringify({
+        serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
+        systemConfig,
+      }),
+    );
   } catch (err) {
     console.error("Reload system config failed:", err);
     return new Response("Reload failed: " + (err.message || err), {

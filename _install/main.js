@@ -14,20 +14,14 @@ export const install = async () => {
 export const check = async () => {
   await init("nos-config");
 
-  const systemConfigFile = await get("nos-config/system.json", {
-    create: "file",
-  });
+  const configData = await fetch("/__config")
+    .then((e) => e.json())
+    .catch(() => ({
+      serviceWorkerVersion: "",
+      config: {},
+    }));
 
-  let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
-
-  let serviceWorkerVersion = await fetch("/__sw_version")
-    .then((e) => e.text())
-    .catch(() => "");
-
-  // 如果不是版本号格式，说明服务工作线程未安装，清空内容
-  if (!/^\d+\.\d+\.\d+$/.test(serviceWorkerVersion)) {
-    serviceWorkerVersion = "";
-  }
+  const { systemConfig, serviceWorkerVersion } = configData;
 
   if (!serviceWorkerVersion || !systemConfig.version) {
     return {
@@ -115,6 +109,10 @@ export const installSystemFile = async (callback) => {
     await fileHandle.write(file);
     callback?.(path);
   }
+
+  // 写入nos.json文件
+  const nosJsonFile = await get(`${nosMapPath}/nos.json`, { create: "file" });
+  await nosJsonFile.write(JSON.stringify(onlineNosConfig));
 
   await updateSystemConfig({
     version: onlineNosConfig.version,

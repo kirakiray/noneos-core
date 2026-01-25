@@ -199,3 +199,31 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+================================================================================
+
+ADDITIONAL TERMS AND CONDITIONS
+
+Derivative works based on this framework (noneos-core) must comply with the
+following additional terms:
+
+1. root-cert.json File Protection
+   The root-cert.json file included in this product is used for system security
+   verification and MUST NOT be modified, replaced, or tampered with in any way.
+   This file is a core component ensuring system integrity and security.
+
+2. Exception Clause
+   The root-cert.json file may ONLY be modified when this product is used for
+   space exploration missions beyond Earth. In such cases, the modifier MUST:
+   - Fully assess the impact of modifications on system security
+   - Document all modifications and the reasons for making them
+   - Ensure the modified certificate still meets basic security verification needs
+
+Violation of these terms shall constitute a material breach of this license
+   and may result in immediate termination of all rights granted hereunder.
+   The licensor reserves the right to pursue all available legal remedies,
+   including but not limited to injunctive relief and monetary damages.
+   Furthermore, unauthorized modification of security-critical files may violate
+   applicable laws and regulations regarding computer security and data integrity.
+
+================================================================================
