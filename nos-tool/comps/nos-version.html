@@ -95,6 +95,9 @@
 
       return {
         tag: "nos-version",
+        attrs: {
+          autoInstall: null,
+        },
         data: {
           version: "",
           loading: true,
@@ -131,12 +134,21 @@
             if (stateData.state === "uninstalled") {
               this.installed = false;
               this.loading = false;
+
+              if (this.autoInstall !== null) {
+                this.installNoneOSCore();
+              }
               return;
             }
 
             if (stateData.state === "upgradable") {
               this.upgradable = true;
               this.lastVersion = stateData.onlineVersion;
+
+              if (this.autoInstall !== null) {
+                this.installNoneOSCore();
+                return;
+              }
             }
 
             this.installed = true;
