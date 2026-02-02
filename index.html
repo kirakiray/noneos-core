@@ -140,6 +140,16 @@
         if (urlObj.get("redirect")) {
           const redirectValue = urlObj.get("redirect");
 
+          // 等待安装完毕
+          await new Promise((resolve) => {
+            if ($("nos-version").installed) {
+              resolve();
+              return;
+            }
+
+            $("nos-version").on("installed", () => resolve());
+          });
+
           if (redirectValue === "studio") {
             location.href = "/nos-tool/studio/";
             return;

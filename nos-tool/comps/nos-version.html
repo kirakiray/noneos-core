@@ -154,6 +154,8 @@
             this.installed = true;
             this.version = stateData.version;
             this.loading = false;
+
+            this.emit("installed");
           },
         },
         attached() {
