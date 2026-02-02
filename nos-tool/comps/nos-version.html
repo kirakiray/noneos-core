@@ -1,0 +1,167 @@
+<template component>
+  <style>
+    :host {
+      display: block;
+      text-align: center;
+    }
+
+    .version {
+      color: var(--md-sys-color-success, #2ecc71);
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--md-sys-color-surface, #f3f3f3);
+      border-top: 2px solid var(--md-sys-color-primary, #3498db);
+      border-radius: 50%;
+      animation: spin 0.5s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .btn {
+      padding: 4px 8px;
+      font-size: 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-primary, #3498db);
+      color: var(--md-sys-color-on-primary, #fff);
+      cursor: pointer;
+    }
+
+    .progress {
+      width: 100%;
+      height: 4px;
+      background-color: var(--md-sys-color-surface, #f3f3f3);
+      border-radius: 2px;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background-color: var(--md-sys-color-primary, #3498db);
+      border-radius: 2px;
+    }
+
+    .progress-bar {
+      width: 0%;
+      transition: width 0.3s ease-in-out;
+    }
+
+    .install-desc {
+      font-size: 80%;
+      color: var(--md-sys-color-normal, #333);
+    }
+  </style>
+
+  <o-if :value="loading">
+    <div class="spinner"></div>
+  </o-if>
+  <o-else-if :value="installing">
+    <span class="install-desc"> {{ installStep }} : {{ installDesc }} </span>
+    <div class="progress">
+      <div
+        class="progress-bar"
+        :style.width="installStep / installStepTotal * 100 + '%'"
+      ></div>
+    </div>
+  </o-else-if>
+  <o-else-if :value="installed">
+    NoneOS Core <span class="version">{{ version }}</span>
+    <o-if :value="upgradable">
+      <div>
+        <button class="btn" on:click="installNoneOSCore">
+          upgradable to {{ lastVersion }}
+        </button>
+      </div>
+    </o-if>
+  </o-else-if>
+  <o-else>
+    <button class="btn" on:click="installNoneOSCore">
+      Install NoneOS Core
+    </button>
+  </o-else>
+
+  <script>
+    export default async function ({ load }) {
+      const { check, install } = await load("../../_install/main.js");
+
+      return {
+        tag: "nos-version",
+        attrs: {
+          autoInstall: null,
+        },
+        data: {
+          version: "",
+          loading: true,
+          installing: false,
+          installDesc: "",
+          installed: false,
+          installStep: 0,
+          installStepTotal: 0,
+          upgradable: false,
+          lastVersion: "",
+        },
+        proto: {
+          async installNoneOSCore() {
+            this.installStep = 0;
+            this.installing = true;
+
+            await install((e) => {
+              this.installStep = e.step;
+              this.installDesc = e.desc;
+              this.installStepTotal = e.total;
+            });
+
+            this.installing = false;
+            this.refreshData();
+          },
+          async refreshData() {
+            this.upgradable = false;
+            this.lastVersion = "";
+            this.version = "";
+            this.loading = true;
+
+            const stateData = await check();
+
+            if (stateData.state === "uninstalled") {
+              this.installed = false;
+              this.loading = false;
+
+              if (this.autoInstall !== null) {
+                this.installNoneOSCore();
+              }
+              return;
+            }
+
+            if (stateData.state === "upgradable") {
+              this.upgradable = true;
+              this.lastVersion = stateData.onlineVersion;
+
+              if (this.autoInstall !== null) {
+                this.installNoneOSCore();
+                return;
+              }
+            }
+
+            this.installed = true;
+            this.version = stateData.version;
+            this.loading = false;
+
+            this.emit("installed");
+          },
+        },
+        attached() {
+          this.refreshData();
+        },
+      };
+    }
+  </script>
+</template>

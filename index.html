@@ -38,6 +38,7 @@
       /* Loading Animation Styles */
       .loading-container {
         position: fixed;
+        z-index: 2;
         top: 0;
         left: 0;
         width: 100%;
@@ -122,43 +123,53 @@
         </li>
       </ul>
 
-      <div id="status"></div>
-
-      <button id="install-btn">ReInstall</button>
+      <div style="display: flex; justify-content: center; align-items: center">
+        <nos-version auto-install></nos-version>
+      </div>
     </article>
 
     <script type="module">
-      import { check, install } from "/_install/main.js";
-
-      $("#install-btn").on("click", async () => {
-        install();
-      });
-
-      const stateData = await check();
-
-      if (stateData.state === "uninstalled") {
-        await install();
-      }
-
-      $("#status").text = stateData;
-
       const load = lm(import.meta);
 
+      await load("./nos-tool/comps/nos-version.html");
       await load("/nos/locale-text/locale-text.html");
 
-      const loadingElement = $("#loading");
-      if (loadingElement) {
-        // 添加淡出效果后再隐藏
-        loadingElement.css = {
-          opacity: "0",
-          transition: "opacity 0.5s ease-out",
-        };
-        setTimeout(() => {
+      (async () => {
+        const urlObj = new URLSearchParams(location.search);
+
+        if (urlObj.get("redirect")) {
+          const redirectValue = urlObj.get("redirect");
+
+          // 等待安装完毕
+          await new Promise((resolve) => {
+            if ($("nos-version").installed) {
+              resolve();
+              return;
+            }
+
+            $("nos-version").on("installed", () => resolve());
+          });
+
+          if (redirectValue === "studio") {
+            location.href = "/nos-tool/studio/";
+            return;
+          }
+        }
+
+        const loadingElement = $("#loading");
+        if (loadingElement) {
+          // 添加淡出效果后再隐藏
           loadingElement.css = {
-            display: "none",
+            opacity: "0",
+            transition: "opacity 0.5s ease-out",
           };
-        }, 500);
-      }
+          setTimeout(() => {
+            loadingElement.css = {
+              display: "none",
+            };
+          }, 500);
+        }
+      })();
     </script>
   </body>
 </html>
