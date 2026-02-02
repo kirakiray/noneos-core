@@ -8,8 +8,22 @@
       color: var(--md-sys-color-success, #2ecc71);
     }
 
-    .loading {
-      color: var(--md-sys-color-primary, #3498db);
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--md-sys-color-surface, #f3f3f3);
+      border-top: 2px solid var(--md-sys-color-primary, #3498db);
+      border-radius: 50%;
+      animation: spin 0.5s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     .btn {
@@ -20,11 +34,43 @@
       color: var(--md-sys-color-on-primary, #fff);
       cursor: pointer;
     }
+
+    .progress {
+      width: 100%;
+      height: 4px;
+      background-color: var(--md-sys-color-surface, #f3f3f3);
+      border-radius: 2px;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background-color: var(--md-sys-color-primary, #3498db);
+      border-radius: 2px;
+    }
+
+    .progress-bar {
+      width: 0%;
+      transition: width 0.3s ease-in-out;
+    }
+
+    .install-desc {
+      font-size: 80%;
+      color: var(--md-sys-color-normal, #333);
+    }
   </style>
 
   <o-if :value="loading">
-    <span class="loading">Loading...</span>
+    <div class="spinner"></div>
   </o-if>
+  <o-else-if :value="installing">
+    <span class="install-desc"> {{ installStep }} : {{ installDesc }} </span>
+    <div class="progress">
+      <div
+        class="progress-bar"
+        :style.width="installStep / installStepTotal * 100 + '%'"
+      ></div>
+    </div>
+  </o-else-if>
   <o-else-if :value="installed">
     NoneOS Core <span class="version">{{ version }}</span>
   </o-else-if>
@@ -43,11 +89,24 @@
         data: {
           version: "",
           loading: true,
+          installing: false,
+          installDesc: "",
           installed: false,
+          installStep: 0,
+          installStepTotal: 0,
         },
         proto: {
           async installNoneOSCore() {
-            await install();
+            this.installStep = 0;
+            this.installing = true;
+
+            await install((e) => {
+              this.installStep = e.step;
+              this.installDesc = e.desc;
+              this.installStepTotal = e.total;
+            });
+
+            this.installing = false;
             this.refreshData();
           },
           async refreshData() {
