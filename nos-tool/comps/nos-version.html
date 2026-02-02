@@ -1,0 +1,75 @@
+<template component>
+  <style>
+    :host {
+      display: block;
+    }
+
+    .version {
+      color: var(--md-sys-color-success, #2ecc71);
+    }
+
+    .loading {
+      color: var(--md-sys-color-primary, #3498db);
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-primary, #3498db);
+      color: var(--md-sys-color-on-primary, #fff);
+      cursor: pointer;
+    }
+  </style>
+
+  <o-if :value="loading">
+    <span class="loading">Loading...</span>
+  </o-if>
+  <o-else-if :value="installed">
+    NoneOS Core <span class="version">{{ version }}</span>
+  </o-else-if>
+  <o-else>
+    <button class="btn" on:click="installNoneOSCore">
+      Install NoneOS Core
+    </button>
+  </o-else>
+
+  <script>
+    export default async function ({ load }) {
+      const { check, install } = await load("../../_install/main.js");
+
+      return {
+        tag: "nos-version",
+        data: {
+          version: "",
+          loading: true,
+          installed: false,
+        },
+        proto: {
+          async installNoneOSCore() {
+            await install();
+            this.refreshData();
+          },
+          async refreshData() {
+            this.loading = true;
+
+            const stateData = await check();
+
+            if (stateData.state === "uninstalled") {
+              this.installed = false;
+              this.loading = false;
+              return;
+            }
+
+            this.installed = true;
+            this.version = stateData.version;
+            this.loading = false;
+          },
+        },
+        attached() {
+          this.refreshData();
+        },
+      };
+    }
+  </script>
+</template>

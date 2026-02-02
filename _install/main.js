@@ -18,7 +18,7 @@ export const check = async () => {
     .then((e) => e.json())
     .catch(() => ({
       serviceWorkerVersion: "",
-      config: {},
+      systemConfig: {},
     }));
 
   const { systemConfig, serviceWorkerVersion } = configData;
