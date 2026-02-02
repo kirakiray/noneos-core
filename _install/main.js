@@ -40,6 +40,7 @@ export const check = async () => {
   if (systemConfig.version !== onlineNosConfig.version) {
     return {
       state: "upgradable",
+      version: systemConfig.version,
       localVersion: systemConfig.version,
       onlineVersion: onlineNosConfig.version,
       serviceWorkerVersion,

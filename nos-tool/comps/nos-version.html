@@ -2,6 +2,7 @@
   <style>
     :host {
       display: block;
+      text-align: center;
     }
 
     .version {
@@ -27,7 +28,8 @@
     }
 
     .btn {
-      padding: 8px 16px;
+      padding: 4px 8px;
+      font-size: 12px;
       border: none;
       border-radius: 4px;
       background-color: var(--md-sys-color-primary, #3498db);
@@ -73,6 +75,13 @@
   </o-else-if>
   <o-else-if :value="installed">
     NoneOS Core <span class="version">{{ version }}</span>
+    <o-if :value="upgradable">
+      <div>
+        <button class="btn" on:click="installNoneOSCore">
+          upgradable to {{ lastVersion }}
+        </button>
+      </div>
+    </o-if>
   </o-else-if>
   <o-else>
     <button class="btn" on:click="installNoneOSCore">
@@ -94,6 +103,8 @@
           installed: false,
           installStep: 0,
           installStepTotal: 0,
+          upgradable: false,
+          lastVersion: "",
         },
         proto: {
           async installNoneOSCore() {
@@ -110,6 +121,9 @@
             this.refreshData();
           },
           async refreshData() {
+            this.upgradable = false;
+            this.lastVersion = "";
+            this.version = "";
             this.loading = true;
 
             const stateData = await check();
@@ -118,6 +132,11 @@
               this.installed = false;
               this.loading = false;
               return;
+            }
+
+            if (stateData.state === "upgradable") {
+              this.upgradable = true;
+              this.lastVersion = stateData.onlineVersion;
             }
 
             this.installed = true;
