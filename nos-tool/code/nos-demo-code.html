@@ -1,0 +1,157 @@
+<template component>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: flex;
+      border-radius: 8px;
+      border: 1px solid var(--md-sys-color-on-normal);
+      overflow: hidden;
+    }
+
+    .container {
+      flex: 1;
+    }
+
+    .container {
+      border-left: 1px solid var(--md-sys-color-normal-container);
+    }
+    .container:first-child {
+      border-left: none;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      background-color: var(--md-sys-color-on-normal);
+    }
+
+    .top-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 4px;
+      height: 28px;
+      width: 28px;
+      font-size: 16px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    .top-btn:hover {
+      background-color: var(--md-sys-color-normal-container);
+    }
+
+    .content {
+      padding: 8px;
+    }
+
+    iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+  <div class="container">
+    <div class="top-bar"></div>
+    <div class="content">demo-code</div>
+  </div>
+  <div class="container">
+    <div class="top-bar">
+      <div class="top-btn">
+        <n-icon icon="mdi:reload"></n-icon>
+      </div>
+      <div class="top-btn">
+        <n-icon icon="majesticons:open"></n-icon>
+      </div>
+    </div>
+    <div class="content">
+      <iframe attr:src="previewPath"></iframe>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ load }) => {
+      const { getHash } = await load("/nos/util/hash/get-hash.js");
+      const { get, init } = await load("/nos/fs/main.js");
+
+      await init("nos-demo-case");
+
+      return {
+        tag: "nos-demo-code",
+        data: {
+          previewPath: null,
+        },
+        proto: {
+          // 获取代码并进行格式化等操作
+          async getFileContent() {
+            const templates = this.all("template");
+
+            const files = await Promise.all(
+              templates.map(async (temp) => {
+                const path = temp.attr("path");
+                const isComponent = temp.attr("component") !== null;
+                const isPage = temp.attr("page") !== null;
+
+                // 获取内容hash
+                const contentHash = await getHash(temp.html);
+
+                return {
+                  contentHash,
+                  path,
+                  content: temp.html,
+                  isComponent,
+                  isPage,
+                };
+              }),
+            );
+
+            // 计算总hash
+            const totalHash = await getHash(
+              files.map((item) => item.contentHash).join(""),
+            );
+
+            return {
+              files,
+              totalHash,
+            };
+          },
+          async initPreview() {
+            const data = await this.getFileContent();
+
+            const cashDirHandle = await get(`nos-demo-case/${data.totalHash}`, {
+              create: "dir",
+            });
+
+            // 既不是页面也不是组件的文件，并且是html文件，作为预览文件
+            let previewPath = null;
+
+            // 写入文件
+            await Promise.all(
+              data.files.map(async (item) => {
+                const fileHandle = await cashDirHandle.get(item.path, {
+                  create: "file",
+                });
+
+                await fileHandle.write(item.content);
+
+                if (
+                  !item.isPage &&
+                  !item.isComponent &&
+                  item.path.endsWith(".html")
+                ) {
+                  previewPath = `/$${fileHandle.path}`;
+                }
+              }),
+            );
+
+            this.previewPath = previewPath;
+          },
+        },
+        async attached() {
+          this.initPreview();
+        },
+      };
+    };
+  </script>
+</template>

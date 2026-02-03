@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Editor</title>
+    <script src="/gh/kirakiray/ofa.js/dist/ofa.js#debug"></script>
+    <link rel="stylesheet" href="./css/colors.css" pui-colors />
+    <style>
+      html,
+      body {
+        background-color: #181818;
+        color: rgb(204, 204, 204);
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      o-app {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <o-router fix-body>
+      <o-app src="./app-config.js"></o-app>
+    </o-router>
+  </body>
+</html>
