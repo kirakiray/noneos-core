@@ -5,15 +5,20 @@ export const handleNosToolRequest = async ({ request }) => {
     return fetch(request);
   }
 
+  // 返回官方的地址
+  const returnOfficial = () => {
+    const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+    return fetch(`https://core.noneos.com/${afterHost}`);
+  };
+
   if (/^localhost:/.test(host)) {
     const newUrl = request.url.replace(/:(\d+)/, ":3002");
     try {
       return await fetch(newUrl);
     } catch {
-      return await fetch(request.url);
+      return returnOfficial();
     }
   }
 
-  const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
-  return fetch(`https://core.noneos.com/${afterHost}`);
+  return returnOfficial();
 };

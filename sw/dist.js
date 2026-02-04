@@ -1,4 +1,4 @@
-/* noneos-core version: 4.0.11 */
+/* noneos-core version: 4.0.12 */
 (function () {
   'use strict';
 
@@ -398,24 +398,29 @@
       return fetch(request);
     }
 
+    // 返回官方的地址
+    const returnOfficial = () => {
+      const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+      return fetch(`https://core.noneos.com/${afterHost}`);
+    };
+
     if (/^localhost:/.test(host)) {
       const newUrl = request.url.replace(/:(\d+)/, ":3002");
       try {
         return await fetch(newUrl);
       } catch {
-        return await fetch(request.url);
+        return returnOfficial();
       }
     }
 
-    const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
-    return fetch(`https://core.noneos.com/${afterHost}`);
+    return returnOfficial();
   };
 
   // 当前系统的配置信息
   // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
   let systemConfig = {};
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.0.11";
+  const NONEOS_CORE_VERSION = "noneos-core@4.0.12";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;

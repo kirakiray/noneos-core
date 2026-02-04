@@ -59,6 +59,19 @@
       font-size: 80%;
       color: var(--md-sys-color-normal, #333);
     }
+
+    .fade-in {
+      animation: fade-in 0.3s ease-in-out;
+    }
+
+    @keyframes fade-in {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
   </style>
 
   <o-if :value="loading">
@@ -74,7 +87,9 @@
     </div>
   </o-else-if>
   <o-else-if :value="installed">
-    NoneOS Core <span class="version">{{ version }}</span>
+    <div class="fade-in">
+      NoneOS Core <span class="version">{{ version }}</span>
+    </div>
     <o-if :value="upgradable">
       <div>
         <button class="btn" on:click="installNoneOSCore">
