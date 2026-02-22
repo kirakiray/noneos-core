@@ -219,8 +219,6 @@
     // 转换为: https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js
     const rePath = path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/");
 
-    console.log("npm request: ", rePath);
-
     let targetHandle = await getFileHandle({ path }).catch(() => null);
 
     if (targetHandle) {
@@ -242,7 +240,7 @@
       // 检查响应状态
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch ${rePath}: ${response.status} ${response.statusText}`
+          `Failed to fetch ${rePath}: ${response.status} ${response.statusText}`,
         );
       }
 
