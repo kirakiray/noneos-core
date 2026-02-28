@@ -7,11 +7,12 @@
     <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
   </head>
   <body>
+    <script type="module" src="/_install/register.js"></script>
     <script type="module">
-
       import { test } from "/nos/ok-test/main.js";
 
-      const { unzip } = await import("/nos-tool/util/zip/main.js");
+      // const { unzip } = await import("/nos-tool/util/zip/main.js");
+      const { unzip } = await import("/nos/util/zip.js");
 
       const createTextFile = (content, filename) => {
         const blob = new Blob([content], { type: "text/plain" });
@@ -19,7 +20,8 @@
       };
 
       const createZipFile = async (files) => {
-        const { zip } = await import("/nos-tool/util/zip/main.js");
+        // const { zip } = await import("/nos-tool/util/zip/main.js");
+        const { zip } = await import("/nos/util/zip.js");
         const blob = await zip(files);
         return blob;
       };
