@@ -13,10 +13,14 @@ export const download = async (handle) => {
     const a = document.createElement("a");
     a.href = url;
     a.download = downloadName;
+    a.target = "_blank";
+    a.type = "application/octet-stream";
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
   };
 
   // 检查 handle 类型

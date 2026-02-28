@@ -271,6 +271,7 @@
         },
         proto: {
           async handleDownload(item, event) {
+            event.stopPropagation();
             const handle = await get(item.path);
             await download(handle);
           },
