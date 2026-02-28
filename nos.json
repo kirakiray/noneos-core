@@ -1,7 +1,7 @@
 {
   "version": "4.0.12",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1772263175756,
+  "signTime": 1772263966304,
   "hashes": [
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -20,8 +20,8 @@
     },
     {
       "path": "fs/download.js",
-      "hash": "2d88d37b31009e9a29d70407c2abc7c185c82104f54ebd56e02bc35d73f658f3",
-      "size": 1430
+      "hash": "4d568b6089572dfac7aa92f29670299ee8f8cc50cc36b73a6359ebf39da4255c",
+      "size": 1507
     },
     {
       "path": "fs/handle/base.js",
@@ -189,5 +189,5 @@
       "size": 2308
     }
   ],
-  "signature": "2tfCCCGRjM8rgPSJMRCEb8F8ihhYnUrXaqsLum6pcOD0GL1U4T5CimtSd/NHtq9Y8ceWQW06Yp+AlsegRF10lA=="
+  "signature": "4zcfPBbCUVjdtBncu/qdFGAw3007uJme1ESE/aP1WelnVN9o95/TlY1HG5phgNXYEAD3Nunj95pAY7gqU49WuA=="
 }
