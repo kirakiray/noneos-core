@@ -250,6 +250,9 @@
             <div class="item-size">{{$data.size}}</div>
           </o-if>
           <button on:click="$host.handleDelete($data,$event)">Delete</button>
+          <button on:click="$host.handleDownload($data,$event)">
+            Download
+          </button>
         </div>
       </o-fill>
     </div>
@@ -257,6 +260,8 @@
   <script>
     export default async ({ load, query }) => {
       const currentPath = query.path || "/";
+      const { get } = await load("/nos/fs/main.js");
+      const { download } = await load("/nos/fs/download.js");
 
       return {
         data: {
@@ -265,6 +270,10 @@
           breadcrumbItems: [],
         },
         proto: {
+          async handleDownload(item, event) {
+            const handle = await get(item.path);
+            await download(handle);
+          },
           handleCopyPath(event) {
             navigator.clipboard.writeText(this.path);
             this.shadow.$("#copy-path-button").text = "Copied";
