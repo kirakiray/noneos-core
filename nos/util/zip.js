@@ -1,6 +1,3 @@
-// import { Unzip, UnzipInflate, zip as fflateZip } from "https://cdn.jsdelivr.net/npm/fflate@0.8.2/+esm";
-// import { Unzip, UnzipInflate, zip as fflateZip } from "/npm/fflate@0.8.2/+esm";
-
 export async function unzip(file) {
   const { Unzip, UnzipInflate } = await import("/npm/fflate@0.8.2/+esm");
 

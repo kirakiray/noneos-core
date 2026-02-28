@@ -78,8 +78,6 @@ export const installServiceWorker = async (callback) => {
 
   const registration = await registerSw("sw.js?v=" + onlineNosConfig.version);
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
   return registration;
 };
 
