@@ -1,8 +1,8 @@
 import { get, init } from "../nos/fs/handle/main.js";
 import { getFileHash } from "../nos/util/hash/get-file-hash.js";
+import { unzip } from "../nos/util/zip.js";
 import { getOnlineData } from "./util.js";
 import { registerSw, clearSw } from "./util.js";
-import { unzip } from "../nos/util/zip.js";
 
 const installStepTotal = 8;
 

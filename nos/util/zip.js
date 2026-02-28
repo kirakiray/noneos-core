@@ -1,6 +1,9 @@
-import { Unzip, UnzipInflate, zip as fflateZip } from "/npm/fflate@0.8.2/+esm";
+// import { Unzip, UnzipInflate, zip as fflateZip } from "https://cdn.jsdelivr.net/npm/fflate@0.8.2/+esm";
+// import { Unzip, UnzipInflate, zip as fflateZip } from "/npm/fflate@0.8.2/+esm";
 
 export async function unzip(file) {
+  const { Unzip, UnzipInflate } = await import("/npm/fflate@0.8.2/+esm");
+
   const unzipper = new Unzip();
 
   // ⚠️ 关键：注册 DEFLATE 压缩处理器（type 8）
@@ -68,6 +71,8 @@ export async function unzip(file) {
 }
 
 export const zip = async (files) => {
+  const { zip: fflateZip } = await import("/npm/fflate@0.8.2/+esm");
+
   if (!files.length) return null;
 
   const fileObj = {};
