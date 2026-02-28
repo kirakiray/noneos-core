@@ -9,6 +9,10 @@
   <body>
     <script type="module" src="/_install/register.js"></script>
     <script type="module">
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
       import { test } from "/nos/ok-test/main.js";
 
       // const { unzip } = await import("/nos-tool/util/zip/main.js");
