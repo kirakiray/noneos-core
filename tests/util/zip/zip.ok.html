@@ -9,7 +9,8 @@
   <body>
     <script type="module">
       import { test } from "/nos/ok-test/main.js";
-      const { zip, unzip } = await import("/nos-tool/util/zip/main.js");
+      // const { zip, unzip } = await import("/nos-tool/util/zip/main.js");
+      const { zip, unzip } = await import("/nos/util/zip.js");
 
       const createTextFile = (content, filename) => {
         const blob = new Blob([content], { type: "text/plain" });
