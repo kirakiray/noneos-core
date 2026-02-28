@@ -15,7 +15,10 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const { pathname, hostname } = new URL(request.url);
 
-  if (location.hostname !== hostname) {
+  const coreHostName =
+    globalThis?.SERVER_OPTIONS?.coreHostName || "core.noneos.com";
+
+  if (hostname !== location.hostname && hostname !== coreHostName) {
     return;
   }
 
