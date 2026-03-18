@@ -37,9 +37,19 @@
       --frame-height: 667px;
     }
 
+    .frame-container.mobile-size.is-horizontal {
+      --frame-width: 667px;
+      --frame-height: 375px;
+    }
+
     .frame-container.pad-size {
       --frame-width: 768px;
       --frame-height: 1024px;
+    }
+
+    .frame-container.pad-size.is-horizontal {
+      --frame-width: 1024px;
+      --frame-height: 768px;
     }
 
     .frame-container.pc-size {
@@ -52,6 +62,15 @@
       height: var(--frame-height);
       transform: scale(var(--frame-scale));
       transform-origin: top left;
+    }
+
+    .hor-icon {
+      transform: rotate(-45deg);
+      transition: transform 0.1s ease-in-out;
+    }
+
+    .is-horizontal-icon {
+      transform: rotate(45deg);
     }
   </style>
 
@@ -81,14 +100,20 @@
           attr:variant="device === 'mobile' ? 'contained' : 'outlined'"
         >
           <n-icon icon="mynaui:mobile" slot="prefix"></n-icon>
-          手机
+          <locale-text>
+            <span lang="cn">手机</span>
+            <span lang="en">Mobile</span>
+          </locale-text>
         </p-button>
         <p-button
           on:click="device = 'pad'"
           attr:variant="device === 'pad' ? 'contained' : 'outlined'"
         >
           <n-icon icon="mingcute:pad-line" slot="prefix"></n-icon>
-          平板
+          <locale-text>
+            <span lang="cn">平板</span>
+            <span lang="en">Pad</span>
+          </locale-text>
         </p-button>
         <p-button
           on:click="device = 'pc'"
@@ -98,8 +123,27 @@
           PC
         </p-button>
       </p-button-group>
+      <p-button
+        icon
+        size="small"
+        variant="outlined"
+        attr:disabled="device === 'pc'"
+        on:click="isHorizontal = !isHorizontal"
+        style="margin-left: 8px"
+      >
+        <n-icon
+          class="hor-icon"
+          class:is-horizontal-icon="isHorizontal"
+          icon="material-symbols:mobile-rotate-sharp"
+        ></n-icon>
+      </p-button>
       <p-select sync:value="scale" size="small" style="margin-left: 8px">
-        <label> 缩放比例 </label>
+        <label>
+          <locale-text>
+            <span lang="cn">缩放比例</span>
+            <span lang="en">Scale Ratio</span>
+          </locale-text>
+        </label>
         <p-option value="0.5">0.5</p-option>
         <p-option value="0.75">0.75</p-option>
         <p-option value="1.0">1.0</p-option>
@@ -112,6 +156,7 @@
       class:mobile-size="device === 'mobile'"
       class:pad-size="device === 'pad'"
       class:pc-size="device === 'pc'"
+      class:is-horizontal="isHorizontal"
     >
       <iframe
         class="preview-frame"
@@ -150,6 +195,7 @@
           _rootHandle: null,
           device: sessionStorage.getItem("studio-device") || "mobile",
           scale: sessionStorage.getItem("studio-scale") || "1.0",
+          isHorizontal: false,
         },
         watch: {
           "device,scale"([device, scale]) {
