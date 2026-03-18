@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/select/select.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/group.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/switch/switch.html"></l-m>
@@ -18,6 +19,7 @@
       width: 100%;
       height: 100%;
       padding: 16px;
+      overflow: auto;
       box-sizing: border-box;
     }
 
@@ -27,26 +29,24 @@
       --frame-scale: 0.75;
       width: var(--frame-width);
       height: var(--frame-height);
-      border-radius: 4px;
+      border-radius: 8px;
+      overflow: hidden;
       border: 1px solid var(--md-sys-color-primary);
     }
 
     .frame-container.mobile-size {
       --frame-width: 375px;
       --frame-height: 667px;
-      --frame-scale: 0.75;
     }
 
     .frame-container.pad-size {
       --frame-width: 768px;
       --frame-height: 1024px;
-      --frame-scale: 0.75;
     }
 
     .frame-container.pc-size {
       --frame-width: 1280px;
       --frame-height: 720px;
-      --frame-scale: 0.75;
     }
 
     .preview-frame {
@@ -54,6 +54,12 @@
       height: calc(var(--frame-height) / var(--frame-scale));
       transform: scale(var(--frame-scale));
       transform-origin: top left;
+    }
+  </style>
+
+  <style>
+    .frame-container {
+      --frame-scale: data(scale);
     }
   </style>
   <div class="container">
@@ -94,6 +100,13 @@
           PC
         </p-button>
       </p-button-group>
+      <p-select sync:value="scale" size="small" style="margin-left: 8px">
+        <label> 缩放比例 </label>
+        <p-option value="0.5">0.5</p-option>
+        <p-option value="0.75">0.75</p-option>
+        <p-option value="1.0">1.0</p-option>
+        <p-option value="1.25">1.25</p-option>
+      </p-select>
     </div>
 
     <div
@@ -137,7 +150,14 @@
           previewUrl: "/" + query.path + "/",
           ofaConfig: {},
           _rootHandle: null,
-          device: "mobile",
+          device: sessionStorage.getItem("studio-device") || "mobile",
+          scale: sessionStorage.getItem("studio-scale") || "1.0",
+        },
+        watch: {
+          "device,scale"([device, scale]) {
+            sessionStorage.setItem("studio-device", device);
+            sessionStorage.setItem("studio-scale", scale);
+          },
         },
         proto: {
           previewInNewWindow() {
