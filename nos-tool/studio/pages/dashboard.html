@@ -9,6 +9,7 @@
   <style>
     :host {
       display: block;
+      height: 100%;
     }
 
     h3 {
@@ -24,11 +25,8 @@
     }
 
     .frame-container {
-      --frame-width: 360px;
-      --frame-height: 400px;
-      --frame-scale: 0.75;
-      width: var(--frame-width);
-      height: var(--frame-height);
+      width: calc(var(--frame-width) * var(--frame-scale));
+      height: calc(var(--frame-height) * var(--frame-scale));
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid var(--md-sys-color-primary);
@@ -50,8 +48,8 @@
     }
 
     .preview-frame {
-      width: calc(var(--frame-width) / var(--frame-scale));
-      height: calc(var(--frame-height) / var(--frame-scale));
+      width: var(--frame-width);
+      height: var(--frame-height);
       transform: scale(var(--frame-scale));
       transform-origin: top left;
     }
