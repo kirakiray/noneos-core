@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/group.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/switch/switch.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
@@ -20,7 +21,7 @@
       box-sizing: border-box;
     }
 
-    .frame-contaner {
+    .frame-container {
       --frame-width: 360px;
       --frame-height: 400px;
       --frame-scale: 0.75;
@@ -28,6 +29,24 @@
       height: var(--frame-height);
       border-radius: 4px;
       border: 1px solid var(--md-sys-color-primary);
+    }
+
+    .frame-container.mobile-size {
+      --frame-width: 375px;
+      --frame-height: 667px;
+      --frame-scale: 0.75;
+    }
+
+    .frame-container.pad-size {
+      --frame-width: 768px;
+      --frame-height: 1024px;
+      --frame-scale: 0.75;
+    }
+
+    .frame-container.pc-size {
+      --frame-width: 1280px;
+      --frame-height: 720px;
+      --frame-scale: 0.75;
     }
 
     .preview-frame {
@@ -44,7 +63,7 @@
         <span lang="en">Preview</span>
       </locale-text>
     </h3>
-    <div style="padding-bottom: 16px">
+    <div style="padding-bottom: 16px; display: flex; align-items: center">
       <p-button variant="outlined" on:click="previewInNewWindow">
         <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
         <locale-text>
@@ -52,8 +71,37 @@
           <span lang="en">Preview Application in New Window</span>
         </locale-text>
       </p-button>
+      <p-button-group size="small" style="margin-left: 8px">
+        <p-button
+          on:click="device = 'mobile'"
+          attr:variant="device === 'mobile' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="mynaui:mobile" slot="prefix"></n-icon>
+          手机
+        </p-button>
+        <p-button
+          on:click="device = 'pad'"
+          attr:variant="device === 'pad' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="mingcute:pad-line" slot="prefix"></n-icon>
+          平板
+        </p-button>
+        <p-button
+          on:click="device = 'pc'"
+          attr:variant="device === 'pc' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="ic:round-laptop" slot="prefix"></n-icon>
+          PC
+        </p-button>
+      </p-button-group>
     </div>
-    <div class="frame-contaner">
+
+    <div
+      class="frame-container"
+      class:mobile-size="device === 'mobile'"
+      class:pad-size="device === 'pad'"
+      class:pc-size="device === 'pc'"
+    >
       <iframe
         class="preview-frame"
         attr:src="previewUrl"
@@ -81,7 +129,7 @@
       const { createData } = await load("/nos/hybrid-data/main.js");
       const { getStyleContent } = await load("../util/theme.js");
       const { default: jsBeautify } = await load(
-        "/npm/js-beautify@1.15.1/+esm"
+        "/npm/js-beautify@1.15.1/+esm",
       );
 
       return {
@@ -89,6 +137,7 @@
           previewUrl: "/" + query.path + "/",
           ofaConfig: {},
           _rootHandle: null,
+          device: "mobile",
         },
         proto: {
           previewInNewWindow() {
@@ -117,7 +166,7 @@
                 "css/palette.css",
                 {
                   create: "file",
-                }
+                },
               );
 
               await paletteHandle.write(paletteStyleContent);
@@ -129,21 +178,21 @@
               await themeHandle.write(themeStyleContent);
 
               const tempContainer = $(
-                `<template>${replaceHeadContent}</template>`
+                `<template>${replaceHeadContent}</template>`,
               );
 
               $(tempContainer.ele.content).push(
-                `<link rel="stylesheet" href="css/palette.css" pui-colors>`
+                `<link rel="stylesheet" href="css/palette.css" pui-colors>`,
               );
               $(tempContainer.ele.content).push(
-                `<link rel="stylesheet" href="css/theme.css">`
+                `<link rel="stylesheet" href="css/theme.css">`,
               );
 
               replaceHeadContent = tempContainer.html;
             } else {
               // 去除所有相关元素
               const tempContainer = $(
-                `<template>${replaceHeadContent}</template>`
+                `<template>${replaceHeadContent}</template>`,
               );
 
               $(tempContainer.ele.content)
@@ -156,7 +205,7 @@
             // 替换内容
             const finalContent = indexContent.replace(
               /<head>(.*?)<\/head>/s,
-              `<head>${replaceHeadContent}<\/head>`
+              `<head>${replaceHeadContent}<\/head>`,
             );
 
             const reContent = jsBeautify.html(finalContent, {
@@ -191,7 +240,7 @@
             "ofa-config.json",
             {
               create: "file",
-            }
+            },
           );
 
           this.ofaConfig = await createData(studioConfigHandle);
