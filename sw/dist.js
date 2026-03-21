@@ -158,7 +158,9 @@
     }
 
     // 请求实际文件
-    const response = await fetch(rePath);
+    const response = await fetch(rePath, {
+      cache: "no-store",
+    });
     const blob = await response.blob();
 
     // 写入缓存
