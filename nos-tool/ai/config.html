@@ -1,4 +1,5 @@
 <template page>
+  <l-m src="/nos/locale-text/locale-text.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/list/list.html"></l-m>
@@ -67,9 +68,19 @@
     }
   </style>
   <div class="container">
-    <h2>AI API Key 配置</h2>
+    <h2>
+      <locale-text>
+        <span lang="cn">AI API Key 配置</span>
+        <span lang="en">AI API Key Configuration</span>
+      </locale-text>
+    </h2>
     <div class="form-item">
-      <label class="form-label">选择服务提供商</label>
+      <label class="form-label">
+        <locale-text>
+          <span lang="cn">选择服务提供商</span>
+          <span lang="en">Select Provider</span>
+        </locale-text>
+      </label>
       <div class="provider-selector">
         <p-radio-group sync:value="selectedProvider">
           <p-radio value="deepseek">DeepSeek</p-radio>
@@ -80,17 +91,30 @@
       </div>
     </div>
     <div class="form-item">
-      <label class="form-label">API Key</label>
+      <label class="form-label">
+        <locale-text>
+          <span lang="cn">API Key</span>
+          <span lang="en">API Key</span>
+        </locale-text>
+      </label>
       <p-input sync:value="newKey" attr:placeholder="placeholder"></p-input>
     </div>
     <div class="toolbar">
-      <p-button on:click="saveKey" attr:disabled="!newKey.trim()"
-        >保存</p-button
-      >
+      <p-button on:click="saveKey" attr:disabled="!newKey.trim()"></p-button>
+        <locale-text>
+          <span lang="cn">保存</span>
+          <span lang="en">Save</span>
+        </locale-text>
+      </p-button>
     </div>
 
     <div class="key-list">
-      <h2>已保存的 API Keys</h2>
+      <h2>
+        <locale-text>
+          <span lang="cn">已保存的 API Keys</span>
+          <span lang="en">Saved API Keys</span>
+        </locale-text>
+      </h2>
       <p-list>
         <o-fill :value="aiKeys" name="key-item"></o-fill>
       </p-list>
@@ -108,7 +132,10 @@
             {{$data.key}}
           </div>
           <div secondary>
-            模型: {{$data.model }} | 并发: {{$data.concurrency || 1}}
+            <locale-text>
+              <span lang="cn">模型: {{$data.model}} | 并发: {{$data.concurrency || 1}}</span>
+              <span lang="en">Model: {{$data.model}} | Concurrency: {{$data.concurrency || 1}}</span>
+            </locale-text>
           </div>
 
           <div slot="suffix" style="display: flex; gap: 8px">
@@ -117,32 +144,58 @@
               on:click="$host.openEditDialog($data,$index)"
               size="small"
             >
-              编辑
+              <locale-text>
+                <span lang="cn">编辑</span>
+                <span lang="en">Edit</span>
+              </locale-text>
             </p-button>
             <p-button
               variant="outlined"
               on:click="$host.deleteKey($data,$index)"
               size="small"
             >
-              删除
+              <locale-text>
+                <span lang="cn">删除</span>
+                <span lang="en">Delete</span>
+              </locale-text>
             </p-button>
           </div>
         </p-list-item>
       </template>
       <x-if :value="aiKeys.length === 0">
-        <p-list-item>暂无保存的 API Keys</p-list-item>
+        <p-list-item>
+          <locale-text>
+            <span lang="cn">暂无保存的 API Keys</span>
+            <span lang="en">No saved API Keys</span>
+          </locale-text>
+        </p-list-item>
       </x-if>
     </div>
 
     <p-dialog sync:open="editDialogOpen">
-      <h2 slot="title">编辑 API Key</h2>
+      <h2 slot="title">
+        <locale-text>
+          <span lang="cn">编辑 API Key</span>
+          <span lang="en">Edit API Key</span>
+        </locale-text>
+      </h2>
       <div>
         <div class="form-item">
-          <label class="form-label">服务提供商</label>
+          <label class="form-label">
+            <locale-text>
+              <span lang="cn">服务提供商</span>
+              <span lang="en">Provider</span>
+            </locale-text>
+          </label>
           <p-input :value="editItem.provider" disabled></p-input>
         </div>
         <div class="form-item">
-          <label class="form-label">模型</label>
+          <label class="form-label">
+            <locale-text>
+              <span lang="cn">模型</span>
+              <span lang="en">Model</span>
+            </locale-text>
+          </label>
           <p-select sync:value="editItem.model" style="width: 100%">
             <o-fill :value="editAvailableModels">
               <p-option :value="$data">{{$data}}</p-option>
@@ -150,7 +203,12 @@
           </p-select>
         </div>
         <div class="form-item">
-          <label class="form-label">API Key</label>
+          <label class="form-label">
+            <locale-text>
+              <span lang="cn">API Key</span>
+              <span lang="en">API Key</span>
+            </locale-text>
+          </label>
           <div
             style="
               padding: 8px 12px;
@@ -166,24 +224,40 @@
           </div>
         </div>
         <div class="form-item">
-          <label class="form-label">并发次数</label>
+          <label class="form-label">
+            <locale-text>
+              <span lang="cn">并发次数</span>
+              <span lang="en">Concurrency</span>
+            </locale-text>
+          </label>
           <p-input
             sync:value="editItem.concurrency"
             type="number"
             min="1"
-            placeholder="请输入并发次数"
+            attr:placeholder="concurrencyPlaceholder"
           ></p-input>
         </div>
       </div>
       <div style="display: flex; gap: 8px; justify-content: flex-end">
-        <p-button variant="outlined" on:click="closeEditDialog">取消</p-button>
-        <p-button on:click="saveEdit">保存</p-button>
+        <p-button variant="outlined" on:click="closeEditDialog">
+          <locale-text>
+            <span lang="cn">取消</span>
+            <span lang="en">Cancel</span>
+          </locale-text>
+        </p-button>
+        <p-button on:click="saveEdit">
+          <locale-text>
+            <span lang="cn">保存</span>
+            <span lang="en">Save</span>
+          </locale-text>
+        </p-button>
       </div>
     </p-dialog>
   </div>
   <script>
     import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
     import { toast, confirm } from "/gh/ofajs/Punch-UI/packages/util.js";
+    import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 
     export default async ({ load, query }) => {
       return {
@@ -229,7 +303,10 @@
             };
           },
           get placeholder() {
-            return `请输入 ${this.selectedProvider} 的 API Key`;
+            return getLocaleText({
+              cn: `请输入 ${this.selectedProvider} 的 API Key`,
+              en: `Enter ${this.selectedProvider} API Key`,
+            });
           },
           get editAvailableModels() {
             return this.providerModels[this.editItem.provider] || [];
@@ -247,7 +324,10 @@
             if (existingKey) {
               toast({
                 color: "error",
-                message: "该 API Key 已存在",
+                message: getLocaleText({
+                  cn: "该 API Key 已存在",
+                  en: "This API Key already exists",
+                }),
               });
               return;
             }
@@ -275,11 +355,20 @@
             this.editItem = {};
             this.editIndex = -1;
           },
+          get concurrencyPlaceholder() {
+            return getLocaleText({
+              cn: "请输入并发次数",
+              en: "Enter concurrency",
+            });
+          },
           saveEdit() {
             if (!this.editItem.concurrency || this.editItem.concurrency < 1) {
               toast({
                 color: "error",
-                message: "并发次数必须大于 0",
+                message: getLocaleText({
+                  cn: "并发次数必须大于 0",
+                  en: "Concurrency must be greater than 0",
+                }),
               });
               return;
             }
@@ -293,8 +382,14 @@
           },
           async deleteKey(keyItem, index) {
             const result = await confirm({
-              title: "确认删除",
-              message: `确定要删除这个 ${keyItem.provider} 的 API Key 吗？`,
+              title: getLocaleText({
+                cn: "确认删除",
+                en: "Confirm Delete",
+              }),
+              message: getLocaleText({
+                cn: `确定要删除这个 ${keyItem.provider} 的 API Key 吗？`,
+                en: `Are you sure you want to delete this ${keyItem.provider} API Key?`,
+              }),
             });
 
             if (result) {
@@ -320,7 +415,10 @@
 
             toast({
               color: "success",
-              message: "API Key 更新成功",
+              message: getLocaleText({
+                cn: "API Key 更新成功",
+                en: "API Key updated successfully",
+              }),
             });
           });
         },
