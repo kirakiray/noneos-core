@@ -393,14 +393,6 @@
           },
         },
         async attached() {
-          this.emit("set-active-id", {
-            composed: true,
-            data: {
-              name: "config",
-              query: { ...query },
-            },
-          });
-
           const aiKeys = (await storage.getItem("ai-keys")) || [];
           this.aiKeys = aiKeys;
 

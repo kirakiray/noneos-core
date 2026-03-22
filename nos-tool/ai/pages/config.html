@@ -12,7 +12,15 @@
       return {
         data: {},
         proto: {},
-        attached() {},
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: {
+              name: "config",
+              query: { ...query },
+            },
+          });
+        },
         detached() {},
       };
     };
