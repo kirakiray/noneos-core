@@ -1,17 +1,15 @@
 // AI 聊天模块
 // 支持多提供商 API Key 管理、并发控制、负载均衡、流式响应
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-
-// 并发跟踪器：记录每个 API Key 的当前并发请求数
-const concurrencyTracker = new Map();
-
-// 获取 Key 简短标识符（前12字符），用于日志输出
-function getKeyIdentifier(key) {
-  if (!key || key.length <= 12) {
-    return key || "";
-  }
-  return key.substring(0, 12) + "...";
-}
+import {
+  getCurrentConcurrency,
+  incrementConcurrency,
+  decrementConcurrency,
+  getConcurrencyStatus,
+  bind,
+  getConcurrencyListenerCount,
+  clearConcurrencyListeners,
+} from "./concurrency.js";
 
 // 获取各 AI 提供商的 API 端点 URL
 function getProviderBaseUrl(provider) {
@@ -35,25 +33,12 @@ function getProviderHeaders(provider, apiKey) {
   return headers;
 }
 
-// 获取指定 Key 的当前并发数
-function getCurrentConcurrency(key) {
-  return concurrencyTracker.get(key) || 0;
-}
-
-// 增加并发计数
-function incrementConcurrency(key) {
-  const current = getCurrentConcurrency(key);
-  concurrencyTracker.set(key, current + 1);
-}
-
-// 减少并发计数，计数为0时移除
-function decrementConcurrency(key) {
-  const current = getCurrentConcurrency(key);
-  if (current <= 1) {
-    concurrencyTracker.delete(key);
-  } else {
-    concurrencyTracker.set(key, current - 1);
+// 获取 Key 简短标识符（前12字符），用于日志输出
+function getKeyIdentifier(key) {
+  if (!key || key.length <= 12) {
+    return key || "";
   }
+  return key.substring(0, 12) + "...";
 }
 
 // 创建格式化错误对象
@@ -241,18 +226,12 @@ export async function chat(messages, options = {}) {
   }
 }
 
-// 获取当前所有 Key 的并发状态
-export function getConcurrencyStatus() {
-  const status = {};
-  concurrencyTracker.forEach((value, key) => {
-    status[getKeyIdentifier(key)] = value;
-  });
-  return status;
-}
-
 // 获取已配置 API Key 的提供商列表
 export async function getAvailableProviders() {
   const keys = await getAiKeys();
   const providers = [...new Set(keys.map((k) => k.provider))];
   return providers;
 }
+
+// 重新导出并发管理模块的函数
+export { bind, getConcurrencyStatus, getConcurrencyListenerCount, clearConcurrencyListeners };

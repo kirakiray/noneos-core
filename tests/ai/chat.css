@@ -71,6 +71,37 @@ body {
   font-style: italic;
 }
 
+#concurrency-status {
+  margin-bottom: 10px;
+}
+
+.concurrency-bar {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  background: var(--assistant-bg);
+  border-radius: 5px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.concurrency-item {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  color: #333;
+}
+
+.concurrency-item.active {
+  background: #ff9800;
+  color: white;
+}
+
+.concurrency-item.idle {
+  background: #4caf50;
+  color: white;
+}
+
 #input-area {
   display: flex;
   gap: 10px;

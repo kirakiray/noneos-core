@@ -8,6 +8,7 @@
   </head>
   <body>
     <div id="chat-box"></div>
+    <div id="concurrency-status"></div>
     <div id="input-area">
       <select id="model-select">
         <option value="">自动选择</option>
@@ -20,12 +21,38 @@
       <button onclick="sendMessage()">发送</button>
     </div>
     <script type="module">
-      import { chat } from "/nos/ai/chat.js";
+      import { chat, bind, getConcurrencyStatus } from "/nos/ai/chat.js";
 
       const chatBox = document.getElementById("chat-box");
       const userInput = document.getElementById("user-input");
       const modelSelect = document.getElementById("model-select");
+      const concurrencyStatus = document.getElementById("concurrency-status");
       let messages = [];
+
+      function updateConcurrencyStatus() {
+        const status = getConcurrencyStatus();
+        const entries = Object.entries(status);
+
+        if (entries.length === 0) {
+          concurrencyStatus.innerHTML = "";
+          return;
+        }
+
+        const html = entries
+          .map(([key, count]) => {
+            const type = count > 0 ? "active" : "idle";
+            return `<span class="concurrency-item ${type}">${key}: ${count}</span>`;
+          })
+          .join(" | ");
+
+        concurrencyStatus.innerHTML = `<div class="concurrency-bar">${html}</div>`;
+      }
+
+      bind((event) => {
+        updateConcurrencyStatus();
+      });
+
+      updateConcurrencyStatus();
 
       const savedModel = sessionStorage.getItem("selectedModel");
       if (savedModel) {
