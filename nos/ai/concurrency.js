@@ -1,5 +1,6 @@
 // 并发管理模块
 // 负责跟踪 API Key 的并发请求数和事件监听
+// 支持跨标签页状态同步
 
 // 并发跟踪器：记录每个 API Key 的当前并发请求数和 provider
 const concurrencyTracker = new Map();
@@ -9,6 +10,9 @@ const keyToProviderMap = new Map();
 
 // 并发事件监听器集合
 const concurrencyListeners = new Set();
+
+// 跨标签页通信通道
+const channel = new BroadcastChannel("ai-concurrency-sync");
 
 // 触发并发变化事件
 function emitConcurrencyEvent(event) {
@@ -20,6 +24,47 @@ function emitConcurrencyEvent(event) {
     }
   });
 }
+
+// 广播并发变化到其他标签页
+function broadcastChange(type, key, provider, current, previous) {
+  channel.postMessage({
+    type,
+    key,
+    provider,
+    current,
+    previous,
+    timestamp: Date.now(),
+  });
+}
+
+// 监听其他标签页的并发变化
+channel.onmessage = (event) => {
+  const { type, key, provider, current, previous, timestamp } = event.data;
+
+  if (type === "increment") {
+    concurrencyTracker.set(key, current);
+    if (provider) {
+      keyToProviderMap.set(key, provider);
+    }
+  } else if (type === "decrement") {
+    if (current <= 0) {
+      concurrencyTracker.delete(key);
+      keyToProviderMap.delete(key);
+    } else {
+      concurrencyTracker.set(key, current);
+    }
+  }
+
+  emitConcurrencyEvent({
+    type,
+    key: getKeyIdentifier(key),
+    provider,
+    current,
+    previous,
+    timestamp,
+    source: "remote",
+  });
+};
 
 // 获取 Key 简短标识符（前12字符），用于日志输出
 function getKeyIdentifier(key) {
@@ -43,13 +88,18 @@ export function incrementConcurrency(key, provider) {
     keyToProviderMap.set(key, provider);
   }
 
+  const timestamp = Date.now();
+
+  broadcastChange("increment", key, provider, newCount, current);
+
   emitConcurrencyEvent({
     type: "increment",
     key: getKeyIdentifier(key),
     provider: provider,
     current: newCount,
     previous: current,
-    timestamp: Date.now(),
+    timestamp,
+    source: "local",
   });
 }
 
@@ -65,13 +115,24 @@ export function decrementConcurrency(key, provider) {
     concurrencyTracker.set(key, newCount);
   }
 
+  const timestamp = Date.now();
+
+  broadcastChange(
+    "decrement",
+    key,
+    provider,
+    newCount > 0 ? newCount : 0,
+    current,
+  );
+
   emitConcurrencyEvent({
     type: "decrement",
     key: getKeyIdentifier(key),
     provider: provider,
     current: newCount > 0 ? newCount : 0,
     previous: current,
-    timestamp: Date.now(),
+    timestamp,
+    source: "local",
   });
 }
 
