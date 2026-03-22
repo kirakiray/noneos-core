@@ -7,8 +7,6 @@ import {
   decrementConcurrency,
   getConcurrencyStatus,
   bind,
-  getConcurrencyListenerCount,
-  clearConcurrencyListeners,
 } from "./concurrency.js";
 
 // 获取各 AI 提供商的 API 端点 URL
@@ -234,4 +232,4 @@ export async function getAvailableProviders() {
 }
 
 // 重新导出并发管理模块的函数
-export { bind, getConcurrencyStatus, getConcurrencyListenerCount, clearConcurrencyListeners };
+export { bind, getConcurrencyStatus };

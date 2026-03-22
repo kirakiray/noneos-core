@@ -103,13 +103,3 @@ export function bind(listener) {
 
   return clear;
 }
-
-// 获取当前所有已注册的监听器数量
-export function getConcurrencyListenerCount() {
-  return concurrencyListeners.size;
-}
-
-// 移除所有并发事件监听器
-export function clearConcurrencyListeners() {
-  concurrencyListeners.clear();
-}
