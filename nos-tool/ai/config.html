@@ -95,7 +95,7 @@
       <p-input sync:value="newKey" attr:placeholder="placeholder"></p-input>
     </div>
     <div class="toolbar">
-      <p-button on:click="saveKey" attr:disabled="!newKey.trim()"></p-button>
+      <p-button on:click="saveKey" attr:disabled="!newKey.trim()">
         <locale-text>
           <span lang="cn">保存</span>
           <span lang="en">Save</span>
@@ -128,8 +128,13 @@
           </div>
           <div secondary>
             <locale-text>
-              <span lang="cn">模型: {{$data.model}} | 并发: {{$data.concurrency || 1}}</span>
-              <span lang="en">Model: {{$data.model}} | Concurrency: {{$data.concurrency || 1}}</span>
+              <span lang="cn"
+                >模型: {{$data.model}} | 并发: {{$data.concurrency || 1}}</span
+              >
+              <span lang="en"
+                >Model: {{$data.model}} | Concurrency: {{$data.concurrency ||
+                1}}</span
+              >
             </locale-text>
           </div>
 
