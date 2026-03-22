@@ -11,6 +11,7 @@
   <style>
     :host {
       display: block;
+      height: 100%;
     }
 
     .container {
@@ -172,7 +173,7 @@
       </x-if>
     </div>
 
-    <p-dialog sync:open="editDialogOpen">
+    <p-dialog sync:open="editDialogOpen" on:click-mask="editDialogOpen = false">
       <h2 slot="title">
         <locale-text>
           <span lang="cn">编辑 API Key</span>
