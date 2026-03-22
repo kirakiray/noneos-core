@@ -21,7 +21,7 @@
       <button onclick="sendMessage()">发送</button>
     </div>
     <script type="module">
-      import { chat, bind, getConcurrencyStatus } from "/nos/ai/chat.js";
+      import { chat, subscribe, getConcurrencyStatus } from "/nos/ai/chat.js";
 
       const chatBox = document.getElementById("chat-box");
       const userInput = document.getElementById("user-input");
@@ -50,7 +50,7 @@
         concurrencyStatus.innerHTML = `<div class="concurrency-bar">${html}</div>`;
       }
 
-      bind((event) => {
+      subscribe((event) => {
         updateConcurrencyStatus();
       });
 

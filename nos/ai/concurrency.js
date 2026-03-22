@@ -89,17 +89,17 @@ export function getConcurrencyStatus() {
 
 // 注册并发变化事件监听器
 // @param {Function} listener - 事件监听函数，接收 { type, key, current, previous, timestamp }
-// @returns {Function} clear - 取消监听的函数
-export function bind(listener) {
+// @returns {Function} unsubscribe - 取消监听的函数
+export function subscribe(listener) {
   if (typeof listener !== "function") {
     throw new Error("监听器必须是一个函数");
   }
 
   concurrencyListeners.add(listener);
 
-  const clear = () => {
+  const unsubscribe = () => {
     concurrencyListeners.delete(listener);
   };
 
-  return clear;
+  return unsubscribe;
 }
