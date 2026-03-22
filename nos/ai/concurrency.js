@@ -1,8 +1,11 @@
 // 并发管理模块
 // 负责跟踪 API Key 的并发请求数和事件监听
 
-// 并发跟踪器：记录每个 API Key 的当前并发请求数
+// 并发跟踪器：记录每个 API Key 的当前并发请求数和 provider
 const concurrencyTracker = new Map();
+
+// Key 到 Provider 的映射
+const keyToProviderMap = new Map();
 
 // 并发事件监听器集合
 const concurrencyListeners = new Set();
@@ -32,14 +35,18 @@ export function getCurrentConcurrency(key) {
 }
 
 // 增加并发计数
-export function incrementConcurrency(key) {
+export function incrementConcurrency(key, provider) {
   const current = getCurrentConcurrency(key);
   const newCount = current + 1;
   concurrencyTracker.set(key, newCount);
+  if (provider) {
+    keyToProviderMap.set(key, provider);
+  }
 
   emitConcurrencyEvent({
     type: "increment",
     key: getKeyIdentifier(key),
+    provider: provider,
     current: newCount,
     previous: current,
     timestamp: Date.now(),
@@ -47,12 +54,13 @@ export function incrementConcurrency(key) {
 }
 
 // 减少并发计数，计数为0时移除
-export function decrementConcurrency(key) {
+export function decrementConcurrency(key, provider) {
   const current = getCurrentConcurrency(key);
   const newCount = current - 1;
 
   if (newCount <= 0) {
     concurrencyTracker.delete(key);
+    keyToProviderMap.delete(key);
   } else {
     concurrencyTracker.set(key, newCount);
   }
@@ -60,6 +68,7 @@ export function decrementConcurrency(key) {
   emitConcurrencyEvent({
     type: "decrement",
     key: getKeyIdentifier(key),
+    provider: provider,
     current: newCount > 0 ? newCount : 0,
     previous: current,
     timestamp: Date.now(),
@@ -70,7 +79,10 @@ export function decrementConcurrency(key) {
 export function getConcurrencyStatus() {
   const status = {};
   concurrencyTracker.forEach((value, key) => {
-    status[getKeyIdentifier(key)] = value;
+    status[getKeyIdentifier(key)] = {
+      count: value,
+      provider: keyToProviderMap.get(key) || "",
+    };
   });
   return status;
 }

@@ -39,9 +39,11 @@
         }
 
         const html = entries
-          .map(([key, count]) => {
+          .map(([key, data]) => {
+            const count = data.count;
+            const provider = data.provider;
             const type = count > 0 ? "active" : "idle";
-            return `<span class="concurrency-item ${type}">${key}: ${count}</span>`;
+            return `<span class="concurrency-item ${type}">${provider} (${key}): ${count}</span>`;
           })
           .join(" | ");
 

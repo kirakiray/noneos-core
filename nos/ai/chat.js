@@ -159,7 +159,7 @@ async function streamChat(messages, keyItem, options = {}) {
       }
     }
   } finally {
-    decrementConcurrency(key);
+    decrementConcurrency(key, provider);
   }
 
   if (callback) {
@@ -216,12 +216,12 @@ export async function chat(messages, options = {}) {
     throw new Error("所有 API Key 都已达到并发数上限，请稍后重试");
   }
 
-  incrementConcurrency(selectedKey.key);
+  incrementConcurrency(selectedKey.key, selectedKey.provider);
 
   try {
     return await streamChat(messages, selectedKey, options);
   } catch (error) {
-    decrementConcurrency(selectedKey.key);
+    decrementConcurrency(selectedKey.key, selectedKey.provider);
     throw error;
   }
 }
