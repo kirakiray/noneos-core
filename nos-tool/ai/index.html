@@ -1,23 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Key 管理</title>
     <script src="/gh/kirakiray/ofa.js/dist/ofa.js#debug"></script>
+    <script src="/gh/kirakiray/ofa.js/libs/router/dist/router.min.js"></script>
+    <script
+      src="/gh/ofajs/Punch-UI/packages/public/init.js"
+      type="module"
+    ></script>
+    <link rel="stylesheet" href="../studio/public/colors.css" pui-colors />
     <style>
       html,
       body {
         height: 100%;
-        margin: 0;
         padding: 0;
-      }
-      o-page {
-        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, Segoe UI,
+          Microsoft Yahei, Helvetica, Arial, sans-serif, Apple Color Emoji,
+          Segoe UI Emoji;
       }
     </style>
   </head>
   <body>
-    <o-page src="./config.html"></o-page>
+    <l-m src="/nos/locale-text/locale-text.html"></l-m>
+    <o-router fix-body>
+      <o-app src="./app-config.js"></o-app>
+    </o-router>
   </body>
 </html>
