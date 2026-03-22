@@ -71,7 +71,7 @@
             provider: selectedProvider,
             callback: ({ provider, content, fullContent: full, done }) => {
               providerName = provider;
-              
+
               if (done) {
                 loadingSpan.remove();
               } else {
@@ -81,7 +81,7 @@
                 assistantDiv.textContent += content;
                 chatBox.scrollTop = chatBox.scrollHeight;
               }
-              
+
               fullContent = full;
             },
           });

@@ -1,14 +1,11 @@
+// AI 聊天模块
+// 支持多提供商 API Key 管理、并发控制、负载均衡、流式响应
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
 
-/**
- * AI 聊天模块
- * 支持多提供商 API Key 管理、并发控制、负载均衡、流式响应
- */
-
-/** 并发跟踪器：记录每个 API Key 的当前并发请求数 */
+// 并发跟踪器：记录每个 API Key 的当前并发请求数
 const concurrencyTracker = new Map();
 
-/** 获取 Key 简短标识符（前12字符），用于日志输出 */
+// 获取 Key 简短标识符（前12字符），用于日志输出
 function getKeyIdentifier(key) {
   if (!key || key.length <= 12) {
     return key || "";
@@ -16,7 +13,7 @@ function getKeyIdentifier(key) {
   return key.substring(0, 12) + "...";
 }
 
-/** 获取各 AI 提供商的 API 端点 URL */
+// 获取各 AI 提供商的 API 端点 URL
 function getProviderBaseUrl(provider) {
   const urls = {
     deepseek: "https://api.deepseek.com/v1/chat/completions",
@@ -27,7 +24,7 @@ function getProviderBaseUrl(provider) {
   return urls[provider] || "";
 }
 
-/** 构建请求头（Bearer Token 认证） */
+// 构建请求头（Bearer Token 认证）
 function getProviderHeaders(provider, apiKey) {
   const headers = {
     "Content-Type": "application/json",
@@ -38,18 +35,18 @@ function getProviderHeaders(provider, apiKey) {
   return headers;
 }
 
-/** 获取指定 Key 的当前并发数 */
+// 获取指定 Key 的当前并发数
 function getCurrentConcurrency(key) {
   return concurrencyTracker.get(key) || 0;
 }
 
-/** 增加并发计数 */
+// 增加并发计数
 function incrementConcurrency(key) {
   const current = getCurrentConcurrency(key);
   concurrencyTracker.set(key, current + 1);
 }
 
-/** 减少并发计数，计数为0时移除 */
+// 减少并发计数，计数为0时移除
 function decrementConcurrency(key) {
   const current = getCurrentConcurrency(key);
   if (current <= 1) {
@@ -59,22 +56,19 @@ function decrementConcurrency(key) {
   }
 }
 
-/** 创建格式化错误对象 */
+// 创建格式化错误对象
 function createError(provider, key, message) {
   const keyId = getKeyIdentifier(key);
   return new Error(`[Provider: ${provider}] [Key: ${keyId}] ${message}`);
 }
 
-/** 从存储获取所有已配置的 API Keys */
+// 从存储获取所有已配置的 API Keys
 async function getAiKeys() {
   const keys = (await storage.getItem("ai-keys")) || [];
   return keys;
 }
 
-/**
- * 选择可用 API Key
- * 按指定 provider 筛选，排除超并发 Key，随机选择
- */
+// 选择可用 API Key，按指定 provider 筛选，排除超并发 Key，随机选择
 function selectAvailableKey(keys, provider) {
   if (provider) {
     const providerKeys = keys.filter((k) => k.provider === provider);
@@ -105,10 +99,7 @@ function selectAvailableKey(keys, provider) {
   return availableKeys[randomIndex];
 }
 
-/**
- * 执行流式聊天请求
- * 通过 SSE 流式读取响应，callback 实时返回内容片段
- */
+// 执行流式聊天请求，通过 SSE 流式读取响应，callback 实时返回内容片段
 async function streamChat(messages, keyItem, options = {}) {
   const { provider, key, model } = keyItem;
   const { callback } = options;
@@ -202,12 +193,10 @@ async function streamChat(messages, keyItem, options = {}) {
   };
 }
 
-/**
- * 发送聊天请求（主入口）
- * @param {Array} messages - 对话消息数组 [{role, content}]
- * @param {Object} options - { provider?, callback? }
- * @returns {Object} { provider, content, model }
- */
+// 发送聊天请求（主入口）
+// @param {Array} messages - 对话消息数组 [{role, content}]
+// @param {Object} options - { provider?, callback? }
+// @returns {Object} { provider, content, model }
 export async function chat(messages, options = {}) {
   const { provider: specifiedProvider, callback } = options;
 
@@ -252,7 +241,7 @@ export async function chat(messages, options = {}) {
   }
 }
 
-/** 获取当前所有 Key 的并发状态 */
+// 获取当前所有 Key 的并发状态
 export function getConcurrencyStatus() {
   const status = {};
   concurrencyTracker.forEach((value, key) => {
@@ -261,7 +250,7 @@ export function getConcurrencyStatus() {
   return status;
 }
 
-/** 获取已配置 API Key 的提供商列表 */
+// 获取已配置 API Key 的提供商列表
 export async function getAvailableProviders() {
   const keys = await getAiKeys();
   const providers = [...new Set(keys.map((k) => k.provider))];
