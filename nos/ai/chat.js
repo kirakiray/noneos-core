@@ -85,7 +85,7 @@ function selectAvailableKey(keys, provider) {
 // 执行流式聊天请求，通过 SSE 流式读取响应，callback 实时返回内容片段
 async function streamChat(messages, keyItem, options = {}) {
   const { provider, key, model } = keyItem;
-  const { callback } = options;
+  const { callback, requestId } = options;
 
   const url = getProviderBaseUrl(provider);
   const headers = getProviderHeaders(provider, key);
@@ -157,7 +157,7 @@ async function streamChat(messages, keyItem, options = {}) {
       }
     }
   } finally {
-    decrementConcurrency(key, provider);
+    decrementConcurrency(key, provider, requestId);
   }
 
   if (callback) {
@@ -214,12 +214,12 @@ export async function chat(messages, options = {}) {
     throw new Error("所有 API Key 都已达到并发数上限，请稍后重试");
   }
 
-  incrementConcurrency(selectedKey.key, selectedKey.provider);
+  const requestId = incrementConcurrency(selectedKey.key, selectedKey.provider);
 
   try {
-    return await streamChat(messages, selectedKey, options);
+    return await streamChat(messages, selectedKey, { ...options, requestId });
   } catch (error) {
-    decrementConcurrency(selectedKey.key, selectedKey.provider);
+    decrementConcurrency(selectedKey.key, selectedKey.provider, requestId);
     throw error;
   }
 }
