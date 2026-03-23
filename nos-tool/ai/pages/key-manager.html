@@ -193,6 +193,15 @@
         <div class="form-item">
           <label class="form-label">
             <locale-text>
+              <span lang="cn">ID</span>
+              <span lang="en">ID</span>
+            </locale-text>
+          </label>
+          <p-input :value="editItem.id" disabled></p-input>
+        </div>
+        <div class="form-item">
+          <label class="form-label">
+            <locale-text>
               <span lang="cn">模型</span>
               <span lang="en">Model</span>
             </locale-text>
@@ -330,6 +339,7 @@
             }
 
             this.aiKeys.push({
+              id: `key-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
               provider: this.selectedProvider,
               model: this.availableModels[0] || "",
               key: this.newKey,

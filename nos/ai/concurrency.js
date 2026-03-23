@@ -1,13 +1,14 @@
 // 并发管理模块
 // 负责跟踪 API Key 的并发请求数和事件监听
 // 支持跨标签页状态同步
+// 使用 API Key 的唯一 ID（而非 API Key 字符串本身）作为并发跟踪的键
 import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 
-// 并发跟踪器：记录每个 API Key 的当前并发请求数和 provider
+// 并发跟踪器：记录每个 API Key ID 的当前并发请求数和 provider
 const concurrencyTracker = new Map();
 
-// Key 到 Provider 的映射
-const keyToProviderMap = new Map();
+// ID 到 Provider 的映射
+const idToProviderMap = new Map();
 
 // 并发事件监听器集合
 const concurrencyListeners = new Set();
@@ -57,11 +58,11 @@ function broadcastChange(type, key, provider, current, previous, requestId) {
 // 广播标签页关闭时的清理消息
 function broadcastCleanup() {
   const cleanupData = [];
-  localActiveRequests.forEach((requestIds, key) => {
+  localActiveRequests.forEach((requestIds, id) => {
     if (requestIds.size > 0) {
       cleanupData.push({
-        key,
-        provider: keyToProviderMap.get(key) || "",
+        id,
+        provider: idToProviderMap.get(id) || "",
         count: requestIds.size,
       });
     }
@@ -83,24 +84,24 @@ window.addEventListener("beforeunload", () => {
 
 // 监听其他标签页的并发变化
 channel.onmessage = (event) => {
-  const { type, key, provider, current, previous, timestamp, data } =
+  const { type, id, provider, current, previous, timestamp, data } =
     event.data;
 
   if (type === "cleanup") {
     data.forEach((item) => {
-      const itemCurrent = concurrencyTracker.get(item.key) || 0;
+      const itemCurrent = concurrencyTracker.get(item.id) || 0;
       const newCount = itemCurrent - item.count;
 
       if (newCount <= 0) {
-        concurrencyTracker.delete(item.key);
-        keyToProviderMap.delete(item.key);
+        concurrencyTracker.delete(item.id);
+        idToProviderMap.delete(item.id);
       } else {
-        concurrencyTracker.set(item.key, newCount);
+        concurrencyTracker.set(item.id, newCount);
       }
 
       emitConcurrencyEvent({
         type: "cleanup",
-        key: getKeyIdentifier(item.key),
+        key: getKeyIdentifier(item.id),
         provider: item.provider,
         current: newCount > 0 ? newCount : 0,
         previous: itemCurrent,
@@ -112,22 +113,22 @@ channel.onmessage = (event) => {
   }
 
   if (type === "increment") {
-    concurrencyTracker.set(key, current);
+    concurrencyTracker.set(id, current);
     if (provider) {
-      keyToProviderMap.set(key, provider);
+      idToProviderMap.set(id, provider);
     }
   } else if (type === "decrement") {
     if (current <= 0) {
-      concurrencyTracker.delete(key);
-      keyToProviderMap.delete(key);
+      concurrencyTracker.delete(id);
+      idToProviderMap.delete(id);
     } else {
-      concurrencyTracker.set(key, current);
+      concurrencyTracker.set(id, current);
     }
   }
 
   emitConcurrencyEvent({
     type,
-    key: getKeyIdentifier(key),
+    key: getKeyIdentifier(id),
     provider,
     current,
     previous,
@@ -144,33 +145,33 @@ function getKeyIdentifier(key) {
   return key.substring(0, 12) + "...";
 }
 
-// 获取指定 Key 的当前并发数
-export function getCurrentConcurrency(key) {
-  return concurrencyTracker.get(key) || 0;
+// 获取指定 Key ID 的当前并发数
+export function getCurrentConcurrency(id) {
+  return concurrencyTracker.get(id) || 0;
 }
 
 // 增加并发计数，返回请求 ID 用于后续清理
-export function incrementConcurrency(key, provider) {
-  const current = getCurrentConcurrency(key);
+export function incrementConcurrency(id, provider) {
+  const current = getCurrentConcurrency(id);
   const newCount = current + 1;
-  concurrencyTracker.set(key, newCount);
+  concurrencyTracker.set(id, newCount);
   if (provider) {
-    keyToProviderMap.set(key, provider);
+    idToProviderMap.set(id, provider);
   }
 
   const requestId = generateRequestId();
-  if (!localActiveRequests.has(key)) {
-    localActiveRequests.set(key, new Set());
+  if (!localActiveRequests.has(id)) {
+    localActiveRequests.set(id, new Set());
   }
-  localActiveRequests.get(key).add(requestId);
+  localActiveRequests.get(id).add(requestId);
 
   const timestamp = Date.now();
 
-  broadcastChange("increment", key, provider, newCount, current, requestId);
+  broadcastChange("increment", id, provider, newCount, current, requestId);
 
   emitConcurrencyEvent({
     type: "increment",
-    key: getKeyIdentifier(key),
+    key: getKeyIdentifier(id),
     provider: provider,
     current: newCount,
     previous: current,
@@ -182,21 +183,21 @@ export function incrementConcurrency(key, provider) {
 }
 
 // 减少并发计数，计数为0时移除
-export function decrementConcurrency(key, provider, requestId) {
-  const current = getCurrentConcurrency(key);
+export function decrementConcurrency(id, provider, requestId) {
+  const current = getCurrentConcurrency(id);
   const newCount = current - 1;
 
   if (newCount <= 0) {
-    concurrencyTracker.delete(key);
-    keyToProviderMap.delete(key);
+    concurrencyTracker.delete(id);
+    idToProviderMap.delete(id);
   } else {
-    concurrencyTracker.set(key, newCount);
+    concurrencyTracker.set(id, newCount);
   }
 
-  if (requestId && localActiveRequests.has(key)) {
-    localActiveRequests.get(key).delete(requestId);
-    if (localActiveRequests.get(key).size === 0) {
-      localActiveRequests.delete(key);
+  if (requestId && localActiveRequests.has(id)) {
+    localActiveRequests.get(id).delete(requestId);
+    if (localActiveRequests.get(id).size === 0) {
+      localActiveRequests.delete(id);
     }
   }
 
@@ -204,7 +205,7 @@ export function decrementConcurrency(key, provider, requestId) {
 
   broadcastChange(
     "decrement",
-    key,
+    id,
     provider,
     newCount > 0 ? newCount : 0,
     current,
@@ -213,7 +214,7 @@ export function decrementConcurrency(key, provider, requestId) {
 
   emitConcurrencyEvent({
     type: "decrement",
-    key: getKeyIdentifier(key),
+    key: getKeyIdentifier(id),
     provider: provider,
     current: newCount > 0 ? newCount : 0,
     previous: current,

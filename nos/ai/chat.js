@@ -60,7 +60,7 @@ function selectAvailableKey(keys, provider) {
       return null;
     }
     const availableKeys = providerKeys.filter((k) => {
-      const current = getCurrentConcurrency(k.key);
+      const current = getCurrentConcurrency(k.id);
       return current < (k.concurrency || 1);
     });
     if (availableKeys.length === 0) {
@@ -71,7 +71,7 @@ function selectAvailableKey(keys, provider) {
   }
 
   const availableKeys = keys.filter((k) => {
-    const current = getCurrentConcurrency(k.key);
+    const current = getCurrentConcurrency(k.id);
     return current < (k.concurrency || 1);
   });
 
@@ -85,7 +85,7 @@ function selectAvailableKey(keys, provider) {
 
 // 执行流式聊天请求，通过 SSE 流式读取响应，callback 实时返回内容片段
 async function streamChat(messages, keyItem, options = {}) {
-  const { provider, key, model } = keyItem;
+  const { provider, key, model, id } = keyItem;
   const { callback, requestId } = options;
 
   const url = getProviderBaseUrl(provider);
@@ -168,7 +168,7 @@ async function streamChat(messages, keyItem, options = {}) {
       }
     }
   } finally {
-    decrementConcurrency(key, provider, requestId);
+    decrementConcurrency(id, provider, requestId);
   }
 
   if (callback) {
@@ -246,12 +246,12 @@ export async function chat(messages, options = {}) {
     );
   }
 
-  const requestId = incrementConcurrency(selectedKey.key, selectedKey.provider);
+  const requestId = incrementConcurrency(selectedKey.id, selectedKey.provider);
 
   try {
     return await streamChat(messages, selectedKey, { ...options, requestId });
   } catch (error) {
-    decrementConcurrency(selectedKey.key, selectedKey.provider, requestId);
+    decrementConcurrency(selectedKey.id, selectedKey.provider, requestId);
     throw error;
   }
 }
