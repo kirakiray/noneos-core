@@ -1,6 +1,7 @@
 // AI 聊天模块
 // 支持多提供商 API Key 管理、并发控制、负载均衡、流式响应
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 import {
   getCurrentConcurrency,
   incrementConcurrency,
@@ -104,7 +105,14 @@ async function streamChat(messages, keyItem, options = {}) {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    throw createError(provider, key, `网络请求失败: ${err.message}`);
+    throw createError(
+      provider,
+      key,
+      getLocaleText({
+        cn: `网络请求失败: ${err.message}`,
+        en: `Network request failed: ${err.message}`,
+      }),
+    );
   }
 
   if (!response.ok) {
@@ -112,7 +120,10 @@ async function streamChat(messages, keyItem, options = {}) {
     throw createError(
       provider,
       key,
-      `API 请求失败 (${response.status}): ${errorText}`,
+      getLocaleText({
+        cn: `API 请求失败 (${response.status}): ${errorText}`,
+        en: `API request failed (${response.status}): ${errorText}`,
+      }),
     );
   }
 
@@ -186,7 +197,12 @@ export async function chat(messages, options = {}) {
   const keys = await getAiKeys();
 
   if (keys.length === 0) {
-    throw new Error("没有可用的 API Key，请先在 key-manager 中添加 API Key");
+    throw new Error(
+      getLocaleText({
+        cn: "没有可用的 API Key，请先在 key-manager 中添加 API Key",
+        en: "No available API Key, please add an API Key in key-manager first",
+      }),
+    );
   }
 
   const selectedKey = selectAvailableKey(keys, specifiedProvider);
@@ -196,22 +212,38 @@ export async function chat(messages, options = {}) {
       throw createError(
         specifiedProvider,
         "",
-        `没有找到 provider 为 ${specifiedProvider} 的 API Key`,
+        getLocaleText({
+          cn: `没有找到 provider 为 ${specifiedProvider} 的 API Key`,
+          en: `No API Key found for provider ${specifiedProvider}`,
+        }),
       );
     }
-    throw new Error("没有可用的 API Key");
+    throw new Error(
+      getLocaleText({
+        cn: "没有可用的 API Key",
+        en: "No available API Key",
+      }),
+    );
   }
 
   if (selectedKey.error === "concurrency_exceeded") {
     throw createError(
       specifiedProvider,
       "",
-      "超出并发数限制，请稍后重试或使用其他 provider",
+      getLocaleText({
+        cn: "超出并发数限制，请稍后重试或使用其他 provider",
+        en: "Concurrency limit exceeded, please try again later or use another provider",
+      }),
     );
   }
 
   if (selectedKey.error === "no_available_key") {
-    throw new Error("所有 API Key 都已达到并发数上限，请稍后重试");
+    throw new Error(
+      getLocaleText({
+        cn: "所有 API Key 都已达到并发数上限，请稍后重试",
+        en: "All API Keys have reached their concurrency limit, please try again later",
+      }),
+    );
   }
 
   const requestId = incrementConcurrency(selectedKey.key, selectedKey.provider);

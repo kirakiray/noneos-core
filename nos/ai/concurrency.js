@@ -1,6 +1,7 @@
 // 并发管理模块
 // 负责跟踪 API Key 的并发请求数和事件监听
 // 支持跨标签页状态同步
+import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 
 // 并发跟踪器：记录每个 API Key 的当前并发请求数和 provider
 const concurrencyTracker = new Map();
@@ -29,7 +30,13 @@ function emitConcurrencyEvent(event) {
     try {
       listener(event);
     } catch (error) {
-      console.error("并发事件监听器执行失败:", error);
+      console.error(
+        getLocaleText({
+          cn: "并发事件监听器执行失败:",
+          en: "Concurrency event listener execution failed:",
+        }),
+        error,
+      );
     }
   });
 }
@@ -232,7 +239,12 @@ export function getConcurrencyStatus() {
 // @returns {Function} unsubscribe - 取消监听的函数
 export function subscribe(listener) {
   if (typeof listener !== "function") {
-    throw new Error("监听器必须是一个函数");
+    throw new Error(
+      getLocaleText({
+        cn: "监听器必须是一个函数",
+        en: "Listener must be a function",
+      }),
+    );
   }
 
   concurrencyListeners.add(listener);

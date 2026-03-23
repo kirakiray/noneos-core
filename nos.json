@@ -1,8 +1,18 @@
 {
   "version": "4.0.14",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1774096700094,
+  "signTime": 1774235090818,
   "hashes": [
+    {
+      "path": "ai/chat.js",
+      "hash": "9690fee52840b7910ed00dcf6e84d725bdd622a2d8f87c77eab338c860248b06",
+      "size": 7420
+    },
+    {
+      "path": "ai/concurrency.js",
+      "hash": "b7d8c9fcab292000da1a3360a32dd9e59293060b0f23dd955b286dee09107a89",
+      "size": 6269
+    },
     {
       "path": "crypto/crypto-ecdsa.js",
       "hash": "d1243d0aefa3b93b12c80a765d641574b920eeecff6ac9043f78593f3a9aeab4",
@@ -174,11 +184,6 @@
       "size": 232
     },
     {
-      "path": "util/hash/test-async.html",
-      "hash": "3e6ccc6b3d3ae3ab8d07aef75d11fd3a8616b00e469820045154b0397b5ecebe",
-      "size": 1940
-    },
-    {
       "path": "util/rand-adj-noun.js",
       "hash": "776e50fc9f8af8470226fd90cd08e03660a8bf47729cec4b2829d7961aa209ac",
       "size": 1692
@@ -189,5 +194,5 @@
       "size": 2117
     }
   ],
-  "signature": "rgrfssRhNxYdwsFOdMKGKsZ/wgC4bmS0CR5iRWDqeLxhTqS4qonnrAd8glaKFkgUUc1ZB2JpvdYtp5pINfditg=="
+  "signature": "2X0h3Uzu0nLJD0w2X4khvmQLeO0JwCdtgozpTMiwlsueuVnzvI2sW/nKLBZCkDrEwSQZvj4lsaJAXFgbtSbsEg=="
 }
