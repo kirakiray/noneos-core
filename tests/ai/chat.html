@@ -21,7 +21,7 @@
       <button onclick="sendMessage()">发送</button>
     </div>
     <script type="module">
-      import { chat, subscribe, getConcurrencyStatus } from "/nos/ai/chat.js";
+      import { chat, subscribe, getStatus } from "/nos/ai/chat.js";
 
       const chatBox = document.getElementById("chat-box");
       const userInput = document.getElementById("user-input");
@@ -30,7 +30,7 @@
       let messages = [];
 
       function updateConcurrencyStatus() {
-        const status = getConcurrencyStatus();
+        const status = getStatus();
         const entries = Object.entries(status);
 
         if (entries.length === 0) {
@@ -98,7 +98,7 @@
         try {
           await chat(messages, {
             provider: selectedProvider,
-            callback: ({ provider, content, fullContent: full, done }) => {
+            callback: ({ provider, chunk, content, done }) => {
               providerName = provider;
 
               if (done) {
@@ -107,11 +107,11 @@
                 if (loadingSpan) {
                   loadingSpan.remove();
                 }
-                assistantDiv.textContent += content;
+                assistantDiv.textContent += chunk;
                 chatBox.scrollTop = chatBox.scrollHeight;
               }
 
-              fullContent = full;
+              fullContent = content;
             },
           });
 
