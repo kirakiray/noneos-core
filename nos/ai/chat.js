@@ -1,108 +1,74 @@
 // AI 聊天模块
 // 支持多提供商 API Key 管理、并发控制、负载均衡、流式响应
+
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
 import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
-import {
-  getCurrentConcurrency,
-  incrementConcurrency,
-  decrementConcurrency,
-  getConcurrencyStatus,
-  subscribe,
-} from "./concurrency.js";
+import { getCount, inc, dec, getStatus, subscribe } from "./concurrency.js";
 
-// 获取各 AI 提供商的 API 端点 URL
-function getProviderBaseUrl(provider) {
-  const urls = {
-    deepseek: "https://api.deepseek.com/v1/chat/completions",
-    kimi: "https://api.moonshot.cn/v1/chat/completions",
-    glm: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    minimax: "https://api.minimax.chat/v1/chat/completions",
-  };
-  return urls[provider] || "";
-}
+// 提供商 API 端点
+const PROVIDER_URLS = {
+  deepseek: "https://api.deepseek.com/v1/chat/completions",
+  kimi: "https://api.moonshot.cn/v1/chat/completions",
+  glm: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+  minimax: "https://api.minimax.chat/v1/chat/completions",
+};
 
-// 构建请求头（Bearer Token 认证）
-function getProviderHeaders(provider, apiKey) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
+// 获取请求头
+const getHeaders = (apiKey) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${apiKey}`,
+});
 
-  headers["Authorization"] = `Bearer ${apiKey}`;
+// 创建错误对象
+const createError = (provider, key, msg) => {
+  const keyId = key?.length > 12 ? key.slice(0, 12) + "..." : key || "";
+  return new Error(`[${provider}] [${keyId}] ${msg}`);
+};
 
-  return headers;
-}
+// 获取所有 API Keys
+const getKeys = async () => (await storage.getItem("ai-keys")) || [];
 
-// 获取 Key 简短标识符（前12字符），用于日志输出
-function getKeyIdentifier(key) {
-  if (!key || key.length <= 12) {
-    return key || "";
-  }
-  return key.substring(0, 12) + "...";
-}
+// 选择可用 Key
+const selectKey = (keys, provider) => {
+  const filtered = provider
+    ? keys.filter((k) => k.provider === provider)
+    : keys;
 
-// 创建格式化错误对象
-function createError(provider, key, message) {
-  const keyId = getKeyIdentifier(key);
-  return new Error(`[Provider: ${provider}] [Key: ${keyId}] ${message}`);
-}
-
-// 从存储获取所有已配置的 API Keys
-async function getAiKeys() {
-  const keys = (await storage.getItem("ai-keys")) || [];
-  return keys;
-}
-
-// 选择可用 API Key，按指定 provider 筛选，排除超并发 Key，随机选择
-function selectAvailableKey(keys, provider) {
-  if (provider) {
-    const providerKeys = keys.filter((k) => k.provider === provider);
-    if (providerKeys.length === 0) {
-      return null;
-    }
-    const availableKeys = providerKeys.filter((k) => {
-      const current = getCurrentConcurrency(k.id);
-      return current < (k.concurrency || 1);
-    });
-    if (availableKeys.length === 0) {
-      return { error: "concurrency_exceeded", provider };
-    }
-    const randomIndex = Math.floor(Math.random() * availableKeys.length);
-    return availableKeys[randomIndex];
+  if (filtered.length === 0) {
+    return provider ? { error: "no_provider_key" } : { error: "no_key" };
   }
 
-  const availableKeys = keys.filter((k) => {
-    const current = getCurrentConcurrency(k.id);
-    return current < (k.concurrency || 1);
-  });
+  const available = filtered.filter(
+    (k) => getCount(k.id) < (k.concurrency || 1),
+  );
 
-  if (availableKeys.length === 0) {
-    return { error: "no_available_key" };
+  if (available.length === 0) {
+    return { error: "concurrency_full" };
   }
 
-  const randomIndex = Math.floor(Math.random() * availableKeys.length);
-  return availableKeys[randomIndex];
-}
+  return available[Math.floor(Math.random() * available.length)];
+};
 
-// 执行流式聊天请求，通过 SSE 流式读取响应，callback 实时返回内容片段
-async function streamChat(messages, keyItem, options = {}) {
+// 流式聊天
+const streamChat = async (messages, keyItem, options = {}) => {
   const { provider, key, model, id } = keyItem;
   const { callback, requestId } = options;
 
-  const url = getProviderBaseUrl(provider);
-  const headers = getProviderHeaders(provider, key);
-
-  const body = {
-    model: model,
-    messages: messages,
-    stream: true,
-  };
+  const url = PROVIDER_URLS[provider];
+  if (!url) {
+    throw createError(
+      provider,
+      key,
+      getLocaleText({ cn: "不支持的提供商", en: "Unsupported provider" }),
+    );
+  }
 
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: headers,
-      body: JSON.stringify(body),
+      headers: getHeaders(key),
+      body: JSON.stringify({ model, messages, stream: true }),
     });
   } catch (err) {
     throw createError(
@@ -110,7 +76,7 @@ async function streamChat(messages, keyItem, options = {}) {
       key,
       getLocaleText({
         cn: `网络请求失败: ${err.message}`,
-        en: `Network request failed: ${err.message}`,
+        en: `Network failed: ${err.message}`,
       }),
     );
   }
@@ -121,15 +87,15 @@ async function streamChat(messages, keyItem, options = {}) {
       provider,
       key,
       getLocaleText({
-        cn: `API 请求失败 (${response.status}): ${errorText}`,
-        en: `API request failed (${response.status}): ${errorText}`,
-      }),
+        cn: `API 失败 (${response.status})`,
+        en: `API failed (${response.status})`,
+      }) + `: ${errorText}`,
     );
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let fullContent = "";
+  let content = "";
   let buffer = "";
 
   try {
@@ -142,126 +108,85 @@ async function streamChat(messages, keyItem, options = {}) {
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (!trimmedLine || trimmedLine === "data: [DONE]") continue;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
 
-        if (trimmedLine.startsWith("data: ")) {
-          const jsonStr = trimmedLine.slice(6);
+        if (trimmed.startsWith("data: ")) {
           try {
-            const data = JSON.parse(jsonStr);
-            const content = data.choices?.[0]?.delta?.content || "";
-            if (content) {
-              fullContent += content;
-              if (callback) {
-                callback({
-                  provider: provider,
-                  content: content,
-                  fullContent: fullContent,
-                  done: false,
-                });
-              }
+            const data = JSON.parse(trimmed.slice(6));
+            const chunk = data.choices?.[0]?.delta?.content || "";
+            if (chunk) {
+              content += chunk;
+              callback?.({ provider, chunk, content, done: false });
             }
-          } catch (e) {
-            // 忽略单个数据块的解析错误
-          }
+          } catch (e) {}
         }
       }
     }
   } finally {
-    decrementConcurrency(id, provider, requestId);
+    dec(id, requestId);
   }
 
-  if (callback) {
-    callback({
-      provider: provider,
-      content: "",
-      fullContent: fullContent,
-      done: true,
-    });
-  }
-
-  return {
-    provider: provider,
-    content: fullContent,
-    model: model,
-  };
-}
+  callback?.({ provider, chunk: "", content, done: true });
+  return { provider, content, model };
+};
 
 // 发送聊天请求（主入口）
-// @param {Array} messages - 对话消息数组 [{role, content}]
-// @param {Object} options - { provider?, callback? }
-// @returns {Object} { provider, content, model }
 export async function chat(messages, options = {}) {
   const { provider: specifiedProvider, callback } = options;
 
-  const keys = await getAiKeys();
-
+  const keys = await getKeys();
   if (keys.length === 0) {
     throw new Error(
-      getLocaleText({
-        cn: "没有可用的 API Key，请先在 key-manager 中添加 API Key",
-        en: "No available API Key, please add an API Key in key-manager first",
-      }),
+      getLocaleText({ cn: "没有可用的 API Key", en: "No available API Key" }),
     );
   }
 
-  const selectedKey = selectAvailableKey(keys, specifiedProvider);
+  const selected = selectKey(keys, specifiedProvider);
 
-  if (!selectedKey) {
-    if (specifiedProvider) {
-      throw createError(
-        specifiedProvider,
-        "",
-        getLocaleText({
-          cn: `没有找到 provider 为 ${specifiedProvider} 的 API Key`,
-          en: `No API Key found for provider ${specifiedProvider}`,
-        }),
-      );
-    }
-    throw new Error(
-      getLocaleText({
-        cn: "没有可用的 API Key",
-        en: "No available API Key",
-      }),
-    );
-  }
-
-  if (selectedKey.error === "concurrency_exceeded") {
+  if (selected.error === "no_provider_key") {
     throw createError(
       specifiedProvider,
       "",
       getLocaleText({
-        cn: "超出并发数限制，请稍后重试或使用其他 provider",
-        en: "Concurrency limit exceeded, please try again later or use another provider",
+        cn: `没有 ${specifiedProvider} 的 API Key`,
+        en: `No API Key for ${specifiedProvider}`,
       }),
     );
   }
 
-  if (selectedKey.error === "no_available_key") {
+  if (selected.error === "no_key") {
     throw new Error(
+      getLocaleText({ cn: "没有可用的 API Key", en: "No available API Key" }),
+    );
+  }
+
+  if (selected.error === "concurrency_full") {
+    throw createError(
+      specifiedProvider || "",
+      "",
       getLocaleText({
-        cn: "所有 API Key 都已达到并发数上限，请稍后重试",
-        en: "All API Keys have reached their concurrency limit, please try again later",
+        cn: "并发数已满，请稍后重试",
+        en: "Concurrency limit reached, please retry later",
       }),
     );
   }
 
-  const requestId = incrementConcurrency(selectedKey.id, selectedKey.provider);
+  const requestId = inc(selected.id, selected.provider);
 
   try {
-    return await streamChat(messages, selectedKey, { ...options, requestId });
+    return await streamChat(messages, selected, { ...options, requestId });
   } catch (error) {
-    decrementConcurrency(selectedKey.id, selectedKey.provider, requestId);
+    dec(selected.id, requestId);
     throw error;
   }
 }
 
-// 获取已配置 API Key 的提供商列表
-export async function getAvailableProviders() {
-  const keys = await getAiKeys();
-  const providers = [...new Set(keys.map((k) => k.provider))];
-  return providers;
-}
+// 获取已配置的提供商列表
+export const getAvailableProviders = async () => {
+  const keys = await getKeys();
+  return [...new Set(keys.map((k) => k.provider))];
+};
 
-// 重新导出并发管理模块的函数
-export { subscribe, getConcurrencyStatus };
+// 导出并发管理
+export { subscribe, getStatus };

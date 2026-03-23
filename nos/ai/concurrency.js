@@ -1,250 +1,187 @@
 // 并发管理模块
 // 负责跟踪 API Key 的并发请求数和事件监听
 // 支持跨标签页状态同步
-// 使用 API Key 的唯一 ID（而非 API Key 字符串本身）作为并发跟踪的键
+
 import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 
-// 并发跟踪器：记录每个 API Key ID 的当前并发请求数和 provider
-const concurrencyTracker = new Map();
+// 并发跟踪器：{ id => { count, provider } }
+const tracker = new Map();
 
-// ID 到 Provider 的映射
-const idToProviderMap = new Map();
+// 本标签页活跃请求：{ id => Set<requestId> }
+const activeRequests = new Map();
 
-// 并发事件监听器集合
-const concurrencyListeners = new Set();
+// 事件监听器
+const listeners = new Set();
 
-// 本标签页活跃请求跟踪器：记录本标签页发起的请求
-// 结构: Map<id, Set<requestId>>
-const localActiveRequests = new Map();
-
-// 生成唯一请求 ID
-function generateRequestId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-// 跨标签页通信通道
+// 跨标签页通道
 const channel = new BroadcastChannel("ai-concurrency-sync");
 
-// 触发并发变化事件
-function emitConcurrencyEvent(event) {
-  concurrencyListeners.forEach((listener) => {
+// 生成唯一请求 ID
+const genReqId = () =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+// 触发事件
+const emit = (event) => {
+  listeners.forEach((fn) => {
     try {
-      listener(event);
-    } catch (error) {
+      fn(event);
+    } catch (e) {
       console.error(
-        getLocaleText({
-          cn: "并发事件监听器执行失败:",
-          en: "Concurrency event listener execution failed:",
-        }),
-        error,
+        getLocaleText({ cn: "监听器执行失败:", en: "Listener failed:" }),
+        e,
       );
     }
   });
-}
+};
 
-// 广播并发变化到其他标签页
-function broadcastChange(type, id, provider, current, previous, requestId) {
+// 广播到其他标签页
+const broadcast = (type, id, current, previous, requestId) => {
+  const item = tracker.get(id);
   channel.postMessage({
     type,
     id,
-    provider,
+    provider: item?.provider || "",
     current,
     previous,
     requestId,
     timestamp: Date.now(),
   });
-}
+};
 
-// 广播标签页关闭时的清理消息
-function broadcastCleanup() {
-  const cleanupData = [];
-  localActiveRequests.forEach((requestIds, id) => {
-    if (requestIds.size > 0) {
-      cleanupData.push({
-        id,
-        provider: idToProviderMap.get(id) || "",
-        count: requestIds.size,
-      });
-    }
-  });
+// 获取当前并发数
+export const getCount = (id) => tracker.get(id)?.count || 0;
 
-  if (cleanupData.length > 0) {
-    channel.postMessage({
-      type: "cleanup",
-      data: cleanupData,
-      timestamp: Date.now(),
-    });
+// 增加并发，返回 requestId
+export const inc = (id, provider) => {
+  const item = tracker.get(id);
+  const prev = item?.count || 0;
+  const count = prev + 1;
+
+  tracker.set(id, { count, provider: provider || item?.provider || "" });
+
+  const reqId = genReqId();
+  if (!activeRequests.has(id)) activeRequests.set(id, new Set());
+  activeRequests.get(id).add(reqId);
+
+  broadcast("increment", id, count, prev, reqId);
+  emit({ type: "increment", id, provider, count, prev, source: "local" });
+
+  return reqId;
+};
+
+// 减少并发
+export const dec = (id, reqId) => {
+  const item = tracker.get(id);
+  if (!item) return;
+
+  const prev = item.count;
+  const count = prev - 1;
+
+  if (count <= 0) {
+    tracker.delete(id);
+  } else {
+    tracker.set(id, { count, provider: item.provider });
   }
-}
 
-// 标签页关闭时清理本标签页的活跃请求
-window.addEventListener("beforeunload", () => {
-  broadcastCleanup();
-});
+  if (reqId && activeRequests.has(id)) {
+    activeRequests.get(id).delete(reqId);
+    if (activeRequests.get(id).size === 0) activeRequests.delete(id);
+  }
 
-// 监听其他标签页的并发变化
+  broadcast("decrement", id, count > 0 ? count : 0, prev, reqId);
+  emit({
+    type: "decrement",
+    id,
+    provider: item.provider,
+    count: count > 0 ? count : 0,
+    prev,
+    source: "local",
+  });
+};
+
+// 获取所有并发状态
+export const getStatus = () => {
+  const status = {};
+  tracker.forEach(({ count, provider }, id) => {
+    status[id] = { count, provider };
+  });
+  return status;
+};
+
+// 订阅并发变化
+export const subscribe = (fn) => {
+  if (typeof fn !== "function") {
+    throw new Error(
+      getLocaleText({
+        cn: "监听器必须是函数",
+        en: "Listener must be a function",
+      }),
+    );
+  }
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+};
+
+// 监听其他标签页
 channel.onmessage = (event) => {
-  const { type, id, provider, current, previous, timestamp, data } =
-    event.data;
+  const { type, id, provider, current, previous, timestamp, data } = event.data;
 
   if (type === "cleanup") {
     data.forEach((item) => {
-      const itemCurrent = concurrencyTracker.get(item.id) || 0;
-      const newCount = itemCurrent - item.count;
-
-      if (newCount <= 0) {
-        concurrencyTracker.delete(item.id);
-        idToProviderMap.delete(item.id);
+      const prev = tracker.get(item.id)?.count || 0;
+      const count = prev - item.count;
+      if (count <= 0) {
+        tracker.delete(item.id);
       } else {
-        concurrencyTracker.set(item.id, newCount);
+        const existing = tracker.get(item.id);
+        tracker.set(item.id, {
+          count,
+          provider: existing?.provider || item.provider,
+        });
       }
-
-      emitConcurrencyEvent({
+      emit({
         type: "cleanup",
-        key: item.id,
+        id: item.id,
         provider: item.provider,
-        current: newCount > 0 ? newCount : 0,
-        previous: itemCurrent,
-        timestamp,
+        count: count > 0 ? count : 0,
+        prev,
         source: "remote",
       });
     });
     return;
   }
 
+  const prev = previous;
   if (type === "increment") {
-    concurrencyTracker.set(id, current);
-    if (provider) {
-      idToProviderMap.set(id, provider);
-    }
+    tracker.set(id, { count: current, provider });
   } else if (type === "decrement") {
     if (current <= 0) {
-      concurrencyTracker.delete(id);
-      idToProviderMap.delete(id);
+      tracker.delete(id);
     } else {
-      concurrencyTracker.set(id, current);
+      tracker.set(id, { count: current, provider });
     }
   }
 
-  emitConcurrencyEvent({
-    type,
-    key: id,
-    provider,
-    current,
-    previous,
-    timestamp,
-    source: "remote",
-  });
+  emit({ type, id, provider, count: current, prev, source: "remote" });
 };
 
-// 获取指定 Key ID 的当前并发数
-export function getCurrentConcurrency(id) {
-  return concurrencyTracker.get(id) || 0;
-}
-
-// 增加并发计数，返回请求 ID 用于后续清理
-export function incrementConcurrency(id, provider) {
-  const current = getCurrentConcurrency(id);
-  const newCount = current + 1;
-  concurrencyTracker.set(id, newCount);
-  if (provider) {
-    idToProviderMap.set(id, provider);
-  }
-
-  const requestId = generateRequestId();
-  if (!localActiveRequests.has(id)) {
-    localActiveRequests.set(id, new Set());
-  }
-  localActiveRequests.get(id).add(requestId);
-
-  const timestamp = Date.now();
-
-  broadcastChange("increment", id, provider, newCount, current, requestId);
-
-  emitConcurrencyEvent({
-    type: "increment",
-    key: id,
-    provider: provider,
-    current: newCount,
-    previous: current,
-    timestamp,
-    source: "local",
-  });
-
-  return requestId;
-}
-
-// 减少并发计数，计数为0时移除
-export function decrementConcurrency(id, provider, requestId) {
-  const current = getCurrentConcurrency(id);
-  const newCount = current - 1;
-
-  if (newCount <= 0) {
-    concurrencyTracker.delete(id);
-    idToProviderMap.delete(id);
-  } else {
-    concurrencyTracker.set(id, newCount);
-  }
-
-  if (requestId && localActiveRequests.has(id)) {
-    localActiveRequests.get(id).delete(requestId);
-    if (localActiveRequests.get(id).size === 0) {
-      localActiveRequests.delete(id);
+// 标签页关闭时清理
+window.addEventListener("beforeunload", () => {
+  const cleanup = [];
+  activeRequests.forEach((reqIds, id) => {
+    if (reqIds.size > 0) {
+      cleanup.push({
+        id,
+        provider: tracker.get(id)?.provider || "",
+        count: reqIds.size,
+      });
     }
-  }
-
-  const timestamp = Date.now();
-
-  broadcastChange(
-    "decrement",
-    id,
-    provider,
-    newCount > 0 ? newCount : 0,
-    current,
-    requestId,
-  );
-
-  emitConcurrencyEvent({
-    type: "decrement",
-    key: id,
-    provider: provider,
-    current: newCount > 0 ? newCount : 0,
-    previous: current,
-    timestamp,
-    source: "local",
   });
-}
-
-// 获取当前所有 Key ID 的并发状态
-export function getConcurrencyStatus() {
-  const status = {};
-  concurrencyTracker.forEach((value, id) => {
-    status[id] = {
-      count: value,
-      provider: idToProviderMap.get(id) || "",
-    };
-  });
-  return status;
-}
-
-// 注册并发变化事件监听器
-// @param {Function} listener - 事件监听函数，接收 { type, key, current, previous, timestamp }
-// @returns {Function} unsubscribe - 取消监听的函数
-export function subscribe(listener) {
-  if (typeof listener !== "function") {
-    throw new Error(
-      getLocaleText({
-        cn: "监听器必须是一个函数",
-        en: "Listener must be a function",
-      }),
-    );
+  if (cleanup.length > 0) {
+    channel.postMessage({
+      type: "cleanup",
+      data: cleanup,
+      timestamp: Date.now(),
+    });
   }
-
-  concurrencyListeners.add(listener);
-
-  const unsubscribe = () => {
-    concurrencyListeners.delete(listener);
-  };
-
-  return unsubscribe;
-}
+});
