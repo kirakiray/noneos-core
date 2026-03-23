@@ -16,6 +16,9 @@ const listeners = new Set();
 // 跨标签页通道
 const channel = new BroadcastChannel("ai-concurrency-sync");
 
+// 是否已初始化
+let initialized = false;
+
 // 生成唯一请求 ID
 const genReqId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -119,12 +122,53 @@ export const subscribe = (fn) => {
     );
   }
   listeners.add(fn);
+
+  if (!initialized) {
+    initialized = true;
+    channel.postMessage({ type: "init-request", timestamp: Date.now() });
+  }
+
   return () => listeners.delete(fn);
 };
 
 // 监听其他标签页
 channel.onmessage = (event) => {
   const { type, id, provider, current, previous, timestamp, data } = event.data;
+
+  if (type === "init-request") {
+    const status = [];
+    tracker.forEach(({ count, provider }, id) => {
+      if (count > 0) {
+        status.push({ id, provider, count });
+      }
+    });
+    if (status.length > 0) {
+      channel.postMessage({
+        type: "init-response",
+        data: status,
+        timestamp: Date.now(),
+      });
+    }
+    return;
+  }
+
+  if (type === "init-response") {
+    data.forEach((item) => {
+      const existing = tracker.get(item.id);
+      if (!existing || existing.count < item.count) {
+        tracker.set(item.id, { count: item.count, provider: item.provider });
+        emit({
+          type: "init",
+          id: item.id,
+          provider: item.provider,
+          count: item.count,
+          prev: existing?.count || 0,
+          source: "remote",
+        });
+      }
+    });
+    return;
+  }
 
   if (type === "cleanup") {
     data.forEach((item) => {
