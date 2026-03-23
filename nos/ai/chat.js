@@ -120,7 +120,7 @@ const streamChat = async (messages, keyItem, options = {}) => {
             const chunk = data.choices?.[0]?.delta?.content || "";
             if (chunk) {
               content += chunk;
-              callback?.({ provider, chunk, content, done: false });
+              callback?.({ provider, id, model, chunk, content, done: false });
             }
           } catch (e) {}
         }
@@ -130,8 +130,8 @@ const streamChat = async (messages, keyItem, options = {}) => {
     dec(id, requestId);
   }
 
-  callback?.({ provider, chunk: "", content, done: true });
-  return { provider, content, model };
+  callback?.({ provider, id, model, chunk: "", content, done: true });
+  return { provider, id, model, content };
 };
 
 // 发送聊天请求（主入口）
