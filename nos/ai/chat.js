@@ -5,6 +5,9 @@ import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
 import { getLocaleText } from "/nos/locale-text/get-locale-text.js";
 import { getCount, inc, dec, getStatus, subscribe } from "./concurrency.js";
 
+// 导出并发管理
+export { subscribe, getStatus };
+
 // 提供商 API 端点
 const PROVIDER_URLS = {
   deepseek: "https://api.deepseek.com/v1/chat/completions",
@@ -187,6 +190,3 @@ export const getAvailableProviders = async () => {
   const keys = await getKeys();
   return [...new Set(keys.map((k) => k.provider))];
 };
-
-// 导出并发管理
-export { subscribe, getStatus };
