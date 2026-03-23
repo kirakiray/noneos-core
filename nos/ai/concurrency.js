@@ -14,7 +14,7 @@ const idToProviderMap = new Map();
 const concurrencyListeners = new Set();
 
 // 本标签页活跃请求跟踪器：记录本标签页发起的请求
-// 结构: Map<key, Set<requestId>>
+// 结构: Map<id, Set<requestId>>
 const localActiveRequests = new Map();
 
 // 生成唯一请求 ID
@@ -43,10 +43,10 @@ function emitConcurrencyEvent(event) {
 }
 
 // 广播并发变化到其他标签页
-function broadcastChange(type, key, provider, current, previous, requestId) {
+function broadcastChange(type, id, provider, current, previous, requestId) {
   channel.postMessage({
     type,
-    key,
+    id,
     provider,
     current,
     previous,
@@ -101,7 +101,7 @@ channel.onmessage = (event) => {
 
       emitConcurrencyEvent({
         type: "cleanup",
-        key: getKeyIdentifier(item.id),
+        key: item.id,
         provider: item.provider,
         current: newCount > 0 ? newCount : 0,
         previous: itemCurrent,
@@ -128,7 +128,7 @@ channel.onmessage = (event) => {
 
   emitConcurrencyEvent({
     type,
-    key: getKeyIdentifier(id),
+    key: id,
     provider,
     current,
     previous,
@@ -136,14 +136,6 @@ channel.onmessage = (event) => {
     source: "remote",
   });
 };
-
-// 获取 Key 简短标识符（前12字符），用于日志输出
-function getKeyIdentifier(key) {
-  if (!key || key.length <= 12) {
-    return key || "";
-  }
-  return key.substring(0, 12) + "...";
-}
 
 // 获取指定 Key ID 的当前并发数
 export function getCurrentConcurrency(id) {
@@ -171,7 +163,7 @@ export function incrementConcurrency(id, provider) {
 
   emitConcurrencyEvent({
     type: "increment",
-    key: getKeyIdentifier(id),
+    key: id,
     provider: provider,
     current: newCount,
     previous: current,
@@ -214,7 +206,7 @@ export function decrementConcurrency(id, provider, requestId) {
 
   emitConcurrencyEvent({
     type: "decrement",
-    key: getKeyIdentifier(id),
+    key: id,
     provider: provider,
     current: newCount > 0 ? newCount : 0,
     previous: current,
@@ -223,13 +215,13 @@ export function decrementConcurrency(id, provider, requestId) {
   });
 }
 
-// 获取当前所有 Key 的并发状态
+// 获取当前所有 Key ID 的并发状态
 export function getConcurrencyStatus() {
   const status = {};
-  concurrencyTracker.forEach((value, key) => {
-    status[getKeyIdentifier(key)] = {
+  concurrencyTracker.forEach((value, id) => {
+    status[id] = {
       count: value,
-      provider: keyToProviderMap.get(key) || "",
+      provider: idToProviderMap.get(id) || "",
     };
   });
   return status;
