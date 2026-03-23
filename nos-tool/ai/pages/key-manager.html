@@ -130,11 +130,12 @@
           <div secondary>
             <locale-text>
               <span lang="cn"
-                >ID: {{$data.id}} | 模型: {{$data.model}} | 并发: {{$data.concurrency || 1}}</span
+                >ID: {{$data.id}} | 模型: {{$data.model}} | 并发:
+                {{$data.concurrency || 1}}</span
               >
               <span lang="en"
-                >ID: {{$data.id}} | Model: {{$data.model}} | Concurrency: {{$data.concurrency ||
-                1}}</span
+                >ID: {{$data.id}} | Model: {{$data.model}} | Concurrency:
+                {{$data.concurrency || 1}}</span
               >
             </locale-text>
           </div>
@@ -339,7 +340,7 @@
             }
 
             this.aiKeys.push({
-              id: `key-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+              id: `key-${Math.random().toString(36).slice(2, 11)}`,
               provider: this.selectedProvider,
               model: this.availableModels[0] || "",
               key: this.newKey,
