@@ -55,7 +55,7 @@ const selectKey = (keys, provider) => {
 // 流式聊天
 const streamChat = async (messages, keyItem, options = {}) => {
   const { provider, key, model, id } = keyItem;
-  const { callback, requestId } = options;
+  const { callback, requestId, maxContextLength } = options;
 
   const url = PROVIDER_URLS[provider];
   if (!url) {
@@ -66,12 +66,15 @@ const streamChat = async (messages, keyItem, options = {}) => {
     );
   }
 
+  const requestBody = { model, messages, stream: true };
+  requestBody.max_tokens = maxContextLength || 1024 * 128;
+
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
       headers: getHeaders(key),
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify(requestBody),
     });
   } catch (err) {
     throw createError(
@@ -136,7 +139,7 @@ const streamChat = async (messages, keyItem, options = {}) => {
 
 // 发送聊天请求（主入口）
 export async function chat(messages, options = {}) {
-  const { provider: specifiedProvider, callback } = options;
+  const { provider: specifiedProvider, callback, maxContextLength } = options;
 
   const keys = await getKeys();
   if (keys.length === 0) {
