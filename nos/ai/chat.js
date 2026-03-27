@@ -16,6 +16,14 @@ const PROVIDER_URLS = {
   minimax: "https://api.minimax.chat/v1/chat/completions",
 };
 
+// 提供商默认 max_tokens 限制
+const PROVIDER_MAX_TOKENS = {
+  deepseek: 8192,
+  kimi: 131072,
+  glm: 131072,
+  minimax: 131072,
+};
+
 // 获取请求头
 const getHeaders = (apiKey) => ({
   "Content-Type": "application/json",
@@ -67,7 +75,7 @@ const streamChat = async (messages, keyItem, options = {}) => {
   }
 
   const requestBody = { model, messages, stream: true };
-  requestBody.max_tokens = maxContextLength || 1024 * 128;
+  requestBody.max_tokens = maxContextLength || PROVIDER_MAX_TOKENS[provider] || 8192;
 
   let response;
   try {
