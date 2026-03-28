@@ -1,4 +1,5 @@
-let defaultLang = "en";
+let defaultLang =
+  sessionStorage.getItem("lang") || localStorage.getItem("lang") || "en";
 
 // 根据本地语言，进行修正
 if (navigator.language.toLowerCase().includes("zh")) {
