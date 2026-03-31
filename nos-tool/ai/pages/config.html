@@ -2,6 +2,7 @@
   <style>
     :host {
       display: block;
+      height: 100%;
     }
   </style>
   <o-page src="./key-manager.html"></o-page>
@@ -20,6 +21,10 @@
               query: { ...query },
             },
           });
+
+          setTimeout(() => {
+            this.style.transform = null;
+          }, 200);
         },
         detached() {},
       };

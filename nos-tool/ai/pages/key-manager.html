@@ -62,10 +62,30 @@
       margin-bottom: 12px;
     }
 
+    .key-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 300px;
+    }
+
     p-list-item {
       &:hover {
         background: rgb(from var(--md-sys-color-on-primary) r g b / 0.4);
       }
+    }
+
+    [data-disabled="1"] {
+      .provider-tag,
+      .key-text,
+      [secondary],
+      p-button {
+        opacity: 0.6;
+      }
+    }
+
+    [data-disabled="1"] .disabled-btn {
+      opacity: 1 !important;
     }
   </style>
   <div class="container">
@@ -115,18 +135,9 @@
         <o-fill :value="aiKeys" name="key-item"></o-fill>
       </p-list>
       <template name="key-item">
-        <p-list-item>
+        <p-list-item attr:data-disabled="$data.disabled ? 1 : 0">
           <span class="provider-tag" slot="prefix">{{$data.provider}}</span>
-          <div
-            style="
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-              max-width: 300px;
-            "
-          >
-            {{$data.key}}
-          </div>
+          <div class="key-text">{{$data.key}}</div>
           <div secondary>
             <locale-text>
               <span lang="cn"
@@ -152,6 +163,21 @@
               </locale-text>
             </p-button>
             <p-button
+              icon
+              class="disabled-btn"
+              size="small"
+              variant="text"
+              on:click="$data.disabled = !$data.disabled"
+            >
+              <o-if :value="$data.disabled">
+                <n-icon icon="zondicons:view-hide"></n-icon>
+              </o-if>
+              <o-else>
+                <n-icon icon="zondicons:view-show"></n-icon>
+              </o-else>
+            </p-button>
+            <p-button
+              color="error"
               variant="outlined"
               on:click="$host.deleteKey($data,$index)"
               size="small"
