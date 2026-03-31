@@ -42,8 +42,8 @@ const getKeys = async () => (await storage.getItem("ai-keys")) || [];
 // 选择可用 Key
 const selectKey = (keys, provider) => {
   const filtered = provider
-    ? keys.filter((k) => k.provider === provider)
-    : keys;
+    ? keys.filter((k) => k.provider === provider && !k.disabled)
+    : keys.filter((k) => !k.disabled);
 
   if (filtered.length === 0) {
     return provider ? { error: "no_provider_key" } : { error: "no_key" };
