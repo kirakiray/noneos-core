@@ -7,11 +7,9 @@
     <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
   </head>
   <body>
-    <script type="module" src="/_install/register.js"></script>
     <script type="module">
-      await new Promise((resolve) => {
-        setTimeout(resolve, 100);
-      });
+      import registration from "/_install/register.js";
+      await registration;
 
       import { test } from "/nos/ok-test/main.js";
 

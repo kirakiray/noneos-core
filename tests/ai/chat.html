@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>chat</title>
+    <link rel="stylesheet" href="/tests/ai/chat.css" />
+  </head>
+  <body>
+    <div id="chat-box"></div>
+    <div id="concurrency-status"></div>
+    <div id="input-area">
+      <select id="model-select">
+        <option value="">自动选择</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="kimi">Kimi</option>
+        <option value="glm">GLM</option>
+        <option value="minimax">MiniMax</option>
+      </select>
+      <input type="text" id="user-input" placeholder="输入消息..." />
+      <button onclick="sendMessage()">发送</button>
+    </div>
+    <script type="module">
+      import { chat, subscribe, getStatus } from "/nos/ai/chat.js";
+
+      const chatBox = document.getElementById("chat-box");
+      const userInput = document.getElementById("user-input");
+      const modelSelect = document.getElementById("model-select");
+      const concurrencyStatus = document.getElementById("concurrency-status");
+      let messages = [];
+
+      function updateConcurrencyStatus() {
+        const status = getStatus();
+        const entries = Object.entries(status);
+
+        if (entries.length === 0) {
+          concurrencyStatus.innerHTML = "";
+          return;
+        }
+
+        const html = entries
+          .map(([key, data]) => {
+            const count = data.count;
+            const provider = data.provider;
+            const type = count > 0 ? "active" : "idle";
+            return `<span class="concurrency-item ${type}">${provider} (${key}): ${count}</span>`;
+          })
+          .join(" | ");
+
+        concurrencyStatus.innerHTML = `<div class="concurrency-bar">${html}</div>`;
+      }
+
+      subscribe((event) => {
+        updateConcurrencyStatus();
+      });
+
+      updateConcurrencyStatus();
+
+      const savedModel = sessionStorage.getItem("selectedModel");
+      if (savedModel) {
+        modelSelect.value = savedModel;
+      }
+
+      modelSelect.addEventListener("change", () => {
+        sessionStorage.setItem("selectedModel", modelSelect.value);
+      });
+
+      function addMessage(role, content) {
+        const div = document.createElement("div");
+        div.className = `message ${role}`;
+        div.textContent = content;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      window.sendMessage = async function () {
+        const content = userInput.value.trim();
+        if (!content) return;
+
+        addMessage("user", content);
+        userInput.value = "";
+        messages.push({ role: "user", content });
+
+        const assistantDiv = document.createElement("div");
+        assistantDiv.className = "message assistant";
+        chatBox.appendChild(assistantDiv);
+
+        const loadingSpan = document.createElement("span");
+        loadingSpan.className = "loading";
+        loadingSpan.textContent = "正在思考...";
+        assistantDiv.appendChild(loadingSpan);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        const selectedProvider = modelSelect.value || undefined;
+        let fullContent = "";
+        let providerName = "";
+
+        try {
+          await chat(messages, {
+            provider: selectedProvider,
+            callback: ({ provider, chunk, content, done }) => {
+              providerName = provider;
+
+              if (done) {
+                loadingSpan.remove();
+              } else {
+                if (loadingSpan) {
+                  loadingSpan.remove();
+                }
+                assistantDiv.textContent += chunk;
+                chatBox.scrollTop = chatBox.scrollHeight;
+              }
+
+              fullContent = content;
+            },
+          });
+
+          const providerTag = document.createElement("span");
+          providerTag.className = "provider-tag";
+          providerTag.textContent = providerName;
+          assistantDiv.appendChild(providerTag);
+
+          messages.push({ role: "assistant", content: fullContent });
+        } catch (error) {
+          loadingSpan.remove();
+          assistantDiv.className = "message error";
+          assistantDiv.textContent = error.message;
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }
+      };
+
+      userInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
+    </script>
+  </body>
+</html>

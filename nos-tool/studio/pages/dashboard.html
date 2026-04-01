@@ -1,5 +1,7 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/select/select.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI/packages/button/group.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
   <l-m src="/gh/ofajs/Punch-UI/packages/switch/switch.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
@@ -7,6 +9,7 @@
   <style>
     :host {
       display: block;
+      height: 100%;
     }
 
     h3 {
@@ -17,24 +20,63 @@
       width: 100%;
       height: 100%;
       padding: 16px;
+      overflow: auto;
       box-sizing: border-box;
     }
 
-    .frame-contaner {
-      --frame-width: 360px;
-      --frame-height: 400px;
-      --frame-scale: 0.75;
-      width: var(--frame-width);
-      height: var(--frame-height);
-      border-radius: 4px;
+    .frame-container {
+      width: calc(var(--frame-width) * var(--frame-scale));
+      height: calc(var(--frame-height) * var(--frame-scale));
+      border-radius: 8px;
+      overflow: hidden;
       border: 1px solid var(--md-sys-color-primary);
     }
 
+    .frame-container.mobile-size {
+      --frame-width: 375px;
+      --frame-height: 667px;
+    }
+
+    .frame-container.mobile-size.is-horizontal {
+      --frame-width: 667px;
+      --frame-height: 375px;
+    }
+
+    .frame-container.pad-size {
+      --frame-width: 768px;
+      --frame-height: 1024px;
+    }
+
+    .frame-container.pad-size.is-horizontal {
+      --frame-width: 1024px;
+      --frame-height: 768px;
+    }
+
+    .frame-container.pc-size {
+      --frame-width: 1280px;
+      --frame-height: 720px;
+    }
+
     .preview-frame {
-      width: calc(var(--frame-width) / var(--frame-scale));
-      height: calc(var(--frame-height) / var(--frame-scale));
+      width: var(--frame-width);
+      height: var(--frame-height);
       transform: scale(var(--frame-scale));
       transform-origin: top left;
+    }
+
+    .hor-icon {
+      transform: rotate(-45deg);
+      transition: transform 0.1s ease-in-out;
+    }
+
+    .is-horizontal-icon {
+      transform: rotate(45deg);
+    }
+  </style>
+
+  <style>
+    .frame-container {
+      --frame-scale: data(scale);
     }
   </style>
   <div class="container">
@@ -44,7 +86,7 @@
         <span lang="en">Preview</span>
       </locale-text>
     </h3>
-    <div style="padding-bottom: 16px">
+    <div style="padding-bottom: 16px; display: flex; align-items: center">
       <p-button variant="outlined" on:click="previewInNewWindow">
         <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
         <locale-text>
@@ -52,8 +94,70 @@
           <span lang="en">Preview Application in New Window</span>
         </locale-text>
       </p-button>
+      <p-button-group size="small" style="margin-left: 8px">
+        <p-button
+          on:click="device = 'mobile'"
+          attr:variant="device === 'mobile' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="mynaui:mobile" slot="prefix"></n-icon>
+          <locale-text>
+            <span lang="cn">手机</span>
+            <span lang="en">Mobile</span>
+          </locale-text>
+        </p-button>
+        <p-button
+          on:click="device = 'pad'"
+          attr:variant="device === 'pad' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="mingcute:pad-line" slot="prefix"></n-icon>
+          <locale-text>
+            <span lang="cn">平板</span>
+            <span lang="en">Pad</span>
+          </locale-text>
+        </p-button>
+        <p-button
+          on:click="device = 'pc'"
+          attr:variant="device === 'pc' ? 'contained' : 'outlined'"
+        >
+          <n-icon icon="ic:round-laptop" slot="prefix"></n-icon>
+          PC
+        </p-button>
+      </p-button-group>
+      <p-button
+        icon
+        size="small"
+        variant="outlined"
+        attr:disabled="device === 'pc'"
+        on:click="isHorizontal = !isHorizontal"
+        style="margin-left: 8px"
+      >
+        <n-icon
+          class="hor-icon"
+          class:is-horizontal-icon="isHorizontal"
+          icon="material-symbols:mobile-rotate-sharp"
+        ></n-icon>
+      </p-button>
+      <p-select sync:value="scale" size="small" style="margin-left: 8px">
+        <label>
+          <locale-text>
+            <span lang="cn">缩放比例</span>
+            <span lang="en">Scale Ratio</span>
+          </locale-text>
+        </label>
+        <p-option value="0.5">0.5</p-option>
+        <p-option value="0.75">0.75</p-option>
+        <p-option value="1.0">1.0</p-option>
+        <p-option value="1.25">1.25</p-option>
+      </p-select>
     </div>
-    <div class="frame-contaner">
+
+    <div
+      class="frame-container"
+      class:mobile-size="device === 'mobile'"
+      class:pad-size="device === 'pad'"
+      class:pc-size="device === 'pc'"
+      class:is-horizontal="isHorizontal"
+    >
       <iframe
         class="preview-frame"
         attr:src="previewUrl"
@@ -81,7 +185,7 @@
       const { createData } = await load("/nos/hybrid-data/main.js");
       const { getStyleContent } = await load("../util/theme.js");
       const { default: jsBeautify } = await load(
-        "/npm/js-beautify@1.15.1/+esm"
+        "/npm/js-beautify@1.15.1/+esm",
       );
 
       return {
@@ -89,6 +193,15 @@
           previewUrl: "/" + query.path + "/",
           ofaConfig: {},
           _rootHandle: null,
+          device: sessionStorage.getItem("studio-device") || "mobile",
+          scale: sessionStorage.getItem("studio-scale") || "1.0",
+          isHorizontal: false,
+        },
+        watch: {
+          "device,scale"([device, scale]) {
+            sessionStorage.setItem("studio-device", device);
+            sessionStorage.setItem("studio-scale", scale);
+          },
         },
         proto: {
           previewInNewWindow() {
@@ -117,7 +230,7 @@
                 "css/palette.css",
                 {
                   create: "file",
-                }
+                },
               );
 
               await paletteHandle.write(paletteStyleContent);
@@ -129,21 +242,21 @@
               await themeHandle.write(themeStyleContent);
 
               const tempContainer = $(
-                `<template>${replaceHeadContent}</template>`
+                `<template>${replaceHeadContent}</template>`,
               );
 
               $(tempContainer.ele.content).push(
-                `<link rel="stylesheet" href="css/palette.css" pui-colors>`
+                `<link rel="stylesheet" href="css/palette.css" pui-colors>`,
               );
               $(tempContainer.ele.content).push(
-                `<link rel="stylesheet" href="css/theme.css">`
+                `<link rel="stylesheet" href="css/theme.css">`,
               );
 
               replaceHeadContent = tempContainer.html;
             } else {
               // 去除所有相关元素
               const tempContainer = $(
-                `<template>${replaceHeadContent}</template>`
+                `<template>${replaceHeadContent}</template>`,
               );
 
               $(tempContainer.ele.content)
@@ -156,7 +269,7 @@
             // 替换内容
             const finalContent = indexContent.replace(
               /<head>(.*?)<\/head>/s,
-              `<head>${replaceHeadContent}<\/head>`
+              `<head>${replaceHeadContent}<\/head>`,
             );
 
             const reContent = jsBeautify.html(finalContent, {
@@ -191,7 +304,7 @@
             "ofa-config.json",
             {
               create: "file",
-            }
+            },
           );
 
           this.ofaConfig = await createData(studioConfigHandle);

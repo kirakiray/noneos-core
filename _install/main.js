@@ -105,7 +105,7 @@ export const installSystemFile = async (callback) => {
 
   // await new Promise((resolve) => setTimeout(resolve, 200));
 
-  const zipBlob = await fetch(import.meta.resolve("../nos.zip"), {
+  const zipBlob = await fetch(new URL("../nos.zip", import.meta.url).href, {
     cache: "no-store",
   }).then((res) => res.blob());
 

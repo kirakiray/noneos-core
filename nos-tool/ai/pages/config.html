@@ -1,0 +1,33 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+  </style>
+  <o-page src="./key-manager.html"></o-page>
+  <script>
+    export const parent = "../layout.html";
+
+    export default async ({ load, query }) => {
+      return {
+        data: {},
+        proto: {},
+        attached() {
+          this.emit("active-page", {
+            composed: true,
+            data: {
+              name: "config",
+              query: { ...query },
+            },
+          });
+
+          setTimeout(() => {
+            this.style.transform = null;
+          }, 200);
+        },
+        detached() {},
+      };
+    };
+  </script>
+</template>

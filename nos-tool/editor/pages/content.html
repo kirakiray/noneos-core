@@ -160,6 +160,7 @@
           picUrl: "",
           previewWebUrl: "",
           _oldActiveFilePath: "", // 上一个activeFilePath
+          _fileHistoryContent: {}, // 记录修改文件后的内容，用于判断是否有改动
         },
         watch: {
           activeFilePath() {
@@ -186,7 +187,7 @@
                 },
               });
 
-              fileHistoryContent[this.activeFilePath] = code;
+              this._fileHistoryContent[this.activeFilePath] = code;
 
               this.refreshHasChangedPaths();
             }, 100);

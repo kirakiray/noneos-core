@@ -1,8 +1,18 @@
 {
-  "version": "4.0.14",
+  "version": "4.0.15",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1772273663294,
+  "signTime": 1775018549866,
   "hashes": [
+    {
+      "path": "ai/chat.js",
+      "hash": "10b4ec56de231c4b047c3a7a11ff5484bc8d7f16ba2cbd971f78f43cf8a7f9dc",
+      "size": 5447
+    },
+    {
+      "path": "ai/concurrency.js",
+      "hash": "ae8d9297d2c32499b15169e04d35ac60336c496485c8bb96474ba77b82f18495",
+      "size": 5427
+    },
     {
       "path": "crypto/crypto-ecdsa.js",
       "hash": "d1243d0aefa3b93b12c80a765d641574b920eeecff6ac9043f78593f3a9aeab4",
@@ -35,8 +45,8 @@
     },
     {
       "path": "fs/handle/file.js",
-      "hash": "841c662188b7ad46d3955870f554f5d67c516d2d2fc852dc6fdd1ba82a492b23",
-      "size": 2277
+      "hash": "84565b58015e75b6cbca0c29fce8d3afd57ee6285f5d0f46e4fd5c45d686fb9e",
+      "size": 2307
     },
     {
       "path": "fs/handle/main.js",
@@ -100,8 +110,8 @@
     },
     {
       "path": "locale-text/get-locale-text.js",
-      "hash": "06555600bf6411748231655736eaf2e8eae414e070e093f85d4c18bf178a2e70",
-      "size": 694
+      "hash": "d8f863039bc32918b75589e646b7824abf36b504e1a81b7b552eef1d1ef101af",
+      "size": 833
     },
     {
       "path": "locale-text/locale-text.html",
@@ -145,8 +155,8 @@
     },
     {
       "path": "util/hash/get-file-chunk-hashes-async.js",
-      "hash": "0025c5a3776805dff3ae02f4e217e4794acc3bd3efb0699625d4c7f716d1c0f5",
-      "size": 900
+      "hash": "0445693716070bb05950de44c8af2c9cf19ed6ba6db0ae88b8b7f9baf4b8b41b",
+      "size": 916
     },
     {
       "path": "util/hash/get-file-chunk-hashes.js",
@@ -174,11 +184,6 @@
       "size": 232
     },
     {
-      "path": "util/hash/test-async.html",
-      "hash": "3e6ccc6b3d3ae3ab8d07aef75d11fd3a8616b00e469820045154b0397b5ecebe",
-      "size": 1940
-    },
-    {
       "path": "util/rand-adj-noun.js",
       "hash": "776e50fc9f8af8470226fd90cd08e03660a8bf47729cec4b2829d7961aa209ac",
       "size": 1692
@@ -189,5 +194,5 @@
       "size": 2117
     }
   ],
-  "signature": "DOn/dPyQZltRvXv6Bi1K0rJ09++Rgv8qQIMLGiXMCcAVx+3CxH5r6up6cw4xA+Dr4OUPSznkKlW/Ehx+fn2j/A=="
+  "signature": "G+3bUxUbFdooDcxLub08KDbi0fW5l6YUAG+UdYNMDpSkFs0yMBB9XT7y/KjZFIPM0xgtC684iNhHVwWt1mli8g=="
 }
