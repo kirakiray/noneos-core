@@ -1,7 +1,7 @@
 {
-  "version": "4.0.14",
+  "version": "4.0.15",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1774952525563,
+  "signTime": 1775018549866,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -45,8 +45,8 @@
     },
     {
       "path": "fs/handle/file.js",
-      "hash": "841c662188b7ad46d3955870f554f5d67c516d2d2fc852dc6fdd1ba82a492b23",
-      "size": 2277
+      "hash": "84565b58015e75b6cbca0c29fce8d3afd57ee6285f5d0f46e4fd5c45d686fb9e",
+      "size": 2307
     },
     {
       "path": "fs/handle/main.js",
@@ -155,8 +155,8 @@
     },
     {
       "path": "util/hash/get-file-chunk-hashes-async.js",
-      "hash": "0025c5a3776805dff3ae02f4e217e4794acc3bd3efb0699625d4c7f716d1c0f5",
-      "size": 900
+      "hash": "0445693716070bb05950de44c8af2c9cf19ed6ba6db0ae88b8b7f9baf4b8b41b",
+      "size": 916
     },
     {
       "path": "util/hash/get-file-chunk-hashes.js",
@@ -194,5 +194,5 @@
       "size": 2117
     }
   ],
-  "signature": "t74QpXRz7kwbFpV2G/bprAxwEWkiA8d4/o3f4iNfBpiIII/DH4ivOLzPPSLS8TONsLfRxKU9LFFaE68ws4Hd9w=="
+  "signature": "G+3bUxUbFdooDcxLub08KDbi0fW5l6YUAG+UdYNMDpSkFs0yMBB9XT7y/KjZFIPM0xgtC684iNhHVwWt1mli8g=="
 }
