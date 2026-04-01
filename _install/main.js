@@ -199,7 +199,24 @@ export const updateSystemConfig = async (options) => {
 
   await systemConfigFile.write(JSON.stringify(systemConfig));
 
-  await fetch("/__config").then((e) => e.json());
+  // 失败重试5次，每次间隔增加100毫秒
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await fetch("/__config").then((e) => e.json());
+      break; // 成功则跳出循环
+    } catch (err) {
+      console.error(
+        `Update system config failed (attempt ${attempt + 1}/5):`,
+        err,
+      );
+      if (attempt < 4) {
+        // 最后一次失败不需要等待
+        await new Promise((resolve) =>
+          setTimeout(resolve, (attempt + 1) * 100),
+        );
+      }
+    }
+  }
 
   return systemConfig;
 };
