@@ -1,4 +1,7 @@
-const workerPath = import.meta.resolve("./get-file-chunk-hashes.worker.js");
+const workerPath = new URL(
+  "./get-file-chunk-hashes.worker.js",
+  import.meta.url
+).href;
 
 export const getFileChunkHashesAsync = async (
   file,

@@ -1,9 +1,12 @@
 import { verifyData } from "../nos/crypto/crypto-verify.js";
 
 export const getOnlineData = async () => {
-  const rootCert = await fetch(import.meta.resolve("../nos/root-cert.json"), {
-    cache: "no-store",
-  }).then((e) => e.json());
+  const rootCert = await fetch(
+    new URL("../nos/root-cert.json", import.meta.url).href,
+    {
+      cache: "no-store",
+    }
+  ).then((e) => e.json());
 
   const isRootCertValid = await verifyData(rootCert);
 
@@ -11,9 +14,12 @@ export const getOnlineData = async () => {
     throw new Error("Root certificate verification failed");
   }
 
-  const onlineNosConfig = await fetch(import.meta.resolve("../nos.json"), {
-    cache: "no-store",
-  }).then((res) => res.json());
+  const onlineNosConfig = await fetch(
+    new URL("../nos.json", import.meta.url).href,
+    {
+      cache: "no-store",
+    }
+  ).then((res) => res.json());
 
   const isNosConfigValid = await verifyData(onlineNosConfig);
 
