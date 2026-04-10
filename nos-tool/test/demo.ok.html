@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>test demo</title>
+    <script src="./test.js"></script>
+  </head>
+  <body>
+    <ok-test name="a plus b">
+      <template>
+        <script type="module">
+          const a = 100;
+          const b = 200;
+
+          return {
+            assert: a + b === 300,
+            content: {
+              a,
+              b,
+            },
+          };
+        </script>
+      </template>
+    </ok-test>
+  </body>
+</html>
