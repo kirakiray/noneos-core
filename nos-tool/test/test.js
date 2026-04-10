@@ -64,6 +64,8 @@ class OkTest extends HTMLElement {
   }
 
   async runTest(name, code, templates) {
+    let url = '';
+    let sourceURL = window.location.href;
     try {
       let lineOffset = 0;
       let htmlContent = '';
@@ -77,7 +79,6 @@ class OkTest extends HTMLElement {
         console.warn('Failed to fetch source for padding', e);
       }
       
-      let sourceURL = window.location.href;
       try {
         const urlObj = new URL(sourceURL);
         urlObj.searchParams.set('test', name.replace(/\s+/g, '-'));
@@ -86,27 +87,25 @@ class OkTest extends HTMLElement {
         // Fallback
       }
 
-      // 将源代码完整地包裹起来，这样断点时能看到完整的上下文（包括HTML）
-      // 将不在当前 test script 内的内容变成注释，以保证它是一段合法的 JavaScript 代码
-      let fullSourceCode = code;
+      let blobContent = '';
       if (htmlContent && lineOffset > 0) {
         const lines = htmlContent.split('\n');
-        // 将 code 之前的内容注释掉
-        const beforeCode = lines.slice(0, lineOffset).map(line => `// ${line}`).join('\n');
-        // 找到 code 结束的行号
+        
+        // 为了让行号绝对对齐（不增加额外行），我们把函数声明和第一行注释放在同一行
+        lines[0] = `export default async function test() { // ${lines[0]}`;
+        
+        const beforeCode = lines.slice(0, lineOffset).map((line, i) => i === 0 ? line : `// ${line}`).join('\n');
         const codeLineCount = code.split('\n').length;
-        // 将 code 之后的内容注释掉
         const afterCode = lines.slice(lineOffset + codeLineCount).map(line => `// ${line}`).join('\n');
         
-        fullSourceCode = `${beforeCode}\n${code}\n${afterCode}`;
+        blobContent = `${beforeCode}\n${code}\n${afterCode}\n}\n//# sourceURL=${sourceURL}`;
       } else {
         const padLines = '\n'.repeat(Math.max(0, lineOffset));
-        fullSourceCode = `${padLines}${code}`;
+        blobContent = `export default async function test() {${padLines}${code}\n}\n//# sourceURL=${sourceURL}`;
       }
 
-      const blobContent = `export default async function test() {\n// --- BEGIN TEST --- \n${fullSourceCode}\n// --- END TEST ---\n}\n//# sourceURL=${sourceURL}`;
       const blob = new Blob([blobContent], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
+      url = URL.createObjectURL(blob);
 
       const module = await import(url);
       const result = await module.default();
@@ -117,6 +116,10 @@ class OkTest extends HTMLElement {
         this.showResult(name, result, false, templates);
       }
     } catch (error) {
+      if (error instanceof Error && error.stack && url) {
+        // 修复 Safari 下错误堆栈显示 blob 虚拟地址的问题
+        error.stack = error.stack.split(url).join(sourceURL);
+      }
       this.showError(name, error, templates);
     }
   }
