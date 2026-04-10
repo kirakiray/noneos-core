@@ -74,50 +74,22 @@ class OkTest extends HTMLElement {
           lineOffset = htmlContent.substring(0, codeIndex).split('\n').length - 1;
         }
       } catch (e) {
-        console.warn('Failed to fetch source for sourcemap', e);
+        console.warn('Failed to fetch source for padding', e);
       }
 
-      const base64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-      const encodeVLQ = (value) => {
-        let vlq = value < 0 ? ((-value) << 1) | 1 : value << 1;
-        let encoded = '';
-        do {
-          let digit = vlq & 31;
-          vlq >>>= 5;
-          if (vlq > 0) digit |= 32;
-          encoded += base64[digit];
-        } while (vlq > 0);
-        return encoded;
-      };
-
-      let mappings = ';'; // Line 0: wrapper function
-      const lines = code.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        if (i === 0) {
-          mappings += encodeVLQ(0) + encodeVLQ(0) + encodeVLQ(lineOffset) + encodeVLQ(0);
-        } else {
-          mappings += encodeVLQ(0) + encodeVLQ(0) + encodeVLQ(1) + encodeVLQ(0);
-        }
-        mappings += ';';
+      // 补充空白行以对齐源文件中的真实行号
+      const padLines = '\n'.repeat(Math.max(0, lineOffset));
+      
+      let sourceURL = window.location.href;
+      try {
+        const urlObj = new URL(sourceURL);
+        urlObj.searchParams.set('test', name.replace(/\s+/g, '-'));
+        sourceURL = urlObj.toString();
+      } catch (e) {
+        // Fallback
       }
 
-      const sourceMap = {
-        version: 3,
-        file: 'test.js',
-        sources: [window.location.href],
-        sourcesContent: htmlContent ? [htmlContent] : null,
-        mappings: mappings
-      };
-
-      const sourceMapBase64 = await new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.readAsDataURL(new Blob([JSON.stringify(sourceMap)], { type: 'application/json' }));
-      });
-
-      const sourceMapComment = `//# sourceMappingURL=data:application/json;charset=utf-8;base64,${sourceMapBase64}`;
-
-      const blobContent = `export default async function test() {\n${code}\n}\n${sourceMapComment}`;
+      const blobContent = `export default async function test() {${padLines}${code}\n}\n//# sourceURL=${sourceURL}`;
       const blob = new Blob([blobContent], { type: 'application/javascript' });
       const url = URL.createObjectURL(blob);
 
