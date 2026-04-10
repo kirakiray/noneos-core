@@ -8,7 +8,7 @@
   </head>
   <body>
     <h1>Unit Test Examples</h1>
-    
+
     <h2>✓ Successful Test</h2>
     <ok-test name="a plus b should equal 300">
       <template>
@@ -21,7 +21,7 @@
             content: {
               a,
               b,
-              sum: a + b
+              sum: a + b,
             },
           };
         </script>
@@ -41,7 +41,7 @@
               x,
               y,
               sum: x + y,
-              expected: 100
+              expected: 100,
             },
           };
         </script>
@@ -53,10 +53,11 @@
       <template>
         <script>
           const obj = null;
+
           const value = obj.someProperty;
 
           return {
-            assert: true
+            assert: true,
           };
         </script>
       </template>
@@ -67,7 +68,7 @@
       <template>
         <script>
           const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-          
+
           await delay(100);
           const result = 42;
 
@@ -87,11 +88,10 @@
       <template>
         <script>
           return {
-            assert: true
+            assert: true,
           };
         </script>
       </template>
     </ok-test>
-
   </body>
 </html>
