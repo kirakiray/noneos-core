@@ -195,12 +195,13 @@
           _rootHandle: null,
           device: sessionStorage.getItem("studio-device") || "mobile",
           scale: sessionStorage.getItem("studio-scale") || "1.0",
-          isHorizontal: false,
+          isHorizontal: sessionStorage.getItem("studio-isHorizontal") === "true",
         },
         watch: {
-          "device,scale"([device, scale]) {
+          "device,scale,isHorizontal"([device, scale, isHorizontal]) {
             sessionStorage.setItem("studio-device", device);
             sessionStorage.setItem("studio-scale", scale);
+            sessionStorage.setItem("studio-isHorizontal", isHorizontal);
           },
         },
         proto: {
