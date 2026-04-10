@@ -28,38 +28,65 @@ class OkTest extends HTMLElement {
 
   async runTest(name, code) {
     try {
-      const testFunction = new Function(code);
+      const testFunction = new Function(`return (async () => { ${code} })()`);
       const result = await testFunction();
 
       if (result && result.assert === true) {
-        this.showSuccess(name, result);
+        this.showResult(name, result, true);
       } else {
-        this.showFailure(name, result);
+        this.showResult(name, result, false);
       }
     } catch (error) {
       this.showError(name, error);
     }
   }
 
-  showSuccess(name, result) {
+  showResult(name, result, success) {
+    const status = success ? "✓" : "✗";
+    const attr = success ? "success" : "failure";
+    
+    this.setAttribute(attr, "");
+    
     this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
           padding: 12px;
           margin: 8px 0;
-          background: #d4edda;
-          border-left: 4px solid #28a745;
           border-radius: 4px;
           font-family: system-ui, -apple-system, sans-serif;
         }
+        :host([success]) {
+          background: #d4edda;
+          border-left: 4px solid #28a745;
+        }
+        :host([failure]) {
+          background: #f8d7da;
+          border-left: 4px solid #dc3545;
+        }
+        :host([success]) .test-name {
+          color: #155724;
+        }
+        :host([failure]) .test-name {
+          color: #721c24;
+        }
+        :host([success]) .status {
+          color: #28a745;
+        }
+        :host([failure]) .status {
+          color: #dc3545;
+        }
+        :host([success]) .content,
+        :host([success]) .error-msg {
+          color: #155724;
+        }
+        :host([failure]) .content,
+        :host([failure]) .error-msg {
+          color: #721c24;
+        }
         .test-name {
           font-weight: bold;
-          color: #155724;
           margin-bottom: 4px;
-        }
-        .status {
-          color: #28a745;
         }
         .content {
           margin-top: 8px;
@@ -67,37 +94,8 @@ class OkTest extends HTMLElement {
           background: rgba(255, 255, 255, 0.5);
           border-radius: 3px;
           font-size: 0.9em;
-          color: #155724;
           white-space: pre-wrap;
           font-family: monospace;
-        }
-      </style>
-      <div class="test-name">
-        <span class="status">✓</span> ${this.escapeHtml(name)}
-      </div>
-      ${result && result.content ? `<div class="content">${this.escapeHtml(JSON.stringify(result.content, null, 2))}</div>` : ""}
-    `;
-  }
-
-  showFailure(name, result) {
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          padding: 12px;
-          margin: 8px 0;
-          background: #f8d7da;
-          border-left: 4px solid #dc3545;
-          border-radius: 4px;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-        .test-name {
-          font-weight: bold;
-          color: #721c24;
-          margin-bottom: 4px;
-        }
-        .status {
-          color: #dc3545;
         }
         .error-msg {
           margin-top: 8px;
@@ -105,24 +103,13 @@ class OkTest extends HTMLElement {
           background: rgba(255, 255, 255, 0.5);
           border-radius: 3px;
           font-size: 0.9em;
-          color: #721c24;
-          font-family: monospace;
-        }
-        .content {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.5);
-          border-radius: 3px;
-          font-size: 0.9em;
-          color: #721c24;
-          white-space: pre-wrap;
           font-family: monospace;
         }
       </style>
       <div class="test-name">
-        <span class="status">✗</span> ${this.escapeHtml(name)}
+        <span class="status">${status}</span> ${this.escapeHtml(name)}
       </div>
-      <div class="error-msg">Assertion failed: expected true but got ${result && result.assert}</div>
+      ${!success ? `<div class="error-msg">Assertion failed: expected true but got ${result && result.assert}</div>` : ""}
       ${result && result.content ? `<div class="content">${this.escapeHtml(JSON.stringify(result.content, null, 2))}</div>` : ""}
     `;
   }
@@ -131,24 +118,34 @@ class OkTest extends HTMLElement {
     const errorMsg = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : "";
 
+    this.setAttribute("failure", "");
+
     this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
           padding: 12px;
           margin: 8px 0;
-          background: #f8d7da;
-          border-left: 4px solid #dc3545;
           border-radius: 4px;
           font-family: system-ui, -apple-system, sans-serif;
         }
+        :host([failure]) {
+          background: #f8d7da;
+          border-left: 4px solid #dc3545;
+        }
+        :host([failure]) .test-name {
+          color: #721c24;
+        }
+        :host([failure]) .status {
+          color: #dc3545;
+        }
+        :host([failure]) .error-msg,
+        :host([failure]) .error-stack {
+          color: #721c24;
+        }
         .test-name {
           font-weight: bold;
-          color: #721c24;
           margin-bottom: 4px;
-        }
-        .status {
-          color: #dc3545;
         }
         .error-msg {
           margin-top: 8px;
@@ -156,7 +153,6 @@ class OkTest extends HTMLElement {
           background: rgba(255, 255, 255, 0.5);
           border-radius: 3px;
           font-size: 0.9em;
-          color: #721c24;
           font-family: monospace;
         }
         .error-stack {
@@ -165,7 +161,6 @@ class OkTest extends HTMLElement {
           background: rgba(0, 0, 0, 0.05);
           border-radius: 3px;
           font-size: 0.85em;
-          color: #721c24;
           white-space: pre-wrap;
           font-family: monospace;
           overflow-x: auto;
