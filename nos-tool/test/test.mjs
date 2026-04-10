@@ -15,11 +15,7 @@ class OkTest extends HTMLElement {
 
     OkTest.templatePromise = (async () => {
       try {
-        const currentScript = document.currentScript;
-        const scriptUrl = currentScript ? currentScript.src : "";
-        const templateUrl = scriptUrl
-          ? scriptUrl.replace(/test\.js$/, "template.html")
-          : "./template.html";
+        const templateUrl = import.meta.resolve("./template.html");
 
         const response = await fetch(templateUrl);
         const html = await response.text();
