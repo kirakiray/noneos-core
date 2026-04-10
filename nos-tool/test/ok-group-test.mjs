@@ -147,9 +147,21 @@ export default class OkGroupTest extends HTMLElement {
           display: flex;
           align-items: center;
           user-select: none;
+          padding: 8px;
+          border-radius: 4px;
+        }
+        .iframe-title.success {
+          background: #d4edda;
+          color: #155724;
+          border-left: 4px solid #28a745;
+        }
+        .iframe-title.failure {
+          background: #f8d7da;
+          color: #721c24;
+          border-left: 4px solid #dc3545;
         }
         .iframe-title:hover {
-          color: #0056b3;
+          opacity: 0.9;
         }
         .iframe-title .toggle-icon {
           margin-right: 8px;
@@ -201,8 +213,16 @@ export default class OkGroupTest extends HTMLElement {
           const isExpanded = this.expandedGroups.has(url);
           const expandClass = isExpanded ? 'expanded' : '';
           
+          const isFinished = data.results.length === data.total;
+          let statusClass = '';
+          if (isFinished) {
+            statusClass = data.error > 0 ? 'failure' : 'success';
+          } else if (data.error > 0) {
+            statusClass = 'failure'; // 运行中如果有错误提前变红
+          }
+          
           let groupHtml = `<div class="iframe-group" data-url="${url}">
-            <div class="iframe-title ${expandClass}">
+            <div class="iframe-title ${expandClass} ${statusClass}">
               <span class="toggle-icon">▶</span>
               <span>${new URL(url).pathname} - Total: ${data.total}, Success: ${data.success}, Error: ${data.error}</span>
             </div>
