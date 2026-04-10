@@ -76,9 +76,6 @@ class OkTest extends HTMLElement {
       } catch (e) {
         console.warn('Failed to fetch source for padding', e);
       }
-
-      // 补充空白行以对齐源文件中的真实行号
-      const padLines = '\n'.repeat(Math.max(0, lineOffset));
       
       let sourceURL = window.location.href;
       try {
@@ -89,7 +86,25 @@ class OkTest extends HTMLElement {
         // Fallback
       }
 
-      const blobContent = `export default async function test() {${padLines}${code}\n}\n//# sourceURL=${sourceURL}`;
+      // 将源代码完整地包裹起来，这样断点时能看到完整的上下文（包括HTML）
+      // 将不在当前 test script 内的内容变成注释，以保证它是一段合法的 JavaScript 代码
+      let fullSourceCode = code;
+      if (htmlContent && lineOffset > 0) {
+        const lines = htmlContent.split('\n');
+        // 将 code 之前的内容注释掉
+        const beforeCode = lines.slice(0, lineOffset).map(line => `// ${line}`).join('\n');
+        // 找到 code 结束的行号
+        const codeLineCount = code.split('\n').length;
+        // 将 code 之后的内容注释掉
+        const afterCode = lines.slice(lineOffset + codeLineCount).map(line => `// ${line}`).join('\n');
+        
+        fullSourceCode = `${beforeCode}\n${code}\n${afterCode}`;
+      } else {
+        const padLines = '\n'.repeat(Math.max(0, lineOffset));
+        fullSourceCode = `${padLines}${code}`;
+      }
+
+      const blobContent = `export default async function test() {\n// --- BEGIN TEST --- \n${fullSourceCode}\n// --- END TEST ---\n}\n//# sourceURL=${sourceURL}`;
       const blob = new Blob([blobContent], { type: 'application/javascript' });
       const url = URL.createObjectURL(blob);
 
