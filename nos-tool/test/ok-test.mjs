@@ -151,8 +151,10 @@ export default class OkTest extends HTMLElement {
 
       if (result && result.assert === true) {
         this.showResult(name, result, true, templates);
+        this.notifyParent(name, result, true);
       } else {
         this.showResult(name, result, false, templates);
+        this.notifyParent(name, result, false);
       }
     } catch (error) {
       if (error instanceof Error && error.stack && url) {
@@ -160,6 +162,19 @@ export default class OkTest extends HTMLElement {
         error.stack = error.stack.split(url).join(sourceURL);
       }
       this.showError(name, error, templates);
+      this.notifyParent(name, { message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : "" }, false);
+    }
+  }
+
+  notifyParent(name, result, success) {
+    if (window.parent !== window) {
+      window.parent.postMessage({
+        type: 'ok-test-result',
+        name,
+        result,
+        success,
+        url: window.location.href
+      }, '*');
     }
   }
 
@@ -253,3 +268,14 @@ export default class OkTest extends HTMLElement {
 }
 
 customElements.define("ok-test", OkTest);
+
+if (window.parent !== window) {
+  setTimeout(() => {
+    const tests = document.querySelectorAll('ok-test');
+    window.parent.postMessage({
+      type: 'ok-test-count',
+      count: tests.length,
+      url: window.location.href
+    }, '*');
+  }, 100);
+}

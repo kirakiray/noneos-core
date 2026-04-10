@@ -1,5 +1,218 @@
 export default class OkGroupTest extends HTMLElement {
   constructor() {
     super();
+    this.attachShadow({ mode: "open" });
+    this.totalTests = 0;
+    this.successTests = 0;
+    this.errorTests = 0;
+    this.iframes = new Map(); // src -> { iframe, total, success, error, results: [] }
+    
+    this.handleMessage = this.handleMessage.bind(this);
+  }
+
+  connectedCallback() {
+    window.addEventListener("message", this.handleMessage);
+
+    const includes = this.querySelectorAll("include");
+    const urls = Array.from(includes).map(inc => inc.getAttribute("src")).filter(Boolean);
+
+    this.render();
+
+    urls.forEach(url => {
+      const absoluteUrl = new URL(url, window.location.href).toString();
+      const iframe = document.createElement("iframe");
+      iframe.src = absoluteUrl;
+      // hide the iframe visually, but it must execute
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.style.position = "absolute";
+      iframe.style.visibility = "hidden";
+      this.shadowRoot.appendChild(iframe);
+
+      this.iframes.set(absoluteUrl, {
+        iframe,
+        total: 0,
+        success: 0,
+        error: 0,
+        results: []
+      });
+    });
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("message", this.handleMessage);
+  }
+
+  handleMessage(event) {
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "ok-test-count") {
+      const url = data.url;
+      const iframeData = this.iframes.get(url);
+      if (iframeData) {
+        iframeData.total = data.count;
+        this.updateCounts();
+      }
+    } else if (data.type === "ok-test-result") {
+      const url = data.url;
+      const iframeData = this.iframes.get(url);
+      if (iframeData) {
+        if (data.success) {
+          iframeData.success++;
+        } else {
+          iframeData.error++;
+        }
+        iframeData.results.push(data);
+        this.updateCounts();
+      }
+    }
+  }
+
+  updateCounts() {
+    this.totalTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.total, 0);
+    this.successTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.success, 0);
+    this.errorTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.error, 0);
+    this.render();
+  }
+
+  render() {
+    const isFinished = this.totalTests > 0 && (this.successTests + this.errorTests) === this.totalTests;
+    const isSuccess = isFinished && this.errorTests === 0;
+    const isFailure = this.errorTests > 0;
+
+    if (isFailure) {
+      this.setAttribute('failure', '');
+      this.removeAttribute('success');
+    } else if (isSuccess) {
+      this.setAttribute('success', '');
+      this.removeAttribute('failure');
+    } else {
+      this.removeAttribute('success');
+      this.removeAttribute('failure');
+    }
+
+    let html = `
+      <style>
+        :host {
+          display: block;
+          padding: 12px;
+          margin: 8px 0;
+          border-radius: 4px;
+          font-family: system-ui, -apple-system, sans-serif;
+          background: #f8f9fa;
+          border-left: 4px solid #6c757d;
+        }
+        :host([success]) {
+          background: #d4edda;
+          border-left: 4px solid #28a745;
+        }
+        :host([failure]) {
+          background: #f8d7da;
+          border-left: 4px solid #dc3545;
+        }
+        :host([success]) .header { color: #155724; }
+        :host([failure]) .header { color: #721c24; }
+        
+        .header {
+          font-weight: bold;
+          margin-bottom: 8px;
+          font-size: 1.1em;
+        }
+        .summary {
+          margin-bottom: 12px;
+          font-weight: bold;
+        }
+        .iframe-group {
+          margin-top: 16px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        .iframe-title {
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+        .result-item {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(255, 255, 255, 0.5);
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+        .result-item.success { color: #155724; }
+        .result-item.failure { color: #721c24; }
+        
+        .result-name { font-weight: bold; }
+        .result-content, .error-msg, .error-stack {
+          margin-top: 4px;
+          font-family: monospace;
+          white-space: pre-wrap;
+        }
+        .error-stack {
+          background: rgba(0, 0, 0, 0.05);
+          padding: 8px;
+          overflow-x: auto;
+        }
+      </style>
+      <div class="header">
+        Group Test Results
+      </div>
+      <div class="summary">
+        Total: ${this.totalTests} | Success: ${this.successTests} | Error: ${this.errorTests}
+      </div>
+      <div class="details">
+        ${Array.from(this.iframes.entries()).map(([url, data]) => {
+          if (data.total === 0) return '';
+          
+          let groupHtml = `<div class="iframe-group">
+            <div class="iframe-title">${new URL(url).pathname} - Total: ${data.total}, Success: ${data.success}, Error: ${data.error}</div>`;
+            
+          data.results.forEach(r => {
+            const statusIcon = r.success ? '✓' : '✗';
+            groupHtml += `
+              <div class="result-item ${r.success ? 'success' : 'failure'}">
+                <div class="result-name">${statusIcon} ${this.escapeHtml(r.name)}</div>`;
+                
+            if (!r.success) {
+               if (r.result && typeof r.result === 'object' && r.result.message) {
+                 groupHtml += `<div class="error-msg">Error: ${this.escapeHtml(r.result.message)}</div>`;
+                 if (r.result.stack) {
+                   groupHtml += `<div class="error-stack">${this.escapeHtml(r.result.stack)}</div>`;
+                 }
+               } else {
+                 groupHtml += `<div class="error-msg">Assertion failed: expected true but got ${this.escapeHtml(JSON.stringify(r.result && r.result.assert))}</div>`;
+               }
+            } else {
+               if (r.result && r.result.content) {
+                 groupHtml += `<div class="result-content">${this.escapeHtml(JSON.stringify(r.result.content, null, 2))}</div>`;
+               }
+            }
+            
+            groupHtml += `</div>`;
+          });
+          
+          groupHtml += `</div>`;
+          return groupHtml;
+        }).join('')}
+      </div>
+    `;
+
+    let container = this.shadowRoot.querySelector('.ui-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'ui-container';
+      this.shadowRoot.appendChild(container);
+    }
+    container.innerHTML = html;
+  }
+
+  escapeHtml(text) {
+    if (text == null) return '';
+    const div = document.createElement("div");
+    div.textContent = String(text);
+    return div.innerHTML;
   }
 }
+
+customElements.define("ok-group-test", OkGroupTest);
