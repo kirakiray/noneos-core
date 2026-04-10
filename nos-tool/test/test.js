@@ -4,6 +4,76 @@ class OkTest extends HTMLElement {
     this.attachShadow({ mode: "open" });
   }
 
+  getStyles() {
+    return `
+      <style>
+        :host {
+          display: block;
+          padding: 12px;
+          margin: 8px 0;
+          border-radius: 4px;
+          font-family: system-ui, -apple-system, sans-serif;
+        }
+        :host([success]) {
+          background: #d4edda;
+          border-left: 4px solid #28a745;
+        }
+        :host([failure]) {
+          background: #f8d7da;
+          border-left: 4px solid #dc3545;
+        }
+        :host([success]) .test-name {
+          color: #155724;
+        }
+        :host([failure]) .test-name {
+          color: #721c24;
+        }
+        :host([success]) .status {
+          color: #28a745;
+        }
+        :host([failure]) .status {
+          color: #dc3545;
+        }
+        :host([success]) .content,
+        :host([success]) .error-msg,
+        :host([success]) .error-stack {
+          color: #155724;
+        }
+        :host([failure]) .content,
+        :host([failure]) .error-msg,
+        :host([failure]) .error-stack {
+          color: #721c24;
+        }
+        .test-name {
+          font-weight: bold;
+          margin-bottom: 4px;
+        }
+        .content,
+        .error-msg {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(255, 255, 255, 0.5);
+          border-radius: 3px;
+          font-size: 0.9em;
+          font-family: monospace;
+        }
+        .content {
+          white-space: pre-wrap;
+        }
+        .error-stack {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 3px;
+          font-size: 0.85em;
+          white-space: pre-wrap;
+          font-family: monospace;
+          overflow-x: auto;
+        }
+      </style>
+    `;
+  }
+
   connectedCallback() {
     requestAnimationFrame(() => {
       const name = this.getAttribute("name") || "Unnamed Test";
@@ -48,64 +118,7 @@ class OkTest extends HTMLElement {
     this.setAttribute(attr, "");
     
     this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          padding: 12px;
-          margin: 8px 0;
-          border-radius: 4px;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-        :host([success]) {
-          background: #d4edda;
-          border-left: 4px solid #28a745;
-        }
-        :host([failure]) {
-          background: #f8d7da;
-          border-left: 4px solid #dc3545;
-        }
-        :host([success]) .test-name {
-          color: #155724;
-        }
-        :host([failure]) .test-name {
-          color: #721c24;
-        }
-        :host([success]) .status {
-          color: #28a745;
-        }
-        :host([failure]) .status {
-          color: #dc3545;
-        }
-        :host([success]) .content,
-        :host([success]) .error-msg {
-          color: #155724;
-        }
-        :host([failure]) .content,
-        :host([failure]) .error-msg {
-          color: #721c24;
-        }
-        .test-name {
-          font-weight: bold;
-          margin-bottom: 4px;
-        }
-        .content {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.5);
-          border-radius: 3px;
-          font-size: 0.9em;
-          white-space: pre-wrap;
-          font-family: monospace;
-        }
-        .error-msg {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.5);
-          border-radius: 3px;
-          font-size: 0.9em;
-          font-family: monospace;
-        }
-      </style>
+      ${this.getStyles()}
       <div class="test-name">
         <span class="status">${status}</span> ${this.escapeHtml(name)}
       </div>
@@ -121,51 +134,7 @@ class OkTest extends HTMLElement {
     this.setAttribute("failure", "");
 
     this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          padding: 12px;
-          margin: 8px 0;
-          border-radius: 4px;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-        :host([failure]) {
-          background: #f8d7da;
-          border-left: 4px solid #dc3545;
-        }
-        :host([failure]) .test-name {
-          color: #721c24;
-        }
-        :host([failure]) .status {
-          color: #dc3545;
-        }
-        :host([failure]) .error-msg,
-        :host([failure]) .error-stack {
-          color: #721c24;
-        }
-        .test-name {
-          font-weight: bold;
-          margin-bottom: 4px;
-        }
-        .error-msg {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.5);
-          border-radius: 3px;
-          font-size: 0.9em;
-          font-family: monospace;
-        }
-        .error-stack {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 3px;
-          font-size: 0.85em;
-          white-space: pre-wrap;
-          font-family: monospace;
-          overflow-x: auto;
-        }
-      </style>
+      ${this.getStyles()}
       <div class="test-name">
         <span class="status">✗</span> ${this.escapeHtml(name)}
       </div>
