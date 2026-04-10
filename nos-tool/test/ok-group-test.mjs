@@ -7,6 +7,8 @@ export default class OkGroupTest extends HTMLElement {
     this.errorTests = 0;
     this.iframes = new Map(); // src -> { iframe, total, success, error, results: [] }
     this.expandedGroups = new Set(); // 存储展开状态的 group url
+    this.pendingUrls = [];
+    this.currentUrl = null;
     
     this.handleMessage = this.handleMessage.bind(this);
     this.toggleGroup = this.toggleGroup.bind(this);
@@ -16,30 +18,37 @@ export default class OkGroupTest extends HTMLElement {
     window.addEventListener("message", this.handleMessage);
 
     const includes = this.querySelectorAll("include");
-    const urls = Array.from(includes).map(inc => inc.getAttribute("src")).filter(Boolean);
+    this.pendingUrls = Array.from(includes).map(inc => inc.getAttribute("src")).filter(Boolean).map(url => new URL(url, window.location.href).toString());
 
     this.render();
+    this.runNextIframe();
+  }
 
-    urls.forEach(url => {
-      const absoluteUrl = new URL(url, window.location.href).toString();
-      const iframe = document.createElement("iframe");
-      iframe.src = absoluteUrl;
-      // hide the iframe visually, but it must execute
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "none";
-      iframe.style.position = "absolute";
-      iframe.style.visibility = "hidden";
-      this.shadowRoot.appendChild(iframe);
+  runNextIframe() {
+    if (this.pendingUrls.length === 0) return;
+    
+    const absoluteUrl = this.pendingUrls.shift();
+    this.currentUrl = absoluteUrl;
+    
+    const iframe = document.createElement("iframe");
+    iframe.src = absoluteUrl;
+    // hide the iframe visually, but it must execute
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.position = "absolute";
+    iframe.style.visibility = "hidden";
+    this.shadowRoot.appendChild(iframe);
 
-      this.iframes.set(absoluteUrl, {
-        iframe,
-        total: 0,
-        success: 0,
-        error: 0,
-        results: []
-      });
+    this.iframes.set(absoluteUrl, {
+      iframe,
+      total: -1, // Initialize total to -1 to distinguish from actual 0 tests
+      success: 0,
+      error: 0,
+      results: []
     });
+    
+    this.render();
   }
 
   disconnectedCallback() {
@@ -56,6 +65,11 @@ export default class OkGroupTest extends HTMLElement {
       if (iframeData) {
         iframeData.total = data.count;
         this.updateCounts();
+        
+        // Handle case where iframe has 0 tests or all tests are already finished
+        if (url === this.currentUrl && iframeData.results.length === data.count) {
+           this.runNextIframe();
+        }
       }
     } else if (data.type === "ok-test-result") {
       const url = data.url;
@@ -68,6 +82,11 @@ export default class OkGroupTest extends HTMLElement {
         }
         iframeData.results.push(data);
         this.updateCounts();
+        
+        // 如果当前 iframe 的所有测试都跑完了，启动下一个 (total 必须已经被设置且不为 -1)
+        if (url === this.currentUrl && iframeData.total !== -1 && iframeData.results.length === iframeData.total) {
+          this.runNextIframe();
+        }
       }
     }
   }
@@ -82,14 +101,14 @@ export default class OkGroupTest extends HTMLElement {
   }
 
   updateCounts() {
-    this.totalTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.total, 0);
+    this.totalTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + (data.total > 0 ? data.total : 0), 0);
     this.successTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.success, 0);
     this.errorTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.error, 0);
     this.render();
   }
 
   render() {
-    const isFinished = this.totalTests > 0 && (this.successTests + this.errorTests) === this.totalTests;
+    const isFinished = this.totalTests > 0 && (this.successTests + this.errorTests) === this.totalTests && this.pendingUrls.length === 0;
     const isSuccess = isFinished && this.errorTests === 0;
     const isFailure = this.errorTests > 0;
 
@@ -208,23 +227,27 @@ export default class OkGroupTest extends HTMLElement {
       </div>
       <div class="details">
         ${Array.from(this.iframes.entries()).map(([url, data]) => {
-          if (data.total === 0) return '';
+          if (data.total === -1 && url !== this.currentUrl) return ''; // 未开始且不在运行中则不显示
           
           const isExpanded = this.expandedGroups.has(url);
           const expandClass = isExpanded ? 'expanded' : '';
           
-          const isFinished = data.results.length === data.total;
+          const isFinished = data.total !== -1 && data.results.length === data.total;
           let statusClass = '';
           if (isFinished) {
             statusClass = data.error > 0 ? 'failure' : 'success';
           } else if (data.error > 0) {
             statusClass = 'failure'; // 运行中如果有错误提前变红
+          } else if (url === this.currentUrl) {
+            statusClass = 'running'; // 可选：正在运行的样式
           }
+          
+          const displayTotal = data.total === -1 ? '?' : data.total;
           
           let groupHtml = `<div class="iframe-group" data-url="${url}">
             <div class="iframe-title ${expandClass} ${statusClass}">
               <span class="toggle-icon">▶</span>
-              <span>${new URL(url).pathname} - Total: ${data.total}, Success: ${data.success}, Error: ${data.error}</span>
+              <span>${new URL(url).pathname} - Total: ${displayTotal}, Success: ${data.success}, Error: ${data.error}</span>
             </div>
             <div class="iframe-content ${expandClass}">`;
             
