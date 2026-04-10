@@ -6,8 +6,10 @@ export default class OkGroupTest extends HTMLElement {
     this.successTests = 0;
     this.errorTests = 0;
     this.iframes = new Map(); // src -> { iframe, total, success, error, results: [] }
+    this.expandedGroups = new Set(); // 存储展开状态的 group url
     
     this.handleMessage = this.handleMessage.bind(this);
+    this.toggleGroup = this.toggleGroup.bind(this);
   }
 
   connectedCallback() {
@@ -68,6 +70,15 @@ export default class OkGroupTest extends HTMLElement {
         this.updateCounts();
       }
     }
+  }
+
+  toggleGroup(url) {
+    if (this.expandedGroups.has(url)) {
+      this.expandedGroups.delete(url);
+    } else {
+      this.expandedGroups.add(url);
+    }
+    this.render();
   }
 
   updateCounts() {
@@ -132,6 +143,28 @@ export default class OkGroupTest extends HTMLElement {
         .iframe-title {
           font-weight: bold;
           margin-bottom: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          user-select: none;
+        }
+        .iframe-title:hover {
+          color: #0056b3;
+        }
+        .iframe-title .toggle-icon {
+          margin-right: 8px;
+          font-size: 0.8em;
+          transition: transform 0.2s;
+          display: inline-block;
+        }
+        .iframe-title.expanded .toggle-icon {
+          transform: rotate(90deg);
+        }
+        .iframe-content {
+          display: none;
+        }
+        .iframe-content.expanded {
+          display: block;
         }
         .result-item {
           margin-top: 8px;
@@ -165,8 +198,15 @@ export default class OkGroupTest extends HTMLElement {
         ${Array.from(this.iframes.entries()).map(([url, data]) => {
           if (data.total === 0) return '';
           
-          let groupHtml = `<div class="iframe-group">
-            <div class="iframe-title">${new URL(url).pathname} - Total: ${data.total}, Success: ${data.success}, Error: ${data.error}</div>`;
+          const isExpanded = this.expandedGroups.has(url);
+          const expandClass = isExpanded ? 'expanded' : '';
+          
+          let groupHtml = `<div class="iframe-group" data-url="${url}">
+            <div class="iframe-title ${expandClass}">
+              <span class="toggle-icon">▶</span>
+              <span>${new URL(url).pathname} - Total: ${data.total}, Success: ${data.success}, Error: ${data.error}</span>
+            </div>
+            <div class="iframe-content ${expandClass}">`;
             
           data.results.forEach(r => {
             const statusIcon = r.success ? '✓' : '✗';
@@ -192,7 +232,7 @@ export default class OkGroupTest extends HTMLElement {
             groupHtml += `</div>`;
           });
           
-          groupHtml += `</div>`;
+          groupHtml += `</div></div>`;
           return groupHtml;
         }).join('')}
       </div>
@@ -202,6 +242,21 @@ export default class OkGroupTest extends HTMLElement {
     if (!container) {
       container = document.createElement('div');
       container.className = 'ui-container';
+      
+      // 代理点击事件处理折叠/展开
+      container.addEventListener('click', (e) => {
+        const titleEl = e.target.closest('.iframe-title');
+        if (titleEl) {
+          const groupEl = titleEl.closest('.iframe-group');
+          if (groupEl) {
+            const url = groupEl.getAttribute('data-url');
+            if (url) {
+              this.toggleGroup(url);
+            }
+          }
+        }
+      });
+      
       this.shadowRoot.appendChild(container);
     }
     container.innerHTML = html;
