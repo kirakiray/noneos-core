@@ -1,5 +1,7 @@
 class OkTest extends HTMLElement {
   static templatePromise = null;
+  static testQueue = [];
+  static isRunning = false;
 
   constructor() {
     super();
@@ -41,8 +43,9 @@ class OkTest extends HTMLElement {
 
   async connectedCallback() {
     const templates = await OkTest.loadTemplate();
+    const isParallel = this.hasAttribute("parallel");
 
-    requestAnimationFrame(() => {
+    const executeTest = () => {
       const name = this.getAttribute("name") || "Unnamed Test";
       const template = this.querySelector("template");
 
@@ -59,52 +62,92 @@ class OkTest extends HTMLElement {
       }
 
       const code = script.textContent;
-      this.runTest(name, code, templates);
-    });
+      return this.runTest(name, code, templates);
+    };
+
+    if (isParallel) {
+      requestAnimationFrame(executeTest);
+    } else {
+      OkTest.testQueue.push({
+        element: this,
+        execute: executeTest,
+      });
+
+      requestAnimationFrame(() => {
+        if (!OkTest.isRunning) {
+          OkTest.processQueue();
+        }
+      });
+    }
+  }
+
+  static async processQueue() {
+    if (OkTest.testQueue.length === 0) {
+      OkTest.isRunning = false;
+      return;
+    }
+
+    OkTest.isRunning = true;
+    const { execute } = OkTest.testQueue.shift();
+
+    try {
+      await execute();
+    } catch (error) {
+      console.error("Test execution error:", error);
+    }
+
+    OkTest.processQueue();
   }
 
   async runTest(name, code, templates) {
-    let url = '';
+    let url = "";
     let sourceURL = window.location.href;
     try {
       let lineOffset = 0;
-      let htmlContent = '';
+      let htmlContent = "";
       try {
-        htmlContent = await fetch(window.location.href).then(r => r.text());
+        htmlContent = await fetch(window.location.href).then((r) => r.text());
         const codeIndex = htmlContent.indexOf(code);
         if (codeIndex !== -1) {
-          lineOffset = htmlContent.substring(0, codeIndex).split('\n').length - 1;
+          lineOffset =
+            htmlContent.substring(0, codeIndex).split("\n").length - 1;
         }
       } catch (e) {
-        console.warn('Failed to fetch source for padding', e);
+        console.warn("Failed to fetch source for padding", e);
       }
-      
+
       try {
         const urlObj = new URL(sourceURL);
-        urlObj.searchParams.set('test', name.replace(/\s+/g, '-'));
+        urlObj.searchParams.set("test", name.replace(/\s+/g, "-"));
         sourceURL = urlObj.toString();
       } catch (e) {
         // Fallback
       }
 
-      let blobContent = '';
+      let blobContent = "";
       if (htmlContent && lineOffset > 0) {
-        const lines = htmlContent.split('\n');
-        
+        const lines = htmlContent.split("\n");
+
         // 为了让行号绝对对齐（不增加额外行），我们把函数声明和第一行注释放在同一行
         lines[0] = `export default async function test() { // ${lines[0]}`;
-        
-        const beforeCode = lines.slice(0, lineOffset).map((line, i) => i === 0 ? line : `// ${line}`).join('\n');
-        const codeLineCount = code.split('\n').length;
-        const afterCode = lines.slice(lineOffset + codeLineCount).map(line => `// ${line}`).join('\n');
-        
+
+        const beforeCode = lines
+          .slice(0, lineOffset)
+          .map((line, i) => (i === 0 ? line : `// ${line}`))
+          .join("\n");
+        const codeLineCount = code.split("\n").length;
+        const afterCode = lines
+          .slice(lineOffset + codeLineCount)
+          .map((line) => `// ${line}`)
+          .join("\n");
+
         blobContent = `${beforeCode}\n${code}\n${afterCode}\n}\n//# sourceURL=${sourceURL}`;
       } else {
-        const padLines = '\n'.repeat(Math.max(0, lineOffset));
+        const padLines = "\n".repeat(Math.max(0, lineOffset));
         blobContent = `export default async function test() {${padLines}${code}\n}\n//# sourceURL=${sourceURL}`;
       }
 
-      const blob = new Blob([blobContent], { type: 'application/javascript' });
+      const blob = new Blob([blobContent], { type: "application/javascript" });
       url = URL.createObjectURL(blob);
 
       const module = await import(url);
