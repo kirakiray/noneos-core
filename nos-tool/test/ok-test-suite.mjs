@@ -1,11 +1,11 @@
 const templatePromise = (async () => {
   const baseUrl = import.meta.url;
-  const templateUrl = new URL('./ok-group-test-template.html', baseUrl).href;
+  const templateUrl = new URL('./ok-test-suite-template.html', baseUrl).href;
   const response = await fetch(templateUrl);
   return response.text();
 })();
 
-export default class OkGroupTest extends HTMLElement {
+export default class OkTestSuite extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -236,4 +236,4 @@ export default class OkGroupTest extends HTMLElement {
   }
 }
 
-customElements.define("ok-group-test", OkGroupTest);
+customElements.define("ok-test-suite", OkTestSuite);
