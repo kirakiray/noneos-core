@@ -37,7 +37,7 @@ async function runBrowserTests(browserConfig) {
   let context;
   try {
     context = await launcher.launchPersistentContext(dataDir, {
-      headless: true,
+      headless: false,
     });
 
     const page = context.pages()[0] || (await context.newPage());
