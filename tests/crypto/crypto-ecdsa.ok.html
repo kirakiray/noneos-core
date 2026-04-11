@@ -1,131 +1,138 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Generate KeyPair Test</title>
-    <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
+    <script type="module" src="/nos-tool/test/test.mjs"></script>
   </head>
   <body>
-    <script type="module">
-      import { test } from "/nos/ok-test/main.js";
-      import {
-        generateKeyPair,
-        importPrivateKey,
-        importPublicKey,
-        createSigner,
-        createVerifier,
-      } from "/nos/crypto/crypto-ecdsa.js";
+    <h1>ECDSA Crypto Tests</h1>
 
-      await test("Generate KeyPair Test", async () => {
-        const keyPair = await generateKeyPair();
+    <ok-test name="Generate KeyPair Test">
+      <template>
+        <script type="module">
+          import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
+          {
+            const keyPair = await generateKeyPair();
 
-        // 验证生成的密钥对是否符合预期
-        const hasPublicKey = !!keyPair.publicKey;
-        const hasPrivateKey = !!keyPair.privateKey;
+            const hasPublicKey = !!keyPair.publicKey;
+            const hasPrivateKey = !!keyPair.privateKey;
 
-        // 验证密钥格式是否为 base64
-        const isBase64 = (str) => {
-          try {
-            return btoa(atob(str)) === str;
-          } catch (err) {
-            return false;
+            const isBase64 = (str) => {
+              try {
+                return btoa(atob(str)) === str;
+              } catch (err) {
+                return false;
+              }
+            };
+
+            const isPublicKeyBase64 = isBase64(keyPair.publicKey);
+            const isPrivateKeyBase64 = isBase64(keyPair.privateKey);
+
+            return {
+              assert:
+                hasPublicKey &&
+                hasPrivateKey &&
+                isPublicKeyBase64 &&
+                isPrivateKeyBase64,
+              content: {
+                message: "ECDSA 密钥对生成成功",
+                publicKeyLength: keyPair.publicKey.length,
+                privateKeyLength: keyPair.privateKey.length,
+                algorithm: "ECDSA P-256",
+              },
+            };
           }
-        };
+        </script>
+      </template>
+    </ok-test>
 
-        const isPublicKeyBase64 = isBase64(keyPair.publicKey);
-        const isPrivateKeyBase64 = isBase64(keyPair.privateKey);
-
-        return {
-          assert:
-            hasPublicKey &&
-            hasPrivateKey &&
-            isPublicKeyBase64 &&
-            isPrivateKeyBase64,
-          content: {
-            message: "ECDSA 密钥对生成成功",
-            publicKeyLength: keyPair.publicKey.length,
-            privateKeyLength: keyPair.privateKey.length,
-            algorithm: "ECDSA P-256",
-          },
-        };
-      });
-
-      await test("Sign and Verify Test", async () => {
-        const keyPair = await generateKeyPair();
-
-        // 导入密钥
-        const privateKey = await importPrivateKey(keyPair.privateKey);
-        const publicKey = await importPublicKey(keyPair.publicKey);
-
-        // 创建测试数据
-        const message = "Hello, NoneOS!";
-        const encoder = new TextEncoder();
-        const data = encoder.encode(message);
-
-        // 使用私钥签名
-        const signature = await window.crypto.subtle.sign(
+    <ok-test name="Sign and Verify Test">
+      <template>
+        <script type="module">
+          import {
+            generateKeyPair,
+            importPrivateKey,
+            importPublicKey,
+          } from "/nos/crypto/crypto-ecdsa.js";
           {
-            name: "ECDSA",
-            hash: { name: "SHA-256" },
-          },
-          privateKey,
-          data
-        );
+            const keyPair = await generateKeyPair();
 
-        // 使用公钥验证签名
-        const isValid = await window.crypto.subtle.verify(
-          {
-            name: "ECDSA",
-            hash: { name: "SHA-256" },
-          },
-          publicKey,
-          signature,
-          data
-        );
+            const privateKey = await importPrivateKey(keyPair.privateKey);
+            const publicKey = await importPublicKey(keyPair.publicKey);
 
-        return {
-          assert: isValid,
-          content: {
-            message: "签名验证成功",
-            originalMessage: message,
-            signatureLength: signature.byteLength,
-          },
-        };
-      });
+            const message = "Hello, NoneOS!";
+            const encoder = new TextEncoder();
+            const data = encoder.encode(message);
 
-      await test("Create Signer and Verifier Test", async () => {
-        // 生成密钥对
-        const keyPair = await generateKeyPair();
+            const signature = await window.crypto.subtle.sign(
+              {
+                name: "ECDSA",
+                hash: { name: "SHA-256" },
+              },
+              privateKey,
+              data,
+            );
 
-        // 创建签名器和验证器
-        const sign = await createSigner(keyPair.privateKey);
-        const verify = await createVerifier(keyPair.publicKey);
+            const isValid = await window.crypto.subtle.verify(
+              {
+                name: "ECDSA",
+                hash: { name: "SHA-256" },
+              },
+              publicKey,
+              signature,
+              data,
+            );
 
-        // 测试消息
-        const message = "Hello, NoneOS Signature!";
+            return {
+              assert: isValid,
+              content: {
+                message: "签名验证成功",
+                originalMessage: message,
+                signatureLength: signature.byteLength,
+              },
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-        // 使用签名器生成签名
-        const signature = await sign(message);
+    <ok-test name="Create Signer and Verifier Test">
+      <template>
+        <script type="module">
+          import {
+            generateKeyPair,
+            createSigner,
+            createVerifier,
+          } from "/nos/crypto/crypto-ecdsa.js";
 
-        // 使用验证器验证签名
-        const isValid = await verify(message, signature);
+          const keyPair = await generateKeyPair();
 
-        // 测试篡改消息的情况
-        const tamperedMessage = "Tampered Message";
-        const isInvalid = await verify(tamperedMessage, signature);
+          const sign = await createSigner(keyPair.privateKey);
+          const verify = await createVerifier(keyPair.publicKey);
 
-        return {
-          assert: isValid && !isInvalid,
-          content: {
-            message: "签名器和验证器测试成功",
-            originalMessage: message,
-            signatureValid: isValid,
-            tamperedMessageValid: isInvalid,
-            signatureLength: signature.byteLength,
-          },
-        };
-      });
-    </script>
+          const message = "Hello, NoneOS Signature!";
+
+          const signature = await sign(message);
+
+          const isValid = await verify(message, signature);
+
+          const tamperedMessage = "Tampered Message";
+          const isInvalid = await verify(tamperedMessage, signature);
+
+          return {
+            assert: isValid && !isInvalid,
+            content: {
+              message: "签名器和验证器测试成功",
+              originalMessage: message,
+              signatureValid: isValid,
+              tamperedMessageValid: isInvalid,
+              signatureLength: signature.byteLength,
+            },
+          };
+        </script>
+      </template>
+    </ok-test>
   </body>
 </html>
