@@ -15,7 +15,7 @@ export default class OkTest extends HTMLElement {
 
     OkTest.templatePromise = (async () => {
       try {
-        const templateUrl = import.meta.resolve("./template.html");
+        const templateUrl = import.meta.resolve("./ok-test-template.html");
 
         const response = await fetch(templateUrl);
         const html = await response.text();
