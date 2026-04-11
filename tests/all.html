@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>All Tests</title>
+    <script type="module" src="/nos-tool/test/ok-test-suite.mjs"></script>
+  </head>
+  <body>
+    <ok-test-suite>
+      <include src="./crypto/crypto-ecdsa.ok.html"></include>
+      <include src="./crypto/crypto-rsa.ok.html"></include>
+      <include src="./util/zip/unzip.ok.html"></include>
+      <include src="./util/zip/zip.ok.html"></include>
+      <include src="./util/hash/get-hash.ok.html"></include>
+      <include src="./fs/handle/fetch.ok.html"></include>
+      <include src="./fs/handle/normal.ok.html"></include>
+      <include src="./fs/handle/write-and-get.ok.html"></include>
+      <include src="./fs/handle/values.ok.html"></include>
+      <include src="./fs/handle/some.ok.html"></include>
+      <include src="./fs/handle/remove.ok.html"></include>
+      <include src="./fs/handle/observe.ok.html"></include>
+      <include src="./fs/handle/observe-tabs.ok.html"></include>
+      <include src="./fs/handle/move-to.ok.html"></include>
+      <include src="./fs/handle/flat.ok.html"></include>
+      <include src="./fs/handle/copy-to.ok.html"></include>
+    </ok-test-suite>
+  </body>
+</html>

@@ -4,105 +4,141 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Normal Test</title>
+    <script type="module" src="/nos-tool/test/test.mjs"></script>
   </head>
   <body>
-    <script type="module">
-      import { init } from "/nos/fs/main.js";
-      import { test } from "/nos/ok-test/main.js";
+    <h1>Normal Tests</h1>
 
-      // 初始化测试目录
-      const testDirectory = await init("test-dir3");
+    <ok-test name="Parent Directory Comparison Test">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDirectory = await init("test-dir3");
 
-      // 测试父目录是否相同
-      await test("Parent Directory Comparison Test", async () => {
-        const testFile = await testDirectory.get("a/b/c/d/test.txt", {
-          create: "file",
-        });
-        const fileParentDir = await testFile.parent;
+            const testFile = await testDirectory.get("a/b/c/d/test.txt", {
+              create: "file",
+            });
+            const fileParentDir = await testFile.parent;
 
-        const directoryD = await testDirectory.get("a/b/c/d");
+            const directoryD = await testDirectory.get("a/b/c/d");
 
-        const isSame = await fileParentDir.isSame(directoryD);
+            const isSame = await fileParentDir.isSame(directoryD);
 
-        return {
-          assert: isSame,
-          content: `Expected file parent directory to be the same as directory 'd'`,
-        };
-      });
+            return {
+              assert: isSame,
+              content: `Expected file parent directory to be the same as directory 'd'`,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-      // 测试根目录是否相同
-      await test("Root Comparison Test", async () => {
-        const testFile = await testDirectory.get("a/b/c/d/test.txt", {
-          create: "file",
-        });
+    <ok-test name="Root Comparison Test">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDirectory = await init("test-dir3");
 
-        const root1 = testFile.root;
+            const testFile = await testDirectory.get("a/b/c/d/test.txt", {
+              create: "file",
+            });
 
-        const directoryD = await testDirectory.get("a/b/c/d");
+            const root1 = testFile.root;
 
-        const root2 = directoryD.root;
+            const directoryD = await testDirectory.get("a/b/c/d");
 
-        const isSame = await root1.isSame(root2);
+            const root2 = directoryD.root;
 
-        return {
-          assert: isSame,
-          content: `Expected root directory to be the same as directory 'd'`,
-        };
-      });
+            const isSame = await root1.isSame(root2);
 
-      // 测试删除
-      await test("Size Test", async () => {
-        const testFile = await testDirectory.get("a2/test2.txt", {
-          create: "file",
-        });
+            return {
+              assert: isSame,
+              content: `Expected root directory to be the same as directory 'd'`,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-        await testFile.write("some text");
+    <ok-test name="Size Test">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDirectory = await init("test-dir3");
 
-        const size = await testFile.size();
+            const testFile = await testDirectory.get("a2/test2.txt", {
+              create: "file",
+            });
 
-        return {
-          assert: size === 9,
-          content: `Expected file to be deleted`,
-        };
-      });
+            await testFile.write("some text");
 
-      await test("Dir Length Test", async () => {
-        for (let i = 0; i < 10; i++) {
-          const testFile = await testDirectory.get(`a3/test${i}.txt`, {
-            create: "file",
-          });
+            const size = await testFile.size();
 
-          await testFile.write("some text " + i);
-        }
+            return {
+              assert: size === 9,
+              content: `Expected file to be deleted`,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-        const len = await (await testDirectory.get("a3")).length();
+    <ok-test name="Dir Length Test">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDirectory = await init("test-dir3");
 
-        return {
-          assert: len === 10,
-          content: `Expected length to be 10, got ${len}`,
-        };
-      });
+            for (let i = 0; i < 10; i++) {
+              const testFile = await testDirectory.get(`a3/test${i}.txt`, {
+                create: "file",
+              });
 
-      // 添加一个写入file的测试
-      await test("Write File Test", async () => {
-        const testFile = await testDirectory.get("test-write-file.txt", {
-          create: "file",
-        });
+              await testFile.write("some text " + i);
+            }
 
-        const content1 = "some text" + Math.random();
+            const len = await (await testDirectory.get("a3")).length();
 
-        const file = new File([content1], "test-write-file.txt", {
-          type: "text/plain",
-        });
-        await testFile.write(file);
+            return {
+              assert: len === 10,
+              content: `Expected length to be 10, got ${len}`,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-        const content = await testFile.text();
+    <ok-test name="Write File Test">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDirectory = await init("test-dir3");
 
-        return {
-          assert: content === content1,
-          content: `Expected file content to be '${content1}', got '${content}'`,
-        };
-      });
-    </script>
+            const testFile = await testDirectory.get("test-write-file.txt", {
+              create: "file",
+            });
+
+            const content1 = "some text" + Math.random();
+
+            const file = new File([content1], "test-write-file.txt", {
+              type: "text/plain",
+            });
+            await testFile.write(file);
+
+            const content = await testFile.text();
+
+            return {
+              assert: content === content1,
+              content: `Expected file content to be '${content1}', got '${content}'`,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
   </body>
 </html>

@@ -3,51 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <title>File Write and Get Test</title>
+    <script type="module" src="/nos-tool/test/test.mjs"></script>
   </head>
   <body>
-    <script type="module">
-      import { init, get } from "/nos/fs/main.js";
-      import { test } from "/nos/ok-test/main.js";
+    <h1>File Write and Get Tests</h1>
 
-      // 初始化测试目录
-      const testDir = await init("testDir2");
+    <ok-test name="Create and Write File">
+      <template>
+        <script type="module">
+          import { init, get } from "/nos/fs/main.js";
+          {
+            const testDir = await init("testDir2");
 
-      // 测试文件创建和写入
-      await test("Create and Write File", async () => {
-        const file1 = await testDir.get("file1.txt", { create: "file" });
-        const someText = "Write some text " + Math.random();
-        await file1.write(someText);
-        const text2 = await file1.text();
+            const file1 = await testDir.get("file1.txt", { create: "file" });
+            const someText = "Write some text " + Math.random();
+            await file1.write(someText);
+            const text2 = await file1.text();
 
-        const file1_2 = await get("testDir2/file1.txt");
+            const file1_2 = await get("testDir2/file1.txt");
 
-        const isSame = await file1.isSame(file1_2);
+            const isSame = await file1.isSame(file1_2);
 
-        return {
-          assert: someText === text2 && isSame,
-          content: someText + " -- " + text2,
-        };
-      });
+            return {
+              assert: someText === text2 && isSame,
+              content: someText + " -- " + text2,
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-      // 测试文件读取
-      await test("Read Existing File", async () => {
-        const file1 = await testDir.get("file1.txt");
-        const content = await file1.text();
-        return {
-          assert: content.includes("Write some text"),
-          content: "Read succeed",
-        };
-      });
+    <ok-test name="Read Existing File">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("testDir2");
 
-      // 测试不存在的文件
-      await test("Try to Read Non-existent File", async () => {
-        const handle = await testDir.get("nonexistent.txt");
+            const file1 = await testDir.get("file1.txt");
+            const content = await file1.text();
+            return {
+              assert: content.includes("Write some text"),
+              content: "Read succeed",
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-        return {
-          assert: handle === null,
-          content: "nonexistent succeed",
-        };
-      });
-    </script>
+    <ok-test name="Try to Read Non-existent File">
+      <template>
+        <script type="module">
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("testDir2");
+
+            const handle = await testDir.get("nonexistent.txt");
+
+            return {
+              assert: handle === null,
+              content: "nonexistent succeed",
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
   </body>
 </html>
