@@ -12,11 +12,9 @@
     border-left: 4px solid #6c757d;
   }
   :host([success]) {
-    /* background: #d4edda; */
     border-left: 4px solid #28a745;
   }
   :host([failure]) {
-    /* background: #f8d7da; */
     border-left: 4px solid #dc3545;
   }
   :host([success]) .header {
@@ -133,8 +131,12 @@
     overflow-x: auto;
   }
 </style>
-<div class="header">Test Suite Results <span class="status {{statusClass}}">({{statusText}})</span></div>
+<div class="header">
+  Test Suite Results
+  <span class="status {{statusClass}}">({{statusText}})</span>
+</div>
 <div class="summary">
-  Total: {{totalTestsDisplay}} | Success: {{successTests}} | Error: {{errorTests}}
+  Total: {{totalTestsDisplay}} | Success: {{successTests}} | Error:
+  {{errorTests}}
 </div>
 <div class="details">{{details}}</div>
