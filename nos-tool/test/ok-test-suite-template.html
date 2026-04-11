@@ -33,6 +33,20 @@
   :host([failure]) .header {
     color: #721c24;
   }
+  .header .status {
+    font-weight: normal;
+    font-size: 14px;
+    margin-left: 4px;
+  }
+  .header .status.running {
+    color: #6c757d;
+  }
+  .header .status.passed {
+    color: #28a745;
+  }
+  .header .status.failed {
+    color: #dc3545;
+  }
 
   .header {
     font-weight: bold;
@@ -127,8 +141,8 @@
     overflow-x: auto;
   }
 </style>
-<div class="header">Test Suite Results</div>
+<div class="header">Test Suite Results <span class="status {{statusClass}}">({{statusText}})</span></div>
 <div class="summary">
-  Total: {{totalTests}} | Success: {{successTests}} | Error: {{errorTests}}
+  Total: {{totalTestsDisplay}} | Success: {{successTests}} | Error: {{errorTests}}
 </div>
 <div class="details">{{details}}</div>

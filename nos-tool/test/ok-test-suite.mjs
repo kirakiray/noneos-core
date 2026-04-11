@@ -122,8 +122,9 @@ export default class OkTestSuite extends HTMLElement {
     if (!this.templateReady) return;
 
     const isFinished = this.totalTests > 0 && (this.successTests + this.errorTests) === this.totalTests && this.pendingUrls.length === 0;
-    const isSuccess = isFinished && this.errorTests === 0;
-    const isFailure = this.errorTests > 0;
+    const isOverRequired = this.requiredTotal !== null && this.totalTests > this.requiredTotal;
+    const isSuccess = isFinished && this.errorTests === 0 && !isOverRequired;
+    const isFailure = this.errorTests > 0 || (isFinished && isOverRequired);
 
     if (isFailure) {
       this.setAttribute('failure', '');
@@ -147,11 +148,31 @@ export default class OkTestSuite extends HTMLElement {
     }
 
     const details = this.renderDetails();
+    
+    let statusText = 'Running';
+    let statusClass = 'running';
+    if (isFinished) {
+      if (isSuccess) {
+        statusText = 'Passed';
+        statusClass = 'passed';
+      } else {
+        statusText = 'Failed';
+        statusClass = 'failed';
+      }
+    }
+    
+    const totalTestsDisplay = this.requiredTotal !== null 
+      ? `${this.totalTests}/${this.requiredTotal}` 
+      : this.totalTests;
+    
     let html = this.templateHtml
       .replace('{{totalTests}}', this.totalTests)
+      .replace('{{totalTestsDisplay}}', totalTestsDisplay)
       .replace('{{successTests}}', this.successTests)
       .replace('{{errorTests}}', this.errorTests)
-      .replace('{{details}}', details);
+      .replace('{{details}}', details)
+      .replace('{{statusText}}', statusText)
+      .replace('{{statusClass}}', statusClass);
 
     let container = this.shadowRoot.querySelector('.ui-container');
     if (!container) {
