@@ -1,5 +1,6 @@
 import { webkit } from "playwright";
 import { createServer } from "http-server";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -8,9 +9,16 @@ const rootDir = path.join(__dirname, "..");
 
 const PORT = 30028;
 const TEST_URL = `http://localhost:${PORT}/_test-all.html`;
+const WEBKIT_DATA_DIR = path.join(rootDir, ".webkit-test-data");
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function deleteDir(dirPath) {
+  if (fs.existsSync(dirPath)) {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
 }
 
 async function runTests() {
@@ -26,14 +34,13 @@ async function runTests() {
     });
   });
 
-  let browser;
+  let context;
   try {
-    browser = await webkit.launch({
+    context = await webkit.launchPersistentContext(WEBKIT_DATA_DIR, {
       headless: true,
     });
 
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    const page = context.pages()[0] || (await context.newPage());
 
     console.log(`Opening: ${TEST_URL}`);
     await page.goto(TEST_URL);
@@ -122,15 +129,15 @@ async function runTests() {
     }
 
     await context.close();
-    await browser.close();
   } catch (error) {
     console.error("Error running tests:", error);
-    if (browser) {
-      await browser.close();
+    if (context) {
+      await context.close();
     }
     process.exit(1);
   } finally {
     server.close();
+    deleteDir(WEBKIT_DATA_DIR);
   }
 }
 
