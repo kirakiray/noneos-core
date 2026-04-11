@@ -96,23 +96,64 @@ export default class OkTest extends HTMLElement {
   }
 
   resolveImportPaths(code, baseUrl) {
-    const importRegex =
-      /(?:import\s+(?:[^'"]+\s+from\s+)?['"`]|import\s*\(\s*['"`])([^'"`]+)(['"`])/g;
+    let result = code;
 
-    return code.replace(importRegex, (match, importPath, quote) => {
+    const resolvePath = (importPath) => {
       try {
         if (importPath.startsWith("./") || importPath.startsWith("../")) {
-          const resolvedUrl = new URL(importPath, baseUrl).href;
-          return match.replace(importPath, resolvedUrl);
+          return new URL(importPath, baseUrl).href;
         } else if (importPath.startsWith("/")) {
-          const resolvedUrl = new URL(importPath, window.location.origin).href;
-          return match.replace(importPath, resolvedUrl);
+          return new URL(importPath, window.location.origin).href;
         }
       } catch (e) {
         console.warn("Failed to resolve import path:", importPath, e);
       }
-      return match;
-    });
+      return importPath;
+    };
+
+    result = result.replace(
+      /^\s*import\s+(\w+)\s*,\s*\{([^}]+)\}\s+from\s+(['"`])([^'"`]+)\3\s*;?\s*$/gm,
+      (match, defaultImport, namedImports, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        const trimmedNamed = namedImports.trim();
+        return `const { default: ${defaultImport}, ${trimmedNamed} } = await import(${quote}${resolvedPath}${quote});`;
+      }
+    );
+
+    result = result.replace(
+      /^\s*import\s+(\w+)\s+from\s+(['"`])([^'"`]+)\2\s*;?\s*$/gm,
+      (match, defaultImport, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        return `const { default: ${defaultImport} } = await import(${quote}${resolvedPath}${quote});`;
+      }
+    );
+
+    result = result.replace(
+      /^\s*import\s*\{([^}]+)\}\s+from\s+(['"`])([^'"`]+)\2\s*;?\s*$/gm,
+      (match, namedImports, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        const trimmedNamed = namedImports.trim();
+        return `const { ${trimmedNamed} } = await import(${quote}${resolvedPath}${quote});`;
+      }
+    );
+
+    result = result.replace(
+      /^\s*import\s+\*\s+as\s+(\w+)\s+from\s+(['"`])([^'"`]+)\2\s*;?\s*$/gm,
+      (match, namespaceImport, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        return `const ${namespaceImport} = await import(${quote}${resolvedPath}${quote});`;
+      }
+    );
+
+    result = result.replace(
+      /import\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g,
+      (match, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        return `import(${quote}${resolvedPath}${quote})`;
+      }
+    );
+
+    return result;
   }
 
   async runTest(name, code, templates) {
