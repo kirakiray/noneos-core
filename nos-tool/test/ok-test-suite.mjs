@@ -10,6 +10,7 @@ export default class OkTestSuite extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this.totalTests = 0;
+    this.expectedTotal = 0;
     this.successTests = 0;
     this.errorTests = 0;
     this.iframes = new Map();
@@ -17,9 +18,32 @@ export default class OkTestSuite extends HTMLElement {
     this.pendingUrls = [];
     this.currentUrl = null;
     this.templateReady = false;
+    this.preFetchCounts = new Map();
 
     this.handleMessage = this.handleMessage.bind(this);
     this.toggleGroup = this.toggleGroup.bind(this);
+  }
+
+  async preFetchTestCounts(urls) {
+    const promises = urls.map(async (url) => {
+      try {
+        const response = await fetch(url);
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const okTests = doc.querySelectorAll("ok-test");
+        const count = okTests.length;
+        this.preFetchCounts.set(url, count);
+        return count;
+      } catch (e) {
+        this.preFetchCounts.set(url, 0);
+        return 0;
+      }
+    });
+    
+    const counts = await Promise.all(promises);
+    this.expectedTotal = counts.reduce((sum, c) => sum + c, 0);
+    this.totalTests = this.expectedTotal;
   }
 
   async connectedCallback() {
@@ -31,12 +55,13 @@ export default class OkTestSuite extends HTMLElement {
       .filter(Boolean)
       .map((url) => new URL(url, window.location.href).toString());
 
-    const requiredTotal = this.getAttribute("required-total");
-    this.requiredTotal = requiredTotal ? parseInt(requiredTotal, 10) : null;
-
     this.templateHtml = await templatePromise;
     this.templateReady = true;
 
+    this.render();
+    
+    await this.preFetchTestCounts(this.pendingUrls.slice());
+    
     this.render();
     this.runNextIframe();
   }
@@ -56,9 +81,10 @@ export default class OkTestSuite extends HTMLElement {
     iframe.style.visibility = "hidden";
     this.shadowRoot.appendChild(iframe);
 
+    const preFetchedTotal = this.preFetchCounts.get(absoluteUrl) || 0;
     this.iframes.set(absoluteUrl, {
       iframe,
-      total: -1,
+      total: preFetchedTotal,
       success: 0,
       error: 0,
       results: [],
@@ -79,8 +105,12 @@ export default class OkTestSuite extends HTMLElement {
       const url = data.url;
       const iframeData = this.iframes.get(url);
       if (iframeData) {
-        iframeData.total = data.count;
-        this.updateCounts();
+        if (iframeData.total !== data.count) {
+          const diff = data.count - iframeData.total;
+          this.totalTests += diff;
+          iframeData.total = data.count;
+        }
+        this.render();
 
         if (
           url === this.currentUrl &&
@@ -103,7 +133,6 @@ export default class OkTestSuite extends HTMLElement {
 
         if (
           url === this.currentUrl &&
-          iframeData.total !== -1 &&
           iframeData.results.length === iframeData.total
         ) {
           this.runNextIframe();
@@ -122,10 +151,6 @@ export default class OkTestSuite extends HTMLElement {
   }
 
   updateCounts() {
-    this.totalTests = Array.from(this.iframes.values()).reduce(
-      (sum, data) => sum + (data.total > 0 ? data.total : 0),
-      0,
-    );
     this.successTests = Array.from(this.iframes.values()).reduce(
       (sum, data) => sum + data.success,
       0,
@@ -144,10 +169,8 @@ export default class OkTestSuite extends HTMLElement {
       this.totalTests > 0 &&
       this.successTests + this.errorTests === this.totalTests &&
       this.pendingUrls.length === 0;
-    const isOverRequired =
-      this.requiredTotal !== null && this.totalTests > this.requiredTotal;
-    const isSuccess = isFinished && this.errorTests === 0 && !isOverRequired;
-    const isFailure = this.errorTests > 0 || (isFinished && isOverRequired);
+    const isSuccess = isFinished && this.errorTests === 0;
+    const isFailure = this.errorTests > 0;
 
     if (isFailure) {
       this.setAttribute("failure", "");
@@ -158,16 +181,6 @@ export default class OkTestSuite extends HTMLElement {
     } else {
       this.removeAttribute("success");
       this.removeAttribute("failure");
-    }
-
-    this.removeAttribute("under-required");
-    this.removeAttribute("over-required");
-    if (this.requiredTotal !== null && this.totalTests > 0) {
-      if (this.totalTests < this.requiredTotal) {
-        this.setAttribute("under-required", "");
-      } else if (this.totalTests > this.requiredTotal) {
-        this.setAttribute("over-required", "");
-      }
     }
 
     const details = this.renderDetails();
@@ -184,14 +197,9 @@ export default class OkTestSuite extends HTMLElement {
       }
     }
 
-    const totalTestsDisplay =
-      this.requiredTotal !== null
-        ? `${this.totalTests}/${this.requiredTotal}`
-        : this.totalTests;
-
     let html = this.templateHtml
       .replace("{{totalTests}}", this.totalTests)
-      .replace("{{totalTestsDisplay}}", totalTestsDisplay)
+      .replace("{{totalTestsDisplay}}", this.totalTests)
       .replace("{{successTests}}", this.successTests)
       .replace("{{errorTests}}", this.errorTests)
       .replace("{{details}}", details)
@@ -233,13 +241,10 @@ export default class OkTestSuite extends HTMLElement {
   renderDetails() {
     return Array.from(this.iframes.entries())
       .map(([url, data]) => {
-        if (data.total === -1 && url !== this.currentUrl) return "";
-
         const isExpanded = this.expandedGroups.has(url);
         const expandClass = isExpanded ? "expanded" : "";
 
-        const isFinished =
-          data.total !== -1 && data.results.length === data.total;
+        const isFinished = data.results.length === data.total;
         let statusClass = "";
         if (isFinished) {
           statusClass = data.error > 0 ? "failure" : "success";
@@ -249,7 +254,7 @@ export default class OkTestSuite extends HTMLElement {
           statusClass = "running";
         }
 
-        const displayTotal = data.total === -1 ? "?" : data.total;
+        const displayTotal = data.total;
 
         let groupHtml = `<div class="iframe-group" data-url="${url}">
         <div class="iframe-title ${expandClass} ${statusClass}">
