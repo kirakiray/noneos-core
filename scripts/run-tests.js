@@ -1,4 +1,4 @@
-import { webkit } from "playwright";
+import { webkit, chromium, firefox } from "playwright";
 import { createServer } from "http-server";
 import fs from "fs";
 import path from "path";
@@ -9,7 +9,12 @@ const rootDir = path.join(__dirname, "..");
 
 const PORT = 30028;
 const TEST_URL = `http://localhost:${PORT}/_test-all.html`;
-const WEBKIT_DATA_DIR = path.join(rootDir, ".webkit-test-data");
+
+const browsers = [
+  { name: "webkit", launcher: webkit },
+  { name: "chrome", launcher: chromium },
+  { name: "firefox", launcher: firefox },
+];
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -21,22 +26,17 @@ function deleteDir(dirPath) {
   }
 }
 
-async function runTests() {
-  const server = createServer({
-    root: rootDir,
-    cors: true,
-  });
+async function runBrowserTests(browserConfig) {
+  const { name, launcher } = browserConfig;
+  const dataDir = path.join(rootDir, `.${name}-test-data`);
 
-  await new Promise((resolve) => {
-    server.listen(PORT, () => {
-      console.log(`Server started at http://localhost:${PORT}`);
-      resolve();
-    });
-  });
+  console.log(`\n${"=".repeat(50)}`);
+  console.log(`Running tests with ${name.toUpperCase()}`);
+  console.log(`${"=".repeat(50)}\n`);
 
   let context;
   try {
-    context = await webkit.launchPersistentContext(WEBKIT_DATA_DIR, {
+    context = await launcher.launchPersistentContext(dataDir, {
       headless: true,
     });
 
@@ -71,7 +71,7 @@ async function runTests() {
 
     if (!result) {
       console.log("Timeout: Tests did not complete within 5 minutes");
-      process.exit(1);
+      return { success: false, name };
     }
 
     const stats = await page.evaluate(() => {
@@ -105,12 +105,13 @@ async function runTests() {
     });
 
     if (result === "passed") {
-      console.log("\n✓ Tests Passed!");
+      console.log(`\n✓ ${name.toUpperCase()} Tests Passed!`);
       console.log(`  Total: ${stats.total}`);
       console.log(`  Success: ${stats.success}`);
       console.log(`  Error: ${stats.error}`);
+      return { success: true, name, stats };
     } else {
-      console.log("\n✗ Tests Failed!");
+      console.log(`\n✗ ${name.toUpperCase()} Tests Failed!`);
       console.log(`  Total: ${stats.total}`);
       console.log(`  Success: ${stats.success}`);
       console.log(`  Error: ${stats.error}`);
@@ -125,19 +126,58 @@ async function runTests() {
           console.log(`   Stack:\n${test.stack}`);
         }
       });
-      process.exit(1);
+      return { success: false, name, stats };
     }
-
-    await context.close();
   } catch (error) {
-    console.error("Error running tests:", error);
+    console.error(`Error running ${name} tests:`, error);
+    return { success: false, name, error };
+  } finally {
     if (context) {
       await context.close();
     }
-    process.exit(1);
+    deleteDir(dataDir);
+  }
+}
+
+async function runTests() {
+  const server = createServer({
+    root: rootDir,
+    cors: true,
+  });
+
+  await new Promise((resolve) => {
+    server.listen(PORT, () => {
+      console.log(`Server started at http://localhost:${PORT}`);
+      resolve();
+    });
+  });
+
+  const results = [];
+
+  try {
+    for (const browserConfig of browsers) {
+      const result = await runBrowserTests(browserConfig);
+      results.push(result);
+    }
+
+    console.log(`\n${"=".repeat(50)}`);
+    console.log("Summary");
+    console.log(`${"=".repeat(50)}\n`);
+
+    let allPassed = true;
+    for (const result of results) {
+      const status = result.success ? "✓ PASSED" : "✗ FAILED";
+      console.log(`${result.name.toUpperCase()}: ${status}`);
+      if (!result.success) {
+        allPassed = false;
+      }
+    }
+
+    if (!allPassed) {
+      process.exit(1);
+    }
   } finally {
     server.close();
-    deleteDir(WEBKIT_DATA_DIR);
   }
 }
 
