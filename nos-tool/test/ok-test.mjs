@@ -153,6 +153,14 @@ export default class OkTest extends HTMLElement {
       }
     );
 
+    result = result.replace(
+      /import\.meta\.resolve\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g,
+      (match, quote, importPath) => {
+        const resolvedPath = resolvePath(importPath);
+        return `"${resolvedPath}"`;
+      }
+    );
+
     return result;
   }
 
