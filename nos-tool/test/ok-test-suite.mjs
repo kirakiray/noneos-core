@@ -1,6 +1,6 @@
 const templatePromise = (async () => {
   const baseUrl = import.meta.url;
-  const templateUrl = new URL('./ok-test-suite-template.html', baseUrl).href;
+  const templateUrl = new URL("./ok-test-suite-template.html", baseUrl).href;
   const response = await fetch(templateUrl);
   return response.text();
 })();
@@ -17,7 +17,7 @@ export default class OkTestSuite extends HTMLElement {
     this.pendingUrls = [];
     this.currentUrl = null;
     this.templateReady = false;
-    
+
     this.handleMessage = this.handleMessage.bind(this);
     this.toggleGroup = this.toggleGroup.bind(this);
   }
@@ -26,24 +26,27 @@ export default class OkTestSuite extends HTMLElement {
     window.addEventListener("message", this.handleMessage);
 
     const includes = this.querySelectorAll("include");
-    this.pendingUrls = Array.from(includes).map(inc => inc.getAttribute("src")).filter(Boolean).map(url => new URL(url, window.location.href).toString());
+    this.pendingUrls = Array.from(includes)
+      .map((inc) => inc.getAttribute("src"))
+      .filter(Boolean)
+      .map((url) => new URL(url, window.location.href).toString());
 
     const requiredTotal = this.getAttribute("required-total");
     this.requiredTotal = requiredTotal ? parseInt(requiredTotal, 10) : null;
 
     this.templateHtml = await templatePromise;
     this.templateReady = true;
-    
+
     this.render();
     this.runNextIframe();
   }
 
   runNextIframe() {
     if (this.pendingUrls.length === 0) return;
-    
+
     const absoluteUrl = this.pendingUrls.shift();
     this.currentUrl = absoluteUrl;
-    
+
     const iframe = document.createElement("iframe");
     iframe.src = absoluteUrl;
     iframe.style.width = "0";
@@ -58,9 +61,9 @@ export default class OkTestSuite extends HTMLElement {
       total: -1,
       success: 0,
       error: 0,
-      results: []
+      results: [],
     });
-    
+
     this.render();
   }
 
@@ -78,9 +81,12 @@ export default class OkTestSuite extends HTMLElement {
       if (iframeData) {
         iframeData.total = data.count;
         this.updateCounts();
-        
-        if (url === this.currentUrl && iframeData.results.length === data.count) {
-           this.runNextIframe();
+
+        if (
+          url === this.currentUrl &&
+          iframeData.results.length === data.count
+        ) {
+          this.runNextIframe();
         }
       }
     } else if (data.type === "ok-test-result") {
@@ -94,8 +100,12 @@ export default class OkTestSuite extends HTMLElement {
         }
         iframeData.results.push(data);
         this.updateCounts();
-        
-        if (url === this.currentUrl && iframeData.total !== -1 && iframeData.results.length === iframeData.total) {
+
+        if (
+          url === this.currentUrl &&
+          iframeData.total !== -1 &&
+          iframeData.results.length === iframeData.total
+        ) {
           this.runNextIframe();
         }
       }
@@ -112,158 +122,175 @@ export default class OkTestSuite extends HTMLElement {
   }
 
   updateCounts() {
-    this.totalTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + (data.total > 0 ? data.total : 0), 0);
-    this.successTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.success, 0);
-    this.errorTests = Array.from(this.iframes.values()).reduce((sum, data) => sum + data.error, 0);
+    this.totalTests = Array.from(this.iframes.values()).reduce(
+      (sum, data) => sum + (data.total > 0 ? data.total : 0),
+      0,
+    );
+    this.successTests = Array.from(this.iframes.values()).reduce(
+      (sum, data) => sum + data.success,
+      0,
+    );
+    this.errorTests = Array.from(this.iframes.values()).reduce(
+      (sum, data) => sum + data.error,
+      0,
+    );
     this.render();
   }
 
   render() {
     if (!this.templateReady) return;
 
-    const isFinished = this.totalTests > 0 && (this.successTests + this.errorTests) === this.totalTests && this.pendingUrls.length === 0;
-    const isOverRequired = this.requiredTotal !== null && this.totalTests > this.requiredTotal;
+    const isFinished =
+      this.totalTests > 0 &&
+      this.successTests + this.errorTests === this.totalTests &&
+      this.pendingUrls.length === 0;
+    const isOverRequired =
+      this.requiredTotal !== null && this.totalTests > this.requiredTotal;
     const isSuccess = isFinished && this.errorTests === 0 && !isOverRequired;
     const isFailure = this.errorTests > 0 || (isFinished && isOverRequired);
 
     if (isFailure) {
-      this.setAttribute('failure', '');
-      this.removeAttribute('success');
+      this.setAttribute("failure", "");
+      this.removeAttribute("success");
     } else if (isSuccess) {
-      this.setAttribute('success', '');
-      this.removeAttribute('failure');
+      this.setAttribute("success", "");
+      this.removeAttribute("failure");
     } else {
-      this.removeAttribute('success');
-      this.removeAttribute('failure');
+      this.removeAttribute("success");
+      this.removeAttribute("failure");
     }
 
-    this.removeAttribute('under-required');
-    this.removeAttribute('over-required');
+    this.removeAttribute("under-required");
+    this.removeAttribute("over-required");
     if (this.requiredTotal !== null && this.totalTests > 0) {
       if (this.totalTests < this.requiredTotal) {
-        this.setAttribute('under-required', '');
+        this.setAttribute("under-required", "");
       } else if (this.totalTests > this.requiredTotal) {
-        this.setAttribute('over-required', '');
+        this.setAttribute("over-required", "");
       }
     }
 
     const details = this.renderDetails();
-    
-    let statusText = 'Running';
-    let statusClass = 'running';
+
+    let statusText = "Running";
+    let statusClass = "running";
     if (isFinished) {
       if (isSuccess) {
-        statusText = 'Passed';
-        statusClass = 'passed';
+        statusText = "Passed";
+        statusClass = "passed";
       } else {
-        statusText = 'Failed';
-        statusClass = 'failed';
+        statusText = "Failed";
+        statusClass = "failed";
       }
     }
-    
-    const totalTestsDisplay = this.requiredTotal !== null 
-      ? `${this.totalTests}/${this.requiredTotal}` 
-      : this.totalTests;
-    
-    let html = this.templateHtml
-      .replace('{{totalTests}}', this.totalTests)
-      .replace('{{totalTestsDisplay}}', totalTestsDisplay)
-      .replace('{{successTests}}', this.successTests)
-      .replace('{{errorTests}}', this.errorTests)
-      .replace('{{details}}', details)
-      .replace('{{statusText}}', statusText)
-      .replace('{{statusClass}}', statusClass);
 
-    let container = this.shadowRoot.querySelector('.ui-container');
+    const totalTestsDisplay =
+      this.requiredTotal !== null
+        ? `${this.totalTests}/${this.requiredTotal}`
+        : this.totalTests;
+
+    let html = this.templateHtml
+      .replace("{{totalTests}}", this.totalTests)
+      .replace("{{totalTestsDisplay}}", totalTestsDisplay)
+      .replace("{{successTests}}", this.successTests)
+      .replace("{{errorTests}}", this.errorTests)
+      .replace("{{details}}", details)
+      .replace("{{statusText}}", statusText)
+      .replace("{{statusClass}}", statusClass);
+
+    let container = this.shadowRoot.querySelector(".ui-container");
     if (!container) {
-      container = document.createElement('div');
-      container.className = 'ui-container';
-      
-      container.addEventListener('click', (e) => {
-        const openBtn = e.target.closest('.open-btn');
+      container = document.createElement("div");
+      container.className = "ui-container";
+
+      container.addEventListener("click", (e) => {
+        const openBtn = e.target.closest(".open-btn");
         if (openBtn) {
-          const url = openBtn.getAttribute('data-open-url');
+          const url = openBtn.getAttribute("data-open-url");
           if (url) {
-            window.open(url, '_blank');
+            window.open(url, "_blank");
           }
           return;
         }
-        
-        const titleEl = e.target.closest('.iframe-title');
+
+        const titleEl = e.target.closest(".iframe-title");
         if (titleEl) {
-          const groupEl = titleEl.closest('.iframe-group');
+          const groupEl = titleEl.closest(".iframe-group");
           if (groupEl) {
-            const url = groupEl.getAttribute('data-url');
+            const url = groupEl.getAttribute("data-url");
             if (url) {
               this.toggleGroup(url);
             }
           }
         }
       });
-      
+
       this.shadowRoot.appendChild(container);
     }
     container.innerHTML = html;
   }
 
   renderDetails() {
-    return Array.from(this.iframes.entries()).map(([url, data]) => {
-      if (data.total === -1 && url !== this.currentUrl) return '';
-      
-      const isExpanded = this.expandedGroups.has(url);
-      const expandClass = isExpanded ? 'expanded' : '';
-      
-      const isFinished = data.total !== -1 && data.results.length === data.total;
-      let statusClass = '';
-      if (isFinished) {
-        statusClass = data.error > 0 ? 'failure' : 'success';
-      } else if (data.error > 0) {
-        statusClass = 'failure';
-      } else if (url === this.currentUrl) {
-        statusClass = 'running';
-      }
-      
-      const displayTotal = data.total === -1 ? '?' : data.total;
-      
-      let groupHtml = `<div class="iframe-group" data-url="${url}">
+    return Array.from(this.iframes.entries())
+      .map(([url, data]) => {
+        if (data.total === -1 && url !== this.currentUrl) return "";
+
+        const isExpanded = this.expandedGroups.has(url);
+        const expandClass = isExpanded ? "expanded" : "";
+
+        const isFinished =
+          data.total !== -1 && data.results.length === data.total;
+        let statusClass = "";
+        if (isFinished) {
+          statusClass = data.error > 0 ? "failure" : "success";
+        } else if (data.error > 0) {
+          statusClass = "failure";
+        } else if (url === this.currentUrl) {
+          statusClass = "running";
+        }
+
+        const displayTotal = data.total === -1 ? "?" : data.total;
+
+        let groupHtml = `<div class="iframe-group" data-url="${url}">
         <div class="iframe-title ${expandClass} ${statusClass}">
           <span class="toggle-icon">▶</span>
           <span>${new URL(url).pathname} - Total: ${displayTotal}, Success: ${data.success}, Error: ${data.error}</span>
           <span class="open-btn" data-open-url="${url}">Open</span>
         </div>
         <div class="iframe-content ${expandClass}">`;
-        
-      data.results.forEach(r => {
-        const statusIcon = r.success ? '✓' : '✗';
-        groupHtml += `
-          <div class="result-item ${r.success ? 'success' : 'failure'}">
+
+        data.results.forEach((r) => {
+          const statusIcon = r.success ? "✓" : "✗";
+          groupHtml += `
+          <div class="result-item ${r.success ? "success" : "failure"}">
             <div class="result-name">${statusIcon} ${this.escapeHtml(r.name)}</div>`;
-            
-        if (!r.success) {
-           if (r.result && typeof r.result === 'object' && r.result.message) {
-             groupHtml += `<div class="error-msg">Error: ${this.escapeHtml(r.result.message)}</div>`;
-             if (r.result.stack) {
-               groupHtml += `<div class="error-stack">${this.escapeHtml(r.result.stack)}</div>`;
-             }
-           } else {
-             groupHtml += `<div class="error-msg">Assertion failed: expected true but got ${this.escapeHtml(JSON.stringify(r.result && r.result.assert))}</div>`;
-           }
-        } else {
-           if (r.result && r.result.content) {
-             groupHtml += `<div class="result-content">${this.escapeHtml(JSON.stringify(r.result.content, null, 2))}</div>`;
-           }
-        }
-        
-        groupHtml += `</div>`;
-      });
-      
-      groupHtml += `</div></div>`;
-      return groupHtml;
-    }).join('');
+
+          if (!r.success) {
+            if (r.result && typeof r.result === "object" && r.result.message) {
+              groupHtml += `<div class="error-msg">Error: ${this.escapeHtml(r.result.message)}</div>`;
+              if (r.result.stack) {
+                groupHtml += `<div class="error-stack">${this.escapeHtml(r.result.stack)}</div>`;
+              }
+            } else {
+              groupHtml += `<div class="error-msg">Assertion failed: expected true but got ${this.escapeHtml(JSON.stringify(r.result && r.result.assert))}</div>`;
+            }
+          } else {
+            if (r.result && r.result.content) {
+              groupHtml += `<div class="result-content">${this.escapeHtml(JSON.stringify(r.result.content, null, 2))}</div>`;
+            }
+          }
+
+          groupHtml += `</div>`;
+        });
+
+        groupHtml += `</div></div>`;
+        return groupHtml;
+      })
+      .join("");
   }
 
   escapeHtml(text) {
-    if (text == null) return '';
+    if (text == null) return "";
     const div = document.createElement("div");
     div.textContent = String(text);
     return div.innerHTML;
