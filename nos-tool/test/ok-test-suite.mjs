@@ -28,6 +28,9 @@ export default class OkTestSuite extends HTMLElement {
     const includes = this.querySelectorAll("include");
     this.pendingUrls = Array.from(includes).map(inc => inc.getAttribute("src")).filter(Boolean).map(url => new URL(url, window.location.href).toString());
 
+    const requiredTotal = this.getAttribute("required-total");
+    this.requiredTotal = requiredTotal ? parseInt(requiredTotal, 10) : null;
+
     this.templateHtml = await templatePromise;
     this.templateReady = true;
     
@@ -131,6 +134,16 @@ export default class OkTestSuite extends HTMLElement {
     } else {
       this.removeAttribute('success');
       this.removeAttribute('failure');
+    }
+
+    this.removeAttribute('under-required');
+    this.removeAttribute('over-required');
+    if (this.requiredTotal !== null && this.totalTests > 0) {
+      if (this.totalTests < this.requiredTotal) {
+        this.setAttribute('under-required', '');
+      } else if (this.totalTests > this.requiredTotal) {
+        this.setAttribute('over-required', '');
+      }
     }
 
     const details = this.renderDetails();

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Get GH Source Test</title>
+    <script type="module" src="/nos-tool/test/test.mjs"></script>
+  </head>
+  <body>
+    <script type="module"></script>
+    <ok-test name="Get GitHub Source">
+      <template>
+        <script type="module">
+          import registration from "/_install/register.js";
+          await registration;
+
+          console.log("registration: ", registration);
+
+          const { default: ofa } =
+            await import("/gh/kirakiray/ofa.js/dist/ofa.mjs");
+
+          return {
+            assert: !!ofa,
+            content: "Expected ofa.js to be loaded successfully",
+          };
+        </script>
+      </template>
+    </ok-test>
+  </body>
+</html>
