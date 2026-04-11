@@ -5,8 +5,8 @@
 <h2>✓ Parallel Test 1 - Math Operations</h2>
 <ok-test name="Add multiple numbers" parallel>
   <template>
-    <script>
-      const a = 10;
+    <script type="module">
+      const { a } = await import("/nos-tool/test/demo/test-public.js");
       const b = 20;
       const c = 30;
 
@@ -105,8 +105,9 @@
 <h2>✓ Parallel Test 6 - Boolean Logic</h2>
 <ok-test name="Complex boolean expression" parallel>
   <template>
-    <script>
-      const x = true;
+    <script type="module">
+      const { x } = await import("/nos-tool/test/demo/test-public.js");
+      // const x = true;
       const y = false;
       const z = true;
       {

@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
     "static": "http-server -p 3002 -c-1 --cors",
+    "install": "npx playwright install",
     "bump": "node scripts/bump.js && npm i && npm run build",
     "build": "npm run build:hashes && node scripts/pack-nos.js && npm run build:sw",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
@@ -25,7 +26,6 @@
     "test": "npx playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "@rollup/plugin-terser": "^1.0.0",
