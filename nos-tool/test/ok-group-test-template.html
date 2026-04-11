@@ -29,7 +29,7 @@
   .header {
     font-weight: bold;
     margin-bottom: 8px;
-    font-size: 1.1em;
+    font-size: 18px;
   }
   .summary {
     margin-bottom: 12px;
@@ -41,11 +41,11 @@
   }
   .iframe-title {
     font-weight: bold;
-    /* margin-bottom: 8px; */
     cursor: pointer;
     display: flex;
     align-items: center;
     user-select: none;
+    font-size: 14px;
     padding: 8px;
     border-radius: 4px;
   }
@@ -64,12 +64,24 @@
   }
   .iframe-title .toggle-icon {
     margin-right: 8px;
-    font-size: 0.8em;
+    font-size: 13px;
     transition: transform 0.2s;
     display: inline-block;
   }
   .iframe-title.expanded .toggle-icon {
     transform: rotate(90deg);
+  }
+  .iframe-title .open-btn {
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 13px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .iframe-title .open-btn:hover {
+    opacity: 1;
   }
   .iframe-content {
     display: none;
@@ -82,7 +94,7 @@
     padding: 8px;
     background: rgba(255, 255, 255, 0.5);
     border-radius: 3px;
-    font-size: 0.9em;
+    font-size: 14px;
   }
   .result-item.success {
     color: #155724;

@@ -146,6 +146,15 @@ export default class OkGroupTest extends HTMLElement {
       container.className = 'ui-container';
       
       container.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('.open-btn');
+        if (openBtn) {
+          const url = openBtn.getAttribute('data-open-url');
+          if (url) {
+            window.open(url, '_blank');
+          }
+          return;
+        }
+        
         const titleEl = e.target.closest('.iframe-title');
         if (titleEl) {
           const groupEl = titleEl.closest('.iframe-group');
@@ -186,6 +195,7 @@ export default class OkGroupTest extends HTMLElement {
         <div class="iframe-title ${expandClass} ${statusClass}">
           <span class="toggle-icon">▶</span>
           <span>${new URL(url).pathname} - Total: ${displayTotal}, Success: ${data.success}, Error: ${data.error}</span>
+          <span class="open-btn" data-open-url="${url}">Open</span>
         </div>
         <div class="iframe-content ${expandClass}">`;
         
