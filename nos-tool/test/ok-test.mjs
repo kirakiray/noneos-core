@@ -95,6 +95,26 @@ export default class OkTest extends HTMLElement {
     OkTest.processQueue();
   }
 
+  resolveImportPaths(code, baseUrl) {
+    const importRegex =
+      /(?:import\s+(?:[^'"]+\s+from\s+)?['"`]|import\s*\(\s*['"`])([^'"`]+)(['"`])/g;
+
+    return code.replace(importRegex, (match, importPath, quote) => {
+      try {
+        if (importPath.startsWith("./") || importPath.startsWith("../")) {
+          const resolvedUrl = new URL(importPath, baseUrl).href;
+          return match.replace(importPath, resolvedUrl);
+        } else if (importPath.startsWith("/")) {
+          const resolvedUrl = new URL(importPath, window.location.origin).href;
+          return match.replace(importPath, resolvedUrl);
+        }
+      } catch (e) {
+        console.warn("Failed to resolve import path:", importPath, e);
+      }
+      return match;
+    });
+  }
+
   async runTest(name, code, templates) {
     let url = "";
     let sourceURL = window.location.href;
@@ -120,6 +140,8 @@ export default class OkTest extends HTMLElement {
         // Fallback
       }
 
+      const resolvedCode = this.resolveImportPaths(code, window.location.href);
+
       let blobContent = "";
       if (htmlContent && lineOffset > 0) {
         const lines = htmlContent.split("\n");
@@ -137,10 +159,10 @@ export default class OkTest extends HTMLElement {
           .map((line) => `// ${line}`)
           .join("\n");
 
-        blobContent = `${beforeCode}\n${code}\n${afterCode}\n}\n//# sourceURL=${sourceURL}`;
+        blobContent = `${beforeCode}\n${resolvedCode}\n${afterCode}\n}\n//# sourceURL=${sourceURL}`;
       } else {
         const padLines = "\n".repeat(Math.max(0, lineOffset));
-        blobContent = `export default async function test() {${padLines}${code}\n}\n//# sourceURL=${sourceURL}`;
+        blobContent = `export default async function test() {${padLines}${resolvedCode}\n}\n//# sourceURL=${sourceURL}`;
       }
 
       const blob = new Blob([blobContent], { type: "application/javascript" });
@@ -162,19 +184,29 @@ export default class OkTest extends HTMLElement {
         error.stack = error.stack.split(url).join(sourceURL);
       }
       this.showError(name, error, templates);
-      this.notifyParent(name, { message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : "" }, false);
+      this.notifyParent(
+        name,
+        {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : "",
+        },
+        false,
+      );
     }
   }
 
   notifyParent(name, result, success) {
     if (window.parent !== window) {
-      window.parent.postMessage({
-        type: 'ok-test-result',
-        name,
-        result,
-        success,
-        url: window.location.href
-      }, '*');
+      window.parent.postMessage(
+        {
+          type: "ok-test-result",
+          name,
+          result,
+          success,
+          url: window.location.href,
+        },
+        "*",
+      );
     }
   }
 
@@ -271,11 +303,14 @@ customElements.define("ok-test", OkTest);
 
 if (window.parent !== window) {
   setTimeout(() => {
-    const tests = document.querySelectorAll('ok-test');
-    window.parent.postMessage({
-      type: 'ok-test-count',
-      count: tests.length,
-      url: window.location.href
-    }, '*');
+    const tests = document.querySelectorAll("ok-test");
+    window.parent.postMessage(
+      {
+        type: "ok-test-count",
+        count: tests.length,
+        url: window.location.href,
+      },
+      "*",
+    );
   }, 100);
 }
