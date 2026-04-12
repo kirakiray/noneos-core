@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -16,13 +16,11 @@ jobs:
         node-version: lts/*
     - name: Install dependencies
       run: npm ci
-    - name: Install Playwright Browsers (webkit, chromium)
+    - name: Install Playwright Browsers
       run: npx playwright install webkit chromium --with-deps
     - name: Install Firefox
       uses: browser-actions/setup-firefox@latest
     - name: Install geckodriver
       uses: browser-actions/setup-geckodriver@latest
-    - name: Run tests with Xvfb
-      uses: coactions/setup-xvfb@v1
-      with:
-        run: node scripts/run-tests.js
+    - name: Run tests
+      run: node scripts/run-tests.js

@@ -12,6 +12,18 @@ const rootDir = path.join(__dirname, "..");
 const PORT = 30028;
 const TEST_URL = `http://localhost:${PORT}/_test-all.html`;
 
+const BROWSER_FILTER = process.env.BROWSER;
+
+const allBrowsers = [
+  { name: "webkit", launcher: webkit },
+  { name: "chrome", launcher: chromium },
+  { name: "firefox", useSelenium: true },
+];
+
+const browsers = BROWSER_FILTER
+  ? allBrowsers.filter((b) => b.name === BROWSER_FILTER)
+  : allBrowsers;
+
 const colors = {
   reset: "\x1b[0m",
   bright: "\x1b[1m",
@@ -25,12 +37,6 @@ const colors = {
   bgRed: "\x1b[41m",
   bgGreen: "\x1b[42m",
 };
-
-const browsers = [
-  { name: "webkit", launcher: webkit },
-  { name: "chrome", launcher: chromium },
-  { name: "firefox", useSelenium: true },
-];
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -149,7 +155,7 @@ async function runPlaywrightTests(browserConfig) {
   let context;
   try {
     context = await launcher.launchPersistentContext(dataDir, {
-      headless: false,
+      headless: true,
     });
 
     const page = context.pages()[0] || (await context.newPage());
