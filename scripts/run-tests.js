@@ -117,25 +117,37 @@ function printSeparator(char = "=", color = colors.dim) {
 
 function printTestResults(name, result, stats) {
   if (result === "passed") {
-    console.log(`\n${colors.green}${colors.bright}✓ ${name.toUpperCase()} Tests Passed!${colors.reset}`);
+    console.log(
+      `\n${colors.green}${colors.bright}✓ ${name.toUpperCase()} Tests Passed!${colors.reset}`,
+    );
     console.log(`  Total: ${colors.white}${stats.total}${colors.reset}`);
     console.log(`  Success: ${colors.green}${stats.success}${colors.reset}`);
     console.log(`  Error: ${colors.green}${stats.error}${colors.reset}`);
     return { success: true, name, stats };
   } else {
-    console.log(`\n${colors.red}${colors.bright}✗ ${name.toUpperCase()} Tests Failed!${colors.reset}`);
+    console.log(
+      `\n${colors.red}${colors.bright}✗ ${name.toUpperCase()} Tests Failed!${colors.reset}`,
+    );
     console.log(`  Total: ${colors.white}${stats.total}${colors.reset}`);
     console.log(`  Success: ${colors.green}${stats.success}${colors.reset}`);
     console.log(`  Error: ${colors.red}${stats.error}${colors.reset}`);
     console.log(`\n${colors.red}${colors.bright}Failed tests:${colors.reset}`);
     stats.failedTests.forEach((test, index) => {
-      console.log(`\n${colors.red}${colors.bright}${index + 1}.${colors.reset} ${colors.blue}${test.url}${colors.reset}`);
-      console.log(`   ${colors.cyan}Name:${colors.reset} ${colors.yellow}${test.name}${colors.reset}`);
+      console.log(
+        `\n${colors.red}${colors.bright}${index + 1}.${colors.reset} ${colors.blue}${test.url}${colors.reset}`,
+      );
+      console.log(
+        `   ${colors.cyan}Name:${colors.reset} ${colors.yellow}${test.name}${colors.reset}`,
+      );
       if (test.message) {
-        console.log(`   ${colors.cyan}Error:${colors.reset} ${colors.red}${test.message}${colors.reset}`);
+        console.log(
+          `   ${colors.cyan}Error:${colors.reset} ${colors.red}${test.message}${colors.reset}`,
+        );
       }
       if (test.stack) {
-        console.log(`   ${colors.cyan}Stack:${colors.reset}\n${colors.dim}${test.stack}${colors.reset}`);
+        console.log(
+          `   ${colors.cyan}Stack:${colors.reset}\n${colors.dim}${test.stack}${colors.reset}`,
+        );
       }
     });
     return { success: false, name, stats };
@@ -148,14 +160,16 @@ async function runPlaywrightTests(browserConfig) {
 
   console.log("");
   printSeparator();
-  console.log(`${colors.cyan}${colors.bright}Running tests with ${name.toUpperCase()}${colors.reset}`);
+  console.log(
+    `${colors.cyan}${colors.bright}Running tests with ${name.toUpperCase()}${colors.reset}`,
+  );
   printSeparator();
   console.log("");
 
   let context;
   try {
     context = await launcher.launchPersistentContext(dataDir, {
-      headless: true,
+      headless: false,
     });
 
     const page = context.pages()[0] || (await context.newPage());
@@ -163,19 +177,26 @@ async function runPlaywrightTests(browserConfig) {
     console.log(`Opening: ${colors.blue}${TEST_URL}${colors.reset}`);
     await page.goto(TEST_URL);
 
-    console.log(`${colors.yellow}Waiting for tests to complete...${colors.reset}`);
+    console.log(
+      `${colors.yellow}Waiting for tests to complete...${colors.reset}`,
+    );
 
     const result = await waitForTestResults(page, (p, fn) => p.evaluate(fn));
 
     if (!result) {
-      console.log(`${colors.red}Timeout: Tests did not complete within 5 minutes${colors.reset}`);
+      console.log(
+        `${colors.red}Timeout: Tests did not complete within 5 minutes${colors.reset}`,
+      );
       return { success: false, name };
     }
 
     const stats = await getTestStats(page, (p, fn) => p.evaluate(fn));
     return printTestResults(name, result, stats);
   } catch (error) {
-    console.error(`${colors.red}Error running ${name} tests:${colors.reset}`, error);
+    console.error(
+      `${colors.red}Error running ${name} tests:${colors.reset}`,
+      error,
+    );
     return { success: false, name, error };
   } finally {
     if (context) {
@@ -190,7 +211,9 @@ async function runSeleniumFirefoxTests() {
 
   console.log("");
   printSeparator();
-  console.log(`${colors.cyan}${colors.bright}Running tests with ${name.toUpperCase()} (Selenium)${colors.reset}`);
+  console.log(
+    `${colors.cyan}${colors.bright}Running tests with ${name.toUpperCase()} (Selenium)${colors.reset}`,
+  );
   printSeparator();
   console.log("");
 
@@ -205,14 +228,18 @@ async function runSeleniumFirefoxTests() {
     console.log(`Opening: ${colors.blue}${TEST_URL}${colors.reset}`);
     await driver.get(TEST_URL);
 
-    console.log(`${colors.yellow}Waiting for tests to complete...${colors.reset}`);
+    console.log(
+      `${colors.yellow}Waiting for tests to complete...${colors.reset}`,
+    );
 
     const result = await waitForTestResults(driver, (d, fn) =>
       d.executeScript(`return (${fn.toString()})();`),
     );
 
     if (!result) {
-      console.log(`${colors.red}Timeout: Tests did not complete within 5 minutes${colors.reset}`);
+      console.log(
+        `${colors.red}Timeout: Tests did not complete within 5 minutes${colors.reset}`,
+      );
       return { success: false, name };
     }
 
@@ -221,7 +248,10 @@ async function runSeleniumFirefoxTests() {
     );
     return printTestResults(name, result, stats);
   } catch (error) {
-    console.error(`${colors.red}Error running ${name} tests:${colors.reset}`, error);
+    console.error(
+      `${colors.red}Error running ${name} tests:${colors.reset}`,
+      error,
+    );
     return { success: false, name, error };
   } finally {
     if (driver) {
@@ -245,7 +275,9 @@ async function runTests() {
 
   await new Promise((resolve) => {
     server.listen(PORT, () => {
-      console.log(`${colors.green}Server started at ${colors.blue}http://localhost:${PORT}${colors.reset}`);
+      console.log(
+        `${colors.green}Server started at ${colors.blue}http://localhost:${PORT}${colors.reset}`,
+      );
       resolve();
     });
   });
@@ -266,9 +298,13 @@ async function runTests() {
     let allPassed = true;
     for (const result of results) {
       if (result.success) {
-        console.log(`${colors.green}${colors.bright}✓ PASSED${colors.reset} ${colors.cyan}${result.name.toUpperCase()}${colors.reset}`);
+        console.log(
+          `${colors.green}${colors.bright}✓ PASSED${colors.reset} ${colors.cyan}${result.name.toUpperCase()}${colors.reset}`,
+        );
       } else {
-        console.log(`${colors.red}${colors.bright}✗ FAILED${colors.reset} ${colors.cyan}${result.name.toUpperCase()}${colors.reset}`);
+        console.log(
+          `${colors.red}${colors.bright}✗ FAILED${colors.reset} ${colors.cyan}${result.name.toUpperCase()}${colors.reset}`,
+        );
         allPassed = false;
       }
     }
@@ -277,7 +313,9 @@ async function runTests() {
     if (!allPassed) {
       process.exit(1);
     } else {
-      console.log(`${colors.green}${colors.bright}All tests passed!${colors.reset}`);
+      console.log(
+        `${colors.green}${colors.bright}All tests passed!${colors.reset}`,
+      );
     }
   } finally {
     server.close();
