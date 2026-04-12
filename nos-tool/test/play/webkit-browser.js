@@ -1,12 +1,8 @@
-import { firefox } from "playwright";
+import { webkit } from "playwright";
 
 (async () => {
-  const context = await firefox.launchPersistentContext("./user-data", {
+  const context = await webkit.launchPersistentContext("./user-data", {
     headless: false,
-    firefoxUserPrefs: {
-      "dom.serviceWorkers.enabled": true,
-      "dom.serviceWorkers.testing.enabled": true,
-    },
   });
 
   const page = context.pages()[0] || (await context.newPage());

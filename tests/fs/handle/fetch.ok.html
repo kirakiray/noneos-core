@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,6 +13,10 @@
       <template>
         <script type="module">
           import { init } from "/nos/fs/main.js";
+          
+          import registration from "/_install/register.js";
+          await registration;
+
           {
             const testDir = await init("test-dir3");
 
@@ -27,7 +31,7 @@
             console.log("等待300ms完成");
 
             const content = await fetch("/$test-dir3/file1.txt").then((e) =>
-              e.text()
+              e.text(),
             );
             console.log("文件内容获取成功: " + content);
 
