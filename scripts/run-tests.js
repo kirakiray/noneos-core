@@ -194,6 +194,9 @@ async function runSeleniumFirefoxTests() {
     const options = new seleniumFirefox.Options();
     if (IS_CI) {
       options.addArguments("-headless");
+      options.addArguments("--no-sandbox");
+      options.addArguments("--disable-dev-shm-usage");
+      options.setPreference("remote.log.level", "Info");
     }
     driver = await new Builder()
       .forBrowser("firefox")

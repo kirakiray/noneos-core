@@ -18,10 +18,8 @@ jobs:
       run: npm ci
     - name: Install Playwright Browsers (webkit, chromium)
       run: npx playwright install webkit chromium --with-deps
-    - name: Install Firefox for Selenium
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y firefox
+    - name: Install Firefox
+      uses: browser-actions/setup-firefox@latest
     - name: Install geckodriver
       uses: browser-actions/setup-geckodriver@latest
     - name: Run tests
