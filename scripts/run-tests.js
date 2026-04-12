@@ -11,6 +11,7 @@ const rootDir = path.join(__dirname, "..");
 
 const PORT = 30028;
 const TEST_URL = `http://localhost:${PORT}/_test-all.html`;
+const IS_CI = process.env.CI === "true";
 
 const browsers = [
   { name: "webkit", launcher: webkit },
@@ -129,7 +130,7 @@ async function runPlaywrightTests(browserConfig) {
   let context;
   try {
     context = await launcher.launchPersistentContext(dataDir, {
-      headless: false,
+      headless: IS_CI,
     });
 
     const page = context.pages()[0] || (await context.newPage());
@@ -170,6 +171,9 @@ async function runSeleniumFirefoxTests() {
   let driver;
   try {
     const options = new seleniumFirefox.Options();
+    if (IS_CI) {
+      options.addArguments("-headless");
+    }
     driver = await new Builder()
       .forBrowser("firefox")
       .setFirefoxOptions(options)
