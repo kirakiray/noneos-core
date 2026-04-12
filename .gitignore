@@ -144,3 +144,5 @@ test-results
 **/.DS_Store
 tests/cases/others
 rootkeys
+
+**/user-data

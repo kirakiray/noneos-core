@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Examples</title>
+    <script type="module" src="../test.mjs"></script>
+  </head>
+  <body>
+    <h1>Unit Test Examples</h1>
+
+    <h2>✓ Successful Test</h2>
+    <ok-test name="a plus b should equal 300">
+      <template>
+        <script type="module">
+          const a = 100;
+          const b = 200;
+
+          return {
+            assert: a + b === 300,
+            content: {
+              a,
+              b,
+              sum: a + b,
+            },
+          };
+        </script>
+      </template>
+    </ok-test>
+
+    <h2>✗ Failed Test</h2>
+    <ok-test name="This test will fail">
+      <template>
+        <script>
+          const x = 10;
+          const y = 20;
+
+          return {
+            assert: x + y === 100,
+            content: {
+              x,
+              y,
+              sum: x + y,
+              expected: 100,
+            },
+          };
+        </script>
+      </template>
+    </ok-test>
+
+    <h2>💥 Error Test</h2>
+    <ok-test name="This test throws an error">
+      <template>
+        <script>
+          const obj = null;
+
+          const value = obj.someProperty;
+
+          return {
+            assert: true,
+          };
+        </script>
+      </template>
+    </ok-test>
+
+    <h2>✓ Async Test</h2>
+    <ok-test name="Async function test">
+      <template>
+        <script>
+          const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+          await delay(100);
+          const result = 42;
+
+          return {
+            assert: result === 42,
+            content: {
+              result,
+              message: 'Async test passed!'
+            },
+          };
+        </script>
+      </template>
+    </ok-test>
+
+    <h2>✓ Simple Boolean Test</h2>
+    <ok-test name="Simple true assertion">
+      <template>
+        <script>
+          return {
+            assert: true,
+          };
+        </script>
+      </template>
+    </ok-test>
+  </body>
+</html>

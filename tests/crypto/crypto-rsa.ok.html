@@ -4,80 +4,92 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RSA Util Test</title>
-    <script src="/gh/kirakiray/ofa.js/dist/ofa.js"></script>
+    <script type="module" src="/nos-tool/test/test.mjs"></script>
   </head>
   <body>
-    <script type="module">
-      import { test } from "/nos/ok-test/main.js";
-      import {
-        generateRSAKeyPair,
-        encryptMessage,
-        decryptMessage,
-      } from "/nos/crypto/crypto-rsa.js";
+    <h1>RSA Util Tests</h1>
 
-      await test("RSA Key Generation Test", async () => {
-        const { publicKey, privateKey } = await generateRSAKeyPair();
+    <ok-test name="RSA Key Generation Test">
+      <template>
+        <script type="module">
+          import {
+            generateRSAKeyPair,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { publicKey, privateKey } = await generateRSAKeyPair();
 
-        return {
-          assert: !!publicKey && !!privateKey,
-          content: {
-            message: "RSA密钥对生成成功",
-            publicKeyLength: publicKey.length,
-            privateKeyLength: privateKey.length,
-          },
-        };
-      });
+            return {
+              assert: !!publicKey && !!privateKey,
+              content: {
+                message: "RSA密钥对生成成功",
+                publicKeyLength: publicKey.length,
+                privateKeyLength: privateKey.length,
+              },
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-      await test("RSA Encryption and Decryption Test", async () => {
-        const { publicKey, privateKey } = await generateRSAKeyPair();
-        const testMessage = "Hello, RSA Test!";
+    <ok-test name="RSA Encryption and Decryption Test">
+      <template>
+        <script type="module">
+          import {
+            generateRSAKeyPair,
+            encryptMessage,
+            decryptMessage,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { publicKey, privateKey } = await generateRSAKeyPair();
+            const testMessage = "Hello, RSA Test!";
 
-        // 加密消息
-        const encrypted = await encryptMessage(publicKey, testMessage);
+            const encrypted = await encryptMessage(publicKey, testMessage);
 
-        // 解密消息
-        const decrypted = await decryptMessage(privateKey, encrypted);
+            const decrypted = await decryptMessage(privateKey, encrypted);
 
-        return {
-          assert: decrypted === testMessage,
-          content: {
-            message: "RSA加解密测试成功",
-            originalMessage: testMessage,
-            encryptedLength: encrypted.length,
-            decryptedMessage: decrypted,
-            matched: decrypted === testMessage,
-          },
-        };
-      });
+            return {
+              assert: decrypted === testMessage,
+              content: {
+                message: "RSA加解密测试成功",
+                originalMessage: testMessage,
+                encryptedLength: encrypted.length,
+                decryptedMessage: decrypted,
+                matched: decrypted === testMessage,
+              },
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
 
-      await test("RSA Invalid Input Test", async () => {
-        const { publicKey, privateKey } = await generateRSAKeyPair();
+    <ok-test name="RSA Invalid Input Test">
+      <template>
+        <script type="module">
+          import {
+            generateRSAKeyPair,
+            decryptMessage,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { privateKey } = await generateRSAKeyPair();
 
-        // let encryptError = null;
-        let decryptError = null;
+            let decryptError = null;
 
-        // try {
-        //   await encryptMessage(publicKey, null);
-        // } catch (error) {
-        //   encryptError = error.message;
-        // }
+            try {
+              await decryptMessage(privateKey, "invalid-encrypted-data");
+            } catch (error) {
+              decryptError = error.message;
+            }
 
-        try {
-          await decryptMessage(privateKey, "invalid-encrypted-data");
-        } catch (error) {
-          decryptError = error.message;
-        }
-
-        return {
-          // assert: !!encryptError && !!decryptError,
-          assert: !!decryptError,
-          content: {
-            message: "RSA无效输入测试成功",
-            // encryptError,
-            decryptError,
-          },
-        };
-      });
-    </script>
+            return {
+              assert: !!decryptError,
+              content: {
+                message: "RSA无效输入测试成功",
+                decryptError,
+              },
+            };
+          }
+        </script>
+      </template>
+    </ok-test>
   </body>
 </html>
