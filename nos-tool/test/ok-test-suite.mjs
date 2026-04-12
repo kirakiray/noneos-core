@@ -279,6 +279,9 @@ export default class OkTestSuite extends HTMLElement {
             } else {
               groupHtml += `<div class="error-msg">Assertion failed: expected true but got ${this.escapeHtml(JSON.stringify(r.result && r.result.assert))}</div>`;
             }
+            if (r.result && r.result.content) {
+              groupHtml += `<div class="result-content">${this.escapeHtml(JSON.stringify(r.result.content, null, 2))}</div>`;
+            }
           } else {
             if (r.result && r.result.content) {
               groupHtml += `<div class="result-content">${this.escapeHtml(JSON.stringify(r.result.content, null, 2))}</div>`;
