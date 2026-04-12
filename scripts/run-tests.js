@@ -11,7 +11,6 @@ const rootDir = path.join(__dirname, "..");
 
 const PORT = 30028;
 const TEST_URL = `http://localhost:${PORT}/_test-all.html`;
-const IS_CI = process.env.CI === "true";
 
 const colors = {
   reset: "\x1b[0m",
@@ -150,7 +149,7 @@ async function runPlaywrightTests(browserConfig) {
   let context;
   try {
     context = await launcher.launchPersistentContext(dataDir, {
-      headless: IS_CI,
+      headless: false,
     });
 
     const page = context.pages()[0] || (await context.newPage());
@@ -192,12 +191,6 @@ async function runSeleniumFirefoxTests() {
   let driver;
   try {
     const options = new seleniumFirefox.Options();
-    if (IS_CI) {
-      options.addArguments("-headless");
-      options.addArguments("--no-sandbox");
-      options.addArguments("--disable-dev-shm-usage");
-      options.setPreference("remote.log.level", "Info");
-    }
     driver = await new Builder()
       .forBrowser("firefox")
       .setFirefoxOptions(options)

@@ -22,5 +22,7 @@ jobs:
       uses: browser-actions/setup-firefox@latest
     - name: Install geckodriver
       uses: browser-actions/setup-geckodriver@latest
-    - name: Run tests
-      run: node scripts/run-tests.js
+    - name: Run tests with Xvfb
+      uses: coactions/setup-xvfb@v1
+      with:
+        run: node scripts/run-tests.js
