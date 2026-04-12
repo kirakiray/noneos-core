@@ -3,6 +3,10 @@ import { firefox } from "playwright";
 (async () => {
   const context = await firefox.launchPersistentContext("./user-data", {
     headless: false,
+    firefoxUserPrefs: {
+      "dom.serviceWorkers.enabled": true,
+      "dom.serviceWorkers.testing.enabled": true,
+    },
   });
 
   const page = context.pages()[0] || (await context.newPage());
@@ -11,7 +15,7 @@ import { firefox } from "playwright";
 
   console.log("页面已打开:", page.url());
 
-  await page.waitForTimeout(50000);
+  await page.waitForTimeout(500000);
 
   await context.close();
 })();

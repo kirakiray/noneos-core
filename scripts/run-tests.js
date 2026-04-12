@@ -52,19 +52,24 @@ async function runBrowserTests(browserConfig) {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWaitTime) {
-      const testSuite = await page.$("ok-test-suite");
-      if (testSuite) {
-        const hasSuccess = await testSuite.getAttribute("success");
-        const hasFailure = await testSuite.getAttribute("failure");
+      const isFinished = await page.evaluate(() => {
+        const suite = document.querySelector("ok-test-suite");
+        if (!suite) return false;
 
-        if (hasSuccess !== null) {
-          result = "passed";
-          break;
+        const total = suite.totalTests || 0;
+        const success = suite.successTests || 0;
+        const error = suite.errorTests || 0;
+        const pendingUrls = suite.pendingUrls ? suite.pendingUrls.length : 0;
+
+        if (total > 0 && success + error === total && pendingUrls === 0) {
+          return { finished: true, hasError: error > 0 };
         }
-        if (hasFailure !== null) {
-          result = "failed";
-          break;
-        }
+        return false;
+      });
+
+      if (isFinished) {
+        result = isFinished.hasError ? "failed" : "passed";
+        break;
       }
       await sleep(500);
     }
