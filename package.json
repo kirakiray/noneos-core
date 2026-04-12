@@ -23,7 +23,7 @@
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "npx playwright test"
+    "test": "node scripts/run-tests.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^24.0.0",
