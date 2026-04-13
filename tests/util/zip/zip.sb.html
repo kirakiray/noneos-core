@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zip Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Zip Tests</h1>
 
-    <ok-test name="zip - Single File Compression Test">
+    <sb-test name="zip - Single File Compression Test">
       <template>
-        <script type="module">
+        <script>
           import registration from "/_install/register.js";
           await registration;
           import { zip } from "/nos/util/zip.js";
@@ -41,11 +41,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="zip - Multiple Files Compression Test">
+    <sb-test name="zip - Multiple Files Compression Test">
       <template>
-        <script type="module">
+        <script>
           import registration from "/_install/register.js";
           await registration;
           import { zip, unzip } from "/nos/util/zip.js";
@@ -82,11 +82,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="zip - Nested Directory Compression Test">
+    <sb-test name="zip - Nested Directory Compression Test">
       <template>
-        <script type="module">
+        <script>
           import registration from "/_install/register.js";
           await registration;
           import { zip, unzip } from "/nos/util/zip.js";
@@ -127,11 +127,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="zip - Content Integrity Test">
+    <sb-test name="zip - Content Integrity Test">
       <template>
-        <script type="module">
+        <script>
           import registration from "/_install/register.js";
           await registration;
           import { zip, unzip } from "/nos/util/zip.js";
@@ -165,6 +165,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

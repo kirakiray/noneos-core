@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Generate KeyPair Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>ECDSA Crypto Tests</h1>
 
-    <ok-test name="Generate KeyPair Test">
+    <sb-test name="Generate KeyPair Test">
       <template>
-        <script type="module">
+        <script>
           import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
           {
             const keyPair = await generateKeyPair();
@@ -46,11 +46,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Sign and Verify Test">
+    <sb-test name="Sign and Verify Test">
       <template>
-        <script type="module">
+        <script>
           import {
             generateKeyPair,
             importPrivateKey,
@@ -96,11 +96,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Create Signer and Verifier Test">
+    <sb-test name="Create Signer and Verifier Test">
       <template>
-        <script type="module">
+        <script>
           import {
             generateKeyPair,
             createSigner,
@@ -133,6 +133,6 @@
           };
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

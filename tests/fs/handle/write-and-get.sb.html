@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <title>File Write and Get Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>File Write and Get Tests</h1>
 
-    <ok-test name="Create and Write File">
+    <sb-test name="Create and Write File">
       <template>
-        <script type="module">
+        <script>
           import { init, get } from "/nos/fs/main.js";
           {
             const testDir = await init("testDir2");
@@ -31,11 +31,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Read Existing File">
+    <sb-test name="Read Existing File">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("testDir2");
@@ -49,11 +49,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Try to Read Non-existent File">
+    <sb-test name="Try to Read Non-existent File">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("testDir2");
@@ -67,6 +67,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

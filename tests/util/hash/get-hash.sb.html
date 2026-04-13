@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Get File Hash Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Get File Hash Tests</h1>
 
-    <ok-test name="getFileHash - 1KB File Consistency Test">
+    <sb-test name="getFileHash - 1KB File Consistency Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const createRandomFile = (sizeInBytes) => {
@@ -47,11 +47,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="getFileHash - 10KB File Consistency Test">
+    <sb-test name="getFileHash - 10KB File Consistency Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const createRandomFile = (sizeInBytes) => {
@@ -87,11 +87,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="getFileHash - 500KB File Consistency Test">
+    <sb-test name="getFileHash - 500KB File Consistency Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const createRandomFile = (sizeInBytes) => {
@@ -127,11 +127,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="getFileHash - 1MB File Consistency Test">
+    <sb-test name="getFileHash - 1MB File Consistency Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const createRandomFile = (sizeInBytes) => {
@@ -167,11 +167,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="getFileHash - Different Files Different Hashes Test">
+    <sb-test name="getFileHash - Different Files Different Hashes Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const createRandomFile = (sizeInBytes) => {
@@ -209,11 +209,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="getFileHash - Same Content Same Hash Test">
+    <sb-test name="getFileHash - Same Content Same Hash Test">
       <template>
-        <script type="module">
+        <script>
           import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
             const content = "Test content for hash verification";
@@ -239,6 +239,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

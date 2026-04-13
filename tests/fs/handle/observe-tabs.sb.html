@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cross-Tab Observe Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Cross-Tab Observe Tests</h1>
 
     <iframe id="testFrame" style="width: 0; height: 0; border: none"></iframe>
 
-    <ok-test name="Test cross-tab file observation">
+    <sb-test name="Test cross-tab file observation">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-cross-tab");
@@ -44,6 +44,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>
