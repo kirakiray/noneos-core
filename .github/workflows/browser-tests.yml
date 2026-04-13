@@ -6,18 +6,17 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test-webkit:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./action.yml
-        with:
-          browsers: webkit
-
   test-chrome-firefox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./action.yml
+      - uses: ofajs/sibyl-test@v1
         with:
-          browsers: chrome,firefox
+          browsers: 'chrome,firefox'
+  test-webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ofajs/sibyl-test@v1
+        with:
+          browsers: 'webkit'
