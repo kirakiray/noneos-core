@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Normal Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Normal Tests</h1>
 
-    <ok-test name="Parent Directory Comparison Test">
+    <sb-test name="Parent Directory Comparison Test">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDirectory = await init("test-dir3");
@@ -32,11 +32,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Root Comparison Test">
+    <sb-test name="Root Comparison Test">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDirectory = await init("test-dir3");
@@ -60,11 +60,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Size Test">
+    <sb-test name="Size Test">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDirectory = await init("test-dir3");
@@ -84,11 +84,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Dir Length Test">
+    <sb-test name="Dir Length Test">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDirectory = await init("test-dir3");
@@ -110,11 +110,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Write File Test">
+    <sb-test name="Write File Test">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDirectory = await init("test-dir3");
@@ -139,6 +139,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Remove Method Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Remove Method Tests</h1>
 
-    <ok-test name="Test Handle remove method">
+    <sb-test name="Test Handle remove method">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-remove");
@@ -41,11 +41,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Test create after remove">
+    <sb-test name="Test create after remove">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-remove");
@@ -62,6 +62,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Some Method Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>Some Method Tests</h1>
 
-    <ok-test name="Test DirHandle some method">
+    <sb-test name="Test DirHandle some method">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-some");
@@ -45,6 +45,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

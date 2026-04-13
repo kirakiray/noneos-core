@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 
-function findOkHtmlFiles(dir, baseDir) {
+function findSbHtmlFiles(dir, baseDir) {
   const results = [];
   const files = fs.readdirSync(dir);
 
@@ -15,9 +15,9 @@ function findOkHtmlFiles(dir, baseDir) {
 
     if (stat.isDirectory()) {
       if (file !== "node_modules" && file !== ".git") {
-        results.push(...findOkHtmlFiles(fullPath, baseDir));
+        results.push(...findSbHtmlFiles(fullPath, baseDir));
       }
-    } else if (file.endsWith(".ok.html")) {
+    } else if (file.endsWith(".sb.html")) {
       const relativePath = path.relative(baseDir, fullPath);
       results.push(relativePath);
     }
@@ -38,12 +38,12 @@ function generateAllHtml(files, outputPath) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>All Tests</title>
-    <script type="module" src="/nos-tool/test/ok-test-suite.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test-suite.mjs"></script>
   </head>
   <body>
-    <ok-test-suite>
+    <sb-test-suite>
 ${includeTags}
-    </ok-test-suite>
+    </sb-test-suite>
   </body>
 </html>
 `;
@@ -51,10 +51,10 @@ ${includeTags}
   fs.writeFileSync(outputPath, html, "utf-8");
 }
 
-const okHtmlFiles = findOkHtmlFiles(rootDir, rootDir);
+const sbHtmlFiles = findSbHtmlFiles(rootDir, rootDir);
 const outputFilePath = path.join(rootDir, "_test-all.html");
 
-generateAllHtml(okHtmlFiles, outputFilePath);
+generateAllHtml(sbHtmlFiles, outputFilePath);
 
-console.log(`Found ${okHtmlFiles.length} .ok.html files`);
+console.log(`Found ${sbHtmlFiles.length} .sb.html files`);
 console.log(`Generated: ${outputFilePath}`);

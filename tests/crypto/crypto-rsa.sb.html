@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RSA Util Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>RSA Util Tests</h1>
 
-    <ok-test name="RSA Key Generation Test">
+    <sb-test name="RSA Key Generation Test">
       <template>
-        <script type="module">
+        <script>
           import {
             generateRSAKeyPair,
           } from "/nos/crypto/crypto-rsa.js";
@@ -29,11 +29,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="RSA Encryption and Decryption Test">
+    <sb-test name="RSA Encryption and Decryption Test">
       <template>
-        <script type="module">
+        <script>
           import {
             generateRSAKeyPair,
             encryptMessage,
@@ -60,11 +60,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="RSA Invalid Input Test">
+    <sb-test name="RSA Invalid Input Test">
       <template>
-        <script type="module">
+        <script>
           import {
             generateRSAKeyPair,
             decryptMessage,
@@ -90,6 +90,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>

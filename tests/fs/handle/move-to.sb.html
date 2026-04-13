@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MoveTo Method Test</title>
-    <script type="module" src="/nos-tool/test/test.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
     <h1>MoveTo Method Tests</h1>
 
-    <ok-test name="Test move single file">
+    <sb-test name="Test move single file">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-move");
@@ -35,11 +35,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Test move directory with contents">
+    <sb-test name="Test move directory with contents">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-move");
@@ -76,11 +76,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Test move with rename in same directory">
+    <sb-test name="Test move with rename in same directory">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-move");
@@ -103,11 +103,11 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
 
-    <ok-test name="Test move error cases">
+    <sb-test name="Test move error cases">
       <template>
-        <script type="module">
+        <script>
           import { init } from "/nos/fs/main.js";
           {
             const testDir = await init("test-dir-move");
@@ -133,6 +133,6 @@
           }
         </script>
       </template>
-    </ok-test>
+    </sb-test>
   </body>
 </html>
