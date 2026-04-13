@@ -10,6 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ofajs/sibyl-test@1.0.1
+      - uses: ofajs/sibyl-test@v1
         with:
           browsers: 'webkit,chrome,firefox'
