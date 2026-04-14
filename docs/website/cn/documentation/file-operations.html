@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>文件操作</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.svg" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>文件操作</h1>
+        <p>本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。</p>
+        <h2>创建文件</h2>
+        <p>使用 <code>get</code> 方法并指定 <code>create: "file"</code> 来创建文件：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"path/to/file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });</code></pre>
+        <h2>写入文件</h2>
+        <p>使用 <code>write</code> 方法向文件写入内容：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);</code></pre>
+        <p><code>write</code> 方法支持写入字符串或 Blob 数据。</p>
+        <h2>读取文件</h2>
+        <h3>text() 方法</h3>
+        <p>使用 <code>text()</code> 方法读取文件的文本内容：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "Hello, World!"</span></code></pre>
+        <h3>file() 方法</h3>
+        <p>使用 <code>file()</code> 方法读取原始 File 对象：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">name</span>); <span class="hljs-comment">// 文件名</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// 文件大小</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">lastModified</span>); <span class="hljs-comment">// 最后修改时间</span></code></pre>
+        <h3>buffer() 方法</h3>
+        <p>使用 <code>buffer()</code> 方法读取文件的 ArrayBuffer 数据：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> arrayBuffer = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">buffer</span>();</code></pre>
+        <h3>read() 方法</h3>
+        <p><code>read()</code> 方法是底层读取方法，支持更多选项：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">read</span>({
+  <span class="hljs-attr">type</span>: <span class="hljs-string">"text"</span>,    <span class="hljs-comment">// 返回类型: "text" | "file" | "buffer"</span>
+  <span class="hljs-attr">start</span>: <span class="hljs-number">0</span>,        <span class="hljs-comment">// 起始字节</span>
+  <span class="hljs-attr">end</span>: <span class="hljs-number">100</span>,        <span class="hljs-comment">// 结束字节</span>
+});</code></pre>
+        <h2>JSON 操作</h2>
+        <h3>json() 方法</h3>
+        <p>使用 <code>json()</code> 方法直接读取并解析 JSON 文件：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">json</span>();</code></pre>
+        <h3>base64() 方法</h3>
+        <p>使用 <code>base64()</code> 方法将文件内容转为 base64 编码：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> base64String = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">base64</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(base64String); <span class="hljs-comment">// "data:application/octet-stream;base64,..."</span></code></pre>
+        <h2>获取文件信息</h2>
+        <h3>lastModified() 方法</h3>
+        <p>使用 <code>lastModified()</code> 获取文件的最后修改时间：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> timestamp = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">Date</span>(timestamp)); <span class="hljs-comment">// Date 对象</span></code></pre>
+        <h3>size 属性</h3>
+        <p>通过 <code>file()</code> 方法获取文件大小：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// 文件大小（字节）</span></code></pre>
+        <h2>通过 fetch 获取文件</h2>
+        <p>除了使用句柄，写入文件后，还可以使用浏览器的 <code>fetch</code> API 通过 URL 获取文件内容：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">const</span> someText = <span class="hljs-string">"Write some text "</span> + <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">random</span>();
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(someText);
+
+<span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">300</span>));
+
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$test-dir3/file1.txt"</span>).<span class="hljs-title function_">then</span>(<span class="hljs-function">(<span class="hljs-params">e</span>) =&gt;</span> e.<span class="hljs-title function_">text</span>());</code></pre>
+        <h2>删除文件</h2>
+        <p>使用 <code>remove()</code> 方法删除文件：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
+
+<span class="hljs-keyword">const</span> fileExists = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>);
+<span class="hljs-comment">// fileExists === null 表示文件已被删除</span></code></pre>
+        <h2>完整示例</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
+
+<span class="hljs-comment">// 创建并写入文件</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"This is a test file."</span>);
+
+<span class="hljs-comment">// 读取文件</span>
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "This is a test file."</span>
+
+<span class="hljs-comment">// 获取文件信息</span>
+<span class="hljs-keyword">const</span> fileInfo = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`文件名: <span class="hljs-subst">${fileInfo.name}</span>, 大小: <span class="hljs-subst">${fileInfo.size}</span>`</span>);
+
+<span class="hljs-comment">// 获取最后修改时间</span>
+<span class="hljs-keyword">const</span> modified = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`最后修改: <span class="hljs-subst">${<span class="hljs-keyword">new</span> <span class="hljs-built_in">Date</span>(modified)}</span>`</span>);
+
+<span class="hljs-comment">// 删除文件</span>
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
+<span class="hljs-keyword">const</span> exists = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"example.txt"</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(exists); <span class="hljs-comment">// null</span></code></pre>
+        <h2>下一章</h2>
+        <p>学习 <a href="./directory-operations.html" olink="">目录操作</a>，了解如何遍历和管理目录。</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>
