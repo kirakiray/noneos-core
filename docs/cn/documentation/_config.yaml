@@ -1,3 +1,5 @@
+- name: 安装
+  url: ./install.md
 - name: 基础操作
   content:
     - name: 概述
