@@ -140,6 +140,149 @@ console.log(`共收到 ${events.length} 个事件`);
 
 ---
 
+<!-- handle-comparison.html -->
+
+# 文件句柄比较
+
+本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。
+
+## 获取父目录
+
+使用 `parent` 属性获取文件的父目录：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+await get("my-app/a/b/c/d/test.txt", { create: "file" });
+
+const testFile = await get("my-app/a/b/c/d/test.txt");
+const fileParentDir = await testFile.parent;
+
+const directoryD = await get("my-app/a/b/c/d");
+const isSame = await fileParentDir.isSame(directoryD);
+// isSame === true
+```
+
+## 获取根目录
+
+使用 `root` 属性获取文件或目录所属的根目录：
+
+```javascript
+const testFile = await get("my-app/a/b/c/d/test.txt");
+const root1 = testFile.root;
+
+const directoryD = await get("my-app/a/b/c/d");
+const root2 = directoryD.root;
+
+const isSame = await root1.isSame(root2);
+// isSame === true
+```
+
+## 判断句柄是否相同
+
+使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
+
+```javascript
+await get("my-app/path/to/file.txt", { create: "file" });
+await get("my-app/path/to/other.txt", { create: "file" });
+
+const file1 = await get("my-app/path/to/file.txt");
+const file2 = await get("my-app/path/to/file.txt");
+const file3 = await get("my-app/path/to/other.txt");
+
+const result1 = await file1.isSame(file2);
+// result1 === true
+
+const result2 = await file1.isSame(file3);
+// result2 === false
+```
+
+## 获取文件大小
+
+使用 `size()` 方法获取文件的大小：
+
+```javascript
+await get("my-app/example.txt", { create: "file" });
+const file = await get("my-app/example.txt");
+await file.write("Hello, World!");
+
+const fileSize = await file.size();
+console.log(fileSize); // 13 (字节)
+```
+
+对于目录，`size()` 返回 `null`。
+
+## 获取唯一标识符
+
+使用 `id()` 方法获取文件或目录的唯一标识符：
+
+```javascript
+await get("my-app/example.txt", { create: "file" });
+const file = await get("my-app/example.txt");
+const id = await file.id();
+console.log(id); // 唯一的哈希值字符串
+```
+
+## 句柄属性
+
+| 属性 | 描述 | 返回值 |
+|------|------|--------|
+| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
+| `name` | 文件或目录名称 | 字符串 |
+| `path` | 完整路径 | 字符串 |
+| `parent` | 父目录 | DirHandle |
+| `root` | 根目录 | DirHandle |
+
+## 句柄方法
+
+| 方法 | 描述 | 返回值 |
+|------|------|--------|
+| `isSame(target)` | 判断是否与目标句柄相同 | boolean |
+| `size()` | 获取文件大小（文件）或 null（目录） | number \| null |
+| `id()` | 获取唯一标识符 | string |
+| `remove()` | 删除文件或目录 | void |
+| `copyTo(target, name)` | 复制到目标目录 | FileHandle \| DirHandle |
+| `moveTo(target, name)` | 移动到目标目录 | FileHandle \| DirHandle |
+| `observe(func)` | 监听文件变化 | () => void |
+
+## 完整示例
+
+```javascript
+import { init, get } from "/nos/fs/main.js";
+
+await init("my-app");
+
+await get("my-app/a/b/c/deep.txt", { create: "file" });
+const deepFile = await get("my-app/a/b/c/deep.txt");
+await deepFile.write("Hello!");
+
+// 获取父目录
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
+
+// 获取根目录
+const root = deepFile.root;
+console.log(root.path); // "my-app"
+
+// 获取文件大小
+const size = await deepFile.size();
+console.log(size); // 6
+
+// 获取唯一标识符
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// 通过不同路径获取同一文件
+const file2 = await get("my-app/a/b/c/deep.txt");
+console.log(await deepFile.isSame(file2)); // true
+```
+
+## 下一章
+
+学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
+
+---
+
 <!-- overview.html -->
 
 # 概述
@@ -153,17 +296,23 @@ console.log(`共收到 ${events.length} 个事件`);
 ```javascript
 import { init } from "/nos/fs/main.js";
 
-const testDir = await init("my-app-data");
+await init("my-app");
 ```
 
-## 获取文件句柄
+后续教程均假设已完成 `my-app` 的初始化。
 
-使用 `get` 方法获取文件或目录句柄：
+## 全局 get 方法
+
+使用全局 `get` 方法获取或创建文件/目录句柄：
 
 ```javascript
-const file = await testDir.get("path/to/file.txt", { create: "file" });
-const dir = await testDir.get("path/to/dir", { create: "dir" });
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
+
+路径格式：`根目录名/文件路径`，不使用 `/` 开头。
 
 ## 核心概念
 
@@ -178,30 +327,178 @@ const dir = await testDir.get("path/to/dir", { create: "dir" });
 - `name`：返回文件或目录的名称
 - `path`：返回文件或目录的完整路径
 
-## 使用示例
+## 下一章
+
+学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。
+
+---
+
+<!-- file-operations.html -->
+
+# 文件操作
+
+本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。
+
+## 创建文件
+
+使用 `get` 方法并指定 `create: "file"` 来创建文件：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/path/to/file.txt", { create: "file" });
+```
+
+## 写入文件
+
+使用 `write` 方法向文件写入内容：
+
+```javascript
+const file = await get("my-app/hello.txt", { create: "file" });
+await file.write("Hello, World!");
+```
+
+`write` 方法支持写入字符串或 Blob 数据。
+
+## 读取文件
+
+### text() 方法
+
+使用 `text()` 方法读取文件的文本内容：
+
+```javascript
+const content = await file.text();
+console.log(content); // "Hello, World!"
+```
+
+### file() 方法
+
+使用 `file()` 方法读取原始 File 对象：
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.name); // 文件名
+console.log(fileObj.size); // 文件大小
+console.log(fileObj.lastModified); // 最后修改时间
+```
+
+### buffer() 方法
+
+使用 `buffer()` 方法读取文件的 ArrayBuffer 数据：
+
+```javascript
+const arrayBuffer = await file.buffer();
+```
+
+### read() 方法
+
+`read()` 方法是底层读取方法，支持更多选项：
+
+```javascript
+const content = await file.read({
+  type: "text",    // 返回类型: "text" | "file" | "buffer"
+  start: 0,        // 起始字节
+  end: 100,        // 结束字节
+});
+```
+
+## JSON 操作
+
+### json() 方法
+
+使用 `json()` 方法直接读取并解析 JSON 文件：
+
+```javascript
+const data = await file.json();
+```
+
+### base64() 方法
+
+使用 `base64()` 方法将文件内容转为 base64 编码：
+
+```javascript
+const base64String = await file.base64();
+console.log(base64String); // "data:application/octet-stream;base64,..."
+```
+
+## 获取文件信息
+
+### lastModified() 方法
+
+使用 `lastModified()` 获取文件的最后修改时间：
+
+```javascript
+const timestamp = await file.lastModified();
+console.log(new Date(timestamp)); // Date 对象
+```
+
+### size 属性
+
+通过 `file()` 方法获取文件大小：
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.size); // 文件大小（字节）
+```
+
+## 通过 fetch 获取文件
+
+除了使用句柄，写入文件后，还可以使用浏览器的 `fetch` API 通过 URL 获取文件内容：
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+const someText = "Write some text " + Math.random();
+await file.write(someText);
+
+await new Promise((resolve) => setTimeout(resolve, 300));
+
+const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
+```
+
+## 删除文件
+
+使用 `remove()` 方法删除文件：
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+await file.remove();
+
+const fileExists = await get("my-app/file1.txt");
+// fileExists === null 表示文件已被删除
+```
+
+## 完整示例
 
 ```javascript
 import { init, get } from "/nos/fs/main.js";
 
-// 初始化文件系统
-const testDir = await init("my-app");
+await init("my-app");
 
 // 创建并写入文件
-const file = await testDir.get("hello.txt", { create: "file" });
-await file.write("Hello, World!");
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("This is a test file.");
 
 // 读取文件
 const content = await file.text();
-console.log(content); // "Hello, World!"
+console.log(content); // "This is a test file."
 
-// 获取文件（已存在）
-const file2 = await get("my-app/hello.txt");
-const isSame = await file.isSame(file2); // true
+// 获取文件信息
+const fileInfo = await file.file();
+console.log(`文件名: ${fileInfo.name}, 大小: ${fileInfo.size}`);
+
+// 获取最后修改时间
+const modified = await file.lastModified();
+console.log(`最后修改: ${new Date(modified)}`);
+
+// 删除文件
+await file.remove();
+const exists = await get("my-app/example.txt");
+console.log(exists); // null
 ```
 
 ## 下一章
 
-学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。
+学习 [目录操作](./directory-operations.md)，了解如何遍历和管理目录。
 
 ---
 
@@ -216,10 +513,35 @@ const isSame = await file.isSame(file2); // true
 使用 `get` 方法并指定 `create: "dir"` 来创建目录：
 
 ```javascript
-const dir = await testDir.get("path/to/dir", { create: "dir" });
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app/path/to/dir", { create: "dir" });
+```
+
+## 获取子项数量
+
+使用 `length()` 方法获取目录中子文件/目录的总数量：
+
+```javascript
+const dir = await get("my-app/subDir", { create: "dir" });
+await get("my-app/subDir/file1.txt", { create: "file" });
+await get("my-app/subDir/file2.txt", { create: "file" });
+
+const count = await dir.length();
+console.log(count); // 2
 ```
 
 ## 遍历目录
+
+### keys() 方法
+
+使用 `keys()` 方法遍历目录中所有项的名称：
+
+```javascript
+for await (const key of dir.keys()) {
+  console.log(key);
+}
+```
 
 ### values() 方法
 
@@ -227,7 +549,7 @@ const dir = await testDir.get("path/to/dir", { create: "dir" });
 
 ```javascript
 const handles = [];
-for await (const handle of testDir.values()) {
+for await (const handle of dir.values()) {
   handles.push({
     kind: handle.kind,
     name: handle.name,
@@ -235,20 +557,40 @@ for await (const handle of testDir.values()) {
 }
 ```
 
+### entries() 方法
+
+使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
+
+```javascript
+for await (const [name, handle] of dir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() 方法
+
+使用 `forEach()` 方法遍历目录：
+
+```javascript
+await dir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
 ### some() 方法
 
-使用 `some()` 方法查找满足条件的第一个文件或目录：
+使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
 
 ```javascript
 let foundTarget = false;
 let count = 0;
 
-await testDir.some(async (handle, name) => {
+await dir.some(async (handle, name) => {
   count++;
   if (handle.kind === "file") {
     if (count === 2) {
       foundTarget = true;
-      return true; // 停止遍历
+      return true; // 返回 true 停止遍历
     }
   }
   return false;
@@ -257,10 +599,10 @@ await testDir.some(async (handle, name) => {
 
 ## 扁平化目录
 
-使用 `flat()` 方法获取目录及其所有子目录中的所有文件：
+使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
 
 ```javascript
-const allFiles = await testDir.flat();
+const allFiles = await dir.flat();
 
 const fileContents = await Promise.all(
   allFiles.map(async (file) => ({
@@ -273,54 +615,63 @@ const fileContents = await Promise.all(
 示例：
 
 ```javascript
-const file1 = await testDir.get("file1.txt", { create: "file" });
-const subDir1 = await testDir.get("subDir1", { create: "dir" });
-const file2 = await testDir.get("subDir1/file2.txt", { create: "file" });
-const subDir2 = await testDir.get("subDir1/subDir2", { create: "dir" });
-const file3 = await testDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+await get("my-app/file1.txt", { create: "file" });
+await get("my-app/subDir1", { create: "dir" });
+await get("my-app/subDir1/file2.txt", { create: "file" });
+await get("my-app/subDir1/subDir2", { create: "dir" });
+await get("my-app/subDir1/subDir2/file3.txt", { create: "file" });
 
-await file1.write("root file");
-await file2.write("level 1 file");
-await file3.write("level 2 file");
+await (await get("my-app/file1.txt")).write("root file");
+await (await get("my-app/subDir1/file2.txt")).write("level 1 file");
+await (await get("my-app/subDir1/subDir2/file3.txt")).write("level 2 file");
 
-const allFiles = await testDir.flat();
+const rootDir = await get("my-app");
+const allFiles = await rootDir.flat();
 // 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
 ```
 
 ## 删除目录
 
-使用 `remove()` 方法删除目录：
+使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
 
 ```javascript
-const subDir = await testDir.get("subDir", { create: "dir" });
-const file2 = await subDir.get("file2.txt", { create: "file" });
+const subDir = await get("my-app/subDir", { create: "dir" });
+await get("my-app/subDir/file2.txt", { create: "file" });
 
 await subDir.remove();
-const subDirExists = await testDir.get("subDir");
+const subDirExists = await get("my-app/subDir");
 // subDirExists === null 表示目录已被删除
 ```
+
+⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
 
 ## 完整示例
 
 ```javascript
-import { init } from "/nos/fs/main.js";
+import { init, get } from "/nos/fs/main.js";
 
-const testDir = await init("my-app");
+await init("my-app");
 
 // 创建目录结构
-await testDir.get("docs", { create: "dir" });
-await testDir.get("docs/guide.md", { create: "file" });
-await testDir.get("docs/api.md", { create: "file" });
-await testDir.get("images", { create: "dir" });
+await get("my-app/docs", { create: "dir" });
+await get("my-app/docs/guide.md", { create: "file" });
+await get("my-app/docs/api.md", { create: "file" });
+await get("my-app/images", { create: "dir" });
+
+const rootDir = await get("my-app");
+
+// 获取子项数量
+const count = await rootDir.length();
+console.log(`子项数量: ${count}`); // 2
 
 // 遍历根目录
-for await (const handle of testDir.values()) {
-  console.log(`${handle.kind}: ${handle.name}`);
+for await (const [name, handle] of rootDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
 }
-// 输出: dir: docs, file: images
+// 输出: dir: docs, dir: images
 
 // 扁平化获取所有文件
-const allFiles = await testDir.flat();
+const allFiles = await rootDir.flat();
 console.log(allFiles.map(f => f.path));
 // 输出: ["docs/guide.md", "docs/api.md"]
 ```
@@ -342,35 +693,40 @@ console.log(allFiles.map(f => f.path));
 使用 `moveTo()` 方法将文件移动到目标目录：
 
 ```javascript
-const sourceFile = await testDir.get("source.txt", { create: "file" });
+import { get } from "/nos/fs/main.js";
+
+await get("my-app/source.txt", { create: "file" });
+const sourceFile = await get("my-app/source.txt");
 await sourceFile.write("Hello, World!");
 
-const targetDir = await testDir.get("target", { create: "dir" });
+const targetDir = await get("my-app/target", { create: "dir" });
 
-const movedFile = await sourceFile.moveTo(targetDir, "moved.txt");
+// 第二个参数为目标文件名，不传则沿用原文件名
+const movedFile = await sourceFile.moveTo(targetDir);
+// 等同于 sourceFile.moveTo(targetDir, "source.txt")
 
-const content = await movedFile.read();
+const content = await movedFile.text();
 // content === "Hello, World!"
 
-const oldFile = await testDir.get("source.txt");
+const oldFile = await get("my-app/source.txt");
 // oldFile === null 表示原文件已被移动
 ```
 
 ## 移动目录
 
-`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容：
+`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-const sourceDir = await testDir.get("sourceDir", { create: "dir" });
-const file1 = await sourceDir.get("file1.txt", { create: "file" });
-const subDir = await sourceDir.get("subDir", { create: "dir" });
-const file2 = await subDir.get("file2.txt", { create: "file" });
+await get("my-app/sourceDir/file1.txt", { create: "file" });
+await get("my-app/sourceDir/subDir/file2.txt", { create: "file" });
 
-await file1.write("Content 1");
-await file2.write("Content 2");
+const sourceDir = await get("my-app/sourceDir");
+await (await get("my-app/sourceDir/file1.txt")).write("Content 1");
+await (await get("my-app/sourceDir/subDir/file2.txt")).write("Content 2");
 
-const targetDir = await testDir.get("target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir, "movedSourceDir");
+const targetDir = await get("my-app/target", { create: "dir" });
+const movedDir = await sourceDir.moveTo(targetDir);
+// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
 
 // movedDir 包含 file1.txt 和 subDir/file2.txt
 ```
@@ -380,36 +736,39 @@ const movedDir = await sourceDir.moveTo(targetDir, "movedSourceDir");
 使用 `copyTo()` 方法将文件复制到目标目录：
 
 ```javascript
-const sourceFile = await testDir.get("source.txt", { create: "file" });
+await get("my-app/source.txt", { create: "file" });
+const sourceFile = await get("my-app/source.txt");
 await sourceFile.write("Hello, World!");
 
-const targetDir = await testDir.get("target", { create: "dir" });
+const targetDir = await get("my-app/target", { create: "dir" });
 
-const copiedFile = await sourceFile.copyTo(targetDir, "copied.txt");
+// 第二个参数为目标文件名，不传则沿用原文件名
+const copiedFile = await sourceFile.copyTo(targetDir);
+// 等同于 sourceFile.copyTo(targetDir, "source.txt")
 
 const content = await copiedFile.text();
 // content === "Hello, World!"
 
 // 原文件仍然存在
-const originalFile = await testDir.get("source.txt");
+const originalFile = await get("my-app/source.txt");
 // originalFile !== null
 ```
 
 ## 复制目录
 
-`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容：
+`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-const sourceDir = await testDir.get("sourceDir", { create: "dir" });
-const file1 = await sourceDir.get("file1.txt", { create: "file" });
-const subDir = await sourceDir.get("subDir", { create: "dir" });
-const file2 = await subDir.get("file2.txt", { create: "file" });
+await get("my-app/sourceDir/file1.txt", { create: "file" });
+await get("my-app/sourceDir/subDir/file2.txt", { create: "file" });
 
-await file1.write("Content 1");
-await file2.write("Content 2");
+const sourceDir = await get("my-app/sourceDir");
+await (await get("my-app/sourceDir/file1.txt")).write("Content 1");
+await (await get("my-app/sourceDir/subDir/file2.txt")).write("Content 2");
 
-const targetDir = await testDir.get("target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir, "copiedSourceDir");
+const targetDir = await get("my-app/target", { create: "dir" });
+const copiedDir = await sourceDir.copyTo(targetDir);
+// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
 
 // copiedDir 包含 file1.txt 和 subDir/file2.txt
 ```
@@ -417,211 +776,30 @@ const copiedDir = await sourceDir.copyTo(targetDir, "copiedSourceDir");
 ## 完整示例
 
 ```javascript
-import { init } from "/nos/fs/main.js";
+import { init, get } from "/nos/fs/main.js";
 
-const testDir = await init("my-app");
+await init("my-app");
 
 // 创建源文件
-const sourceFile = await testDir.get("document.txt", { create: "file" });
+await get("my-app/document.txt", { create: "file" });
+const sourceFile = await get("my-app/document.txt");
 await sourceFile.write("Important content");
 
 // 创建目标目录
-await testDir.get("backup", { create: "dir" });
+await get("my-app/backup", { create: "dir" });
 
 // 复制文件
-const backup = await sourceFile.copyTo(await testDir.get("backup"), "document_backup.txt");
+const backup = await sourceFile.copyTo(await get("my-app/backup"), "document_backup.txt");
 console.log(await backup.text()); // "Important content"
 
 // 移动文件
-await sourceFile.moveTo(await testDir.get("archive"), "document_archived.txt");
+await sourceFile.moveTo(await get("my-app/archive"), "document_archived.txt");
 
 // 验证移动结果
-const original = await testDir.get("document.txt");
+const original = await get("my-app/document.txt");
 console.log(original); // null
 ```
 
 ## 下一章
 
 学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。
-
----
-
-<!-- handle-comparison.html -->
-
-# 文件句柄比较
-
-本文档介绍如何比较文件句柄，获取父目录和根目录。
-
-## 获取父目录
-
-使用 `parent` 属性获取文件的父目录：
-
-```javascript
-const testFile = await testDir.get("a/b/c/d/test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const directoryD = await testDir.get("a/b/c/d");
-const isSame = await fileParentDir.isSame(directoryD);
-// isSame === true
-```
-
-## 获取根目录
-
-使用 `root` 属性获取文件或目录所属的根目录：
-
-```javascript
-const testFile = await testDir.get("a/b/c/d/test.txt", { create: "file" });
-const root1 = testFile.root;
-
-const directoryD = await testDir.get("a/b/c/d");
-const root2 = directoryD.root;
-
-const isSame = await root1.isSame(root2);
-// isSame === true
-```
-
-## 判断句柄是否相同
-
-使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
-
-```javascript
-const file1 = await testDir.get("path/to/file.txt", { create: "file" });
-const file2 = await testDir.get("path/to/file.txt");
-const file3 = await testDir.get("path/to/other.txt", { create: "file" });
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## 句柄属性
-
-| 属性 | 描述 | 返回值 |
-|------|------|--------|
-| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
-| `name` | 文件或目录名称 | 字符串 |
-| `path` | 完整路径 | 字符串 |
-| `parent` | 父目录 | DirHandle |
-| `root` | 根目录 | DirHandle |
-
-## 完整示例
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-const testDir = await init("my-app");
-
-const deepFile = await testDir.get("a/b/c/deep.txt", { create: "file" });
-
-// 获取父目录
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// 获取根目录
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// 通过不同路径获取同一文件
-const file2 = await testDir.get("a/b/c/deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## 下一章
-
-学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
-
----
-
-<!-- file-operations.html -->
-
-# 文件操作
-
-本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。
-
-## 创建文件
-
-使用 `get` 方法并指定 `create: "file"` 来创建文件：
-
-```javascript
-const file = await testDir.get("path/to/file.txt", { create: "file" });
-```
-
-## 写入文件
-
-使用 `write` 方法向文件写入内容：
-
-```javascript
-const file = await testDir.get("hello.txt", { create: "file" });
-await file.write("Hello, World!");
-```
-
-## 读取文件
-
-### text() 方法
-
-使用 `text()` 方法读取文件的文本内容：
-
-```javascript
-const content = await file.text();
-console.log(content); // "Hello, World!"
-```
-
-### read() 方法
-
-`read()` 方法也可以用于读取文件内容：
-
-```javascript
-const content = await file.read();
-```
-
-## 通过 fetch 获取文件
-
-除了使用句柄，还可以使用浏览器的 `fetch` API 通过 URL 获取文件内容：
-
-```javascript
-const file = await testDir.get("file1.txt", { create: "file" });
-const someText = "Write some text " + Math.random();
-await file.write(someText);
-
-await new Promise((resolve) => setTimeout(resolve, 300));
-
-const content = await fetch("/$test-dir3/file1.txt").then((e) => e.text());
-```
-
-## 删除文件
-
-使用 `remove()` 方法删除文件：
-
-```javascript
-const file = await testDir.get("file1.txt", { create: "file" });
-await file.remove();
-
-const fileExists = await testDir.get("file1.txt");
-// fileExists === null 表示文件已被删除
-```
-
-## 完整示例
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-const testDir = await init("my-app");
-
-const file = await testDir.get("example.txt", { create: "file" });
-await file.write("This is a test file.");
-
-// 读取文件
-const content = await file.text();
-console.log(content); // "This is a test file."
-
-// 删除文件
-await file.remove();
-const exists = await testDir.get("example.txt");
-console.log(exists); // null
-```
-
-## 下一章
-
-学习 [目录操作](./directory-operations.md)，了解如何遍历和管理目录。

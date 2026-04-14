@@ -75,25 +75,27 @@
         <p>本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。</p>
         <h2>创建目录</h2>
         <p>使用 <code>get</code> 方法并指定 <code>create: "dir"</code> 来创建目录：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
         <h2>获取子项数量</h2>
         <p>使用 <code>length()</code> 方法获取目录中子文件/目录的总数量：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">length</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(count); <span class="hljs-comment">// 2</span></code></pre>
         <h2>遍历目录</h2>
         <h3>keys() 方法</h3>
         <p>使用 <code>keys()</code> 方法遍历目录中所有项的名称：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> key <span class="hljs-keyword">of</span> testDir.<span class="hljs-title function_">keys</span>()) {
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> key <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">keys</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(key);
 }</code></pre>
         <h3>values() 方法</h3>
         <p>使用 <code>values()</code> 方法遍历目录中的所有文件和子目录：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handles = [];
-<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> handle <span class="hljs-keyword">of</span> testDir.<span class="hljs-title function_">values</span>()) {
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> handle <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">values</span>()) {
   handles.<span class="hljs-title function_">push</span>({
     <span class="hljs-attr">kind</span>: handle.<span class="hljs-property">kind</span>,
     <span class="hljs-attr">name</span>: handle.<span class="hljs-property">name</span>,
@@ -101,12 +103,12 @@
 }</code></pre>
         <h3>entries() 方法</h3>
         <p>使用 <code>entries()</code> 方法遍历目录中的所有项，返回 [名称, 句柄] 对：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> testDir.<span class="hljs-title function_">entries</span>()) {
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }</code></pre>
         <h3>forEach() 方法</h3>
         <p>使用 <code>forEach()</code> 方法遍历目录：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">forEach</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">forEach</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 });</code></pre>
         <h3>some() 方法</h3>
@@ -114,7 +116,7 @@
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> foundTarget = <span class="hljs-literal">false</span>;
 <span class="hljs-keyword">let</span> count = <span class="hljs-number">0</span>;
 
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">some</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">some</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
   count++;
   <span class="hljs-keyword">if</span> (handle.<span class="hljs-property">kind</span> === <span class="hljs-string">"file"</span>) {
     <span class="hljs-keyword">if</span> (count === <span class="hljs-number">2</span>) {
@@ -126,7 +128,7 @@
 });</code></pre>
         <h2>扁平化目录</h2>
         <p>使用 <code>flat()</code> 方法获取目录及其所有子目录中的所有<strong>文件句柄</strong>（不包括目录）：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">flat</span>();
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">flat</span>();
 
 <span class="hljs-keyword">const</span> fileContents = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Promise</span>.<span class="hljs-title function_">all</span>(
   allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-keyword">async</span> (file) =&gt; ({
@@ -135,50 +137,51 @@
   }))
 );</code></pre>
         <p>示例：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file1 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">const</span> subDir1 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">const</span> subDir2 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/subDir2"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">const</span> file3 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/subDir2/file3.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1/subDir2"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1/subDir2/file3.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
-<span class="hljs-keyword">await</span> file1.<span class="hljs-title function_">write</span>(<span class="hljs-string">"root file"</span>);
-<span class="hljs-keyword">await</span> file2.<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 1 file"</span>);
-<span class="hljs-keyword">await</span> file3.<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 2 file"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"root file"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1/file2.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 1 file"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir1/subDir2/file3.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 2 file"</span>);
 
-<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">flat</span>();
+<span class="hljs-keyword">const</span> rootDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>);
+<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-comment">// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]</span></code></pre>
         <h2>删除目录</h2>
         <p>使用 <code>remove()</code> 方法删除目录（会递归删除目录下所有内容）：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">remove</span>();
-<span class="hljs-keyword">const</span> subDirExists = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir"</span>);
+<span class="hljs-keyword">const</span> subDirExists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>);
 <span class="hljs-comment">// subDirExists === null 表示目录已被删除</span></code></pre>
         <p>⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。</p>
         <h2>完整示例</h2>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
-
-<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-comment">// 创建目录结构</span>
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs/guide.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs/api.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"images"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/docs"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/docs/guide.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/docs/api.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/images"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+
+<span class="hljs-keyword">const</span> rootDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>);
 
 <span class="hljs-comment">// 获取子项数量</span>
-<span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">length</span>();
+<span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">length</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`子项数量: <span class="hljs-subst">${count}</span>`</span>); <span class="hljs-comment">// 2</span>
 
 <span class="hljs-comment">// 遍历根目录</span>
-<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> testDir.<span class="hljs-title function_">entries</span>()) {
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> rootDir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }
 <span class="hljs-comment">// 输出: dir: docs, dir: images</span>
 
 <span class="hljs-comment">// 扁平化获取所有文件</span>
-<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">flat</span>();
+<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-function"><span class="hljs-params">f</span> =&gt;</span> f.<span class="hljs-property">path</span>));
 <span class="hljs-comment">// 输出: ["docs/guide.md", "docs/api.md"]</span></code></pre>
         <h2>下一章</h2>

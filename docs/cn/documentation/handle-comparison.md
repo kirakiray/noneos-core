@@ -7,10 +7,14 @@
 使用 `parent` 属性获取文件的父目录：
 
 ```javascript
-const testFile = await testDir.get("a/b/c/d/test.txt", { create: "file" });
+import { get } from "/nos/fs/main.js";
+
+await get("my-app/a/b/c/d/test.txt", { create: "file" });
+
+const testFile = await get("my-app/a/b/c/d/test.txt");
 const fileParentDir = await testFile.parent;
 
-const directoryD = await testDir.get("a/b/c/d");
+const directoryD = await get("my-app/a/b/c/d");
 const isSame = await fileParentDir.isSame(directoryD);
 // isSame === true
 ```
@@ -20,10 +24,10 @@ const isSame = await fileParentDir.isSame(directoryD);
 使用 `root` 属性获取文件或目录所属的根目录：
 
 ```javascript
-const testFile = await testDir.get("a/b/c/d/test.txt", { create: "file" });
+const testFile = await get("my-app/a/b/c/d/test.txt");
 const root1 = testFile.root;
 
-const directoryD = await testDir.get("a/b/c/d");
+const directoryD = await get("my-app/a/b/c/d");
 const root2 = directoryD.root;
 
 const isSame = await root1.isSame(root2);
@@ -35,9 +39,12 @@ const isSame = await root1.isSame(root2);
 使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
 
 ```javascript
-const file1 = await testDir.get("path/to/file.txt", { create: "file" });
-const file2 = await testDir.get("path/to/file.txt");
-const file3 = await testDir.get("path/to/other.txt", { create: "file" });
+await get("my-app/path/to/file.txt", { create: "file" });
+await get("my-app/path/to/other.txt", { create: "file" });
+
+const file1 = await get("my-app/path/to/file.txt");
+const file2 = await get("my-app/path/to/file.txt");
+const file3 = await get("my-app/path/to/other.txt");
 
 const result1 = await file1.isSame(file2);
 // result1 === true
@@ -51,7 +58,8 @@ const result2 = await file1.isSame(file3);
 使用 `size()` 方法获取文件的大小：
 
 ```javascript
-const file = await testDir.get("example.txt", { create: "file" });
+await get("my-app/example.txt", { create: "file" });
+const file = await get("my-app/example.txt");
 await file.write("Hello, World!");
 
 const fileSize = await file.size();
@@ -65,7 +73,8 @@ console.log(fileSize); // 13 (字节)
 使用 `id()` 方法获取文件或目录的唯一标识符：
 
 ```javascript
-const file = await testDir.get("example.txt", { create: "file" });
+await get("my-app/example.txt", { create: "file" });
+const file = await get("my-app/example.txt");
 const id = await file.id();
 console.log(id); // 唯一的哈希值字符串
 ```
@@ -95,11 +104,10 @@ console.log(id); // 唯一的哈希值字符串
 ## 完整示例
 
 ```javascript
-import { init } from "/nos/fs/main.js";
+import { get } from "/nos/fs/main.js";
 
-const testDir = await init("my-app");
-
-const deepFile = await testDir.get("a/b/c/deep.txt", { create: "file" });
+await get("my-app/a/b/c/deep.txt", { create: "file" });
+const deepFile = await get("my-app/a/b/c/deep.txt");
 await deepFile.write("Hello!");
 
 // 获取父目录
@@ -119,7 +127,7 @@ const id = await deepFile.id();
 console.log(id); // "abc123..."
 
 // 通过不同路径获取同一文件
-const file2 = await testDir.get("a/b/c/deep.txt");
+const file2 = await get("my-app/a/b/c/deep.txt");
 console.log(await deepFile.isSame(file2)); // true
 ```
 

@@ -7,7 +7,9 @@
 使用 `get` 方法并指定 `create: "dir"` 来创建目录：
 
 ```javascript
-const dir = await testDir.get("path/to/dir", { create: "dir" });
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
 ## 获取子项数量
@@ -15,9 +17,9 @@ const dir = await testDir.get("path/to/dir", { create: "dir" });
 使用 `length()` 方法获取目录中子文件/目录的总数量：
 
 ```javascript
-const dir = await testDir.get("subDir", { create: "dir" });
-await dir.get("file1.txt", { create: "file" });
-await dir.get("file2.txt", { create: "file" });
+const dir = await get("my-app/subDir", { create: "dir" });
+await get("my-app/subDir/file1.txt", { create: "file" });
+await get("my-app/subDir/file2.txt", { create: "file" });
 
 const count = await dir.length();
 console.log(count); // 2
@@ -30,7 +32,7 @@ console.log(count); // 2
 使用 `keys()` 方法遍历目录中所有项的名称：
 
 ```javascript
-for await (const key of testDir.keys()) {
+for await (const key of dir.keys()) {
   console.log(key);
 }
 ```
@@ -41,7 +43,7 @@ for await (const key of testDir.keys()) {
 
 ```javascript
 const handles = [];
-for await (const handle of testDir.values()) {
+for await (const handle of dir.values()) {
   handles.push({
     kind: handle.kind,
     name: handle.name,
@@ -54,7 +56,7 @@ for await (const handle of testDir.values()) {
 使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
 
 ```javascript
-for await (const [name, handle] of testDir.entries()) {
+for await (const [name, handle] of dir.entries()) {
   console.log(`${handle.kind}: ${name}`);
 }
 ```
@@ -64,7 +66,7 @@ for await (const [name, handle] of testDir.entries()) {
 使用 `forEach()` 方法遍历目录：
 
 ```javascript
-await testDir.forEach(async (handle, name) => {
+await dir.forEach(async (handle, name) => {
   console.log(`${handle.kind}: ${name}`);
 });
 ```
@@ -77,7 +79,7 @@ await testDir.forEach(async (handle, name) => {
 let foundTarget = false;
 let count = 0;
 
-await testDir.some(async (handle, name) => {
+await dir.some(async (handle, name) => {
   count++;
   if (handle.kind === "file") {
     if (count === 2) {
@@ -94,7 +96,7 @@ await testDir.some(async (handle, name) => {
 使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
 
 ```javascript
-const allFiles = await testDir.flat();
+const allFiles = await dir.flat();
 
 const fileContents = await Promise.all(
   allFiles.map(async (file) => ({
@@ -107,17 +109,18 @@ const fileContents = await Promise.all(
 示例：
 
 ```javascript
-const file1 = await testDir.get("file1.txt", { create: "file" });
-const subDir1 = await testDir.get("subDir1", { create: "dir" });
-const file2 = await testDir.get("subDir1/file2.txt", { create: "file" });
-const subDir2 = await testDir.get("subDir1/subDir2", { create: "dir" });
-const file3 = await testDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+await get("my-app/file1.txt", { create: "file" });
+await get("my-app/subDir1", { create: "dir" });
+await get("my-app/subDir1/file2.txt", { create: "file" });
+await get("my-app/subDir1/subDir2", { create: "dir" });
+await get("my-app/subDir1/subDir2/file3.txt", { create: "file" });
 
-await file1.write("root file");
-await file2.write("level 1 file");
-await file3.write("level 2 file");
+await (await get("my-app/file1.txt")).write("root file");
+await (await get("my-app/subDir1/file2.txt")).write("level 1 file");
+await (await get("my-app/subDir1/subDir2/file3.txt")).write("level 2 file");
 
-const allFiles = await testDir.flat();
+const rootDir = await get("my-app");
+const allFiles = await rootDir.flat();
 // 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
 ```
 
@@ -126,42 +129,41 @@ const allFiles = await testDir.flat();
 使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
 
 ```javascript
-const subDir = await testDir.get("subDir", { create: "dir" });
-const file2 = await subDir.get("file2.txt", { create: "file" });
+const subDir = await get("my-app/subDir", { create: "dir" });
+await get("my-app/subDir/file2.txt", { create: "file" });
 
 await subDir.remove();
-const subDirExists = await testDir.get("subDir");
+const subDirExists = await get("my-app/subDir");
 // subDirExists === null 表示目录已被删除
 ```
 
 ⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
 
-
 ## 完整示例
 
 ```javascript
-import { init } from "/nos/fs/main.js";
-
-const testDir = await init("my-app");
+import { get } from "/nos/fs/main.js";
 
 // 创建目录结构
-await testDir.get("docs", { create: "dir" });
-await testDir.get("docs/guide.md", { create: "file" });
-await testDir.get("docs/api.md", { create: "file" });
-await testDir.get("images", { create: "dir" });
+await get("my-app/docs", { create: "dir" });
+await get("my-app/docs/guide.md", { create: "file" });
+await get("my-app/docs/api.md", { create: "file" });
+await get("my-app/images", { create: "dir" });
+
+const rootDir = await get("my-app");
 
 // 获取子项数量
-const count = await testDir.length();
+const count = await rootDir.length();
 console.log(`子项数量: ${count}`); // 2
 
 // 遍历根目录
-for await (const [name, handle] of testDir.entries()) {
+for await (const [name, handle] of rootDir.entries()) {
   console.log(`${handle.kind}: ${name}`);
 }
 // 输出: dir: docs, dir: images
 
 // 扁平化获取所有文件
-const allFiles = await testDir.flat();
+const allFiles = await rootDir.flat();
 console.log(allFiles.map(f => f.path));
 // 输出: ["docs/guide.md", "docs/api.md"]
 ```

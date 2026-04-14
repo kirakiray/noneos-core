@@ -77,18 +77,14 @@
         <p>使用文件系统前，需要先初始化一个根目录：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
-<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app-data"</span>);</code></pre>
-        <h2>获取或创建文件/目录句柄</h2>
-        <h3>通过初始化目录获取</h3>
-        <p>使用 <code>get</code> 方法从已初始化的目录获取文件或目录句柄：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"path/to/file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
-        <h3>全局 get 方法</h3>
-        <p>如果目录已经初始化过，可以直接使用全局 <code>get</code> 方法，无需再次初始化：</p>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);</code></pre>
+        <p>后续教程均假设已完成 <code>my-app</code> 的初始化。</p>
+        <h2>全局 get 方法</h2>
+        <p>使用全局 <code>get</code> 方法获取或创建文件/目录句柄：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
-<span class="hljs-comment">// 之后可以直接通过全局 get 获取文件</span>
-<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>);</code></pre>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
         <p>路径格式：<code>根目录名/文件路径</code>，不使用 <code>/</code> 开头。</p>
         <h2>核心概念</h2>
         <h3>FileHandle 和 DirHandle</h3>
@@ -102,23 +98,6 @@
           <li><code>name</code>：返回文件或目录的名称</li>
           <li><code>path</code>：返回文件或目录的完整路径</li>
         </ul>
-        <h2>使用示例</h2>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init, get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
-
-<span class="hljs-comment">// 初始化文件系统</span>
-<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
-
-<span class="hljs-comment">// 创建并写入文件</span>
-<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
-<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
-
-<span class="hljs-comment">// 读取文件</span>
-<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "Hello, World!"</span>
-
-<span class="hljs-comment">// 使用全局 get 获取文件（无需再次初始化）</span>
-<span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>);
-<span class="hljs-keyword">const</span> isSame = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">isSame</span>(file2); <span class="hljs-comment">// true</span></code></pre>
         <h2>下一章</h2>
         <p>学习 <a href="./file-operations.html" olink="">文件操作</a>，了解如何读写文件和删除文件。</p>
       </article>
