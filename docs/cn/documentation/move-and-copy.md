@@ -12,9 +12,11 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await testDir.get("target", { create: "dir" });
 
-const movedFile = await sourceFile.moveTo(targetDir, "moved.txt");
+// 第二个参数为目标文件名，不传则沿用原文件名
+const movedFile = await sourceFile.moveTo(targetDir);
+// 等同于 sourceFile.moveTo(targetDir, "source.txt")
 
-const content = await movedFile.read();
+const content = await movedFile.text();
 // content === "Hello, World!"
 
 const oldFile = await testDir.get("source.txt");
@@ -23,7 +25,7 @@ const oldFile = await testDir.get("source.txt");
 
 ## 移动目录
 
-`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容：
+`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
 const sourceDir = await testDir.get("sourceDir", { create: "dir" });
@@ -35,7 +37,8 @@ await file1.write("Content 1");
 await file2.write("Content 2");
 
 const targetDir = await testDir.get("target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir, "movedSourceDir");
+const movedDir = await sourceDir.moveTo(targetDir);
+// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
 
 // movedDir 包含 file1.txt 和 subDir/file2.txt
 ```
@@ -50,7 +53,9 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await testDir.get("target", { create: "dir" });
 
-const copiedFile = await sourceFile.copyTo(targetDir, "copied.txt");
+// 第二个参数为目标文件名，不传则沿用原文件名
+const copiedFile = await sourceFile.copyTo(targetDir);
+// 等同于 sourceFile.copyTo(targetDir, "source.txt")
 
 const content = await copiedFile.text();
 // content === "Hello, World!"
@@ -62,7 +67,7 @@ const originalFile = await testDir.get("source.txt");
 
 ## 复制目录
 
-`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容：
+`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
 const sourceDir = await testDir.get("sourceDir", { create: "dir" });
@@ -74,7 +79,8 @@ await file1.write("Content 1");
 await file2.write("Content 2");
 
 const targetDir = await testDir.get("target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir, "copiedSourceDir");
+const copiedDir = await sourceDir.copyTo(targetDir);
+// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
 
 // copiedDir 包含 file1.txt 和 subDir/file2.txt
 ```

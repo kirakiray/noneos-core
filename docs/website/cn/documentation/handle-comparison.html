@@ -72,7 +72,7 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>文件句柄比较</h1>
-        <p>本文档介绍如何比较文件句柄，获取父目录和根目录。</p>
+        <p>本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。</p>
         <h2>获取父目录</h2>
         <p>使用 <code>parent</code> 属性获取文件的父目录：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"a/b/c/d/test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -102,6 +102,19 @@
 
 <span class="hljs-keyword">const</span> result2 = <span class="hljs-keyword">await</span> file1.<span class="hljs-title function_">isSame</span>(file3);
 <span class="hljs-comment">// result2 === false</span></code></pre>
+        <h2>获取文件大小</h2>
+        <p>使用 <code>size()</code> 方法获取文件的大小：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-keyword">const</span> fileSize = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">size</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileSize); <span class="hljs-comment">// 13 (字节)</span></code></pre>
+        <p>对于目录，<code>size()</code> 返回 <code>null</code>。</p>
+        <h2>获取唯一标识符</h2>
+        <p>使用 <code>id()</code> 方法获取文件或目录的唯一标识符：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">const</span> id = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">id</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(id); <span class="hljs-comment">// 唯一的哈希值字符串</span></code></pre>
         <h2>句柄属性</h2>
         <table>
           <thead>
@@ -139,12 +152,60 @@
             </tr>
           </tbody>
         </table>
+        <h2>句柄方法</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>方法</th>
+              <th>描述</th>
+              <th>返回值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>isSame(target)</code></td>
+              <td>判断是否与目标句柄相同</td>
+              <td>boolean</td>
+            </tr>
+            <tr>
+              <td><code>size()</code></td>
+              <td>获取文件大小（文件）或 null（目录）</td>
+              <td>number | null</td>
+            </tr>
+            <tr>
+              <td><code>id()</code></td>
+              <td>获取唯一标识符</td>
+              <td>string</td>
+            </tr>
+            <tr>
+              <td><code>remove()</code></td>
+              <td>删除文件或目录</td>
+              <td>void</td>
+            </tr>
+            <tr>
+              <td><code>copyTo(target, name)</code></td>
+              <td>复制到目标目录</td>
+              <td>FileHandle | DirHandle</td>
+            </tr>
+            <tr>
+              <td><code>moveTo(target, name)</code></td>
+              <td>移动到目标目录</td>
+              <td>FileHandle | DirHandle</td>
+            </tr>
+            <tr>
+              <td><code>observe(func)</code></td>
+              <td>监听文件变化</td>
+              <td>() =&gt; void</td>
+            </tr>
+          </tbody>
+        </table>
         <h2>完整示例</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
 
 <span class="hljs-keyword">const</span> deepFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"a/b/c/deep.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello!"</span>);
 
 <span class="hljs-comment">// 获取父目录</span>
 <span class="hljs-keyword">const</span> parent = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-property">parent</span>;
@@ -153,6 +214,14 @@
 <span class="hljs-comment">// 获取根目录</span>
 <span class="hljs-keyword">const</span> root = deepFile.<span class="hljs-property">root</span>;
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(root.<span class="hljs-property">path</span>); <span class="hljs-comment">// "my-app"</span>
+
+<span class="hljs-comment">// 获取文件大小</span>
+<span class="hljs-keyword">const</span> size = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">size</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(size); <span class="hljs-comment">// 6</span>
+
+<span class="hljs-comment">// 获取唯一标识符</span>
+<span class="hljs-keyword">const</span> id = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">id</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(id); <span class="hljs-comment">// "abc123..."</span>
 
 <span class="hljs-comment">// 通过不同路径获取同一文件</span>
 <span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"a/b/c/deep.txt"</span>);

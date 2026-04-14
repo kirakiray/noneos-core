@@ -80,15 +80,17 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-keyword">const</span> movedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(targetDir, <span class="hljs-string">"moved.txt"</span>);
+<span class="hljs-comment">// 第二个参数为目标文件名，不传则沿用原文件名</span>
+<span class="hljs-keyword">const</span> movedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceFile.moveTo(targetDir, "source.txt")</span>
 
-<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> movedFile.<span class="hljs-title function_">read</span>();
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> movedFile.<span class="hljs-title function_">text</span>();
 <span class="hljs-comment">// content === "Hello, World!"</span>
 
 <span class="hljs-keyword">const</span> oldFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"source.txt"</span>);
 <span class="hljs-comment">// oldFile === null 表示原文件已被移动</span></code></pre>
         <h2>移动目录</h2>
-        <p><code>moveTo()</code> 方法同样适用于目录，会递归移动目录及其所有内容：</p>
+        <p><code>moveTo()</code> 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> file1 = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
@@ -98,7 +100,8 @@
 <span class="hljs-keyword">await</span> file2.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 2"</span>);
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">const</span> movedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">moveTo</span>(targetDir, <span class="hljs-string">"movedSourceDir"</span>);
+<span class="hljs-keyword">const</span> movedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">moveTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceDir.moveTo(targetDir, "sourceDir")</span>
 
 <span class="hljs-comment">// movedDir 包含 file1.txt 和 subDir/file2.txt</span></code></pre>
         <h2>复制文件</h2>
@@ -108,7 +111,9 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-keyword">const</span> copiedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(targetDir, <span class="hljs-string">"copied.txt"</span>);
+<span class="hljs-comment">// 第二个参数为目标文件名，不传则沿用原文件名</span>
+<span class="hljs-keyword">const</span> copiedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceFile.copyTo(targetDir, "source.txt")</span>
 
 <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> copiedFile.<span class="hljs-title function_">text</span>();
 <span class="hljs-comment">// content === "Hello, World!"</span>
@@ -117,7 +122,7 @@
 <span class="hljs-keyword">const</span> originalFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"source.txt"</span>);
 <span class="hljs-comment">// originalFile !== null</span></code></pre>
         <h2>复制目录</h2>
-        <p><code>copyTo()</code> 方法同样适用于目录，会递归复制目录及其所有内容：</p>
+        <p><code>copyTo()</code> 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> file1 = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
@@ -127,7 +132,8 @@
 <span class="hljs-keyword">await</span> file2.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 2"</span>);
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
-<span class="hljs-keyword">const</span> copiedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">copyTo</span>(targetDir, <span class="hljs-string">"copiedSourceDir"</span>);
+<span class="hljs-keyword">const</span> copiedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">copyTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceDir.copyTo(targetDir, "sourceDir")</span>
 
 <span class="hljs-comment">// copiedDir 包含 file1.txt 和 subDir/file2.txt</span></code></pre>
         <h2>完整示例</h2>

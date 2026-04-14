@@ -10,7 +10,30 @@
 const dir = await testDir.get("path/to/dir", { create: "dir" });
 ```
 
+## 获取子项数量
+
+使用 `length()` 方法获取目录中子文件/目录的总数量：
+
+```javascript
+const dir = await testDir.get("subDir", { create: "dir" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
+
+const count = await dir.length();
+console.log(count); // 2
+```
+
 ## 遍历目录
+
+### keys() 方法
+
+使用 `keys()` 方法遍历目录中所有项的名称：
+
+```javascript
+for await (const key of testDir.keys()) {
+  console.log(key);
+}
+```
 
 ### values() 方法
 
@@ -26,9 +49,29 @@ for await (const handle of testDir.values()) {
 }
 ```
 
+### entries() 方法
+
+使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
+
+```javascript
+for await (const [name, handle] of testDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() 方法
+
+使用 `forEach()` 方法遍历目录：
+
+```javascript
+await testDir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
 ### some() 方法
 
-使用 `some()` 方法查找满足条件的第一个文件或目录：
+使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
 
 ```javascript
 let foundTarget = false;
@@ -39,7 +82,7 @@ await testDir.some(async (handle, name) => {
   if (handle.kind === "file") {
     if (count === 2) {
       foundTarget = true;
-      return true; // 停止遍历
+      return true; // 返回 true 停止遍历
     }
   }
   return false;
@@ -48,7 +91,7 @@ await testDir.some(async (handle, name) => {
 
 ## 扁平化目录
 
-使用 `flat()` 方法获取目录及其所有子目录中的所有文件：
+使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
 
 ```javascript
 const allFiles = await testDir.flat();
@@ -80,7 +123,7 @@ const allFiles = await testDir.flat();
 
 ## 删除目录
 
-使用 `remove()` 方法删除目录：
+使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
 
 ```javascript
 const subDir = await testDir.get("subDir", { create: "dir" });
@@ -90,6 +133,9 @@ await subDir.remove();
 const subDirExists = await testDir.get("subDir");
 // subDirExists === null 表示目录已被删除
 ```
+
+⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
+
 
 ## 完整示例
 
@@ -104,11 +150,15 @@ await testDir.get("docs/guide.md", { create: "file" });
 await testDir.get("docs/api.md", { create: "file" });
 await testDir.get("images", { create: "dir" });
 
+// 获取子项数量
+const count = await testDir.length();
+console.log(`子项数量: ${count}`); // 2
+
 // 遍历根目录
-for await (const handle of testDir.values()) {
-  console.log(`${handle.kind}: ${handle.name}`);
+for await (const [name, handle] of testDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
 }
-// 输出: dir: docs, file: images
+// 输出: dir: docs, dir: images
 
 // 扁平化获取所有文件
 const allFiles = await testDir.flat();
