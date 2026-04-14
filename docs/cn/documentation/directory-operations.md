@@ -18,8 +18,8 @@ const dir = await get("my-app/path/to/dir", { create: "dir" });
 
 ```javascript
 const dir = await get("my-app/subDir", { create: "dir" });
-await get("my-app/subDir/file1.txt", { create: "file" });
-await get("my-app/subDir/file2.txt", { create: "file" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
 
 const count = await dir.length();
 console.log(count); // 2
@@ -109,17 +109,17 @@ const fileContents = await Promise.all(
 示例：
 
 ```javascript
-await get("my-app/file1.txt", { create: "file" });
-await get("my-app/subDir1", { create: "dir" });
-await get("my-app/subDir1/file2.txt", { create: "file" });
-await get("my-app/subDir1/subDir2", { create: "dir" });
-await get("my-app/subDir1/subDir2/file3.txt", { create: "file" });
-
-await (await get("my-app/file1.txt")).write("root file");
-await (await get("my-app/subDir1/file2.txt")).write("level 1 file");
-await (await get("my-app/subDir1/subDir2/file3.txt")).write("level 2 file");
-
 const rootDir = await get("my-app");
+await rootDir.get("file1.txt", { create: "file" });
+await rootDir.get("subDir1", { create: "dir" });
+await rootDir.get("subDir1/file2.txt", { create: "file" });
+await rootDir.get("subDir1/subDir2", { create: "dir" });
+await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+
+await (await rootDir.get("file1.txt")).write("root file");
+await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
+await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
+
 const allFiles = await rootDir.flat();
 // 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
 ```
@@ -130,7 +130,7 @@ const allFiles = await rootDir.flat();
 
 ```javascript
 const subDir = await get("my-app/subDir", { create: "dir" });
-await get("my-app/subDir/file2.txt", { create: "file" });
+await subDir.get("file2.txt", { create: "file" });
 
 await subDir.remove();
 const subDirExists = await get("my-app/subDir");
@@ -144,13 +144,13 @@ const subDirExists = await get("my-app/subDir");
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-// 创建目录结构
-await get("my-app/docs", { create: "dir" });
-await get("my-app/docs/guide.md", { create: "file" });
-await get("my-app/docs/api.md", { create: "file" });
-await get("my-app/images", { create: "dir" });
-
 const rootDir = await get("my-app");
+
+// 创建目录结构
+await rootDir.get("docs", { create: "dir" });
+await rootDir.get("docs/guide.md", { create: "file" });
+await rootDir.get("docs/api.md", { create: "file" });
+await rootDir.get("images", { create: "dir" });
 
 // 获取子项数量
 const count = await rootDir.length();

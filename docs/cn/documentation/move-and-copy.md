@@ -9,8 +9,7 @@
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-await get("my-app/source.txt", { create: "file" });
-const sourceFile = await get("my-app/source.txt");
+const sourceFile = await get("my-app/source.txt", { create: "file" });
 await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
@@ -31,12 +30,12 @@ const oldFile = await get("my-app/source.txt");
 `moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-await get("my-app/sourceDir/file1.txt", { create: "file" });
-await get("my-app/sourceDir/subDir/file2.txt", { create: "file" });
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
 
-const sourceDir = await get("my-app/sourceDir");
-await (await get("my-app/sourceDir/file1.txt")).write("Content 1");
-await (await get("my-app/sourceDir/subDir/file2.txt")).write("Content 2");
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const movedDir = await sourceDir.moveTo(targetDir);
@@ -50,8 +49,7 @@ const movedDir = await sourceDir.moveTo(targetDir);
 使用 `copyTo()` 方法将文件复制到目标目录：
 
 ```javascript
-await get("my-app/source.txt", { create: "file" });
-const sourceFile = await get("my-app/source.txt");
+const sourceFile = await get("my-app/source.txt", { create: "file" });
 await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
@@ -73,12 +71,12 @@ const originalFile = await get("my-app/source.txt");
 `copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-await get("my-app/sourceDir/file1.txt", { create: "file" });
-await get("my-app/sourceDir/subDir/file2.txt", { create: "file" });
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
 
-const sourceDir = await get("my-app/sourceDir");
-await (await get("my-app/sourceDir/file1.txt")).write("Content 1");
-await (await get("my-app/sourceDir/subDir/file2.txt")).write("Content 2");
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const copiedDir = await sourceDir.copyTo(targetDir);
@@ -92,20 +90,18 @@ const copiedDir = await sourceDir.copyTo(targetDir);
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-// 创建源文件
-await get("my-app/document.txt", { create: "file" });
-const sourceFile = await get("my-app/document.txt");
+const sourceFile = await get("my-app/document.txt", { create: "file" });
 await sourceFile.write("Important content");
 
-// 创建目标目录
-await get("my-app/backup", { create: "dir" });
+const backupDir = await get("my-app/backup", { create: "dir" });
+const archiveDir = await get("my-app/archive", { create: "dir" });
 
 // 复制文件
-const backup = await sourceFile.copyTo(await get("my-app/backup"), "document_backup.txt");
+const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
 console.log(await backup.text()); // "Important content"
 
 // 移动文件
-await sourceFile.moveTo(await get("my-app/archive"), "document_archived.txt");
+await sourceFile.moveTo(archiveDir, "document_archived.txt");
 
 // 验证移动结果
 const original = await get("my-app/document.txt");

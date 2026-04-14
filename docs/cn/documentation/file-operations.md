@@ -118,6 +118,17 @@ await new Promise((resolve) => setTimeout(resolve, 300));
 const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
 ```
 
+### 预览 HTML 文件
+
+如果写入的是 HTML 文件，可以直接在浏览器中预览：
+
+```javascript
+const htmlFile = await get("my-app/index.html", { create: "file" });
+await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
+
+// 在浏览器中打开 /$my-app/index.html 即可预览（记得带上 $ 前缀）
+```
+
 ## 删除文件
 
 使用 `remove()` 方法删除文件：
