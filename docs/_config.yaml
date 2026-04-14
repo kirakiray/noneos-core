@@ -1,0 +1,10 @@
+name: noneos-core
+writingLang: cn
+primaryLang: en
+github: null
+languages:
+  - cn
+  - en
+logoImg: ./logo.svg
+logoName: noneos-core
+googleAnalytics: null
