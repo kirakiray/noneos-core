@@ -72,20 +72,21 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>文件变化观察</h1>
-        <p>本文档介绍如何使用 <code>observe</code> 方法监听文件系统的变化事件。</p>
+        <p>本文档介绍如何使用 <code>observe</code> 方法监听文件或目录的变化事件。</p>
         <h2>基本用法</h2>
-        <p>使用 <code>observe()</code> 方法监听目录中的文件变化：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">&quot;test-dir-observe&quot;</span>);
+        <p>使用 <code>observe()</code> 方法监听文件或目录中的变化：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
+
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
 
 <span class="hljs-keyword">const</span> events = [];
-
-<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;收到文件变化事件:&quot;</span>, event);
   events.<span class="hljs-title function_">push</span>(event);
 });
 
 <span class="hljs-comment">// 创建文件</span>
-<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;Hello&quot;</span>);
 
 <span class="hljs-comment">// 删除文件</span>
@@ -93,9 +94,19 @@
 
 <span class="hljs-comment">// 取消观察</span>
 <span class="hljs-title function_">unobserve</span>();</code></pre>
+        <p>文件和目录都可以监听变化，例如监听单个文件：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app/test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;文件被修改:&quot;</span>, event.<span class="hljs-property">type</span>);
+});
+
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;new content&quot;</span>);
+
+<span class="hljs-title function_">unobserve</span>();</code></pre>
         <h2>observe 返回值</h2>
         <p><code>observe()</code> 返回一个 Promise，解析为取消观察的函数。调用该函数可以停止监听：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
   <span class="hljs-comment">// 处理事件</span>
 });
 
@@ -119,68 +130,28 @@
               <td><code>path</code></td>
               <td>发生变化的文件路径</td>
             </tr>
-            <tr>
-              <td><code>target</code></td>
-              <td>触发事件的目标句柄</td>
-            </tr>
           </tbody>
         </table>
-        <h2>跨标签页观察</h2>
-        <p><code>observe</code> 方法支持跨标签页观察文件系统变化。当在另一个标签页或 iframe 中修改文件时，当前页面可以收到通知：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">&quot;test-dir-cross-tab&quot;</span>);
-
-<span class="hljs-keyword">const</span> events = [];
-
-<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  events.<span class="hljs-title function_">push</span>(event);
-});</code></pre>
-        <h3>iframe 示例</h3>
-        <p>父页面监听变化：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">&quot;test-dir-cross-tab&quot;</span>);
-
-<span class="hljs-keyword">const</span> events = [];
-<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  events.<span class="hljs-title function_">push</span>(event);
-});
-
-<span class="hljs-keyword">const</span> iframe = <span class="hljs-variable language_">document</span>.<span class="hljs-title function_">getElementById</span>(<span class="hljs-string">&quot;testFrame&quot;</span>);
-iframe.<span class="hljs-property">src</span> = <span class="hljs-string">&quot;./observe-frame.html&quot;</span>;
-
-<span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">500</span>));
-
-<span class="hljs-title function_">unobserve</span>();
-
-<span class="hljs-comment">// events 中包含来自 iframe 的文件操作事件</span></code></pre>
-        <p>iframe 中执行操作：</p>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
-
-<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">&quot;test-dir-cross-tab&quot;</span>);
-
-<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;test-from-iframe.txt&quot;</span>, {
-  <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span>,
-});
-<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;Hello from iframe!&quot;</span>);
-<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();</code></pre>
         <h2>完整示例</h2>
-        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
 
-<span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
 
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;开始文件变化观察测试&quot;</span>);
 
 <span class="hljs-keyword">const</span> events = [];
-<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;文件变化:&quot;</span>, event.<span class="hljs-property">type</span>, event.<span class="hljs-property">path</span>);
   events.<span class="hljs-title function_">push</span>(event);
 });
 
 <span class="hljs-comment">// 执行一些文件操作</span>
-<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
-<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;content&quot;</span>);
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;content&quot;</span>);
 
 <span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">100</span>));
 
-<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">remove</span>();
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">remove</span>();
 
 <span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">100</span>));
 

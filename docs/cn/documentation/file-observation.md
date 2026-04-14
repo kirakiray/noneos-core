@@ -1,23 +1,24 @@
 # 文件变化观察
 
-本文档介绍如何使用 `observe` 方法监听文件系统的变化事件。
+本文档介绍如何使用 `observe` 方法监听文件或目录的变化事件。
 
 ## 基本用法
 
-使用 `observe()` 方法监听目录中的文件变化：
+使用 `observe()` 方法监听文件或目录中的变化：
 
 ```javascript
-const testDir = await init("test-dir-observe");
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app");
 
 const events = [];
-
-const unobserve = await testDir.observe((event) => {
+const unobserve = await dir.observe((event) => {
   console.log("收到文件变化事件:", event);
   events.push(event);
 });
 
 // 创建文件
-const file = await testDir.get("test.txt", { create: "file" });
+const file = await dir.get("test.txt", { create: "file" });
 await file.write("Hello");
 
 // 删除文件
@@ -27,12 +28,26 @@ await file.remove();
 unobserve();
 ```
 
+文件和目录都可以监听变化，例如监听单个文件：
+
+```javascript
+const file = await get("my-app/test.txt", { create: "file" });
+
+const unobserve = await file.observe((event) => {
+  console.log("文件被修改:", event.type);
+});
+
+await file.write("new content");
+
+unobserve();
+```
+
 ## observe 返回值
 
 `observe()` 返回一个 Promise，解析为取消观察的函数。调用该函数可以停止监听：
 
 ```javascript
-const unobserve = await testDir.observe((event) => {
+const unobserve = await dir.observe((event) => {
   // 处理事件
 });
 
@@ -48,80 +63,29 @@ unobserve();
 |------|------|
 | `type` | 事件类型，如 `"create"`, `"remove"`, `"write"` |
 | `path` | 发生变化的文件路径 |
-| `target` | 触发事件的目标句柄 |
-
-## 跨标签页观察
-
-`observe` 方法支持跨标签页观察文件系统变化。当在另一个标签页或 iframe 中修改文件时，当前页面可以收到通知：
-
-```javascript
-const testDir = await init("test-dir-cross-tab");
-
-const events = [];
-
-const unobserve = await testDir.observe((event) => {
-  events.push(event);
-});
-```
-
-### iframe 示例
-
-父页面监听变化：
-
-```javascript
-const testDir = await init("test-dir-cross-tab");
-
-const events = [];
-const unobserve = await testDir.observe((event) => {
-  events.push(event);
-});
-
-const iframe = document.getElementById("testFrame");
-iframe.src = "./observe-frame.html";
-
-await new Promise((resolve) => setTimeout(resolve, 500));
-
-unobserve();
-
-// events 中包含来自 iframe 的文件操作事件
-```
-
-iframe 中执行操作：
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-const testDir = await init("test-dir-cross-tab");
-
-const file = await testDir.get("test-from-iframe.txt", {
-  create: "file",
-});
-await file.write("Hello from iframe!");
-await file.remove();
-```
 
 ## 完整示例
 
 ```javascript
-import { init } from "/nos/fs/main.js";
+import { get } from "/nos/fs/main.js";
 
-const testDir = await init("my-app");
+const dir = await get("my-app");
 
 console.log("开始文件变化观察测试");
 
 const events = [];
-const unobserve = await testDir.observe((event) => {
+const unobserve = await dir.observe((event) => {
   console.log("文件变化:", event.type, event.path);
   events.push(event);
 });
 
 // 执行一些文件操作
-await testDir.get("file1.txt", { create: "file" });
-await (await testDir.get("file1.txt")).write("content");
+await dir.get("file1.txt", { create: "file" });
+await (await dir.get("file1.txt")).write("content");
 
 await new Promise((resolve) => setTimeout(resolve, 100));
 
-await (await testDir.get("file1.txt")).remove();
+await (await dir.get("file1.txt")).remove();
 
 await new Promise((resolve) => setTimeout(resolve, 100));
 

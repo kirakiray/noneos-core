@@ -84,18 +84,6 @@ console.log(id); // 唯一的哈希值字符串
 | `parent` | 父目录 | DirHandle |
 | `root` | 根目录 | DirHandle |
 
-## 句柄方法
-
-| 方法 | 描述 | 返回值 |
-|------|------|--------|
-| `isSame(target)` | 判断是否与目标句柄相同 | boolean |
-| `size()` | 获取文件大小（文件）或 null（目录） | number \| null |
-| `id()` | 获取唯一标识符 | string |
-| `remove()` | 删除文件或目录 | void |
-| `copyTo(target, name)` | 复制到目标目录 | FileHandle \| DirHandle |
-| `moveTo(target, name)` | 移动到目标目录 | FileHandle \| DirHandle |
-| `observe(func)` | 监听文件变化 | () => void |
-
 ## 完整示例
 
 ```javascript

@@ -156,53 +156,6 @@
             </tr>
           </tbody>
         </table>
-        <h2>句柄方法</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>方法</th>
-              <th>描述</th>
-              <th>返回值</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>isSame(target)</code></td>
-              <td>判断是否与目标句柄相同</td>
-              <td>boolean</td>
-            </tr>
-            <tr>
-              <td><code>size()</code></td>
-              <td>获取文件大小（文件）或 null（目录）</td>
-              <td>number | null</td>
-            </tr>
-            <tr>
-              <td><code>id()</code></td>
-              <td>获取唯一标识符</td>
-              <td>string</td>
-            </tr>
-            <tr>
-              <td><code>remove()</code></td>
-              <td>删除文件或目录</td>
-              <td>void</td>
-            </tr>
-            <tr>
-              <td><code>copyTo(target, name)</code></td>
-              <td>复制到目标目录</td>
-              <td>FileHandle | DirHandle</td>
-            </tr>
-            <tr>
-              <td><code>moveTo(target, name)</code></td>
-              <td>移动到目标目录</td>
-              <td>FileHandle | DirHandle</td>
-            </tr>
-            <tr>
-              <td><code>observe(func)</code></td>
-              <td>监听文件变化</td>
-              <td>() =&gt; void</td>
-            </tr>
-          </tbody>
-        </table>
         <h2>完整示例</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
