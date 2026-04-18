@@ -1,7 +1,7 @@
 {
-  "version": "4.0.16",
+  "version": "4.0.17",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1776514079988,
+  "signTime": 1776516890318,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -174,5 +174,5 @@
       "size": 2117
     }
   ],
-  "signature": "JOOLwnVNd3u5pT2hACLUgS8/f23JeFqw7vaEul9I3EpObCIWMVpuDExwffLWe6Jq7zk/vtcnDDW0k8ZcQS4YMA=="
+  "signature": "yM/rCHZWt792FXpPnG26hZVZGmlqE9hDNYhQ4hSSgP9p+ZXLrhJzT+1hWagyiZFsKrqh21Tq6gY1n580s3jgkQ=="
 }
