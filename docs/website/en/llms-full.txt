@@ -1,175 +1,3 @@
-<!-- overview.html -->
-
-# Overview
-
-FileSystem is a browser-based virtual file system that provides a complete set of APIs for file and directory operations.
-
-## Initialization
-
-Before using the file system, you need to first initialize a root directory:
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-await init("my-app");
-```
-
-Subsequent tutorials all assume that the initialization of `my-app` has been completed.
-
-## Global get method
-
-Use the global `get` method to obtain or create file/directory handles:
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/hello.txt", { create: "file" });
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-Path format: `rootDirName/filePath`, do not start with `/`.
-
-## Core Concepts
-
-### FileHandle and DirHandle
-
-- **FileHandle**: Represents a file and provides file read/write operations
-- **DirHandle**: Represents a directory and provides directory traversal and item operations
-
-### Basic Properties
-
-- `kind`: Returns `"file"` or `"dir"`, indicating the handle type
-- `name`: Returns the name of the file or directory
-- `path`: Returns the full path of the file or directory
-
-## Next Chapter
-
-Learn [File Operations](./file-operations.md) to understand how to read, write, and delete files.
-
----
-
-<!-- handle-comparison.html -->
-
-# File Handle Comparison
-
-This document describes how to compare file handles, obtain parent directories, root directories, file sizes, and unique identifiers.
-
-## Get Parent Directory
-
-Use the `parent` property to get the parent directory of a file:
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const isSame = await fileParentDir.isSame(testDir);
-// isSame === true
-```
-
-## Get Root Directory
-
-Use the `root` attribute to obtain the root directory to which a file or directory belongs:
-
-```javascript
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const root = testFile.root;
-
-const isSame = await root.isSame(await get("my-app"));
-// isSame === true
-```
-
-## Determining if Handles are Identical
-
-Use the `isSame()` method to determine whether two handles point to the same file or directory:
-
-```javascript
-const dir = await get("my-app/path/to");
-await dir.get("file.txt", { create: "file" });
-await dir.get("other.txt", { create: "file" });
-
-const file1 = await dir.get("file.txt");
-const file2 = await dir.get("file.txt");
-const file3 = await dir.get("other.txt");
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## Get File Size
-
-Use the `size()` method to get the file size:
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("Hello, World!");
-
-const fileSize = await file.size();
-console.log(fileSize); // 13 (bytes)
-```
-
-For directories, `size()` returns `null`.
-
-## Get Unique Identifier
-
-Use the `id()` method to get the unique identifier of a file or directory:
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-const id = await file.id();
-console.log(id); // unique hash string
-```
-
-## Handle Attributes
-
-| Attribute | Description | Return Value |
-|-----------|-------------|--------------|
-| `kind` | Handle type | `"file"` or `"dir"` |
-| `name` | File or directory name | String |
-| `path` | Full path | String |
-| `parent` | Parent directory | DirHandle |
-| `root` | Root directory | DirHandle |## Complete Example
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const deepDir = await get("my-app/a/b/c");
-const deepFile = await deepDir.get("deep.txt", { create: "file" });
-await deepFile.write("Hello!");
-
-// Get parent directory
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// Get root directory
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// Get file size
-const size = await deepFile.size();
-console.log(size); // 6
-
-// Get unique identifier
-const id = await deepFile.id();
-console.log(id); // "abc123..."
-
-// Get the same file via different path
-const file2 = await deepDir.get("deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## Next Chapter
-
-Learn [File Change Observation](./file-observation.md) to understand how to listen for file change events.
-
----
-
 <!-- file-observation.html -->
 
 # File Changes Observation
@@ -274,68 +102,53 @@ console.log(`Total events received: ${events.length}`);
 
 ---
 
-<!-- install.html -->
+<!-- overview.html -->
 
-# Installation
+# Overview
 
-NoneOS Core is a browser-based file system that relies on Service Worker for local storage. The project itself is purely static and does not require a dynamic server.
+FileSystem is a browser-based virtual file system that provides a complete set of APIs for file and directory operations.
 
-## Prerequisites
+## Initialization
 
-- A static server (e.g. http-server, live-server, nginx, etc.)
-- Browser support for Service Worker
-- For external access, HTTPS must be used (due to API requirements)
-
-## Steps
-
-### 1. Create Service Worker File
-
-Create a `sw.js` file in the project root directory and fill in the following content:
+Before using the file system, you need to first initialize a root directory:
 
 ```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
+import { init } from "/nos/fs/main.js";
+
+await init("my-app");
 ```
 
-### 2. Create Entry HTML
+Subsequent tutorials all assume that the initialization of `my-app` has been completed.
 
-In the entry HTML file, import `ofa.js` and the `nos-version` component. After using the `nos-version` component, the `sw.js` file will be automatically registered:
+## Global get method
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- Load nos-version component -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- Use nos-version component -->
-    <nos-version auto-install></nos-version>
+Use the global `get` method to obtain or create file/directory handles:
 
-    <script type="module">
-      // Wait for installation to complete
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core installation completed, ready to use");
-        // noneos-core can be used here
-      });
-    </script>
-  </body>
-</html>
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-## Installation Status
+Path format: `rootDirName/filePath`, do not start with `/`.
 
-The `nos-version` component automatically detects the installation status of NoneOS Core:
+## Core Concepts
 
-- **Not installed**: Display "Install NoneOS Core" button
-- **Installing**: Display installation progress bar
-- **Installed**: Display current version number
-- **Upgrade available**: Display upgrade button
+### FileHandle and DirHandle
 
-When the system installation is completed, or has already been installed, or the upgrade is successful, the `installed` event will be triggered, after which all functions of NoneOS Core can be used normally.
+- **FileHandle**: Represents a file and provides file read/write operations
+- **DirHandle**: Represents a directory and provides directory traversal and item operations
+
+### Basic Properties
+
+- `kind`: Returns `"file"` or `"dir"`, indicating the handle type
+- `name`: Returns the name of the file or directory
+- `path`: Returns the full path of the file or directory
+
+## Next Chapter
+
+Learn [File Operations](./file-operations.md) to understand how to read, write, and delete files.
 
 ---
 
@@ -517,343 +330,125 @@ Learn [File Moving and Copying](./move-and-copy.md) to understand how to move an
 
 ---
 
-<!-- ai-call.html -->
+<!-- handle-comparison.html -->
 
-# Call AI Model
+# File Handle Comparison
 
-## Introducing the chat module
+This document describes how to compare file handles, obtain parent directories, root directories, file sizes, and unique identifiers.
 
-```javascript
-import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
-```
+## Get Parent Directory
 
-## Basic Usage
-
-The `chat` function accepts a message array and an options object:
-
-```javascript
-const messages = [
-  { role: "user", content: "Hello" }
-];
-
-const response = await chat(messages, {
-  provider: "deepseek",  // optional, specify provider
-  callback: (chunk) => {  // optional, streaming callback
-    console.log(chunk);
-  },
-  maxContextLength: 8192  // optional, maximum context length
-});
-```
-
-## Supported Providers
-
-- **deepseek** - DeepSeek
-- **kimi** - Kimi (Moonshot)
-- **minimax** - MiniMax
-- **glm** - Zhipu GLM
-
-If `provider` is not specified, the system will automatically select an available API Key.
-
-## Message Format
-
-```javascript
-const messages = [
-  { role: "system", content: "You are a helpful assistant" },
-  { role: "user", content: "Hello" },
-  { role: "assistant", content: "Hello, how can I help you?" },
-  { role: "user", content: "Explain what AI is" }
-];
-```
-
-## Concurrency Control
-
-The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.
-
-### Get Current Status
-
-```javascript
-const status = getStatus();
-// Returns the concurrent usage of each key
-```
-
-### Subscription Status Changes
-
-```javascript
-subscribe((newStatus) => {
-  console.log("Status updated:", newStatus);
-});
-```
-
-## Get Available Providers
-
-```javascript
-const providers = await getAvailableProviders();
-console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
-```
-
-## Error Handling
-
-```javascript
-try {
-  const response = await chat(messages);
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-Common Mistakes:- `no_key` - No API Key configured
-- `no_provider_key` - No provider's API Key specified
-- `concurrency_full` - The concurrency limit for this Key has been reached
-- `Unsupported provider` - Unsupported provider
-
----
-
-<!-- move-and-copy.html -->
-
-# File Moving and Copying
-
-This document describes how to move and copy files and directories.
-
-## Moving Files
-
-Use the `moveTo()` method to move the file to the target directory:
+Use the `parent` property to get the parent directory of a file:
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const fileParentDir = await testFile.parent;
 
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// The second parameter is the target file name; omit it to keep the original name
-const movedFile = await sourceFile.moveTo(targetDir);
-// Equivalent to sourceFile.moveTo(targetDir, "source.txt")
-
-const content = await movedFile.text();
-// content === "Hello, World!"
-
-const oldFile = await get("my-app/source.txt");
-// oldFile === null means the original file has been moved
+const isSame = await fileParentDir.isSame(testDir);
+// isSame === true
 ```
 
-## Move Directory
+## Get Root Directory
 
-The `moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+Use the `root` attribute to obtain the root directory to which a file or directory belongs:
 
 ```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const root = testFile.root;
 
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir);
-// Equivalent to sourceDir.moveTo(targetDir, "sourceDir")
-
-// movedDir contains file1.txt and subDir/file2.txt
+const isSame = await root.isSame(await get("my-app"));
+// isSame === true
 ```
 
-## Copy File
+## Determining if Handles are Identical
 
-Use the `copyTo()` method to copy the file to the target directory:
+Use the `isSame()` method to determine whether two handles point to the same file or directory:
 
 ```javascript
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
+const dir = await get("my-app/path/to");
+await dir.get("file.txt", { create: "file" });
+await dir.get("other.txt", { create: "file" });
 
-const targetDir = await get("my-app/target", { create: "dir" });
+const file1 = await dir.get("file.txt");
+const file2 = await dir.get("file.txt");
+const file3 = await dir.get("other.txt");
 
-// The second parameter is the target file name; if not provided, the original file name is used.
-const copiedFile = await sourceFile.copyTo(targetDir);
-// Equivalent to sourceFile.copyTo(targetDir, "source.txt")
+const result1 = await file1.isSame(file2);
+// result1 === true
 
-const content = await copiedFile.text();
-// content === "Hello, World!"
-
-// The original file still exists
-const originalFile = await get("my-app/source.txt");
-// originalFile !== null
+const result2 = await file1.isSame(file3);
+// result2 === false
 ```
 
-## Copy Directory
+## Get File Size
 
-The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+Use the `size()` method to get the file size:
 
 ```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("Hello, World!");
 
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir);
-// Same as sourceDir.copyTo(targetDir, "sourceDir")
-
-// copiedDir contains file1.txt and subDir/file2.txt
+const fileSize = await file.size();
+console.log(fileSize); // 13 (bytes)
 ```
 
-## Complete Example
+For directories, `size()` returns `null`.
+
+## Get Unique Identifier
+
+Use the `id()` method to get the unique identifier of a file or directory:
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+const id = await file.id();
+console.log(id); // unique hash string
+```
+
+## Handle Attributes
+
+| Attribute | Description | Return Value |
+|-----------|-------------|--------------|
+| `kind` | Handle type | `"file"` or `"dir"` |
+| `name` | File or directory name | String |
+| `path` | Full path | String |
+| `parent` | Parent directory | DirHandle |
+| `root` | Root directory | DirHandle |## Complete Example
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const sourceFile = await get("my-app/document.txt", { create: "file" });
-await sourceFile.write("Important content");
+const deepDir = await get("my-app/a/b/c");
+const deepFile = await deepDir.get("deep.txt", { create: "file" });
+await deepFile.write("Hello!");
 
-const backupDir = await get("my-app/backup", { create: "dir" });
-const archiveDir = await get("my-app/archive", { create: "dir" });
+// Get parent directory
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
 
-// Copy file
-const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
-console.log(await backup.text()); // "Important content"
+// Get root directory
+const root = deepFile.root;
+console.log(root.path); // "my-app"
 
-// Move file
-await sourceFile.moveTo(archiveDir, "document_archived.txt");
+// Get file size
+const size = await deepFile.size();
+console.log(size); // 6
 
-// Verify move result
-const original = await get("my-app/document.txt");
-console.log(original); // null
+// Get unique identifier
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// Get the same file via different path
+const file2 = await deepDir.get("deep.txt");
+console.log(await deepFile.isSame(file2)); // true
 ```
 
 ## Next Chapter
 
-Study [File Handle Comparison](./handle-comparison.md) to learn how to compare file handles.
-
----
-
-<!-- sw-advanced.html -->
-
-# sw.js Configuration Tips
-
-## Version Number Control and Cache Update
-
-When releasing a new version, if the server is configured with a `max-age=0` response header, the browser may still cache the old version of the `sw.js` file, preventing updates from taking effect promptly. By adding a version parameter to the URL, you can force the browser to request the latest file, thereby resolving this issue.
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-When referencing dist.js, add the `?v=` parameter and update the version number each time a new version is released. The browser will then request the new file instead of using the cached one.
-
-## Official Tools
-
-Using the tools in the `nos-tool` directory, you can conveniently manage the NoneOS system.
-
-- **ai** - AI model management, including chat, configuration, and key management
-- **editor** - Monaco editor integration, supporting syntax highlighting, formatting, and AI completion
-- **file-explore** - File explorer
-- **file-list** - File list view and handle management
-- **studio** - Development studio, providing file management, color tools, theme editing, and more
-
-These tools are located in the `nos-tool` directory and can be imported and used as needed.
-
----
-
-<!-- ai-add.html -->
-
-# Add AI Model
-
-## AI Model Management Portal
-
-In the deployed NoneOS system, applications developed based on this system can introduce the AI model key management page through the `o-page` component, allowing users to add and manage AI models via a graphical user interface (GUI).
-
-### Using Relative Paths
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-This way you can directly add an entry for AI models in your ofa.js application.
-
-## js Add Model
-
-You can directly manage AI models through JavaScript code without using the `o-page` component.
-
-### Introducing the Storage Module
-
-```javascript
-import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-```
-
-### Save API Key
-
-```javascript
-const newKey = {
-  id: `${Math.random().toString(36).slice(2, 11)}`,
-  provider: "deepseek",  // deepseek | kimi | minimax | glm
-  model: "deepseek-chat",
-  key: "your-api-key-here",
-  concurrency: 1,  // Concurrency count
-};
-
-// Get existing keys
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-
-// Add new key
-aiKeys.push(newKey);
-
-// Save
-await storage.setItem("ai-keys", aiKeys);
-```
-
-### Available Models by Provider
-
-Available models refer to the documentation of each provider.
-
-### Retrieve All Saved Keys
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-```
-
-### Delete API Key
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const index = aiKeys.findIndex((k) => k.id === "key-id");
-if (index > -1) {
-  aiKeys.splice(index, 1);
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Update the concurrency limit of the Key
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const keyItem = aiKeys.find((k) => k.id === "key-id");
-if (keyItem) {
-  keyItem.concurrency = 3;  // Modify the concurrency
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key Object Structure
-
-| Attribute     | Type    | Description                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | Unique identifier                         |
-| `provider`    | string  | Provider (deepseek/kimi/minimax/glm) |
-| `model`       | string  | Model name                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | Maximum concurrency                         |
-| `disabled`    | boolean | Whether disabled                           |
+Learn [File Change Observation](./file-observation.md) to understand how to listen for file change events.
 
 ---
 
@@ -1032,3 +627,408 @@ console.log(exists); // null
 ## Next Chapter
 
 Study [Directory Operations](./directory-operations.md) to learn how to traverse and manage directories.
+
+---
+
+<!-- ai-call.html -->
+
+# Call AI Model
+
+## Introducing the chat module
+
+```javascript
+import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
+```
+
+## Basic Usage
+
+The `chat` function accepts a message array and an options object:
+
+```javascript
+const messages = [
+  { role: "user", content: "Hello" }
+];
+
+const response = await chat(messages, {
+  provider: "deepseek",  // optional, specify provider
+  callback: (chunk) => {  // optional, streaming callback
+    console.log(chunk);
+  },
+  maxContextLength: 8192  // optional, maximum context length
+});
+```
+
+## Supported Providers
+
+- **deepseek** - DeepSeek
+- **kimi** - Kimi (Moonshot)
+- **minimax** - MiniMax
+- **glm** - Zhipu GLM
+
+If `provider` is not specified, the system will automatically select an available API Key.
+
+## Message Format
+
+```javascript
+const messages = [
+  { role: "system", content: "You are a helpful assistant" },
+  { role: "user", content: "Hello" },
+  { role: "assistant", content: "Hello, how can I help you?" },
+  { role: "user", content: "Explain what AI is" }
+];
+```
+
+## Concurrency Control
+
+The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.
+
+### Get Current Status
+
+```javascript
+const status = getStatus();
+// Returns the concurrent usage of each key
+```
+
+### Subscription Status Changes
+
+```javascript
+subscribe((newStatus) => {
+  console.log("Status updated:", newStatus);
+});
+```
+
+## Get Available Providers
+
+```javascript
+const providers = await getAvailableProviders();
+console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
+```
+
+## Error Handling
+
+```javascript
+try {
+  const response = await chat(messages);
+} catch (error) {
+  console.error(error.message);
+}
+```
+
+Common Mistakes:- `no_key` - No API Key configured
+- `no_provider_key` - No provider's API Key specified
+- `concurrency_full` - The concurrency limit for this Key has been reached
+- `Unsupported provider` - Unsupported provider
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js Configuration Tips
+
+## Version Number Control and Cache Update
+
+When releasing a new version, if the server is configured with a `max-age=0` response header, the browser may still cache the old version of the `sw.js` file, preventing updates from taking effect promptly. By adding a version parameter to the URL, you can force the browser to request the latest file, thereby resolving this issue.
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+When referencing dist.js, add the `?v=` parameter and update the version number each time a new version is released. The browser will then request the new file instead of using the cached one.
+
+## Official Tools
+
+Using the tools in the `nos-tool` directory, you can conveniently manage the NoneOS system.
+
+- **ai** - AI model management, including chat, configuration, and key management
+- **editor** - Monaco editor integration, supporting syntax highlighting, formatting, and AI completion
+- **file-explore** - File explorer
+- **file-list** - File list view and handle management
+- **studio** - Development studio, providing file management, color tools, theme editing, and more
+
+These tools are located in the `nos-tool` directory and can be imported and used as needed.
+
+---
+
+<!-- ai-add.html -->
+
+# Add AI Model
+
+## AI Model Management Portal
+
+In the deployed NoneOS system, applications developed based on this system can introduce the AI model key management page through the `o-page` component, allowing users to add and manage AI models via a graphical user interface (GUI).
+
+### Using Relative Paths
+
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
+```
+
+This way you can directly add an entry for AI models in your ofa.js application.
+
+## js Add Model
+
+You can directly manage AI models through JavaScript code without using the `o-page` component.
+
+### Introducing the Storage Module
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### Save API Key
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // Concurrency count
+};
+
+// Get existing keys
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// Add new key
+aiKeys.push(newKey);
+
+// Save
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### Available Models by Provider
+
+Available models refer to the documentation of each provider.
+
+### Retrieve All Saved Keys
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### Delete API Key
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Update the concurrency limit of the Key
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // Modify the concurrency
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key Object Structure
+
+| Attribute     | Type    | Description                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | Unique identifier                         |
+| `provider`    | string  | Provider (deepseek/kimi/minimax/glm) |
+| `model`       | string  | Model name                           |
+| `key`         | string  | API Key                            |
+| `concurrency` | number  | Maximum concurrency                         |
+| `disabled`    | boolean | Whether disabled                           |
+
+---
+
+<!-- install.html -->
+
+# Installation
+
+NoneOS Core is a browser-based file system that relies on Service Worker for local storage. The project itself is purely static and does not require a dynamic server.
+
+## Prerequisites
+
+- A static server (e.g. http-server, live-server, nginx, etc.)
+- Browser support for Service Worker
+- For external access, HTTPS must be used (due to API requirements)
+
+## Steps
+
+### 1. Create Service Worker File
+
+Create a `sw.js` file in the project root directory and fill in the following content:
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. Create Entry HTML
+
+In the entry HTML file, import `ofa.js` and the `nos-version` component. After using the `nos-version` component, the `sw.js` file will be automatically registered:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- Load nos-version component -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- Use nos-version component -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // Wait for installation to complete
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core installation completed, ready to use");
+        // noneos-core can be used here
+      });
+    </script>
+  </body>
+</html>
+```
+
+## Installation Status
+
+The `nos-version` component automatically detects the installation status of NoneOS Core:
+
+- **Not installed**: Display "Install NoneOS Core" button
+- **Installing**: Display installation progress bar
+- **Installed**: Display current version number
+- **Upgrade available**: Display upgrade button
+
+When the system installation is completed, or has already been installed, or the upgrade is successful, the `installed` event will be triggered, after which all functions of NoneOS Core can be used normally.
+
+---
+
+<!-- move-and-copy.html -->
+
+# File Moving and Copying
+
+This document describes how to move and copy files and directories.
+
+## Moving Files
+
+Use the `moveTo()` method to move the file to the target directory:
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// The second parameter is the target file name; omit it to keep the original name
+const movedFile = await sourceFile.moveTo(targetDir);
+// Equivalent to sourceFile.moveTo(targetDir, "source.txt")
+
+const content = await movedFile.text();
+// content === "Hello, World!"
+
+const oldFile = await get("my-app/source.txt");
+// oldFile === null means the original file has been moved
+```
+
+## Move Directory
+
+The `moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const movedDir = await sourceDir.moveTo(targetDir);
+// Equivalent to sourceDir.moveTo(targetDir, "sourceDir")
+
+// movedDir contains file1.txt and subDir/file2.txt
+```
+
+## Copy File
+
+Use the `copyTo()` method to copy the file to the target directory:
+
+```javascript
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// The second parameter is the target file name; if not provided, the original file name is used.
+const copiedFile = await sourceFile.copyTo(targetDir);
+// Equivalent to sourceFile.copyTo(targetDir, "source.txt")
+
+const content = await copiedFile.text();
+// content === "Hello, World!"
+
+// The original file still exists
+const originalFile = await get("my-app/source.txt");
+// originalFile !== null
+```
+
+## Copy Directory
+
+The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const copiedDir = await sourceDir.copyTo(targetDir);
+// Same as sourceDir.copyTo(targetDir, "sourceDir")
+
+// copiedDir contains file1.txt and subDir/file2.txt
+```
+
+## Complete Example
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const sourceFile = await get("my-app/document.txt", { create: "file" });
+await sourceFile.write("Important content");
+
+const backupDir = await get("my-app/backup", { create: "dir" });
+const archiveDir = await get("my-app/archive", { create: "dir" });
+
+// Copy file
+const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
+console.log(await backup.text()); // "Important content"
+
+// Move file
+await sourceFile.moveTo(archiveDir, "document_archived.txt");
+
+// Verify move result
+const original = await get("my-app/document.txt");
+console.log(original); // null
+```
+
+## Next Chapter
+
+Study [File Handle Comparison](./handle-comparison.md) to learn how to compare file handles.

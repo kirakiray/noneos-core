@@ -87,7 +87,10 @@
         <p-option attr:value="$data.value"> {{$data.name}} </p-option>
       </o-fill>
     </p-select>
-    
+    <p-button variant="text" icon on:click="clickGithub">
+      <n-icon icon="mdi:github" style="font-size: 24px"></n-icon>
+      <a href="https://github.com/kirakiray/noneos-core" id="github-link" on:click="$event.stopPropagation()"></a>
+    </p-button>
   </div>
 
   <o-consumer name="pui" watch:theme="theme"></o-consumer>
