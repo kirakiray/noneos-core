@@ -1,3 +1,109 @@
+<!-- file-observation.html -->
+
+# 文件变化观察
+
+本文档介绍如何使用 `observe` 方法监听文件或目录的变化事件。
+
+## 基本用法
+
+使用 `observe()` 方法监听文件或目录中的变化：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app");
+
+const events = [];
+const unobserve = await dir.observe((event) => {
+  console.log("收到文件变化事件:", event);
+  events.push(event);
+});
+
+// 创建文件
+const file = await dir.get("test.txt", { create: "file" });
+await file.write("Hello");
+
+// 删除文件
+await file.remove();
+
+// 取消观察
+unobserve();
+```
+
+文件和目录都可以监听变化，例如监听单个文件：
+
+```javascript
+const file = await get("my-app/test.txt", { create: "file" });
+
+const unobserve = await file.observe((event) => {
+  console.log("文件被修改:", event.type);
+});
+
+await file.write("new content");
+
+unobserve();
+```
+
+## observe 返回值
+
+`observe()` 返回一个 Promise，解析为取消观察的函数。调用该函数可以停止监听：
+
+```javascript
+const unobserve = await dir.observe((event) => {
+  // 处理事件
+});
+
+// 稍后取消观察
+unobserve();
+```
+
+## 事件对象
+
+观察回调接收到的事件对象包含以下属性：
+
+| 属性 | 描述 |
+|------|------|
+| `type` | 事件类型，如 `"create"`, `"remove"`, `"write"` |
+| `path` | 发生变化的文件路径 |
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app");
+
+console.log("开始文件变化观察测试");
+
+const events = [];
+const unobserve = await dir.observe((event) => {
+  console.log("文件变化:", event.type, event.path);
+  events.push(event);
+});
+
+// 执行一些文件操作
+await dir.get("file1.txt", { create: "file" });
+await (await dir.get("file1.txt")).write("content");
+
+await new Promise((resolve) => setTimeout(resolve, 100));
+
+await (await dir.get("file1.txt")).remove();
+
+await new Promise((resolve) => setTimeout(resolve, 100));
+
+unobserve();
+
+console.log(`共收到 ${events.length} 个事件`);
+```
+
+## 注意事项
+
+1. 观察者创建后才会开始监听，之前的文件操作不会被捕获
+2. 取消观察后，新发生的文件变化不会被记录
+3. 文件变化事件是异步触发的，可能存在一定延迟
+
+---
+
 <!-- overview.html -->
 
 # 概述
@@ -226,6 +332,308 @@ console.log(allFiles.map(f => f.path));
 
 ---
 
+<!-- file-operations.html -->
+
+# 文件操作
+
+本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。
+
+## 创建文件
+
+使用 `get` 方法并指定 `create: "file"` 来创建文件：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/path/to/file.txt", { create: "file" });
+```
+
+## 写入文件
+
+使用 `write` 方法向文件写入内容：
+
+```javascript
+const file = await get("my-app/hello.txt", { create: "file" });
+await file.write("Hello, World!");
+```
+
+`write` 方法支持写入字符串或 Blob 数据。
+
+## 读取文件
+
+### text() 方法
+
+使用 `text()` 方法读取文件的文本内容：
+
+```javascript
+const content = await file.text();
+console.log(content); // "Hello, World!"
+```
+
+### file() 方法
+
+使用 `file()` 方法读取原始 [File 对象](https://developer.mozilla.org/zh-CN/docs/Web/API/File)：
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.name); // 文件名
+console.log(fileObj.size); // 文件大小
+console.log(fileObj.lastModified); // 最后修改时间
+```
+
+### buffer() 方法
+
+使用 `buffer()` 方法读取文件的 [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) 数据：
+
+```javascript
+const arrayBuffer = await file.buffer();
+```
+
+### read() 方法
+
+`read()` 方法是底层读取方法，支持更多选项：
+
+```javascript
+const content = await file.read({
+  type: "text",    // 返回类型: "text" | "file" | "buffer"
+  start: 0,        // 起始字节
+  end: 100,        // 结束字节
+});
+```
+
+## JSON 操作
+
+### json() 方法
+
+使用 `json()` 方法直接读取并解析 JSON 文件：
+
+```javascript
+const data = await file.json();
+```
+
+### base64() 方法
+
+使用 `base64()` 方法将文件内容转为 [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) 编码)：
+
+```javascript
+const base64String = await file.base64();
+console.log(base64String); // "data:application/octet-stream;base64,..."
+```
+
+## 获取文件信息
+
+### lastModified() 方法
+
+使用 `lastModified()` 获取文件的最后修改时间：
+
+```javascript
+const timestamp = await file.lastModified();
+console.log(new Date(timestamp)); // Date 对象
+```
+
+### size 属性
+
+通过 `file()` 方法获取文件大小：
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.size); // 文件大小（字节）
+```
+
+## 通过 fetch 获取文件
+
+除了使用句柄，写入文件后，还可以使用浏览器的 `fetch` API 通过 URL 获取文件内容：
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+const someText = "Write some text " + Math.random();
+await file.write(someText);
+
+await new Promise((resolve) => setTimeout(resolve, 300));
+
+const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
+```
+
+### 预览 HTML 文件
+
+如果写入的是 HTML 文件，可以直接在浏览器中预览：
+
+```javascript
+const htmlFile = await get("my-app/index.html", { create: "file" });
+await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
+
+// 在浏览器中打开 /$my-app/index.html 即可预览（记得带上 $ 前缀）
+```
+
+## 删除文件
+
+使用 `remove()` 方法删除文件：
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+await file.remove();
+
+const fileExists = await get("my-app/file1.txt");
+// fileExists === null 表示文件已被删除
+```
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// 创建并写入文件
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("This is a test file.");
+
+// 读取文件
+const content = await file.text();
+console.log(content); // "This is a test file."
+
+// 获取文件信息
+const fileInfo = await file.file();
+console.log(`文件名: ${fileInfo.name}, 大小: ${fileInfo.size}`);
+
+// 获取最后修改时间
+const modified = await file.lastModified();
+console.log(`最后修改: ${new Date(modified)}`);
+
+// 删除文件
+await file.remove();
+const exists = await get("my-app/example.txt");
+console.log(exists); // null
+```
+
+## 下一章
+
+学习 [目录操作](./directory-operations.md)，了解如何遍历和管理目录。
+
+---
+
+<!-- handle-comparison.html -->
+
+# 文件句柄比较
+
+本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。
+
+## 获取父目录
+
+使用 `parent` 属性获取文件的父目录：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const fileParentDir = await testFile.parent;
+
+const isSame = await fileParentDir.isSame(testDir);
+// isSame === true
+```
+
+## 获取根目录
+
+使用 `root` 属性获取文件或目录所属的根目录：
+
+```javascript
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const root = testFile.root;
+
+const isSame = await root.isSame(await get("my-app"));
+// isSame === true
+```
+
+## 判断句柄是否相同
+
+使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
+
+```javascript
+const dir = await get("my-app/path/to");
+await dir.get("file.txt", { create: "file" });
+await dir.get("other.txt", { create: "file" });
+
+const file1 = await dir.get("file.txt");
+const file2 = await dir.get("file.txt");
+const file3 = await dir.get("other.txt");
+
+const result1 = await file1.isSame(file2);
+// result1 === true
+
+const result2 = await file1.isSame(file3);
+// result2 === false
+```
+
+## 获取文件大小
+
+使用 `size()` 方法获取文件的大小：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("Hello, World!");
+
+const fileSize = await file.size();
+console.log(fileSize); // 13 (字节)
+```
+
+对于目录，`size()` 返回 `null`。
+
+## 获取唯一标识符
+
+使用 `id()` 方法获取文件或目录的唯一标识符：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+const id = await file.id();
+console.log(id); // 唯一的哈希值字符串
+```
+
+## 句柄属性
+
+| 属性 | 描述 | 返回值 |
+|------|------|--------|
+| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
+| `name` | 文件或目录名称 | 字符串 |
+| `path` | 完整路径 | 字符串 |
+| `parent` | 父目录 | DirHandle |
+| `root` | 根目录 | DirHandle |
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const deepDir = await get("my-app/a/b/c");
+const deepFile = await deepDir.get("deep.txt", { create: "file" });
+await deepFile.write("Hello!");
+
+// 获取父目录
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
+
+// 获取根目录
+const root = deepFile.root;
+console.log(root.path); // "my-app"
+
+// 获取文件大小
+const size = await deepFile.size();
+console.log(size); // 6
+
+// 获取唯一标识符
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// 通过不同路径获取同一文件
+const file2 = await deepDir.get("deep.txt");
+console.log(await deepFile.isSame(file2)); // true
+```
+
+## 下一章
+
+学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
+
+---
+
 <!-- install.html -->
 
 # 安装
@@ -288,112 +696,6 @@ importScripts("https://core.noneos.com/sw/dist.js");
 - **可升级**：显示升级按钮
 
 当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
-
----
-
-<!-- file-observation.html -->
-
-# 文件变化观察
-
-本文档介绍如何使用 `observe` 方法监听文件或目录的变化事件。
-
-## 基本用法
-
-使用 `observe()` 方法监听文件或目录中的变化：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app");
-
-const events = [];
-const unobserve = await dir.observe((event) => {
-  console.log("收到文件变化事件:", event);
-  events.push(event);
-});
-
-// 创建文件
-const file = await dir.get("test.txt", { create: "file" });
-await file.write("Hello");
-
-// 删除文件
-await file.remove();
-
-// 取消观察
-unobserve();
-```
-
-文件和目录都可以监听变化，例如监听单个文件：
-
-```javascript
-const file = await get("my-app/test.txt", { create: "file" });
-
-const unobserve = await file.observe((event) => {
-  console.log("文件被修改:", event.type);
-});
-
-await file.write("new content");
-
-unobserve();
-```
-
-## observe 返回值
-
-`observe()` 返回一个 Promise，解析为取消观察的函数。调用该函数可以停止监听：
-
-```javascript
-const unobserve = await dir.observe((event) => {
-  // 处理事件
-});
-
-// 稍后取消观察
-unobserve();
-```
-
-## 事件对象
-
-观察回调接收到的事件对象包含以下属性：
-
-| 属性 | 描述 |
-|------|------|
-| `type` | 事件类型，如 `"create"`, `"remove"`, `"write"` |
-| `path` | 发生变化的文件路径 |
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app");
-
-console.log("开始文件变化观察测试");
-
-const events = [];
-const unobserve = await dir.observe((event) => {
-  console.log("文件变化:", event.type, event.path);
-  events.push(event);
-});
-
-// 执行一些文件操作
-await dir.get("file1.txt", { create: "file" });
-await (await dir.get("file1.txt")).write("content");
-
-await new Promise((resolve) => setTimeout(resolve, 100));
-
-await (await dir.get("file1.txt")).remove();
-
-await new Promise((resolve) => setTimeout(resolve, 100));
-
-unobserve();
-
-console.log(`共收到 ${events.length} 个事件`);
-```
-
-## 注意事项
-
-1. 观察者创建后才会开始监听，之前的文件操作不会被捕获
-2. 取消观察后，新发生的文件变化不会被记录
-3. 文件变化事件是异步触发的，可能存在一定延迟
 
 ---
 
@@ -608,130 +910,6 @@ try {
 
 ---
 
-<!-- handle-comparison.html -->
-
-# 文件句柄比较
-
-本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。
-
-## 获取父目录
-
-使用 `parent` 属性获取文件的父目录：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const isSame = await fileParentDir.isSame(testDir);
-// isSame === true
-```
-
-## 获取根目录
-
-使用 `root` 属性获取文件或目录所属的根目录：
-
-```javascript
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const root = testFile.root;
-
-const isSame = await root.isSame(await get("my-app"));
-// isSame === true
-```
-
-## 判断句柄是否相同
-
-使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
-
-```javascript
-const dir = await get("my-app/path/to");
-await dir.get("file.txt", { create: "file" });
-await dir.get("other.txt", { create: "file" });
-
-const file1 = await dir.get("file.txt");
-const file2 = await dir.get("file.txt");
-const file3 = await dir.get("other.txt");
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## 获取文件大小
-
-使用 `size()` 方法获取文件的大小：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("Hello, World!");
-
-const fileSize = await file.size();
-console.log(fileSize); // 13 (字节)
-```
-
-对于目录，`size()` 返回 `null`。
-
-## 获取唯一标识符
-
-使用 `id()` 方法获取文件或目录的唯一标识符：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-const id = await file.id();
-console.log(id); // 唯一的哈希值字符串
-```
-
-## 句柄属性
-
-| 属性 | 描述 | 返回值 |
-|------|------|--------|
-| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
-| `name` | 文件或目录名称 | 字符串 |
-| `path` | 完整路径 | 字符串 |
-| `parent` | 父目录 | DirHandle |
-| `root` | 根目录 | DirHandle |
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const deepDir = await get("my-app/a/b/c");
-const deepFile = await deepDir.get("deep.txt", { create: "file" });
-await deepFile.write("Hello!");
-
-// 获取父目录
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// 获取根目录
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// 获取文件大小
-const size = await deepFile.size();
-console.log(size); // 6
-
-// 获取唯一标识符
-const id = await deepFile.id();
-console.log(id); // "abc123..."
-
-// 通过不同路径获取同一文件
-const file2 = await deepDir.get("deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## 下一章
-
-学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
-
----
-
 <!-- ai-add.html -->
 
 # 添加 AI 模型
@@ -862,182 +1040,3 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 - **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
 
 这些工具位于 `nos-tool` 目录下，可按需引入和使用。
-
-
----
-
-<!-- file-operations.html -->
-
-# 文件操作
-
-本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。
-
-## 创建文件
-
-使用 `get` 方法并指定 `create: "file"` 来创建文件：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/path/to/file.txt", { create: "file" });
-```
-
-## 写入文件
-
-使用 `write` 方法向文件写入内容：
-
-```javascript
-const file = await get("my-app/hello.txt", { create: "file" });
-await file.write("Hello, World!");
-```
-
-`write` 方法支持写入字符串或 Blob 数据。
-
-## 读取文件
-
-### text() 方法
-
-使用 `text()` 方法读取文件的文本内容：
-
-```javascript
-const content = await file.text();
-console.log(content); // "Hello, World!"
-```
-
-### file() 方法
-
-使用 `file()` 方法读取原始 [File 对象](https://developer.mozilla.org/zh-CN/docs/Web/API/File)：
-
-```javascript
-const fileObj = await file.file();
-console.log(fileObj.name); // 文件名
-console.log(fileObj.size); // 文件大小
-console.log(fileObj.lastModified); // 最后修改时间
-```
-
-### buffer() 方法
-
-使用 `buffer()` 方法读取文件的 [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) 数据：
-
-```javascript
-const arrayBuffer = await file.buffer();
-```
-
-### read() 方法
-
-`read()` 方法是底层读取方法，支持更多选项：
-
-```javascript
-const content = await file.read({
-  type: "text",    // 返回类型: "text" | "file" | "buffer"
-  start: 0,        // 起始字节
-  end: 100,        // 结束字节
-});
-```
-
-## JSON 操作
-
-### json() 方法
-
-使用 `json()` 方法直接读取并解析 JSON 文件：
-
-```javascript
-const data = await file.json();
-```
-
-### base64() 方法
-
-使用 `base64()` 方法将文件内容转为 [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) 编码)：
-
-```javascript
-const base64String = await file.base64();
-console.log(base64String); // "data:application/octet-stream;base64,..."
-```
-
-## 获取文件信息
-
-### lastModified() 方法
-
-使用 `lastModified()` 获取文件的最后修改时间：
-
-```javascript
-const timestamp = await file.lastModified();
-console.log(new Date(timestamp)); // Date 对象
-```
-
-### size 属性
-
-通过 `file()` 方法获取文件大小：
-
-```javascript
-const fileObj = await file.file();
-console.log(fileObj.size); // 文件大小（字节）
-```
-
-## 通过 fetch 获取文件
-
-除了使用句柄，写入文件后，还可以使用浏览器的 `fetch` API 通过 URL 获取文件内容：
-
-```javascript
-const file = await get("my-app/file1.txt", { create: "file" });
-const someText = "Write some text " + Math.random();
-await file.write(someText);
-
-await new Promise((resolve) => setTimeout(resolve, 300));
-
-const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
-```
-
-### 预览 HTML 文件
-
-如果写入的是 HTML 文件，可以直接在浏览器中预览：
-
-```javascript
-const htmlFile = await get("my-app/index.html", { create: "file" });
-await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
-
-// 在浏览器中打开 /$my-app/index.html 即可预览（记得带上 $ 前缀）
-```
-
-## 删除文件
-
-使用 `remove()` 方法删除文件：
-
-```javascript
-const file = await get("my-app/file1.txt", { create: "file" });
-await file.remove();
-
-const fileExists = await get("my-app/file1.txt");
-// fileExists === null 表示文件已被删除
-```
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-// 创建并写入文件
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("This is a test file.");
-
-// 读取文件
-const content = await file.text();
-console.log(content); // "This is a test file."
-
-// 获取文件信息
-const fileInfo = await file.file();
-console.log(`文件名: ${fileInfo.name}, 大小: ${fileInfo.size}`);
-
-// 获取最后修改时间
-const modified = await file.lastModified();
-console.log(`最后修改: ${new Date(modified)}`);
-
-// 删除文件
-await file.remove();
-const exists = await get("my-app/example.txt");
-console.log(exists); // null
-```
-
-## 下一章
-
-学习 [目录操作](./directory-operations.md)，了解如何遍历和管理目录。

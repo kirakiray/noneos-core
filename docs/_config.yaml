@@ -5,6 +5,6 @@ github: null
 languages:
   - cn
   - en
-logoImg: ./logo.svg
-logoName: noneos-core
+logoImg: ./logo.png
+logoName: NoneOS Core
 googleAnalytics: null
