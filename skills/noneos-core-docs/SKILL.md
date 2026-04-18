@@ -311,7 +311,7 @@ unobserve();
 <o-page src="https://core.noneos.com/nos-tool/ai/pages/key-manager.html"></o-page>
 ```
 
-或使用相对路径（需启用 `useNosTool`）：
+或使用相对路径：
 
 ```html
 <o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>

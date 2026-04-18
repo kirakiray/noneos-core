@@ -278,58 +278,6 @@ console.log(await deepFile.isSame(file2)); // true
 
 ---
 
-<!-- sw-advanced.html -->
-
-# sw.js 配置技巧
-
-## 版本号控制与缓存更新
-
-在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
-
-## 启用开发者工具
-
-在 `sw.js` 中，通过 `globalThis.SERVER_OPTIONS` 可以启用 NoneOS 提供的开发者工具：
-
-```javascript
-globalThis.SERVER_OPTIONS = {
-  useNosTool: true,
-};
-```
-
-启用后，页面将加载 NoneOS 开发者工具模块。
-
-## 可用的工具模块
-
-`sw/dist.js` 会根据配置加载以下工具：
-
-- **ai** - AI 模型管理，包括聊天、配置、密钥管理
-- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
-- **file-explore** - 文件浏览器
-- **file-list** - 文件列表视图和句柄管理
-- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
-
-这些工具位于 `nos-tool` 目录下，可按需引入和使用。
-
-
----
-
 <!-- directory-operations.html -->
 
 # 目录操作
@@ -505,107 +453,6 @@ console.log(allFiles.map(f => f.path));
 ## 下一章
 
 学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
-
----
-
-<!-- ai-add.html -->
-
-# 添加 AI 模型
-
-## AI 模型管理入口
-
-在已经部署过的 NoneOS 系统内，基于系统开发的应用可以通过 `o-page` 组件引用 AI 模型的密钥管理页面来添加 AI 模型。
-
-### 方式一：使用完整路径
-
-如果应用未启用 `useNosTool` 模式，可以使用完整路径引入：
-
-```html
-<o-page src="https://core.noneos.com/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-### 方式二：使用相对路径
-
-如果 `sw.js` 中已经启用 `useNosTool` 模式，则可以直接使用相对路径：
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-启用方式是在 `sw.js` 中添加：
-
-```javascript
-globalThis.SERVER_OPTIONS = {
-  useNosTool: true,
-};
-```
-
-这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
-
----
-
-<!-- install.html -->
-
-# 安装
-
-NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
-
-## 前提条件
-
-- 一个静态服务器（如 http-server、live-server、nginx 等）
-- 浏览器支持 Service Worker
-- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
-
-## 步骤
-
-### 1. 创建 Service Worker 文件
-
-在项目根目录下创建 `sw.js` 文件，填入以下内容：
-
-```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
-```
-
-### 2. 创建入口 HTML
-
-在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
-
-```html
-<!DOCTYPE html>
-<html lang="zh">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- 加载 nos-version 组件 -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- 使用 nos-version 组件 -->
-    <nos-version auto-install></nos-version>
-
-    <script type="module">
-      // 等待安装完成
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core 安装完成，可以开始使用了");
-        // 这里可以使用 noneos-core
-      });
-    </script>
-  </body>
-</html>
-```
-
-## 安装状态
-
-`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
-
-- **未安装**：显示 "Install NoneOS Core" 按钮
-- **安装中**：显示安装进度条
-- **已安装**：显示当前版本号
-- **可升级**：显示升级按钮
-
-当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
 
 ---
 
@@ -905,6 +752,165 @@ console.log(original); // null
 
 ---
 
+<!-- install.html -->
+
+# 安装
+
+NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
+
+## 前提条件
+
+- 一个静态服务器（如 http-server、live-server、nginx 等）
+- 浏览器支持 Service Worker
+- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
+
+## 步骤
+
+### 1. 创建 Service Worker 文件
+
+在项目根目录下创建 `sw.js` 文件，填入以下内容：
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. 创建入口 HTML
+
+在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- 加载 nos-version 组件 -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- 使用 nos-version 组件 -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // 等待安装完成
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core 安装完成，可以开始使用了");
+        // 这里可以使用 noneos-core
+      });
+    </script>
+  </body>
+</html>
+```
+
+## 安装状态
+
+`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
+
+- **未安装**：显示 "Install NoneOS Core" 按钮
+- **安装中**：显示安装进度条
+- **已安装**：显示当前版本号
+- **可升级**：显示升级按钮
+
+当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
+
+---
+
+<!-- ai-add.html -->
+
+# 添加 AI 模型
+
+## AI 模型管理入口
+
+在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。
+
+### 使用相对路径
+
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
+```
+
+这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
+
+## js添加模型
+
+你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。
+
+### 引入存储模块
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### 保存 API Key
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // 并发数
+};
+
+// 获取现有 keys
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// 添加新 key
+aiKeys.push(newKey);
+
+// 保存
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### 各提供商的可用模型
+
+可用模型参考各提供商的文档。
+
+### 获取所有已保存的 Keys
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### 删除 API Key
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### 更新 Key 的并发数
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // 修改并发数
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key 对象结构
+
+| 属性          | 类型    | 说明                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | 唯一标识符                         |
+| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |
+| `model`       | string  | 模型名称                           |
+| `key`         | string  | API Key                            |
+| `concurrency` | number  | 最大并发数                         |
+| `disabled`    | boolean | 是否禁用                           |
+
+
+
+---
+
 <!-- ai-call.html -->
 
 # 调用 AI 模型
@@ -994,3 +1000,43 @@ try {
 - `no_provider_key` - 没有指定提供商的 API Key
 - `concurrency_full` - 该 Key 的并发数已满
 - `Unsupported provider` - 不支持的提供商
+
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js 配置技巧
+
+## 版本号控制与缓存更新
+
+在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
+
+## 官方工具
+
+使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
+
+- **ai** - AI 模型管理，包括聊天、配置、密钥管理
+- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
+- **file-explore** - 文件浏览器
+- **file-list** - 文件列表视图和句柄管理
+- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
+
+这些工具位于 `nos-tool` 目录下，可按需引入和使用。

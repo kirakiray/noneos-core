@@ -74,11 +74,7 @@
         <h1>添加 AI 模型</h1>
         <h2>AI 模型管理入口</h2>
         <p>在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 <code>o-page</code> 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。</p>
-        <h3>方式一：使用完整路径</h3>
-        <p>如果应用未启用 <code>useNosTool</code> 模式，可以使用完整路径引入：</p>
-        <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;https://core.noneos.com/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
-        <h3>方式二：使用相对路径</h3>
-        <p>如果 <code>sw.js</code> 中已经启用 <code>useNosTool</code> 模式，则可以直接使用相对路径：</p>
+        <h3>使用相对路径</h3>
         <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
         <p>这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。</p>
         <h2>js添加模型</h2>

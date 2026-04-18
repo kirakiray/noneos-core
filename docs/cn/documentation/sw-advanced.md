@@ -21,21 +21,9 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 
 在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
 
-## 启用开发者工具
+## 官方工具
 
-在 `sw.js` 中，通过 `globalThis.SERVER_OPTIONS` 可以启用 NoneOS 提供的开发者工具：
-
-```javascript
-globalThis.SERVER_OPTIONS = {
-  useNosTool: true,
-};
-```
-
-启用后，页面将加载 NoneOS 开发者工具模块。
-
-## 可用的工具模块
-
-`sw/dist.js` 会根据配置加载以下工具：
+使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
 
 - **ai** - AI 模型管理，包括聊天、配置、密钥管理
 - **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
