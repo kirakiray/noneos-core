@@ -18,7 +18,7 @@
       url: ./sw-advanced.md
 - name: AI 操作
   content:
-    - name: 添加 AI 模型
+    - name: 添加模型
       url: ./ai-add.md
-    - name: 调用 AI 模型
+    - name: 调用模型
       url: ./ai-call.md

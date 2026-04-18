@@ -72,6 +72,61 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>调用 AI 模型</h1>
+        <h2>引入 chat 模块</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { chat, subscribe, getStatus, getAvailableProviders } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/ai/chat.js&quot;</span>;</code></pre>
+        <h2>基本用法</h2>
+        <p><code>chat</code> 函数接受消息数组和选项对象：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;你好&quot;</span> }
+];
+
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages, {
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// 可选，指定提供商</span>
+  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// 可选，流式回调</span>
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(chunk);
+  },
+  <span class="hljs-attr">maxContextLength</span>: <span class="hljs-number">8192</span>  <span class="hljs-comment">// 可选，最大上下文长度</span>
+});</code></pre>
+        <h2>支持的提供商</h2>
+        <ul>
+          <li><strong>deepseek</strong> - DeepSeek</li>
+          <li><strong>kimi</strong> - Kimi (Moonshot)</li>
+          <li><strong>glm</strong> - 智谱 GLM</li>
+          <li><strong>minimax</strong> - MiniMax</li>
+        </ul>
+        <p>如果不指定 <code>provider</code>，系统会自动选择一个可用的 API Key。</p>
+        <h2>消息格式</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;system&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;你是一个有用的助手&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;你好&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;你好，有什么可以帮助你的吗？&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;解释一下什么是 AI&quot;</span> }
+];</code></pre>
+        <h2>并发控制</h2>
+        <p>NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。</p>
+        <h3>获取当前状态</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> status = <span class="hljs-title function_">getStatus</span>();
+<span class="hljs-comment">// 返回各 Key 的并发使用情况</span></code></pre>
+        <h3>订阅状态变化</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-title function_">subscribe</span>(<span class="hljs-function">(<span class="hljs-params">newStatus</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;状态更新:&quot;</span>, newStatus);
+});</code></pre>
+        <h2>获取可用提供商</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> providers = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getAvailableProviders</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(providers); <span class="hljs-comment">// [&quot;deepseek&quot;, &quot;kimi&quot;, &quot;glm&quot;, &quot;minimax&quot;]</span></code></pre>
+        <h2>错误处理</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages);
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(error.<span class="hljs-property">message</span>);
+}</code></pre>
+        <p>常见错误：</p>
+        <ul>
+          <li><code>no_key</code> - 没有配置任何 API Key</li>
+          <li><code>no_provider_key</code> - 没有指定提供商的 API Key</li>
+          <li><code>concurrency_full</code> - 该 Key 的并发数已满</li>
+          <li><code>Unsupported provider</code> - 不支持的提供商</li>
+        </ul>
       </article>
       <div class="footer"></div>
       <script>
