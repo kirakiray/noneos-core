@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ファイル操作</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>ファイル操作</h1>
+        <p>このドキュメントでは、ファイルシステムにおけるファイル操作について説明します。これには、ファイルの作成、書き込み、読み取り、削除が含まれます。</p>
+        <h2>ファイルを作成する</h2>
+        <p><code>get</code> メソッドを使用し、<code>create: "file"</code> を指定してファイルを作成します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });</code></pre>
+        <h2>ファイルへの書き込み</h2>
+        <p><code>write</code> メソッドを使用してファイルに内容を書き込む：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"こんにちは、世界！"</span>);</code></pre>
+        <p><code>write</code> メソッドは、文字列または Blob データの書き込みをサポートします。</p>
+        <h2>ファイルを読み込む</h2>
+        <h3>text() メソッド</h3>
+        <p><code>text()</code> メソッドを使用してファイルのテキスト内容を読み取る：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "Hello, World!"</span></code></pre>
+        <h3>file() メソッド</h3>
+        <p><code>file()</code> メソッドを使用して元の <a href="https://developer.mozilla.org/zh-CN/docs/Web/API/File" target="_blank">File オブジェクト</a> を読み取ります：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">name</span>); <span class="hljs-comment">// ファイル名</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// ファイルサイズ</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">lastModified</span>); <span class="hljs-comment">// 最終更新日時</span></code></pre>
+        <h3>buffer() メソッド</h3>
+        <p><code>buffer()</code> メソッドを使用してファイルの <a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer" target="_blank">ArrayBuffer</a> データを読み取る：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> arrayBuffer = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">buffer</span>();</code></pre>
+        <h3>read() メソッド</h3>
+        <p><code>read()</code> メソッドは低レベルの読み取りメソッドであり、より多くのオプションをサポートしています：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">read</span>({
+  <span class="hljs-attr">type</span>: <span class="hljs-string">"text"</span>,    <span class="hljs-comment">// 戻り値の種類: "text" | "file" | "buffer"</span>
+  <span class="hljs-attr">start</span>: <span class="hljs-number">0</span>,        <span class="hljs-comment">// 開始バイト</span>
+  <span class="hljs-attr">end</span>: <span class="hljs-number">100</span>,        <span class="hljs-comment">// 終了バイト</span>
+});</code></pre>
+        <h2>JSON 操作</h2>
+        <h3>json() メソッド</h3>
+        <p><code>json()</code> メソッドを使用して直接 JSON ファイルを読み取り、解析します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">json</span>();</code></pre>
+        <h3>base64() メソッド</h3>
+        <p><code>base64()</code> メソッドを使用してファイルの内容を <a href="https://developer.mozilla.org/zh-CN/docs/Glossary/Base64" target="_blank">base64</a> エンコードに変換します)：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> base64String = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">base64</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(base64String); <span class="hljs-comment">// "data:application/octet-stream;base64,..."</span></code></pre>
+        <h2>ファイル情報を取得する</h2>
+        <h3>lastModified() メソッド</h3>
+        <p><code>lastModified()</code> を使用してファイルの最終更新時間を取得します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> timestamp = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">Date</span>(timestamp)); <span class="hljs-comment">// Date オブジェクト</span></code></pre>
+        <h3>size 属性</h3>
+        <p><code>file()</code> メソッドでファイルサイズを取得：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// ファイルサイズ（バイト）</span></code></pre>
+        <h2>fetch を使ってファイルを取得する</h2>
+        <p>ハンドルを使用する以外にも、ファイルを書き込んだ後、ブラウザの <code>fetch</code> API を使って URL 経由でファイルの内容を取得できます：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">const</span> someText = <span class="hljs-string">"Write some text "</span> + <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">random</span>();
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(someText);
+
+<span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">300</span>));
+
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$my-app/file1.txt"</span>).<span class="hljs-title function_">then</span>(<span class="hljs-function">(<span class="hljs-params">e</span>) =&gt;</span> e.<span class="hljs-title function_">text</span>());</code></pre>
+        <h3>HTMLファイルをプレビュー</h3>
+        <p>HTMLファイルに書き込んだ場合、ブラウザで直接プレビューできます：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> htmlFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/index.html"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> htmlFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"&lt;html&gt;&lt;body&gt;&lt;h1&gt;Hello World&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;"</span>);
+
+<span class="hljs-comment">// ブラウザで /$my-app/index.html を開くとプレビューできます（$ プレフィックスを忘れずに）</span></code></pre>
+        <h2>ファイルを削除</h2>
+        <p><code>remove()</code> メソッドを使用してファイルを削除します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
+
+<span class="hljs-keyword">const</span> fileExists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>);
+<span class="hljs-comment">// fileExists === null はファイルが削除されたことを意味します</span></code></pre>
+        <h2>完全な例</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// ファイルを作成して書き込む</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"This is a test file."</span>);
+
+<span class="hljs-comment">// ファイルを読み込む</span>
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "This is a test file."</span>
+
+<span class="hljs-comment">// ファイル情報を取得</span>
+<span class="hljs-keyword">const</span> fileInfo = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`ファイル名: <span class="hljs-subst">${fileInfo.name}</span>, サイズ: <span class="hljs-subst">${fileInfo.size}</span>`</span>);
+
+<span class="hljs-comment">// 最終更新日時を取得</span>
+<span class="hljs-keyword">const</span> modified = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`最終更新: <span class="hljs-subst">${<span class="hljs-keyword">new</span> <span class="hljs-built_in">Date</span>(modified)}</span>`</span>);
+
+<span class="hljs-comment">// ファイルを削除</span>
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
+<span class="hljs-keyword">const</span> exists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(exists); <span class="hljs-comment">// null</span></code></pre>
+        <h2>次章</h2>
+        <p><a href="./directory-operations.html" olink="">ディレクトリ操作</a>を学び、ディレクトリを走査・管理する方法を理解します。</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

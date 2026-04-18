@@ -154,6 +154,130 @@ const dir = await get("my-app/path/to/dir", { create: "dir" });
 
 ---
 
+<!-- handle-comparison.html -->
+
+# 文件句柄比较
+
+本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。
+
+## 获取父目录
+
+使用 `parent` 属性获取文件的父目录：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const fileParentDir = await testFile.parent;
+
+const isSame = await fileParentDir.isSame(testDir);
+// isSame === true
+```
+
+## 获取根目录
+
+使用 `root` 属性获取文件或目录所属的根目录：
+
+```javascript
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const root = testFile.root;
+
+const isSame = await root.isSame(await get("my-app"));
+// isSame === true
+```
+
+## 判断句柄是否相同
+
+使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
+
+```javascript
+const dir = await get("my-app/path/to");
+await dir.get("file.txt", { create: "file" });
+await dir.get("other.txt", { create: "file" });
+
+const file1 = await dir.get("file.txt");
+const file2 = await dir.get("file.txt");
+const file3 = await dir.get("other.txt");
+
+const result1 = await file1.isSame(file2);
+// result1 === true
+
+const result2 = await file1.isSame(file3);
+// result2 === false
+```
+
+## 获取文件大小
+
+使用 `size()` 方法获取文件的大小：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("Hello, World!");
+
+const fileSize = await file.size();
+console.log(fileSize); // 13 (字节)
+```
+
+对于目录，`size()` 返回 `null`。
+
+## 获取唯一标识符
+
+使用 `id()` 方法获取文件或目录的唯一标识符：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+const id = await file.id();
+console.log(id); // 唯一的哈希值字符串
+```
+
+## 句柄属性
+
+| 属性 | 描述 | 返回值 |
+|------|------|--------|
+| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
+| `name` | 文件或目录名称 | 字符串 |
+| `path` | 完整路径 | 字符串 |
+| `parent` | 父目录 | DirHandle |
+| `root` | 根目录 | DirHandle |
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const deepDir = await get("my-app/a/b/c");
+const deepFile = await deepDir.get("deep.txt", { create: "file" });
+await deepFile.write("Hello!");
+
+// 获取父目录
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
+
+// 获取根目录
+const root = deepFile.root;
+console.log(root.path); // "my-app"
+
+// 获取文件大小
+const size = await deepFile.size();
+console.log(size); // 6
+
+// 获取唯一标识符
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// 通过不同路径获取同一文件
+const file2 = await deepDir.get("deep.txt");
+console.log(await deepFile.isSame(file2)); // true
+```
+
+## 下一章
+
+学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
+
+---
+
 <!-- directory-operations.html -->
 
 # 目录操作
@@ -329,6 +453,71 @@ console.log(allFiles.map(f => f.path));
 ## 下一章
 
 学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
+
+---
+
+<!-- install.html -->
+
+# 安装
+
+NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
+
+## 前提条件
+
+- 一个静态服务器（如 http-server、live-server、nginx 等）
+- 浏览器支持 Service Worker
+- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
+
+## 步骤
+
+### 1. 创建 Service Worker 文件
+
+在项目根目录下创建 `sw.js` 文件，填入以下内容：
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. 创建入口 HTML
+
+在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- 加载 nos-version 组件 -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- 使用 nos-version 组件 -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // 等待安装完成
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core 安装完成，可以开始使用了");
+        // 这里可以使用 noneos-core
+      });
+    </script>
+  </body>
+</html>
+```
+
+## 安装状态
+
+`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
+
+- **未安装**：显示 "Install NoneOS Core" 按钮
+- **安装中**：显示安装进度条
+- **已安装**：显示当前版本号
+- **可升级**：显示升级按钮
+
+当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
 
 ---
 
@@ -510,192 +699,136 @@ console.log(exists); // null
 
 ---
 
-<!-- handle-comparison.html -->
+<!-- sw-advanced.html -->
 
-# 文件句柄比较
+# sw.js 配置技巧
 
-本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。
+## 版本号控制与缓存更新
 
-## 获取父目录
-
-使用 `parent` 属性获取文件的父目录：
+在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
 
 ```javascript
-import { get } from "/nos/fs/main.js";
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
 
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const isSame = await fileParentDir.isSame(testDir);
-// isSame === true
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 ```
 
-## 获取根目录
+在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
 
-使用 `root` 属性获取文件或目录所属的根目录：
+## 官方工具
 
-```javascript
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const root = testFile.root;
+使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
 
-const isSame = await root.isSame(await get("my-app"));
-// isSame === true
-```
+- **ai** - AI 模型管理，包括聊天、配置、密钥管理
+- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
+- **file-explore** - 文件浏览器
+- **file-list** - 文件列表视图和句柄管理
+- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
 
-## 判断句柄是否相同
+这些工具位于 `nos-tool` 目录下，可按需引入和使用。
 
-使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：
-
-```javascript
-const dir = await get("my-app/path/to");
-await dir.get("file.txt", { create: "file" });
-await dir.get("other.txt", { create: "file" });
-
-const file1 = await dir.get("file.txt");
-const file2 = await dir.get("file.txt");
-const file3 = await dir.get("other.txt");
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## 获取文件大小
-
-使用 `size()` 方法获取文件的大小：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("Hello, World!");
-
-const fileSize = await file.size();
-console.log(fileSize); // 13 (字节)
-```
-
-对于目录，`size()` 返回 `null`。
-
-## 获取唯一标识符
-
-使用 `id()` 方法获取文件或目录的唯一标识符：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-const id = await file.id();
-console.log(id); // 唯一的哈希值字符串
-```
-
-## 句柄属性
-
-| 属性 | 描述 | 返回值 |
-|------|------|--------|
-| `kind` | 句柄类型 | `"file"` 或 `"dir"` |
-| `name` | 文件或目录名称 | 字符串 |
-| `path` | 完整路径 | 字符串 |
-| `parent` | 父目录 | DirHandle |
-| `root` | 根目录 | DirHandle |
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const deepDir = await get("my-app/a/b/c");
-const deepFile = await deepDir.get("deep.txt", { create: "file" });
-await deepFile.write("Hello!");
-
-// 获取父目录
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// 获取根目录
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// 获取文件大小
-const size = await deepFile.size();
-console.log(size); // 6
-
-// 获取唯一标识符
-const id = await deepFile.id();
-console.log(id); // "abc123..."
-
-// 通过不同路径获取同一文件
-const file2 = await deepDir.get("deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## 下一章
-
-学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。
 
 ---
 
-<!-- install.html -->
+<!-- ai-call.html -->
 
-# 安装
+# 调用 AI 模型
 
-NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
-
-## 前提条件
-
-- 一个静态服务器（如 http-server、live-server、nginx 等）
-- 浏览器支持 Service Worker
-- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
-
-## 步骤
-
-### 1. 创建 Service Worker 文件
-
-在项目根目录下创建 `sw.js` 文件，填入以下内容：
+## 引入 chat 模块
 
 ```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
+import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
 ```
 
-### 2. 创建入口 HTML
+## 基本用法
 
-在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
+`chat` 函数接受消息数组和选项对象：
 
-```html
-<!DOCTYPE html>
-<html lang="zh">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- 加载 nos-version 组件 -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- 使用 nos-version 组件 -->
-    <nos-version auto-install></nos-version>
+```javascript
+const messages = [
+  { role: "user", content: "你好" }
+];
 
-    <script type="module">
-      // 等待安装完成
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core 安装完成，可以开始使用了");
-        // 这里可以使用 noneos-core
-      });
-    </script>
-  </body>
-</html>
+const response = await chat(messages, {
+  provider: "deepseek",  // 可选，指定提供商
+  callback: (chunk) => {  // 可选，流式回调
+    console.log(chunk);
+  },
+  maxContextLength: 8192  // 可选，最大上下文长度
+});
 ```
 
-## 安装状态
+## 支持的提供商
 
-`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
+- **deepseek** - DeepSeek
+- **kimi** - Kimi (Moonshot)
+- **minimax** - MiniMax
+- **glm** - 智谱 GLM
 
-- **未安装**：显示 "Install NoneOS Core" 按钮
-- **安装中**：显示安装进度条
-- **已安装**：显示当前版本号
-- **可升级**：显示升级按钮
+如果不指定 `provider`，系统会自动选择一个可用的 API Key。
 
-当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
+## 消息格式
+
+```javascript
+const messages = [
+  { role: "system", content: "你是一个有用的助手" },
+  { role: "user", content: "你好" },
+  { role: "assistant", content: "你好，有什么可以帮助你的吗？" },
+  { role: "user", content: "解释一下什么是 AI" }
+];
+```
+
+## 并发控制
+
+NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。
+
+### 获取当前状态
+
+```javascript
+const status = getStatus();
+// 返回各 Key 的并发使用情况
+```
+
+### 订阅状态变化
+
+```javascript
+subscribe((newStatus) => {
+  console.log("状态更新:", newStatus);
+});
+```
+
+## 获取可用提供商
+
+```javascript
+const providers = await getAvailableProviders();
+console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
+```
+
+## 错误处理
+
+```javascript
+try {
+  const response = await chat(messages);
+} catch (error) {
+  console.error(error.message);
+}
+```
+
+常见错误：
+- `no_key` - 没有配置任何 API Key
+- `no_provider_key` - 没有指定提供商的 API Key
+- `concurrency_full` - 该 Key 的并发数已满
+- `Unsupported provider` - 不支持的提供商
+
 
 ---
 
@@ -817,99 +950,6 @@ console.log(original); // null
 
 ---
 
-<!-- ai-call.html -->
-
-# 调用 AI 模型
-
-## 引入 chat 模块
-
-```javascript
-import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
-```
-
-## 基本用法
-
-`chat` 函数接受消息数组和选项对象：
-
-```javascript
-const messages = [
-  { role: "user", content: "你好" }
-];
-
-const response = await chat(messages, {
-  provider: "deepseek",  // 可选，指定提供商
-  callback: (chunk) => {  // 可选，流式回调
-    console.log(chunk);
-  },
-  maxContextLength: 8192  // 可选，最大上下文长度
-});
-```
-
-## 支持的提供商
-
-- **deepseek** - DeepSeek
-- **kimi** - Kimi (Moonshot)
-- **minimax** - MiniMax
-- **glm** - 智谱 GLM
-
-如果不指定 `provider`，系统会自动选择一个可用的 API Key。
-
-## 消息格式
-
-```javascript
-const messages = [
-  { role: "system", content: "你是一个有用的助手" },
-  { role: "user", content: "你好" },
-  { role: "assistant", content: "你好，有什么可以帮助你的吗？" },
-  { role: "user", content: "解释一下什么是 AI" }
-];
-```
-
-## 并发控制
-
-NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。
-
-### 获取当前状态
-
-```javascript
-const status = getStatus();
-// 返回各 Key 的并发使用情况
-```
-
-### 订阅状态变化
-
-```javascript
-subscribe((newStatus) => {
-  console.log("状态更新:", newStatus);
-});
-```
-
-## 获取可用提供商
-
-```javascript
-const providers = await getAvailableProviders();
-console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
-```
-
-## 错误处理
-
-```javascript
-try {
-  const response = await chat(messages);
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-常见错误：
-- `no_key` - 没有配置任何 API Key
-- `no_provider_key` - 没有指定提供商的 API Key
-- `concurrency_full` - 该 Key 的并发数已满
-- `Unsupported provider` - 不支持的提供商
-
-
----
-
 <!-- ai-add.html -->
 
 # 添加 AI 模型
@@ -1000,43 +1040,3 @@ if (keyItem) {
 | `concurrency` | number  | 最大并发数                         |
 | `disabled`    | boolean | 是否禁用                           |
 
-
-
----
-
-<!-- sw-advanced.html -->
-
-# sw.js 配置技巧
-
-## 版本号控制与缓存更新
-
-在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
-
-## 官方工具
-
-使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
-
-- **ai** - AI 模型管理，包括聊天、配置、密钥管理
-- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
-- **file-explore** - 文件浏览器
-- **file-list** - 文件列表视图和句柄管理
-- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
-
-这些工具位于 `nos-tool` 目录下，可按需引入和使用。

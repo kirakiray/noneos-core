@@ -1,0 +1,24 @@
+- name: インストール
+  url: ./install.md
+- name: 基本操作
+  content:
+    - name: 概要
+      url: ./overview.md
+    - name: ファイル操作
+      url: ./file-operations.md
+    - name: ディレクトリ操作
+      url: ./directory-operations.md
+    - name: ファイルの移動とコピー
+      url: ./move-and-copy.md
+    - name: ファイルハンドルの比較
+      url: ./handle-comparison.md
+    - name: ファイル変更の監視
+      url: ./file-observation.md
+    - name: sw.js 設定のコツ
+      url: ./sw-advanced.md
+- name: AI 操作
+  content:
+    - name: モデルの追加
+      url: ./ai-add.md
+    - name: モデルの呼び出し
+      url: ./ai-call.md

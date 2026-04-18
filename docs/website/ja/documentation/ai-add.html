@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIモデルの追加</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>AIモデルの追加</h1>
+        <h2>AIモデル管理エントリー</h2>
+        <p>デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、<code>o-page</code>コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。</p>
+        <h3>相対パスを使用する</h3>
+        <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
+        <p>これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。</p>
+        <h2>jsでモデルを追加</h2>
+        <p>あなたは <code>o-page</code> コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。</p>
+        <h3>ストレージモジュールの導入</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { storage } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/gh/kirakiray/ever-cache/src/main.js&quot;</span>;</code></pre>
+        <h3>API Key を保存する</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> newKey = {
+  <span class="hljs-attr">id</span>: <span class="hljs-string">`<span class="hljs-subst">${<span class="hljs-built_in">Math</span>.random().toString(<span class="hljs-number">36</span>).slice(<span class="hljs-number">2</span>, <span class="hljs-number">11</span>)}</span>`</span>,
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// deepseek | kimi | minimax | glm</span>
+  <span class="hljs-attr">model</span>: <span class="hljs-string">&quot;deepseek-chat&quot;</span>,
+  <span class="hljs-attr">key</span>: <span class="hljs-string">&quot;your-api-key-here&quot;</span>,
+  <span class="hljs-attr">concurrency</span>: <span class="hljs-number">1</span>,  <span class="hljs-comment">// 同時実行数</span>
+};
+
+<span class="hljs-comment">// 既存のキーを取得</span>
+<span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+
+<span class="hljs-comment">// 新しいキーを追加</span>
+aiKeys.<span class="hljs-title function_">push</span>(newKey);
+
+<span class="hljs-comment">// 保存</span>
+<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);</code></pre>
+        <h3>各プロバイダーの利用可能なモデル</h3>
+        <p>利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。</p>
+        <h3>保存済みのすべてのキーを取得する</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];</code></pre>
+        <h3>APIキーの削除</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+<span class="hljs-keyword">const</span> index = aiKeys.<span class="hljs-title function_">findIndex</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
+<span class="hljs-keyword">if</span> (index &gt; -<span class="hljs-number">1</span>) {
+  aiKeys.<span class="hljs-title function_">splice</span>(index, <span class="hljs-number">1</span>);
+  <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
+}</code></pre>
+        <h3>Key の同時実行数を更新する</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+<span class="hljs-keyword">const</span> keyItem = aiKeys.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
+<span class="hljs-keyword">if</span> (keyItem) {
+  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// 同時実行数を変更</span>
+  <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
+}</code></pre>
+        <h3>Key オブジェクト構造</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>属性</th>
+              <th>类型</th>
+              <th>説明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>id</code></td>
+              <td>string</td>
+              <td>一意の識別子</td>
+            </tr>
+            <tr>
+              <td><code>provider</code></td>
+              <td>string</td>
+              <td>プロバイダー (deepseek/kimi/minimax/glm)</td>
+            </tr>
+            <tr>
+              <td><code>model</code></td>
+              <td>string</td>
+              <td>モデル名</td>
+            </tr>
+            <tr>
+              <td><code>key</code></td>
+              <td>string</td>
+              <td>API Key</td>
+            </tr>
+            <tr>
+              <td><code>concurrency</code></td>
+              <td>number</td>
+              <td>最大同時実行数</td>
+            </tr>
+            <tr>
+              <td><code>disabled</code></td>
+              <td>boolean</td>
+              <td>無効化されているかどうか</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

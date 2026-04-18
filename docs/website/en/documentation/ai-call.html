@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Call AI Model</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>Call AI Model</h1>
+        <h2>Introducing the chat module</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { chat, subscribe, getStatus, getAvailableProviders } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/ai/chat.js&quot;</span>;</code></pre>
+        <h2>Basic Usage</h2>
+        <p>The <code>chat</code> function accepts a message array and an options object:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;Hello&quot;</span> }
+];
+
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages, {
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// optional, specify provider</span>
+  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// optional, streaming callback</span>
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(chunk);
+  },
+  <span class="hljs-attr">maxContextLength</span>: <span class="hljs-number">8192</span>  <span class="hljs-comment">// optional, maximum context length</span>
+});</code></pre>
+        <h2>Supported Providers</h2>
+        <ul>
+          <li><strong>deepseek</strong> - DeepSeek</li>
+          <li><strong>kimi</strong> - Kimi (Moonshot)</li>
+          <li><strong>minimax</strong> - MiniMax</li>
+          <li><strong>glm</strong> - Zhipu GLM</li>
+        </ul>
+        <p>If <code>provider</code> is not specified, the system will automatically select an available API Key.</p>
+        <h2>Message Format</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;system&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;You are a helpful assistant&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;Hello&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;Hello, how can I help you?&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;Explain what AI is&quot;</span> }
+];</code></pre>
+        <h2>Concurrency Control</h2>
+        <p>The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.</p>
+        <h3>Get Current Status</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> status = <span class="hljs-title function_">getStatus</span>();
+<span class="hljs-comment">// Returns the concurrent usage of each key</span></code></pre>
+        <h3>Subscription Status Changes</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-title function_">subscribe</span>(<span class="hljs-function">(<span class="hljs-params">newStatus</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Status updated:&quot;</span>, newStatus);
+});</code></pre>
+        <h2>Get Available Providers</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> providers = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getAvailableProviders</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(providers); <span class="hljs-comment">// [&quot;deepseek&quot;, &quot;kimi&quot;, &quot;glm&quot;, &quot;minimax&quot;]</span></code></pre>
+        <h2>Error Handling</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages);
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(error.<span class="hljs-property">message</span>);
+}</code></pre>
+        <p>Common Mistakes:- <code>no_key</code> - No API Key configured</p>
+        <ul>
+          <li><code>no_provider_key</code> - No provider&#39;s API Key specified</li>
+          <li><code>concurrency_full</code> - The concurrency limit for this Key has been reached</li>
+          <li><code>Unsupported provider</code> - Unsupported provider</li>
+        </ul>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>
