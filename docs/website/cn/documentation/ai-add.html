@@ -73,18 +73,95 @@
       <article class="markdown-body">
         <h1>添加 AI 模型</h1>
         <h2>AI 模型管理入口</h2>
-        <p>在已经部署过的 NoneOS 系统内，基于系统开发的应用可以通过 <code>o-page</code> 组件引用 AI 模型的密钥管理页面来添加 AI 模型。</p>
+        <p>在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 <code>o-page</code> 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。</p>
         <h3>方式一：使用完整路径</h3>
         <p>如果应用未启用 <code>useNosTool</code> 模式，可以使用完整路径引入：</p>
         <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;https://core.noneos.com/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
         <h3>方式二：使用相对路径</h3>
         <p>如果 <code>sw.js</code> 中已经启用 <code>useNosTool</code> 模式，则可以直接使用相对路径：</p>
         <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
-        <p>启用方式是在 <code>sw.js</code> 中添加：</p>
-        <pre><code class="hljs language-javascript">globalThis.<span class="hljs-property">SERVER_OPTIONS</span> = {
-  <span class="hljs-attr">useNosTool</span>: <span class="hljs-literal">true</span>,
-};</code></pre>
         <p>这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。</p>
+        <h2>js添加模型</h2>
+        <p>你可以不使用 <code>o-page</code> 组件，通过 JavaScript 代码直接管理 AI 模型。</p>
+        <h3>引入存储模块</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { storage } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/gh/kirakiray/ever-cache/src/main.js&quot;</span>;</code></pre>
+        <h3>保存 API Key</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> newKey = {
+  <span class="hljs-attr">id</span>: <span class="hljs-string">`<span class="hljs-subst">${<span class="hljs-built_in">Math</span>.random().toString(<span class="hljs-number">36</span>).slice(<span class="hljs-number">2</span>, <span class="hljs-number">11</span>)}</span>`</span>,
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// deepseek | kimi | minimax | glm</span>
+  <span class="hljs-attr">model</span>: <span class="hljs-string">&quot;deepseek-chat&quot;</span>,
+  <span class="hljs-attr">key</span>: <span class="hljs-string">&quot;your-api-key-here&quot;</span>,
+  <span class="hljs-attr">concurrency</span>: <span class="hljs-number">1</span>,  <span class="hljs-comment">// 并发数</span>
+};
+
+<span class="hljs-comment">// 获取现有 keys</span>
+<span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+
+<span class="hljs-comment">// 添加新 key</span>
+aiKeys.<span class="hljs-title function_">push</span>(newKey);
+
+<span class="hljs-comment">// 保存</span>
+<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);</code></pre>
+        <h3>各提供商的可用模型</h3>
+        <p>可用模型参考各提供商的文档。</p>
+        <h3>获取所有已保存的 Keys</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];</code></pre>
+        <h3>删除 API Key</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+<span class="hljs-keyword">const</span> index = aiKeys.<span class="hljs-title function_">findIndex</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
+<span class="hljs-keyword">if</span> (index &gt; -<span class="hljs-number">1</span>) {
+  aiKeys.<span class="hljs-title function_">splice</span>(index, <span class="hljs-number">1</span>);
+  <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
+}</code></pre>
+        <h3>更新 Key 的并发数</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
+<span class="hljs-keyword">const</span> keyItem = aiKeys.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
+<span class="hljs-keyword">if</span> (keyItem) {
+  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// 修改并发数</span>
+  <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
+}</code></pre>
+        <h3>Key 对象结构</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>属性</th>
+              <th>类型</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>id</code></td>
+              <td>string</td>
+              <td>唯一标识符</td>
+            </tr>
+            <tr>
+              <td><code>provider</code></td>
+              <td>string</td>
+              <td>提供商 (deepseek/kimi/minimax/glm)</td>
+            </tr>
+            <tr>
+              <td><code>model</code></td>
+              <td>string</td>
+              <td>模型名称</td>
+            </tr>
+            <tr>
+              <td><code>key</code></td>
+              <td>string</td>
+              <td>API Key</td>
+            </tr>
+            <tr>
+              <td><code>concurrency</code></td>
+              <td>number</td>
+              <td>最大并发数</td>
+            </tr>
+            <tr>
+              <td><code>disabled</code></td>
+              <td>boolean</td>
+              <td>是否禁用</td>
+            </tr>
+          </tbody>
+        </table>
       </article>
       <div class="footer"></div>
       <script>
