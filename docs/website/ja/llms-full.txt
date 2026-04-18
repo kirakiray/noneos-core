@@ -1,3 +1,279 @@
+<!-- file-observation.html -->
+
+# ファイル変更監視
+
+このドキュメントでは、`observe` メソッドを使用してファイルやディレクトリの変更イベントを監視する方法について説明します。
+
+## 基本的な使い方
+
+`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app");
+
+const events = [];
+const unobserve = await dir.observe((event) => {
+  console.log("ファイル変更イベントを受信しました:", event);
+  events.push(event);
+});
+
+// ファイルを作成
+const file = await dir.get("test.txt", { create: "file" });
+await file.write("Hello");
+
+// ファイルを削除
+await file.remove();
+
+// 監視を解除
+unobserve();
+```
+
+ファイルとディレクトリの両方とも変化を監視できます。たとえば、単一のファイルを監視するには：
+
+```javascript
+const file = await get("my-app/test.txt", { create: "file" });
+
+const unobserve = await file.observe((event) => {
+  console.log("ファイルが変更されました:", event.type);
+});
+
+await file.write("new content");
+
+unobserve();
+```
+
+## observe 戻り値
+
+`observe()` は Promise を返し、これは resolve すると監視を解除する関数となる。この関数を呼び出すとリスニングを停止できる：
+
+```javascript
+const unobserve = await dir.observe((event) => {
+  // イベントを処理
+});
+
+// 後で監視を解除
+unobserve();
+```
+
+## イベントオブジェクト
+
+観測コールバックが受信するイベントオブジェクトには以下の属性が含まれます：
+
+| 属性 | 説明 |
+|------|------|
+| `type` | イベントタイプ。例: `"create"`, `"remove"`, `"write"` |
+| `path` | 変更が発生したファイルパス |## 完全な例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app");
+
+console.log("ファイル変更監視テストを開始します");
+
+const events = [];
+const unobserve = await dir.observe((event) => {
+  console.log("ファイル変更:", event.type, event.path);
+  events.push(event);
+});
+
+// いくつかのファイル操作を実行
+await dir.get("file1.txt", { create: "file" });
+await (await dir.get("file1.txt")).write("content");
+
+await new Promise((resolve) => setTimeout(resolve, 100));
+
+await (await dir.get("file1.txt")).remove();
+
+await new Promise((resolve) => setTimeout(resolve, 100));
+
+unobserve();
+
+console.log(`合計 ${events.length} 個のイベントを受信しました`);
+```
+
+## 注意事項
+
+1. オブザーバーは作成後に監視を開始し、それ以前のファイル操作はキャプチャされません
+2. 監視をキャンセルすると、新たに発生するファイル変更は記録されません
+3. ファイル変更イベントは非同期でトリガーされ、一定の遅延が発生する可能性があります
+
+---
+
+<!-- overview.html -->
+
+# 概要
+
+ファイルシステム（FileSystem）は、ブラウザベースの仮想ファイルシステムであり、完全なファイルおよびディレクトリ操作APIを提供します。
+
+## 初期化
+
+ファイルシステムを使用する前に、まずルートディレクトリを初期化する必要があります：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+await init("my-app");
+```
+
+以降のチュートリアルは、`my-app` の初期化が完了していることを前提としています。
+
+## グローバル get メソッド
+
+グローバルな `get` メソッドを使用して、ファイル/ディレクトリハンドルを取得または作成します：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
+```
+
+パス形式：`ルートディレクトリ名/ファイルパス`、先頭に `/` を使用しない。
+
+## 核心概念
+
+### FileHandle と DirHandle
+
+- **FileHandle**：ファイルを表し、ファイルの読み書き操作を提供する
+- **DirHandle**：ディレクトリを表し、ディレクトリの走査と子項目の操作を提供する
+
+### 基本属性
+
+- `kind`：`"file"` または `"dir"` を返し、ハンドルのタイプを示します
+- `name`：ファイルまたはディレクトリの名前を返します
+- `path`：ファイルまたはディレクトリの完全なパスを返します
+
+## 次章
+
+[ファイル操作](./file-operations.md)を学び、ファイルの読み書きや削除の方法を理解します。
+
+---
+
+<!-- handle-comparison.html -->
+
+# ファイルハンドルの比較
+
+このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、および一意識別子の取得方法について説明します。
+
+## 親ディレクトリの取得
+
+`parent` 属性を使用してファイルの親ディレクトリを取得します：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const fileParentDir = await testFile.parent;
+
+const isSame = await fileParentDir.isSame(testDir);
+// isSame === true
+```
+
+## ルートディレクトリの取得
+
+`root` 属性を使用してファイルまたはディレクトリが属するルートディレクトリを取得する：
+
+```javascript
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const root = testFile.root;
+
+const isSame = await root.isSame(await get("my-app"));
+// isSame === true
+```
+
+## ハンドルが同一かどうかを判定する
+
+`isSame()` メソッドを使用して、2つのハンドルが同じファイルまたはディレクトリを指しているかどうかを判断します：
+
+```javascript
+const dir = await get("my-app/path/to");
+await dir.get("file.txt", { create: "file" });
+await dir.get("other.txt", { create: "file" });
+
+const file1 = await dir.get("file.txt");
+const file2 = await dir.get("file.txt");
+const file3 = await dir.get("other.txt");
+
+const result1 = await file1.isSame(file2);
+// result1 === true
+
+const result2 = await file1.isSame(file3);
+// result2 === false
+```
+
+## ファイルサイズを取得する
+
+`size()` メソッドを使用してファイルのサイズを取得します：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("Hello, World!");
+
+const fileSize = await file.size();
+console.log(fileSize); // 13 (バイト)
+```
+
+ディレクトリの場合、`size()` は `null` を返します。
+
+## 一意の識別子を取得する
+
+`id()` メソッドを使用してファイルまたはディレクトリの一意識別子を取得します：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+const id = await file.id();
+console.log(id); // 一意のハッシュ値文字列
+```
+
+## ハンドル属性
+
+| 属性 | 説明 | 戻り値 |
+|------|------|--------|
+| `kind` | ハンドルタイプ | `"file"` または `"dir"` |
+| `name` | ファイルまたはディレクトリ名 | 文字列 |
+| `path` | フルパス | 文字列 |
+| `parent` | 親ディレクトリ | DirHandle |
+| `root` | ルートディレクトリ | DirHandle |## 完全な例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const deepDir = await get("my-app/a/b/c");
+const deepFile = await deepDir.get("deep.txt", { create: "file" });
+await deepFile.write("Hello!");
+
+// 親ディレクトリを取得
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
+
+// ルートディレクトリを取得
+const root = deepFile.root;
+console.log(root.path); // "my-app"
+
+// ファイルサイズを取得
+const size = await deepFile.size();
+console.log(size); // 6
+
+// 一意識別子を取得
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// 異なるパスで同じファイルを取得
+const file2 = await deepDir.get("deep.txt");
+console.log(await deepFile.isSame(file2)); // true
+```
+
+## 次章
+
+[ファイル変更の監視](./file-observation.md) を学習し、ファイル変更イベントの監視方法を理解します。
+
+---
+
 <!-- directory-operations.html -->
 
 # ディレクトリ操作
@@ -176,531 +452,6 @@ console.log(allFiles.map(f => f.path));
 
 ---
 
-<!-- handle-comparison.html -->
-
-# ファイルハンドルの比較
-
-このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、および一意識別子の取得方法について説明します。
-
-## 親ディレクトリの取得
-
-`parent` 属性を使用してファイルの親ディレクトリを取得します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const isSame = await fileParentDir.isSame(testDir);
-// isSame === true
-```
-
-## ルートディレクトリの取得
-
-`root` 属性を使用してファイルまたはディレクトリが属するルートディレクトリを取得する：
-
-```javascript
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const root = testFile.root;
-
-const isSame = await root.isSame(await get("my-app"));
-// isSame === true
-```
-
-## ハンドルが同一かどうかを判定する
-
-`isSame()` メソッドを使用して、2つのハンドルが同じファイルまたはディレクトリを指しているかどうかを判断します：
-
-```javascript
-const dir = await get("my-app/path/to");
-await dir.get("file.txt", { create: "file" });
-await dir.get("other.txt", { create: "file" });
-
-const file1 = await dir.get("file.txt");
-const file2 = await dir.get("file.txt");
-const file3 = await dir.get("other.txt");
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## ファイルサイズを取得する
-
-`size()` メソッドを使用してファイルのサイズを取得します：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("Hello, World!");
-
-const fileSize = await file.size();
-console.log(fileSize); // 13 (バイト)
-```
-
-ディレクトリの場合、`size()` は `null` を返します。
-
-## 一意の識別子を取得する
-
-`id()` メソッドを使用してファイルまたはディレクトリの一意識別子を取得します：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-const id = await file.id();
-console.log(id); // 一意のハッシュ値文字列
-```
-
-## ハンドル属性
-
-| 属性 | 説明 | 戻り値 |
-|------|------|--------|
-| `kind` | ハンドルタイプ | `"file"` または `"dir"` |
-| `name` | ファイルまたはディレクトリ名 | 文字列 |
-| `path` | フルパス | 文字列 |
-| `parent` | 親ディレクトリ | DirHandle |
-| `root` | ルートディレクトリ | DirHandle |## 完全な例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const deepDir = await get("my-app/a/b/c");
-const deepFile = await deepDir.get("deep.txt", { create: "file" });
-await deepFile.write("Hello!");
-
-// 親ディレクトリを取得
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// ルートディレクトリを取得
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// ファイルサイズを取得
-const size = await deepFile.size();
-console.log(size); // 6
-
-// 一意識別子を取得
-const id = await deepFile.id();
-console.log(id); // "abc123..."
-
-// 異なるパスで同じファイルを取得
-const file2 = await deepDir.get("deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## 次章
-
-[ファイル変更の監視](./file-observation.md) を学習し、ファイル変更イベントの監視方法を理解します。
-
----
-
-<!-- file-observation.html -->
-
-# ファイル変更監視
-
-このドキュメントでは、`observe` メソッドを使用してファイルやディレクトリの変更イベントを監視する方法について説明します。
-
-## 基本的な使い方
-
-`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app");
-
-const events = [];
-const unobserve = await dir.observe((event) => {
-  console.log("ファイル変更イベントを受信しました:", event);
-  events.push(event);
-});
-
-// ファイルを作成
-const file = await dir.get("test.txt", { create: "file" });
-await file.write("Hello");
-
-// ファイルを削除
-await file.remove();
-
-// 監視を解除
-unobserve();
-```
-
-ファイルとディレクトリの両方とも変化を監視できます。たとえば、単一のファイルを監視するには：
-
-```javascript
-const file = await get("my-app/test.txt", { create: "file" });
-
-const unobserve = await file.observe((event) => {
-  console.log("ファイルが変更されました:", event.type);
-});
-
-await file.write("new content");
-
-unobserve();
-```
-
-## observe 戻り値
-
-`observe()` は Promise を返し、これは resolve すると監視を解除する関数となる。この関数を呼び出すとリスニングを停止できる：
-
-```javascript
-const unobserve = await dir.observe((event) => {
-  // イベントを処理
-});
-
-// 後で監視を解除
-unobserve();
-```
-
-## イベントオブジェクト
-
-観測コールバックが受信するイベントオブジェクトには以下の属性が含まれます：
-
-| 属性 | 説明 |
-|------|------|
-| `type` | イベントタイプ。例: `"create"`, `"remove"`, `"write"` |
-| `path` | 変更が発生したファイルパス |## 完全な例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app");
-
-console.log("ファイル変更監視テストを開始します");
-
-const events = [];
-const unobserve = await dir.observe((event) => {
-  console.log("ファイル変更:", event.type, event.path);
-  events.push(event);
-});
-
-// いくつかのファイル操作を実行
-await dir.get("file1.txt", { create: "file" });
-await (await dir.get("file1.txt")).write("content");
-
-await new Promise((resolve) => setTimeout(resolve, 100));
-
-await (await dir.get("file1.txt")).remove();
-
-await new Promise((resolve) => setTimeout(resolve, 100));
-
-unobserve();
-
-console.log(`合計 ${events.length} 個のイベントを受信しました`);
-```
-
-## 注意事項
-
-1. オブザーバーは作成後に監視を開始し、それ以前のファイル操作はキャプチャされません
-2. 監視をキャンセルすると、新たに発生するファイル変更は記録されません
-3. ファイル変更イベントは非同期でトリガーされ、一定の遅延が発生する可能性があります
-
----
-
-<!-- overview.html -->
-
-# 概要
-
-ファイルシステム（FileSystem）は、ブラウザベースの仮想ファイルシステムであり、完全なファイルおよびディレクトリ操作APIを提供します。
-
-## 初期化
-
-ファイルシステムを使用する前に、まずルートディレクトリを初期化する必要があります：
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-await init("my-app");
-```
-
-以降のチュートリアルは、`my-app` の初期化が完了していることを前提としています。
-
-## グローバル get メソッド
-
-グローバルな `get` メソッドを使用して、ファイル/ディレクトリハンドルを取得または作成します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/hello.txt", { create: "file" });
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-パス形式：`ルートディレクトリ名/ファイルパス`、先頭に `/` を使用しない。
-
-## 核心概念
-
-### FileHandle と DirHandle
-
-- **FileHandle**：ファイルを表し、ファイルの読み書き操作を提供する
-- **DirHandle**：ディレクトリを表し、ディレクトリの走査と子項目の操作を提供する
-
-### 基本属性
-
-- `kind`：`"file"` または `"dir"` を返し、ハンドルのタイプを示します
-- `name`：ファイルまたはディレクトリの名前を返します
-- `path`：ファイルまたはディレクトリの完全なパスを返します
-
-## 次章
-
-[ファイル操作](./file-operations.md)を学び、ファイルの読み書きや削除の方法を理解します。
-
----
-
-<!-- ai-add.html -->
-
-# AIモデルの追加
-
-## AIモデル管理エントリー
-
-デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、`o-page`コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。
-
-### 相対パスを使用する
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。
-
-## jsでモデルを追加
-
-あなたは `o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。
-
-### ストレージモジュールの導入
-
-```javascript
-import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-```
-
-### API Key を保存する
-
-```javascript
-const newKey = {
-  id: `${Math.random().toString(36).slice(2, 11)}`,
-  provider: "deepseek",  // deepseek | kimi | minimax | glm
-  model: "deepseek-chat",
-  key: "your-api-key-here",
-  concurrency: 1,  // 同時実行数
-};
-
-// 既存のキーを取得
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-
-// 新しいキーを追加
-aiKeys.push(newKey);
-
-// 保存
-await storage.setItem("ai-keys", aiKeys);
-```
-
-### 各プロバイダーの利用可能なモデル
-
-利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。
-
-### 保存済みのすべてのキーを取得する
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-```
-
-### APIキーの削除
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const index = aiKeys.findIndex((k) => k.id === "key-id");
-if (index > -1) {
-  aiKeys.splice(index, 1);
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key の同時実行数を更新する
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const keyItem = aiKeys.find((k) => k.id === "key-id");
-if (keyItem) {
-  keyItem.concurrency = 3;  // 同時実行数を変更
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key オブジェクト構造
-
-| 属性          | 类型    | 説明                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | 一意の識別子                         |
-| `provider`    | string  | プロバイダー (deepseek/kimi/minimax/glm) |
-| `model`       | string  | モデル名                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | 最大同時実行数                         |
-| `disabled`    | boolean | 無効化されているかどうか                           |
-
----
-
-<!-- sw-advanced.html -->
-
-# sw.js 設定のコツ
-
-## バージョン番号管理とキャッシュ更新
-
-新しいバージョンをリリースする際、サーバーが `max-age=0` レスポンスヘッダーを設定していたとしても、ブラウザは古いバージョンの `sw.js` ファイルをキャッシュすることがあり、アップデートがすぐに反映されない場合があります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-dist.js を引用する際に `?v=` パラメータを付け、新しいバージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使わずに新しいファイルをリクエストします。
-
-## 公式ツール
-
-`nos-tool` ディレクトリ内のツールを使用すると、NoneOS システムを簡単に管理できます。
-
-- **ai** - AI モデル管理、チャット、設定、キー管理を含む
-- **editor** - Monaco エディター統合、コードハイライト、フォーマット、AI 補完をサポート
-- **file-explore** - ファイルエクスプローラー
-- **file-list** - ファイルリストビューとハンドル管理
-- **studio** - 開発スタジオ、ファイル管理、カラーツール、テーマ編集などの機能を提供
-
-これらのツールは `nos-tool` ディレクトリにあり、必要に応じてインポートして使用できます。
-
----
-
-<!-- move-and-copy.html -->
-
-# ファイルの移動とコピー
-
-この文書では、ファイルやディレクトリの移動とコピーについて説明します。
-
-## ファイルの移動
-
-`moveTo()` メソッドを使用してファイルをターゲットディレクトリに移動します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二引数はターゲットファイル名、指定しない場合は元のファイル名を使用
-const movedFile = await sourceFile.moveTo(targetDir);
-// sourceFile.moveTo(targetDir, "source.txt") と同等
-
-const content = await movedFile.text();
-// content === "Hello, World!"
-
-const oldFile = await get("my-app/source.txt");
-// oldFile === null は元のファイルが移動されたことを示す
-```
-
-## ディレクトリの移動
-
-`moveTo()` メソッドはディレクトリにも適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータはターゲットディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：
-
-```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
-
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir);
-// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
-
-// movedDir 包含 file1.txt 和 subDir/file2.txt
-```
-
-## ファイルをコピーする
-
-`copyTo()` メソッドを使用してファイルを対象ディレクトリにコピーする：
-
-```javascript
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二引数はターゲットファイル名、省略時は元のファイル名を継続使用
-const copiedFile = await sourceFile.copyTo(targetDir);
-// sourceFile.copyTo(targetDir, "source.txt") と同等
-
-const content = await copiedFile.text();
-// content === "Hello, World!"
-
-// 元ファイルは依然として存在
-const originalFile = await get("my-app/source.txt");
-// originalFile !== null
-```
-
-## ディレクトリをコピーする
-
-`copyTo()` メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。2番目の引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名が使われます：
-
-```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
-
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir);
-// sourceDir.copyTo(targetDir, "sourceDir") と同等
-
-// copiedDir は file1.txt と subDir/file2.txt を含む
-```
-
-## 完全な例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const sourceFile = await get("my-app/document.txt", { create: "file" });
-await sourceFile.write("Important content");
-
-const backupDir = await get("my-app/backup", { create: "dir" });
-const archiveDir = await get("my-app/archive", { create: "dir" });
-
-// ファイルのコピー
-const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
-console.log(await backup.text()); // "Important content"
-
-// ファイルの移動
-await sourceFile.moveTo(archiveDir, "document_archived.txt");
-
-// 移動結果の検証
-const original = await get("my-app/document.txt");
-console.log(original); // null
-```
-
-## 次章
-
-[ファイルハンドルの比較](./handle-comparison.md)を学び、ファイルハンドルを比較する方法を理解します。
-
----
-
 <!-- file-operations.html -->
 
 # ファイル操作
@@ -876,6 +627,255 @@ console.log(exists); // null
 ## 次章
 
 [ディレクトリ操作](./directory-operations.md)を学び、ディレクトリを走査・管理する方法を理解します。
+
+---
+
+<!-- ai-add.html -->
+
+# AIモデルの追加
+
+## AIモデル管理エントリー
+
+デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、`o-page`コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。
+
+### 相対パスを使用する
+
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
+```
+
+これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。
+
+## jsでモデルを追加
+
+あなたは `o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。
+
+### ストレージモジュールの導入
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### API Key を保存する
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // 同時実行数
+};
+
+// 既存のキーを取得
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// 新しいキーを追加
+aiKeys.push(newKey);
+
+// 保存
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### 各プロバイダーの利用可能なモデル
+
+利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。
+
+### 保存済みのすべてのキーを取得する
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### APIキーの削除
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key の同時実行数を更新する
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // 同時実行数を変更
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key オブジェクト構造
+
+| 属性          | 类型    | 説明                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | 一意の識別子                         |
+| `provider`    | string  | プロバイダー (deepseek/kimi/minimax/glm) |
+| `model`       | string  | モデル名                           |
+| `key`         | string  | API Key                            |
+| `concurrency` | number  | 最大同時実行数                         |
+| `disabled`    | boolean | 無効化されているかどうか                           |
+
+---
+
+<!-- move-and-copy.html -->
+
+# ファイルの移動とコピー
+
+この文書では、ファイルやディレクトリの移動とコピーについて説明します。
+
+## ファイルの移動
+
+`moveTo()` メソッドを使用してファイルをターゲットディレクトリに移動します：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二引数はターゲットファイル名、指定しない場合は元のファイル名を使用
+const movedFile = await sourceFile.moveTo(targetDir);
+// sourceFile.moveTo(targetDir, "source.txt") と同等
+
+const content = await movedFile.text();
+// content === "Hello, World!"
+
+const oldFile = await get("my-app/source.txt");
+// oldFile === null は元のファイルが移動されたことを示す
+```
+
+## ディレクトリの移動
+
+`moveTo()` メソッドはディレクトリにも適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータはターゲットディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const movedDir = await sourceDir.moveTo(targetDir);
+// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
+
+// movedDir 包含 file1.txt 和 subDir/file2.txt
+```
+
+## ファイルをコピーする
+
+`copyTo()` メソッドを使用してファイルを対象ディレクトリにコピーする：
+
+```javascript
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二引数はターゲットファイル名、省略時は元のファイル名を継続使用
+const copiedFile = await sourceFile.copyTo(targetDir);
+// sourceFile.copyTo(targetDir, "source.txt") と同等
+
+const content = await copiedFile.text();
+// content === "Hello, World!"
+
+// 元ファイルは依然として存在
+const originalFile = await get("my-app/source.txt");
+// originalFile !== null
+```
+
+## ディレクトリをコピーする
+
+`copyTo()` メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。2番目の引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名が使われます：
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const copiedDir = await sourceDir.copyTo(targetDir);
+// sourceDir.copyTo(targetDir, "sourceDir") と同等
+
+// copiedDir は file1.txt と subDir/file2.txt を含む
+```
+
+## 完全な例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const sourceFile = await get("my-app/document.txt", { create: "file" });
+await sourceFile.write("Important content");
+
+const backupDir = await get("my-app/backup", { create: "dir" });
+const archiveDir = await get("my-app/archive", { create: "dir" });
+
+// ファイルのコピー
+const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
+console.log(await backup.text()); // "Important content"
+
+// ファイルの移動
+await sourceFile.moveTo(archiveDir, "document_archived.txt");
+
+// 移動結果の検証
+const original = await get("my-app/document.txt");
+console.log(original); // null
+```
+
+## 次章
+
+[ファイルハンドルの比較](./handle-comparison.md)を学び、ファイルハンドルを比較する方法を理解します。
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js 設定のコツ
+
+## バージョン番号管理とキャッシュ更新
+
+新しいバージョンをリリースする際、サーバーが `max-age=0` レスポンスヘッダーを設定していたとしても、ブラウザは古いバージョンの `sw.js` ファイルをキャッシュすることがあり、アップデートがすぐに反映されない場合があります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+dist.js を引用する際に `?v=` パラメータを付け、新しいバージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使わずに新しいファイルをリクエストします。
+
+## 公式ツール
+
+`nos-tool` ディレクトリ内のツールを使用すると、NoneOS システムを簡単に管理できます。
+
+- **ai** - AI モデル管理、チャット、設定、キー管理を含む
+- **editor** - Monaco エディター統合、コードハイライト、フォーマット、AI 補完をサポート
+- **file-explore** - ファイルエクスプローラー
+- **file-list** - ファイルリストビューとハンドル管理
+- **studio** - 開発スタジオ、ファイル管理、カラーツール、テーマ編集などの機能を提供
+
+これらのツールは `nos-tool` ディレクトリにあり、必要に応じてインポートして使用できます。
 
 ---
 
