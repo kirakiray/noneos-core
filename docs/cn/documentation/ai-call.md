@@ -28,8 +28,8 @@ const response = await chat(messages, {
 
 - **deepseek** - DeepSeek
 - **kimi** - Kimi (Moonshot)
-- **glm** - 智谱 GLM
 - **minimax** - MiniMax
+- **glm** - 智谱 GLM
 
 如果不指定 `provider`，系统会自动选择一个可用的 API Key。
 
