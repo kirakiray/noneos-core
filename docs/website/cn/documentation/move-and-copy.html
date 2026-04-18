@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>文件移动与复制</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>文件移动与复制</h1>
+        <p>本文档介绍如何移动和复制文件及目录。</p>
+        <h2>移动文件</h2>
+        <p>使用 <code>moveTo()</code> 方法将文件移动到目标目录：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+
+<span class="hljs-comment">// 第二个参数为目标文件名，不传则沿用原文件名</span>
+<span class="hljs-keyword">const</span> movedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceFile.moveTo(targetDir, "source.txt")</span>
+
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> movedFile.<span class="hljs-title function_">text</span>();
+<span class="hljs-comment">// content === "Hello, World!"</span>
+
+<span class="hljs-keyword">const</span> oldFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
+<span class="hljs-comment">// oldFile === null 表示原文件已被移动</span></code></pre>
+        <h2>移动目录</h2>
+        <p><code>moveTo()</code> 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 1"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 2"</span>);
+
+<span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">const</span> movedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">moveTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceDir.moveTo(targetDir, "sourceDir")</span>
+
+<span class="hljs-comment">// movedDir 包含 file1.txt 和 subDir/file2.txt</span></code></pre>
+        <h2>复制文件</h2>
+        <p>使用 <code>copyTo()</code> 方法将文件复制到目标目录：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+
+<span class="hljs-comment">// 第二个参数为目标文件名，不传则沿用原文件名</span>
+<span class="hljs-keyword">const</span> copiedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceFile.copyTo(targetDir, "source.txt")</span>
+
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> copiedFile.<span class="hljs-title function_">text</span>();
+<span class="hljs-comment">// content === "Hello, World!"</span>
+
+<span class="hljs-comment">// 原文件仍然存在</span>
+<span class="hljs-keyword">const</span> originalFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
+<span class="hljs-comment">// originalFile !== null</span></code></pre>
+        <h2>复制目录</h2>
+        <p><code>copyTo()</code> 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 1"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"Content 2"</span>);
+
+<span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">const</span> copiedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">copyTo</span>(targetDir);
+<span class="hljs-comment">// 等同于 sourceDir.copyTo(targetDir, "sourceDir")</span>
+
+<span class="hljs-comment">// copiedDir 包含 file1.txt 和 subDir/file2.txt</span></code></pre>
+        <h2>完整示例</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/document.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Important content"</span>);
+
+<span class="hljs-keyword">const</span> backupDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/backup"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">const</span> archiveDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/archive"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+
+<span class="hljs-comment">// 复制文件</span>
+<span class="hljs-keyword">const</span> backup = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(backupDir, <span class="hljs-string">"document_backup.txt"</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">await</span> backup.<span class="hljs-title function_">text</span>()); <span class="hljs-comment">// "Important content"</span>
+
+<span class="hljs-comment">// 移动文件</span>
+<span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(archiveDir, <span class="hljs-string">"document_archived.txt"</span>);
+
+<span class="hljs-comment">// 验证移动结果</span>
+<span class="hljs-keyword">const</span> original = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/document.txt"</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(original); <span class="hljs-comment">// null</span></code></pre>
+        <h2>下一章</h2>
+        <p>学习 <a href="./handle-comparison.html" olink="">文件句柄比较</a>，了解如何比较文件句柄。</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

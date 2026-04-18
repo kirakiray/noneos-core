@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ディレクトリ操作</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>ディレクトリ操作</h1>
+        <p>このドキュメントでは、ファイルシステムにおけるディレクトリ操作について説明します。ディレクトリの作成、走査、検索、フラット化、削除が含まれます。</p>
+        <h2>ディレクトリの作成</h2>
+        <p><code>get</code> メソッドを使用して <code>create: "dir"</code> を指定してディレクトリを作成します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
+        <h2>サブアイテム数の取得</h2>
+        <p><code>length()</code> メソッドを使用して、ディレクトリ内のサブファイル/サブディレクトリの総数を取得する：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">length</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(count); <span class="hljs-comment">// 2</span></code></pre>
+        <h2>ディレクトリのトラバース</h2>
+        <h3>keys() メソッド</h3>
+        <p><code>keys()</code> メソッドを使用してディレクトリ内のすべての項目の名前を走査します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> key <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">keys</span>()) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(key);
+}</code></pre>
+        <h3>values() メソッド</h3>
+        <p><code>values()</code> メソッドを使ってディレクトリ内のすべてのファイルとサブディレクトリを走査する：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handles = [];
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> handle <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">values</span>()) {
+  handles.<span class="hljs-title function_">push</span>({
+    <span class="hljs-attr">kind</span>: handle.<span class="hljs-property">kind</span>,
+    <span class="hljs-attr">name</span>: handle.<span class="hljs-property">name</span>,
+  });
+}</code></pre>
+        <h3>entries() メソッド</h3>
+        <p><code>entries()</code> メソッドを使用してディレクトリ内のすべての項目を走査し、[名称, ハンドル] のペアを返します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">entries</span>()) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
+}</code></pre>
+        <h3>forEach() メソッド</h3>
+        <p><code>forEach()</code> メソッドを使用してディレクトリを走査する：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">forEach</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
+});</code></pre>
+        <h3>some() メソッド</h3>
+        <p><code>some()</code> メソッドを使用して条件を満たす最初のファイルまたはディレクトリを検索し、見つかった時点で自動的に走査を停止します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> foundTarget = <span class="hljs-literal">false</span>;
+<span class="hljs-keyword">let</span> count = <span class="hljs-number">0</span>;
+
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">some</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
+  count++;
+  <span class="hljs-keyword">if</span> (handle.<span class="hljs-property">kind</span> === <span class="hljs-string">"file"</span>) {
+    <span class="hljs-keyword">if</span> (count === <span class="hljs-number">2</span>) {
+      foundTarget = <span class="hljs-literal">true</span>;
+      <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>; <span class="hljs-comment">// trueを返して走査を停止</span>
+    }
+  }
+  <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+});</code></pre>
+        <h2>ディレクトリのフラット化</h2>
+        <p><code>flat()</code> メソッドを使用して、ディレクトリとそのすべてのサブディレクトリ内の<strong>ファイルハンドル</strong>を取得します（ディレクトリは含まれません）：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">flat</span>();
+
+<span class="hljs-keyword">const</span> fileContents = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Promise</span>.<span class="hljs-title function_">all</span>(
+  allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-keyword">async</span> (file) =&gt; ({
+    <span class="hljs-attr">path</span>: file.<span class="hljs-property">path</span>,
+    <span class="hljs-attr">content</span>: <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">read</span>(),
+  }))
+);</code></pre>
+        <p>例：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> rootDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>);
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/subDir2"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/subDir2/file3.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"root file"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/file2.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 1 file"</span>);
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1/subDir2/file3.txt"</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">"level 2 file"</span>);
+
+<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
+<span class="hljs-comment">// 戻り値: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]</span></code></pre>
+        <h2>ディレクトリの削除</h2>
+        <p><code>remove()</code> メソッドを使用してディレクトリを削除する（ディレクトリ内のすべてのコンテンツを再帰的に削除します）：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">remove</span>();
+<span class="hljs-keyword">const</span> subDirExists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>);
+<span class="hljs-comment">// subDirExists === null はディレクトリが削除されたことを示します</span></code></pre>
+        <p>⚠️ 警告：削除操作は即座に実行され、ディレクトリ内にサブファイルやサブディレクトリが存在する場合もそれらをすべて削除し、復元できません。十分に注意して操作してください。</p>
+        <h2>完全な例</h2>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> rootDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>);
+
+<span class="hljs-comment">// ディレクトリ構造を作成</span>
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs/guide.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs/api.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"images"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
+
+<span class="hljs-comment">// 子項目数を取得</span>
+<span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">length</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`子項目数: <span class="hljs-subst">${count}</span>`</span>); <span class="hljs-comment">// 2</span>
+
+<span class="hljs-comment">// ルートディレクトリを走査</span>
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> rootDir.<span class="hljs-title function_">entries</span>()) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
+}
+<span class="hljs-comment">// 出力: dir: docs, dir: images</span>
+
+<span class="hljs-comment">// すべてのファイルをフラットに取得</span>
+<span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-function"><span class="hljs-params">f</span> =&gt;</span> f.<span class="hljs-property">path</span>));
+<span class="hljs-comment">// 出力: ["docs/guide.md", "docs/api.md"]</span></code></pre>
+        <h2>次章</h2>
+        <p><a href="./move-and-copy.html" olink="">ファイルの移動とコピー</a>を学習し、ファイルの移動とコピーの方法を理解します。</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

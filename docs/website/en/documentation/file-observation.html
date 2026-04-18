@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File Changes Observation</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>File Changes Observation</h1>
+        <p>This document introduces how to use the <code>observe</code> method to listen for change events of files or directories.</p>
+        <h2>Basic Usage</h2>
+        <p>Use the <code>observe()</code> method to monitor changes in files or directories:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
+
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
+
+<span class="hljs-keyword">const</span> events = [];
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Received file change event:&quot;</span>, event);
+  events.<span class="hljs-title function_">push</span>(event);
+});
+
+<span class="hljs-comment">// Create file</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;Hello&quot;</span>);
+
+<span class="hljs-comment">// Delete file</span>
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
+
+<span class="hljs-comment">// Cancel observation</span>
+<span class="hljs-title function_">unobserve</span>();</code></pre>
+        <p>Files and directories can both be monitored for changes, for example, monitoring a single file:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app/test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;File modified:&quot;</span>, event.<span class="hljs-property">type</span>);
+});
+
+<span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;new content&quot;</span>);
+
+<span class="hljs-title function_">unobserve</span>();</code></pre>
+        <h2>observe Return Value</h2>
+        <p><code>observe()</code> returns a Promise that resolves to a function to cancel observation. Calling this function stops the listening:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+  <span class="hljs-comment">// Handle event</span>
+});
+
+<span class="hljs-comment">// Unobserve later</span>
+<span class="hljs-title function_">unobserve</span>();</code></pre>
+        <h2>Event Object</h2>
+        <p>The event object received by the observation callback contains the following properties:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>type</code></td>
+              <td>Event type, such as <code>&quot;create&quot;</code>, <code>&quot;remove&quot;</code>, <code>&quot;write&quot;</code></td>
+            </tr>
+            <tr>
+              <td><code>path</code></td>
+              <td>Path of the file that changed</td>
+            </tr>
+          </tbody>
+        </table>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
+
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
+
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Starting file change observation test&quot;</span>);
+
+<span class="hljs-keyword">const</span> events = [];
+<span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;File change:&quot;</span>, event.<span class="hljs-property">type</span>, event.<span class="hljs-property">path</span>);
+  events.<span class="hljs-title function_">push</span>(event);
+});
+
+<span class="hljs-comment">// Perform some file operations</span>
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;content&quot;</span>);
+
+<span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">100</span>));
+
+<span class="hljs-keyword">await</span> (<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;file1.txt&quot;</span>)).<span class="hljs-title function_">remove</span>();
+
+<span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">100</span>));
+
+<span class="hljs-title function_">unobserve</span>();
+
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`Total events received: <span class="hljs-subst">${events.length}</span>`</span>);</code></pre>
+        <h2>Important Notes</h2>
+        <ol>
+          <li>The observer starts monitoring only after it is created; file operations prior to that will not be captured.</li>
+          <li>After the observer is canceled, newly occurring file changes will not be recorded.</li>
+          <li>File change events are triggered asynchronously and may experience some delay.</li>
+        </ol>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

@@ -1,0 +1,24 @@
+- name: Install
+  url: ./install.md
+- name: Basic Operations
+  content:
+    - name: Overview
+      url: ./overview.md
+    - name: File Operations
+      url: ./file-operations.md
+    - name: Directory Operations
+      url: ./directory-operations.md
+    - name: File Moving & Copying
+      url: ./move-and-copy.md
+    - name: File Handle Comparison
+      url: ./handle-comparison.md
+    - name: File Change Observation
+      url: ./file-observation.md
+    - name: sw.js Configuration Tips
+      url: ./sw-advanced.md
+- name: AI Operations
+  content:
+    - name: Add Model
+      url: ./ai-add.md
+    - name: Call Model
+      url: ./ai-call.md

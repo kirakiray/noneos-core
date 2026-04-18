@@ -1,0 +1,4 @@
+index: ./index.html
+header:
+  - name: ドキュメント
+    url: ./documentation/_config.yaml

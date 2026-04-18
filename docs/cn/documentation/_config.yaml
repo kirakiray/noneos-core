@@ -1,0 +1,24 @@
+- name: 安装
+  url: ./install.md
+- name: 基础操作
+  content:
+    - name: 概述
+      url: ./overview.md
+    - name: 文件操作
+      url: ./file-operations.md
+    - name: 目录操作
+      url: ./directory-operations.md
+    - name: 文件移动与复制
+      url: ./move-and-copy.md
+    - name: 文件句柄比较
+      url: ./handle-comparison.md
+    - name: 文件变化观察
+      url: ./file-observation.md
+    - name: sw.js 配置技巧
+      url: ./sw-advanced.md
+- name: AI 操作
+  content:
+    - name: 添加模型
+      url: ./ai-add.md
+    - name: 调用模型
+      url: ./ai-call.md
