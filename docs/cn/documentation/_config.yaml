@@ -14,3 +14,11 @@
       url: ./handle-comparison.md
     - name: 文件变化观察
       url: ./file-observation.md
+    - name: sw.js 配置技巧
+      url: ./sw-advanced.md
+- name: AI 操作
+  content:
+    - name: 添加 AI 模型
+      url: ./ai-add.md
+    - name: 调用 AI 模型
+      url: ./ai-call.md
