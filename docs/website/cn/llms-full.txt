@@ -104,231 +104,226 @@ console.log(`共收到 ${events.length} 个事件`);
 
 ---
 
-<!-- overview.html -->
+<!-- install.html -->
 
-# 概述
+# 安装
 
-文件系统（FileSystem）是一个基于浏览器的虚拟文件系统，提供了一套完整的文件和目录操作 API。
+NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
 
-## 初始化
+## 前提条件
 
-使用文件系统前，需要先初始化一个根目录：
+- 一个静态服务器（如 http-server、live-server、nginx 等）
+- 浏览器支持 Service Worker
+- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
 
-```javascript
-import { init } from "/nos/fs/main.js";
+## 步骤
 
-await init("my-app");
-```
+### 1. 创建 Service Worker 文件
 
-后续教程均假设已完成 `my-app` 的初始化。
-
-## 全局 get 方法
-
-使用全局 `get` 方法获取或创建文件/目录句柄：
+在项目根目录下创建 `sw.js` 文件，填入以下内容：
 
 ```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/hello.txt", { create: "file" });
-const dir = await get("my-app/path/to/dir", { create: "dir" });
+importScripts("https://core.noneos.com/sw/dist.js");
 ```
 
-路径格式：`根目录名/文件路径`，不使用 `/` 开头。
+### 2. 创建入口 HTML
 
-## 核心概念
+在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
 
-### FileHandle 和 DirHandle
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- 加载 nos-version 组件 -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- 使用 nos-version 组件 -->
+    <nos-version auto-install></nos-version>
 
-- **FileHandle**：代表一个文件，提供文件读写操作
-- **DirHandle**：代表一个目录，提供目录遍历和子项操作
+    <script type="module">
+      // 等待安装完成
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core 安装完成，可以开始使用了");
+        // 这里可以使用 noneos-core
+      });
+    </script>
+  </body>
+</html>
+```
 
-### 基本属性
+## 安装状态
 
-- `kind`：返回 `"file"` 或 `"dir"`，表示句柄类型
-- `name`：返回文件或目录的名称
-- `path`：返回文件或目录的完整路径
+`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
 
-## 下一章
+- **未安装**：显示 "Install NoneOS Core" 按钮
+- **安装中**：显示安装进度条
+- **已安装**：显示当前版本号
+- **可升级**：显示升级按钮
 
-学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。
+当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
 
 ---
 
-<!-- directory-operations.html -->
+<!-- move-and-copy.html -->
 
-# 目录操作
+# 文件移动与复制
 
-本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。
+本文档介绍如何移动和复制文件及目录。
 
-## 创建目录
+## 移动文件
 
-使用 `get` 方法并指定 `create: "dir"` 来创建目录：
+使用 `moveTo()` 方法将文件移动到目标目录：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const dir = await get("my-app/path/to/dir", { create: "dir" });
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二个参数为目标文件名，不传则沿用原文件名
+const movedFile = await sourceFile.moveTo(targetDir);
+// 等同于 sourceFile.moveTo(targetDir, "source.txt")
+
+const content = await movedFile.text();
+// content === "Hello, World!"
+
+const oldFile = await get("my-app/source.txt");
+// oldFile === null 表示原文件已被移动
 ```
 
-## 获取子项数量
+## 移动目录
 
-使用 `length()` 方法获取目录中子文件/目录的总数量：
+`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-const dir = await get("my-app/subDir", { create: "dir" });
-await dir.get("file1.txt", { create: "file" });
-await dir.get("file2.txt", { create: "file" });
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
 
-const count = await dir.length();
-console.log(count); // 2
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const movedDir = await sourceDir.moveTo(targetDir);
+// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
+
+// movedDir 包含 file1.txt 和 subDir/file2.txt
 ```
 
-## 遍历目录
+## 复制文件
 
-### keys() 方法
-
-使用 `keys()` 方法遍历目录中所有项的名称：
+使用 `copyTo()` 方法将文件复制到目标目录：
 
 ```javascript
-for await (const key of dir.keys()) {
-  console.log(key);
-}
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二个参数为目标文件名，不传则沿用原文件名
+const copiedFile = await sourceFile.copyTo(targetDir);
+// 等同于 sourceFile.copyTo(targetDir, "source.txt")
+
+const content = await copiedFile.text();
+// content === "Hello, World!"
+
+// 原文件仍然存在
+const originalFile = await get("my-app/source.txt");
+// originalFile !== null
 ```
 
-### values() 方法
+## 复制目录
 
-使用 `values()` 方法遍历目录中的所有文件和子目录：
+`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
 
 ```javascript
-const handles = [];
-for await (const handle of dir.values()) {
-  handles.push({
-    kind: handle.kind,
-    name: handle.name,
-  });
-}
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const copiedDir = await sourceDir.copyTo(targetDir);
+// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
+
+// copiedDir 包含 file1.txt 和 subDir/file2.txt
 ```
-
-### entries() 方法
-
-使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
-
-```javascript
-for await (const [name, handle] of dir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-```
-
-### forEach() 方法
-
-使用 `forEach()` 方法遍历目录：
-
-```javascript
-await dir.forEach(async (handle, name) => {
-  console.log(`${handle.kind}: ${name}`);
-});
-```
-
-### some() 方法
-
-使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
-
-```javascript
-let foundTarget = false;
-let count = 0;
-
-await dir.some(async (handle, name) => {
-  count++;
-  if (handle.kind === "file") {
-    if (count === 2) {
-      foundTarget = true;
-      return true; // 返回 true 停止遍历
-    }
-  }
-  return false;
-});
-```
-
-## 扁平化目录
-
-使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
-
-```javascript
-const allFiles = await dir.flat();
-
-const fileContents = await Promise.all(
-  allFiles.map(async (file) => ({
-    path: file.path,
-    content: await file.read(),
-  }))
-);
-```
-
-示例：
-
-```javascript
-const rootDir = await get("my-app");
-await rootDir.get("file1.txt", { create: "file" });
-await rootDir.get("subDir1", { create: "dir" });
-await rootDir.get("subDir1/file2.txt", { create: "file" });
-await rootDir.get("subDir1/subDir2", { create: "dir" });
-await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
-
-await (await rootDir.get("file1.txt")).write("root file");
-await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
-await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
-
-const allFiles = await rootDir.flat();
-// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
-```
-
-## 删除目录
-
-使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
-
-```javascript
-const subDir = await get("my-app/subDir", { create: "dir" });
-await subDir.get("file2.txt", { create: "file" });
-
-await subDir.remove();
-const subDirExists = await get("my-app/subDir");
-// subDirExists === null 表示目录已被删除
-```
-
-⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
 
 ## 完整示例
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const rootDir = await get("my-app");
+const sourceFile = await get("my-app/document.txt", { create: "file" });
+await sourceFile.write("Important content");
 
-// 创建目录结构
-await rootDir.get("docs", { create: "dir" });
-await rootDir.get("docs/guide.md", { create: "file" });
-await rootDir.get("docs/api.md", { create: "file" });
-await rootDir.get("images", { create: "dir" });
+const backupDir = await get("my-app/backup", { create: "dir" });
+const archiveDir = await get("my-app/archive", { create: "dir" });
 
-// 获取子项数量
-const count = await rootDir.length();
-console.log(`子项数量: ${count}`); // 2
+// 复制文件
+const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
+console.log(await backup.text()); // "Important content"
 
-// 遍历根目录
-for await (const [name, handle] of rootDir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-// 输出: dir: docs, dir: images
+// 移动文件
+await sourceFile.moveTo(archiveDir, "document_archived.txt");
 
-// 扁平化获取所有文件
-const allFiles = await rootDir.flat();
-console.log(allFiles.map(f => f.path));
-// 输出: ["docs/guide.md", "docs/api.md"]
+// 验证移动结果
+const original = await get("my-app/document.txt");
+console.log(original); // null
 ```
 
 ## 下一章
 
-学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
+学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js 配置技巧
+
+## 版本号控制与缓存更新
+
+在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
+
+## 官方工具
+
+使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
+
+- **ai** - AI 模型管理，包括聊天、配置、密钥管理
+- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
+- **file-explore** - 文件浏览器
+- **file-list** - 文件列表视图和句柄管理
+- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
+
+这些工具位于 `nos-tool` 目录下，可按需引入和使用。
+
 
 ---
 
@@ -456,6 +451,100 @@ console.log(await deepFile.isSame(file2)); // true
 
 ---
 
+<!-- ai-add.html -->
+
+# 添加 AI 模型
+
+## AI 模型管理入口
+
+在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。
+
+### 使用相对路径
+
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
+```
+
+这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
+
+## js添加模型
+
+你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。
+
+### 引入存储模块
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### 保存 API Key
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // 并发数
+};
+
+// 获取现有 keys
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// 添加新 key
+aiKeys.push(newKey);
+
+// 保存
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### 各提供商的可用模型
+
+可用模型参考各提供商的文档。
+
+### 获取所有已保存的 Keys
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### 删除 API Key
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### 更新 Key 的并发数
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // 修改并发数
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key 对象结构
+
+| 属性          | 类型    | 说明                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | 唯一标识符                         |
+| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |
+| `model`       | string  | 模型名称                           |
+| `key`         | string  | API Key                            |
+| `concurrency` | number  | 最大并发数                         |
+| `disabled`    | boolean | 是否禁用                           |
+
+
+
+---
+
 <!-- ai-call.html -->
 
 # 调用 AI 模型
@@ -546,71 +635,6 @@ try {
 - `concurrency_full` - 该 Key 的并发数已满
 - `Unsupported provider` - 不支持的提供商
 
-
----
-
-<!-- install.html -->
-
-# 安装
-
-NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
-
-## 前提条件
-
-- 一个静态服务器（如 http-server、live-server、nginx 等）
-- 浏览器支持 Service Worker
-- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
-
-## 步骤
-
-### 1. 创建 Service Worker 文件
-
-在项目根目录下创建 `sw.js` 文件，填入以下内容：
-
-```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
-```
-
-### 2. 创建入口 HTML
-
-在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
-
-```html
-<!DOCTYPE html>
-<html lang="zh">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- 加载 nos-version 组件 -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- 使用 nos-version 组件 -->
-    <nos-version auto-install></nos-version>
-
-    <script type="module">
-      // 等待安装完成
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core 安装完成，可以开始使用了");
-        // 这里可以使用 noneos-core
-      });
-    </script>
-  </body>
-</html>
-```
-
-## 安装状态
-
-`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
-
-- **未安装**：显示 "Install NoneOS Core" 按钮
-- **安装中**：显示安装进度条
-- **已安装**：显示当前版本号
-- **可升级**：显示升级按钮
-
-当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
 
 ---
 
@@ -792,252 +816,228 @@ console.log(exists); // null
 
 ---
 
-<!-- sw-advanced.html -->
+<!-- directory-operations.html -->
 
-# sw.js 配置技巧
+# 目录操作
 
-## 版本号控制与缓存更新
+本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。
 
-在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
+## 创建目录
 
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
-
-## 官方工具
-
-使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
-
-- **ai** - AI 模型管理，包括聊天、配置、密钥管理
-- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
-- **file-explore** - 文件浏览器
-- **file-list** - 文件列表视图和句柄管理
-- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
-
-这些工具位于 `nos-tool` 目录下，可按需引入和使用。
-
-
----
-
-<!-- ai-add.html -->
-
-# 添加 AI 模型
-
-## AI 模型管理入口
-
-在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。
-
-### 使用相对路径
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
-
-## js添加模型
-
-你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。
-
-### 引入存储模块
-
-```javascript
-import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-```
-
-### 保存 API Key
-
-```javascript
-const newKey = {
-  id: `${Math.random().toString(36).slice(2, 11)}`,
-  provider: "deepseek",  // deepseek | kimi | minimax | glm
-  model: "deepseek-chat",
-  key: "your-api-key-here",
-  concurrency: 1,  // 并发数
-};
-
-// 获取现有 keys
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-
-// 添加新 key
-aiKeys.push(newKey);
-
-// 保存
-await storage.setItem("ai-keys", aiKeys);
-```
-
-### 各提供商的可用模型
-
-可用模型参考各提供商的文档。
-
-### 获取所有已保存的 Keys
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-```
-
-### 删除 API Key
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const index = aiKeys.findIndex((k) => k.id === "key-id");
-if (index > -1) {
-  aiKeys.splice(index, 1);
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### 更新 Key 的并发数
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const keyItem = aiKeys.find((k) => k.id === "key-id");
-if (keyItem) {
-  keyItem.concurrency = 3;  // 修改并发数
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key 对象结构
-
-| 属性          | 类型    | 说明                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | 唯一标识符                         |
-| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |
-| `model`       | string  | 模型名称                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | 最大并发数                         |
-| `disabled`    | boolean | 是否禁用                           |
-
-
-
----
-
-<!-- move-and-copy.html -->
-
-# 文件移动与复制
-
-本文档介绍如何移动和复制文件及目录。
-
-## 移动文件
-
-使用 `moveTo()` 方法将文件移动到目标目录：
+使用 `get` 方法并指定 `create: "dir"` 来创建目录：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二个参数为目标文件名，不传则沿用原文件名
-const movedFile = await sourceFile.moveTo(targetDir);
-// 等同于 sourceFile.moveTo(targetDir, "source.txt")
-
-const content = await movedFile.text();
-// content === "Hello, World!"
-
-const oldFile = await get("my-app/source.txt");
-// oldFile === null 表示原文件已被移动
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-## 移动目录
+## 获取子项数量
 
-`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
+使用 `length()` 方法获取目录中子文件/目录的总数量：
 
 ```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
+const dir = await get("my-app/subDir", { create: "dir" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
 
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir);
-// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
-
-// movedDir 包含 file1.txt 和 subDir/file2.txt
+const count = await dir.length();
+console.log(count); // 2
 ```
 
-## 复制文件
+## 遍历目录
 
-使用 `copyTo()` 方法将文件复制到目标目录：
+### keys() 方法
+
+使用 `keys()` 方法遍历目录中所有项的名称：
 
 ```javascript
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二个参数为目标文件名，不传则沿用原文件名
-const copiedFile = await sourceFile.copyTo(targetDir);
-// 等同于 sourceFile.copyTo(targetDir, "source.txt")
-
-const content = await copiedFile.text();
-// content === "Hello, World!"
-
-// 原文件仍然存在
-const originalFile = await get("my-app/source.txt");
-// originalFile !== null
+for await (const key of dir.keys()) {
+  console.log(key);
+}
 ```
 
-## 复制目录
+### values() 方法
 
-`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
+使用 `values()` 方法遍历目录中的所有文件和子目录：
 
 ```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
-
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir);
-// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
-
-// copiedDir 包含 file1.txt 和 subDir/file2.txt
+const handles = [];
+for await (const handle of dir.values()) {
+  handles.push({
+    kind: handle.kind,
+    name: handle.name,
+  });
+}
 ```
+
+### entries() 方法
+
+使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
+
+```javascript
+for await (const [name, handle] of dir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() 方法
+
+使用 `forEach()` 方法遍历目录：
+
+```javascript
+await dir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
+### some() 方法
+
+使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
+
+```javascript
+let foundTarget = false;
+let count = 0;
+
+await dir.some(async (handle, name) => {
+  count++;
+  if (handle.kind === "file") {
+    if (count === 2) {
+      foundTarget = true;
+      return true; // 返回 true 停止遍历
+    }
+  }
+  return false;
+});
+```
+
+## 扁平化目录
+
+使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
+
+```javascript
+const allFiles = await dir.flat();
+
+const fileContents = await Promise.all(
+  allFiles.map(async (file) => ({
+    path: file.path,
+    content: await file.read(),
+  }))
+);
+```
+
+示例：
+
+```javascript
+const rootDir = await get("my-app");
+await rootDir.get("file1.txt", { create: "file" });
+await rootDir.get("subDir1", { create: "dir" });
+await rootDir.get("subDir1/file2.txt", { create: "file" });
+await rootDir.get("subDir1/subDir2", { create: "dir" });
+await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+
+await (await rootDir.get("file1.txt")).write("root file");
+await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
+await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
+
+const allFiles = await rootDir.flat();
+// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
+```
+
+## 删除目录
+
+使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
+
+```javascript
+const subDir = await get("my-app/subDir", { create: "dir" });
+await subDir.get("file2.txt", { create: "file" });
+
+await subDir.remove();
+const subDirExists = await get("my-app/subDir");
+// subDirExists === null 表示目录已被删除
+```
+
+⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
 
 ## 完整示例
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const sourceFile = await get("my-app/document.txt", { create: "file" });
-await sourceFile.write("Important content");
+const rootDir = await get("my-app");
 
-const backupDir = await get("my-app/backup", { create: "dir" });
-const archiveDir = await get("my-app/archive", { create: "dir" });
+// 创建目录结构
+await rootDir.get("docs", { create: "dir" });
+await rootDir.get("docs/guide.md", { create: "file" });
+await rootDir.get("docs/api.md", { create: "file" });
+await rootDir.get("images", { create: "dir" });
 
-// 复制文件
-const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
-console.log(await backup.text()); // "Important content"
+// 获取子项数量
+const count = await rootDir.length();
+console.log(`子项数量: ${count}`); // 2
 
-// 移动文件
-await sourceFile.moveTo(archiveDir, "document_archived.txt");
+// 遍历根目录
+for await (const [name, handle] of rootDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+// 输出: dir: docs, dir: images
 
-// 验证移动结果
-const original = await get("my-app/document.txt");
-console.log(original); // null
+// 扁平化获取所有文件
+const allFiles = await rootDir.flat();
+console.log(allFiles.map(f => f.path));
+// 输出: ["docs/guide.md", "docs/api.md"]
 ```
 
 ## 下一章
 
-学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。
+学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
+
+---
+
+<!-- overview.html -->
+
+# 概述
+
+文件系统（FileSystem）是一个基于浏览器的虚拟文件系统，提供了一套完整的文件和目录操作 API。
+
+## 初始化
+
+使用文件系统前，需要先初始化一个根目录：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+await init("my-app");
+```
+
+后续教程均假设已完成 `my-app` 的初始化。
+
+## 全局 get 方法
+
+使用全局 `get` 方法获取或创建文件/目录句柄：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
+```
+
+路径格式：`根目录名/文件路径`，不使用 `/` 开头。
+
+## 核心概念
+
+### FileHandle 和 DirHandle
+
+- **FileHandle**：代表一个文件，提供文件读写操作
+- **DirHandle**：代表一个目录，提供目录遍历和子项操作
+
+### 基本属性
+
+- `kind`：返回 `"file"` 或 `"dir"`，表示句柄类型
+- `name`：返回文件或目录的名称
+- `path`：返回文件或目录的完整路径
+
+## 下一章
+
+学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。
