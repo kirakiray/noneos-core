@@ -1,8 +1,8 @@
 <template page>
-  <l-m src="/gh/ofajs/Punch-UI/packages/button/button.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI/packages/input/input.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI/packages/tooltips/tooltips.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI/packages/dialog/dialog.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/tooltips/tooltips.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <l-m src="../../comps/path-view.html"></l-m>
@@ -292,7 +292,7 @@
     export default async ({ load, url, query }) => {
       const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
       const { confirm, prompt, toast } = await load(
-        "/gh/ofajs/Punch-UI/packages/util.js"
+        "/gh/ofajs/Punch-UI@1/packages/util.js"
       );
 
       return {

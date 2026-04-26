@@ -34,10 +34,11 @@ export const saveHandle = async (handle) => {
     let targetItem = null;
 
     await Promise.all(
-      allHandles.map((item) => {
-        const result = item.handle.isSameEntry(handle);
-        targetItem = item;
-        return result;
+      allHandles.map(async (item) => {
+        const result = await item.handle.isSameEntry(handle);
+        if (result) {
+          targetItem = item;
+        }
       })
     );
 
