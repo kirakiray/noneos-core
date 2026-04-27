@@ -76,6 +76,7 @@
     }
 
     [data-disabled="1"] {
+
       .provider-tag,
       .key-text,
       [secondary],
@@ -140,35 +141,21 @@
           <div class="key-text">{{$data.key}}</div>
           <div secondary>
             <locale-text>
-              <span lang="cn"
-                >ID: {{$data.id}} | 模型: {{$data.model}} | 并发:
-                {{$data.concurrency || 1}}</span
-              >
-              <span lang="en"
-                >ID: {{$data.id}} | Model: {{$data.model}} | Concurrency:
-                {{$data.concurrency || 1}}</span
-              >
+              <span lang="cn">ID: {{$data.id}} | 模型: {{$data.model}} | 并发:
+                {{$data.concurrency || 1}}</span>
+              <span lang="en">ID: {{$data.id}} | Model: {{$data.model}} | Concurrency:
+                {{$data.concurrency || 1}}</span>
             </locale-text>
           </div>
 
           <div slot="suffix" style="display: flex; gap: 8px">
-            <p-button
-              variant="text"
-              on:click="$host.openEditDialog($data,$index)"
-              size="small"
-            >
+            <p-button variant="text" on:click="$host.openEditDialog($data,$index)" size="small">
               <locale-text>
                 <span lang="cn">编辑</span>
                 <span lang="en">Edit</span>
               </locale-text>
             </p-button>
-            <p-button
-              icon
-              class="disabled-btn"
-              size="small"
-              variant="text"
-              on:click="$data.disabled = !$data.disabled"
-            >
+            <p-button icon class="disabled-btn" size="small" variant="text" on:click="$data.disabled = !$data.disabled">
               <o-if :value="$data.disabled">
                 <n-icon icon="zondicons:view-hide"></n-icon>
               </o-if>
@@ -176,12 +163,7 @@
                 <n-icon icon="zondicons:view-show"></n-icon>
               </o-else>
             </p-button>
-            <p-button
-              color="error"
-              variant="outlined"
-              on:click="$host.deleteKey($data,$index)"
-              size="small"
-            >
+            <p-button color="error" variant="outlined" on:click="$host.deleteKey($data,$index)" size="small">
               <locale-text>
                 <span lang="cn">删除</span>
                 <span lang="en">Delete</span>
@@ -241,8 +223,7 @@
         </div>
         <div class="form-item">
           <label class="form-label">API Key</label>
-          <div
-            style="
+          <div style="
               padding: 8px 12px;
               max-width: 60vw;
               border: 1px solid var(--md-sys-color-normal);
@@ -250,8 +231,7 @@
               font-size: 12px;
               color: var(--md-sys-color-on-surface-variant);
               word-break: break-all;
-            "
-          >
+            ">
             {{editItem.key}}
           </div>
         </div>
@@ -262,12 +242,8 @@
               <span lang="en">Concurrency</span>
             </locale-text>
           </label>
-          <p-input
-            sync:value="editItem.concurrency"
-            type="number"
-            min="1"
-            attr:placeholder="concurrencyPlaceholder"
-          ></p-input>
+          <p-input sync:value="editItem.concurrency" type="number" min="1"
+            attr:placeholder="concurrencyPlaceholder"></p-input>
         </div>
       </div>
       <div style="display: flex; gap: 8px; justify-content: flex-end">
@@ -305,7 +281,7 @@
         proto: {
           get providerModels() {
             return {
-              deepseek: ["deepseek-chat", "deepseek-reasoner"],
+              deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
               kimi: [
                 "kimi-k2-0905-preview",
                 "kimi-k2-0711-preview",
