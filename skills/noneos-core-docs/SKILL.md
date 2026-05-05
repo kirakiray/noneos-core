@@ -1,6 +1,6 @@
 ---
 name: "noneos-core-docs"
-description: "Provides NoneOS Core filesystem documentation covering installation, file/directory operations, handle comparison, and file observation. Invoke when user asks about NoneOS Core usage or needs help with filesystem operations."
+description: "提供 NoneOS Core 文件系统文档，涵盖安装、文件/目录操作、句柄比较和文件观察。当用户询问 NoneOS Core 使用方法或需要文件系统操作帮助时调用。"
 ---
 
 # NoneOS Core 文件系统文档
