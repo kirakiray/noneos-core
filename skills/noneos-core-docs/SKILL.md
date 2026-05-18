@@ -70,6 +70,25 @@ const dir = await get("my-app/path/to/dir", { create: "dir" });
 
 路径格式：`根目录名/文件路径`，不使用 `/` 开头。
 
+### 初始化根目录
+
+使用 `get` 访问根目录之前，必须先通过 `init` 初始化：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+const dir = await init("my-app");
+```
+
+这会创建一个根目录，之后就可以用 `get` 操作其中的文件：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+await file.write("Hello!");
+```
+
 ### 句柄类型
 
 - **FileHandle**：文件，提供读写操作
