@@ -16,7 +16,7 @@ const checkPermission = async (handle) => {
   }
 };
 
-export const mount = async (options) => {
+export const open = async (options) => {
   if (!window.showDirectoryPicker) {
     throw new Error("showDirectoryPicker is not supported");
   }
@@ -33,14 +33,14 @@ export const mount = async (options) => {
 
   const handle = new DirHandle(directoryHandle);
 
-  if (options?.save) {
-    await save(handle);
+  if (options?.mount) {
+    await mount(handle);
   }
 
   return handle;
 };
 
-export const save = async (handle) => {
+export const mount = async (handle) => {
   if (!handle[RESET_PATH]) {
     const id = await saveHandle(handle._handle);
 
