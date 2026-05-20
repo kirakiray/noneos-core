@@ -166,5 +166,49 @@
         </script>
       </template>
     </sb-test>
+
+    <sb-test name="Mount Handle Fetch Test">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          import { mount, unmount, getMounted } from "/nos/fs/main.js";
+
+          import registration from "/_install/register.js";
+          await registration;
+
+          {
+            const testDirectory = await init("test-mount-fetch");
+
+            const testFile = await testDirectory.get("fetch-test.txt", {
+              create: "file",
+            });
+            const testContent = "fetch content " + Math.random();
+            await testFile.write(testContent);
+
+            const mountedHandle = await mount(testDirectory);
+
+            await new Promise((resolve) => setTimeout(resolve, 300));
+
+            const fetchContent = await fetch(
+              `/${mountedHandle.path}/fetch-test.txt`
+            ).then((e) => e.text());
+
+            const allHandles = await getMounted();
+            const foundInList = allHandles.find(
+              (item) => item.path === mountedHandle.path
+            );
+
+            if (foundInList) {
+              await unmount(foundInList.id);
+            }
+
+            return {
+              assert: fetchContent === testContent,
+              content: `Expected fetch content to be '${testContent}', got '${fetchContent}'`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>
