@@ -1,4 +1,4 @@
-/* noneos-core version: 4.0.21 */
+/* noneos-core version: 4.0.22 */
 (function () {
   'use strict';
 
