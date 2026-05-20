@@ -1,6 +1,8 @@
 # 目录挂载
 
-目录挂载功能允许你访问用户本地文件系统中的目录，并将其持久化存储，以便在后续会话中继续使用。
+目录挂载功能允许你访问用户本地文件系统中的**真实目录**，并将其持久化存储，以便在后续会话中继续使用。
+
+> **真实目录**：指您 **Windows** / **macOS** / **Linux** 系统上的实际文件夹，区别于虚拟文件系统中的目录。
 
 ## 重要说明
 
@@ -19,11 +21,13 @@ if (!window.showDirectoryPicker) {
 
 ### 核心用途
 
-目录挂载的主要用途是：
+目录挂载的主要用途是配合 `open()` 访问用户本地文件系统：
 
 1. **本地文件访问**：让用户选择本地目录，通过浏览器直接访问文件内容
-2. **静态服务器功能**：挂载后的目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能
-3. **持久化访问**：通过 `mount()` 挂载后，可以在后续会话中继续访问同一目录，无需重复选择
+2. **静态服务器功能**：挂载后的本地目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能
+3. **持久化访问**：通过 `mount()` 挂载后，可以在后续会话中继续访问同一本地目录，无需重复选择
+
+**注意**：对于通过 `init()` 创建的虚拟文件系统目录，已经自动支持 HTTP 访问，无需使用 `mount()`。
 
 ### 典型应用场景
 
@@ -35,7 +39,7 @@ if (!window.showDirectoryPicker) {
 
 ### open() - 打开目录选择器
 
-`open()` 方法会弹出系统的目录选择器，让用户选择一个目录：
+`open()` 方法会弹出系统的目录选择器，让用户选择一个本地目录：
 
 ```javascript
 import { open } from "/nos/fs/main.js";
@@ -45,9 +49,11 @@ const handle = await open();
 
 用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 `DirHandle` 对象。
 
+**注意**：`open()` 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 `init()` 创建。
+
 ### mount() - 挂载目录
 
-`mount()` 方法将目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：
+`mount()` 方法将本地目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：
 
 ```javascript
 import { open, mount } from "/nos/fs/main.js";
@@ -59,6 +65,10 @@ console.log(handle.path); // 输出: $mount-123>目录名
 ```
 
 挂载后的路径格式为：`$mount-{id}>目录名`
+
+**重要**：
+- `mount()` 主要用于持久化 `open()` 打开的本地目录
+- 对于 `init()` 创建的虚拟文件系统目录，无需使用 `mount()`
 
 ### 一次性打开并挂载
 
@@ -72,6 +82,57 @@ const handle = await open({ mount: true });
 // const handle = await open();
 // await mount(handle);
 ```
+
+## mount() 的主要用途
+
+`mount()` 方法主要用于配合 `open()` 使用，将用户选择的本地目录持久化存储。**对于通过 `init()` 创建的虚拟文件系统目录，不需要使用 `mount()`**。
+
+### 虚拟文件系统目录（不需要 mount）
+
+通过 `init()` 创建的目录已经可以直接通过 HTTP 访问：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+// 创建虚拟文件系统目录
+const dir = await init("my-app");
+await dir.get("test.txt", { create: "file" });
+
+// 直接通过 $rootdirName 方式访问
+const response = await fetch("/$my-app/test.txt");
+const content = await response.text();
+```
+
+这些目录路径格式为：`$目录名`，无需挂载即可通过 HTTP 访问。
+
+### 本地目录（需要 mount）
+
+通过 `open()` 打开的本地目录需要挂载才能持久化访问：
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// 打开用户本地目录
+const handle = await open();
+
+// 需要挂载才能在后续会话中继续访问
+await mount(handle);
+
+// 挂载后可通过 $mount-{id}>目录名 方式访问
+const response = await fetch(`/${handle.path}/file.txt`);
+```
+
+### 两种目录对比
+
+| 特性 | 虚拟文件系统目录 | 本地目录（mount） |
+|------|-----------------|------------------|
+| 创建方式 | `init("dir-name")` | `open()` + `mount()` |
+| 路径格式 | `$dir-name` | `$mount-{id}>dir-name` |
+| HTTP 访问 | ✅ 直接支持 | ✅ 需要挂载后支持 |
+| 持久化 | ✅ 自动持久化 | ✅ 需要 mount 持久化 |
+| 数据位置 | 浏览器存储 | 用户本地文件系统 |
+| 是否需要 mount | ❌ 不需要 | ✅ 需要 |
+| 浏览器支持 | 所有现代浏览器 | 仅 Chrome |
 
 ## 管理已挂载的目录
 

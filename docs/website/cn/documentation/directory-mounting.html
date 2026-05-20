@@ -72,7 +72,10 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>目录挂载</h1>
-        <p>目录挂载功能允许你访问用户本地文件系统中的目录，并将其持久化存储，以便在后续会话中继续使用。</p>
+        <p>目录挂载功能允许你访问用户本地文件系统中的<strong>真实目录</strong>，并将其持久化存储，以便在后续会话中继续使用。</p>
+        <blockquote>
+          <p><strong>真实目录</strong>：指您 <strong>Windows</strong> / <strong>macOS</strong> / <strong>Linux</strong> 系统上的实际文件夹，区别于虚拟文件系统中的目录。</p>
+        </blockquote>
         <h2>重要说明</h2>
         <h3>浏览器支持</h3>
         <p><code>open()</code> 方法依赖于浏览器的 <code>showDirectoryPicker</code> API，目前<strong>仅 Chrome 浏览器完整支持</strong>此功能。</p>
@@ -83,12 +86,13 @@
   <span class="hljs-keyword">return</span>;
 }</code></pre>
         <h3>核心用途</h3>
-        <p>目录挂载的主要用途是：</p>
+        <p>目录挂载的主要用途是配合 <code>open()</code> 访问用户本地文件系统：</p>
         <ol>
           <li><strong>本地文件访问</strong>：让用户选择本地目录，通过浏览器直接访问文件内容</li>
-          <li><strong>静态服务器功能</strong>：挂载后的目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能</li>
-          <li><strong>持久化访问</strong>：通过 <code>mount()</code> 挂载后，可以在后续会话中继续访问同一目录，无需重复选择</li>
+          <li><strong>静态服务器功能</strong>：挂载后的本地目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能</li>
+          <li><strong>持久化访问</strong>：通过 <code>mount()</code> 挂载后，可以在后续会话中继续访问同一本地目录，无需重复选择</li>
         </ol>
+        <p><strong>注意</strong>：对于通过 <code>init()</code> 创建的虚拟文件系统目录，已经自动支持 HTTP 访问，无需使用 <code>mount()</code>。</p>
         <h3>典型应用场景</h3>
         <ul>
           <li>本地项目开发：直接在浏览器中访问和编辑本地项目文件</li>
@@ -97,13 +101,14 @@
         </ul>
         <h2>基本概念</h2>
         <h3>open() - 打开目录选择器</h3>
-        <p><code>open()</code> 方法会弹出系统的目录选择器，让用户选择一个目录：</p>
+        <p><code>open()</code> 方法会弹出系统的目录选择器，让用户选择一个本地目录：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();</code></pre>
         <p>用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 <code>DirHandle</code> 对象。</p>
+        <p><strong>注意</strong>：<code>open()</code> 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 <code>init()</code> 创建。</p>
         <h3>mount() - 挂载目录</h3>
-        <p><code>mount()</code> 方法将目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：</p>
+        <p><code>mount()</code> 方法将本地目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
@@ -111,6 +116,11 @@
 
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(handle.<span class="hljs-property">path</span>); <span class="hljs-comment">// 输出: $mount-123&gt;目录名</span></code></pre>
         <p>挂载后的路径格式为：<code>$mount-{id}&gt;目录名</code></p>
+        <p><strong>重要</strong>：</p>
+        <ul>
+          <li><code>mount()</code> 主要用于持久化 <code>open()</code> 打开的本地目录</li>
+          <li>对于 <code>init()</code> 创建的虚拟文件系统目录，无需使用 <code>mount()</code></li>
+        </ul>
         <h3>一次性打开并挂载</h3>
         <p>你可以使用 <code>open()</code> 的 <code>mount</code> 参数，在选择目录后自动挂载：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
@@ -119,6 +129,79 @@
 <span class="hljs-comment">// 等价于：</span>
 <span class="hljs-comment">// const handle = await open();</span>
 <span class="hljs-comment">// await mount(handle);</span></code></pre>
+        <h2>mount() 的主要用途</h2>
+        <p><code>mount()</code> 方法主要用于配合 <code>open()</code> 使用，将用户选择的本地目录持久化存储。<strong>对于通过 <code>init()</code> 创建的虚拟文件系统目录，不需要使用 <code>mount()</code></strong>。</p>
+        <h3>虚拟文件系统目录（不需要 mount）</h3>
+        <p>通过 <code>init()</code> 创建的目录已经可以直接通过 HTTP 访问：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 创建虚拟文件系统目录</span>
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-comment">// 直接通过 $rootdirName 方式访问</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$my-app/test.txt"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <p>这些目录路径格式为：<code>$目录名</code>，无需挂载即可通过 HTTP 访问。</p>
+        <h3>本地目录（需要 mount）</h3>
+        <p>通过 <code>open()</code> 打开的本地目录需要挂载才能持久化访问：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 打开用户本地目录</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// 需要挂载才能在后续会话中继续访问</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+
+<span class="hljs-comment">// 挂载后可通过 $mount-{id}&gt;目录名 方式访问</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/file.txt`</span>);</code></pre>
+        <h3>两种目录对比</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>特性</th>
+              <th>虚拟文件系统目录</th>
+              <th>本地目录（mount）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>创建方式</td>
+              <td><code>init("dir-name")</code></td>
+              <td><code>open()</code> + <code>mount()</code></td>
+            </tr>
+            <tr>
+              <td>路径格式</td>
+              <td><code>$dir-name</code></td>
+              <td><code>$mount-{id}&gt;dir-name</code></td>
+            </tr>
+            <tr>
+              <td>HTTP 访问</td>
+              <td>✅ 直接支持</td>
+              <td>✅ 需要挂载后支持</td>
+            </tr>
+            <tr>
+              <td>持久化</td>
+              <td>✅ 自动持久化</td>
+              <td>✅ 需要 mount 持久化</td>
+            </tr>
+            <tr>
+              <td>数据位置</td>
+              <td>浏览器存储</td>
+              <td>用户本地文件系统</td>
+            </tr>
+            <tr>
+              <td>是否需要 mount</td>
+              <td>❌ 不需要</td>
+              <td>✅ 需要</td>
+            </tr>
+            <tr>
+              <td>浏览器支持</td>
+              <td>所有现代浏览器</td>
+              <td>仅 Chrome</td>
+            </tr>
+          </tbody>
+        </table>
         <h2>管理已挂载的目录</h2>
         <h3>获取已挂载目录列表</h3>
         <p>使用 <code>getMounted()</code> 获取所有已挂载的目录：</p>
