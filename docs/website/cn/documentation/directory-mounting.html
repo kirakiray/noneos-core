@@ -133,11 +133,32 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>);    <span class="hljs-comment">// DirHandle 对象</span>
 });</code></pre>
         <h3>卸载目录</h3>
-        <p>使用 <code>unmount()</code> 移除已挂载的目录：</p>
+        <p>使用 <code>unmount()</code> 移除已挂载的目录。该方法支持两种参数类型：</p>
+        <h4>方式 1：通过 ID 卸载</h4>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(mountId);</code></pre>
+        <h4>方式 2：通过 Handle 对象卸载（推荐）</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// 使用 handle...</span>
+
+<span class="hljs-comment">// 直接使用 handle 对象卸载</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(handle);</code></pre>
+        <h4>从挂载列表中卸载</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> item <span class="hljs-keyword">of</span> mounted) {
+  <span class="hljs-comment">// 使用 handle 对象卸载</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(item.<span class="hljs-property">handle</span>);
+  
+  <span class="hljs-comment">// 或者使用 ID 卸载</span>
+  <span class="hljs-comment">// await unmount(item.id);</span>
+}</code></pre>
         <p>卸载后，该目录将无法通过挂载路径访问。</p>
+        <p><strong>注意</strong>：只能卸载已挂载的 handle（路径以 <code>$mount-</code> 开头）。尝试卸载未挂载的 handle 会抛出错误。</p>
         <h2>通过挂载路径访问文件</h2>
         <h3>使用 get() 方法</h3>
         <p>挂载后的目录可以通过挂载路径访问：</p>
@@ -228,7 +249,7 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
 <span class="hljs-comment">// 卸载旧项目</span>
 <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> project <span class="hljs-keyword">of</span> projects) {
   <span class="hljs-keyword">if</span> (project.<span class="hljs-property">time</span> &lt; <span class="hljs-title class_">Date</span>.<span class="hljs-title function_">now</span>() - <span class="hljs-number">30</span> * <span class="hljs-number">24</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">1000</span>) {
-    <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(project.<span class="hljs-property">id</span>);
+    <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(project.<span class="hljs-property">handle</span>);
     <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"已卸载:"</span>, project.<span class="hljs-property">name</span>);
   }
 }</code></pre>

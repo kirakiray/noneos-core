@@ -94,7 +94,9 @@ mountedDirs.forEach(item => {
 
 ### 卸载目录
 
-使用 `unmount()` 移除已挂载的目录：
+使用 `unmount()` 移除已挂载的目录。该方法支持两种参数类型：
+
+#### 方式 1：通过 ID 卸载
 
 ```javascript
 import { unmount } from "/nos/fs/main.js";
@@ -102,7 +104,36 @@ import { unmount } from "/nos/fs/main.js";
 await unmount(mountId);
 ```
 
+#### 方式 2：通过 Handle 对象卸载（推荐）
+
+```javascript
+import { open, mount, unmount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// 使用 handle...
+
+// 直接使用 handle 对象卸载
+await unmount(handle);
+```
+
+#### 从挂载列表中卸载
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+const mounted = await getMounted();
+for (const item of mounted) {
+  // 使用 handle 对象卸载
+  await unmount(item.handle);
+  
+  // 或者使用 ID 卸载
+  // await unmount(item.id);
+}
+```
+
 卸载后，该目录将无法通过挂载路径访问。
+
+**注意**：只能卸载已挂载的 handle（路径以 `$mount-` 开头）。尝试卸载未挂载的 handle 会抛出错误。
 
 ## 通过挂载路径访问文件
 
@@ -221,7 +252,7 @@ const projects = allMounts.filter(item =>
 // 卸载旧项目
 for (const project of projects) {
   if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {
-    await unmount(project.id);
+    await unmount(project.handle);
     console.log("已卸载:", project.name);
   }
 }

@@ -51,8 +51,25 @@ export const mount = async (handle) => {
   return handle;
 };
 
-export const unmount = async (id) => {
-  // 确认是存在的句柄
+export const unmount = async (idOrHandle) => {
+  let id;
+
+  if (typeof idOrHandle === "string") {
+    id = idOrHandle;
+  } else if (idOrHandle && idOrHandle.path) {
+    const path = idOrHandle.path;
+    
+    if (!path.startsWith("$mount-")) {
+      throw new Error("Only mounted handles can be unmounted");
+    }
+
+    const rootName = path.split("/")[0];
+    const [mark] = rootName.split(">");
+    id = mark.replace(/\$mount-/, "");
+  } else {
+    throw new Error("Invalid argument: expected id string or handle object");
+  }
+
   const handle = await loadHandle(id);
   if (!handle) {
     throw new Error(`Handle ${id} does not exist`);

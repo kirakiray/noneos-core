@@ -43,7 +43,7 @@
             );
 
             if (foundInList) {
-              await unmount(foundInList.id);
+              await unmount(foundInList.handle);
             }
 
             return {
@@ -92,7 +92,7 @@
             );
 
             if (foundInList) {
-              await unmount(foundInList.id);
+              await unmount(foundInList.handle);
             }
 
             const afterUnmount = await getMounted();
@@ -136,7 +136,7 @@
             );
 
             if (foundInList) {
-              await unmount(foundInList.id);
+              await unmount(foundInList.handle);
             }
 
             return {
@@ -177,7 +177,7 @@
             );
 
             if (foundInList) {
-              await unmount(foundInList.id);
+              await unmount(foundInList.handle);
             }
 
             return {
@@ -225,12 +225,47 @@
             );
 
             if (foundInList) {
-              await unmount(foundInList.id);
+              await unmount(foundInList.handle);
             }
 
             return {
               assert: fetchContent === testContent,
               content: `Expected fetch content to be '${testContent}', got '${fetchContent}'`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Unmount Handle with Handle Object Test">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          import { mount, unmount, getMounted } from "/nos/fs/main.js";
+          {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
+            const testDirectory = await init("test-unmount-handle");
+
+            const mountedHandle = await mount(testDirectory);
+
+            const beforeUnmount = await getMounted();
+            const existsBefore = beforeUnmount.find(
+              (item) => item.path === mountedHandle.path
+            );
+
+            await unmount(mountedHandle);
+
+            const afterUnmount = await getMounted();
+            const existsAfter = afterUnmount.find(
+              (item) => item.path === mountedHandle.path
+            );
+
+            return {
+              assert: existsBefore && !existsAfter,
+              content: `Expected handle to be removed when unmounting with handle object`,
             };
           }
         </script>
