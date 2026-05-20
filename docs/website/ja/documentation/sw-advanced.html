@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sw.js 設定のコツ</title>
+  <title>sw.js 設定のテクニック</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,9 +71,9 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>sw.js 設定のコツ</h1>
-        <h2>バージョン番号管理とキャッシュ更新</h2>
-        <p>新しいバージョンをリリースする際、サーバーが <code>max-age=0</code> レスポンスヘッダーを設定していたとしても、ブラウザは古いバージョンの <code>sw.js</code> ファイルをキャッシュすることがあり、アップデートがすぐに反映されない場合があります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。</p>
+        <h1>sw.js 設定のテクニック</h1>
+        <h2>バージョン番号制御とキャッシュ更新</h2>
+        <p>新しいバージョンをリリースする際、サーバーが <code>max-age=0</code> レスポンスヘッダーを設定していても、ブラウザは古いバージョンの <code>sw.js</code> ファイルをキャッシュする可能性があり、更新がすぐに反映されないことがあります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> version = <span class="hljs-string">&quot;&quot;</span>;
 <span class="hljs-keyword">if</span> (globalThis.<span class="hljs-property">serviceWorker</span>) {
   <span class="hljs-keyword">const</span> urlParams = <span class="hljs-keyword">new</span> <span class="hljs-title class_">URLSearchParams</span>(
@@ -86,17 +86,17 @@
 }
 
 importScripts(<span class="hljs-string">&quot;https://core.noneos.com/sw/dist.js?v=&quot;</span> + version);</code></pre>
-        <p>dist.js を引用する際に <code>?v=</code> パラメータを付け、新しいバージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使わずに新しいファイルをリクエストします。</p>
+        <p>dist.js を参照する際に <code>?v=</code> パラメータを追加し、新バージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使用せずに新しいファイルをリクエストするようになります。</p>
         <h2>公式ツール</h2>
-        <p><code>nos-tool</code> ディレクトリ内のツールを使用すると、NoneOS システムを簡単に管理できます。</p>
+        <p><code>nos-tool</code> ディレクトリにあるツールを使用することで、NoneOS システムを簡単に管理できます。</p>
         <ul>
-          <li><strong>ai</strong> - AI モデル管理、チャット、設定、キー管理を含む</li>
-          <li><strong>editor</strong> - Monaco エディター統合、コードハイライト、フォーマット、AI 補完をサポート</li>
-          <li><strong>file-explore</strong> - ファイルエクスプローラー</li>
+          <li><strong>ai</strong> - AIモデル管理、チャット、設定、キー管理を含む</li>
+          <li><strong>editor</strong> - Monacoエディター統合、コードハイライト、フォーマット、AI補完をサポート</li>
+          <li><strong>file-explore</strong> - ファイルブラウザ</li>
           <li><strong>file-list</strong> - ファイルリストビューとハンドル管理</li>
           <li><strong>studio</strong> - 開発スタジオ、ファイル管理、カラーツール、テーマ編集などの機能を提供</li>
         </ul>
-        <p>これらのツールは <code>nos-tool</code> ディレクトリにあり、必要に応じてインポートして使用できます。</p>
+        <p>これらのツールは <code>nos-tool</code> ディレクトリにあり、必要に応じて導入して使用できます。</p>
       </article>
       <div class="footer"></div>
       <script>

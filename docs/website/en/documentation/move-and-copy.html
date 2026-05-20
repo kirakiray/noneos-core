@@ -73,8 +73,8 @@
       <article class="markdown-body">
         <h1>File Moving and Copying</h1>
         <p>This document describes how to move and copy files and directories.</p>
-        <h2>Moving Files</h2>
-        <p>Use the <code>moveTo()</code> method to move the file to the target directory:</p>
+        <h2>Move Files</h2>
+        <p>Use the <code>moveTo()</code> method to move the file to the target directory：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -82,7 +82,7 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// The second parameter is the target file name; omit it to keep the original name</span>
+<span class="hljs-comment">// The second parameter is the target file name; if omitted, the original file name is used</span>
 <span class="hljs-keyword">const</span> movedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(targetDir);
 <span class="hljs-comment">// Equivalent to sourceFile.moveTo(targetDir, "source.txt")</span>
 
@@ -90,9 +90,9 @@
 <span class="hljs-comment">// content === "Hello, World!"</span>
 
 <span class="hljs-keyword">const</span> oldFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
-<span class="hljs-comment">// oldFile === null means the original file has been moved</span></code></pre>
+<span class="hljs-comment">// oldFile === null indicates the original file has been moved</span></code></pre>
         <h2>Move Directory</h2>
-        <p>The <code>moveTo()</code> method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:</p>
+        <p><code>moveTo()</code> method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name will be used:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -105,14 +105,14 @@
 <span class="hljs-comment">// Equivalent to sourceDir.moveTo(targetDir, "sourceDir")</span>
 
 <span class="hljs-comment">// movedDir contains file1.txt and subDir/file2.txt</span></code></pre>
-        <h2>Copy File</h2>
+        <h2>Copy Files</h2>
         <p>Use the <code>copyTo()</code> method to copy the file to the target directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// The second parameter is the target file name; if not provided, the original file name is used.</span>
+<span class="hljs-comment">// The second parameter is the target filename; if omitted, the original filename is used</span>
 <span class="hljs-keyword">const</span> copiedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(targetDir);
 <span class="hljs-comment">// Equivalent to sourceFile.copyTo(targetDir, "source.txt")</span>
 
@@ -123,7 +123,7 @@
 <span class="hljs-keyword">const</span> originalFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
 <span class="hljs-comment">// originalFile !== null</span></code></pre>
         <h2>Copy Directory</h2>
-        <p>The <code>copyTo()</code> method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:</p>
+        <p>The <code>copyTo()</code> method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name, if not provided, the original directory name is retained:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -133,7 +133,7 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> copiedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">copyTo</span>(targetDir);
-<span class="hljs-comment">// Same as sourceDir.copyTo(targetDir, "sourceDir")</span>
+<span class="hljs-comment">// Equivalent to sourceDir.copyTo(targetDir, "sourceDir")</span>
 
 <span class="hljs-comment">// copiedDir contains file1.txt and subDir/file2.txt</span></code></pre>
         <h2>Complete Example</h2>
@@ -156,7 +156,7 @@
 <span class="hljs-keyword">const</span> original = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/document.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(original); <span class="hljs-comment">// null</span></code></pre>
         <h2>Next Chapter</h2>
-        <p>Study <a href="./handle-comparison.html" olink="">File Handle Comparison</a> to learn how to compare file handles.</p>
+        <p>Learn about <a href="./handle-comparison.html" olink="">file handle comparison</a>，and how to compare file handles。</p>
       </article>
       <div class="footer"></div>
       <script>

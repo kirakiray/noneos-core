@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIモデルを呼び出す</title>
+  <title>AIモデルの呼び出し</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,18 +71,18 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>AIモデルを呼び出す</h1>
-        <h2>chat モジュールの導入</h2>
+        <h1>AIモデルの呼び出し</h1>
+        <h2>chatモジュールの導入</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { chat, subscribe, getStatus, getAvailableProviders } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/ai/chat.js&quot;</span>;</code></pre>
-        <h2>基本的な使い方</h2>
+        <h2>基本的な使用方法</h2>
         <p><code>chat</code> 関数はメッセージ配列とオプションオブジェクトを受け取ります：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
-  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;こんにちは&quot;</span> }
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;你好&quot;</span> }
 ];
 
 <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages, {
-  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// オプション、プロバイダを指定</span>
-  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// オプション、ストリーミングコールバック</span>
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// オプション、プロバイダーを指定</span>
+  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// オプション、ストリーム形式のコールバック</span>
     <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(chunk);
   },
   <span class="hljs-attr">maxContextLength</span>: <span class="hljs-number">8192</span>  <span class="hljs-comment">// オプション、最大コンテキスト長</span>
@@ -94,20 +94,20 @@
           <li><strong>minimax</strong> - MiniMax</li>
           <li><strong>glm</strong> - 智譜 GLM</li>
         </ul>
-        <p><code>provider</code>を指定しない場合、システムは利用可能なAPI Keyを自動的に選択します。</p>
+        <p><code>provider</code> を指定しない場合、システムは自動的に利用可能な API キーを選択します。</p>
         <h2>メッセージ形式</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
-  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;system&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;あなたは役立つアシスタントです&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;system&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;あなたは役に立つアシスタントです&quot;</span> },
   { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;こんにちは&quot;</span> },
-  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;こんにちは、何かお手伝いできますか？&quot;</span> },
-  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;AIとは何かを説明してください&quot;</span> }
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;こんにちは、何かお手伝いできることはありますか？&quot;</span> },
+  { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;AIとは何か説明してください&quot;</span> }
 ];</code></pre>
         <h2>並行制御</h2>
-        <p>NoneOS AIモジュールは並行制御をサポートし、同じAPIキーが過度に使用されることを防げます。</p>
+        <p>NoneOS AI モジュールは並行制御をサポートしており、同一の API キーが過度に使用されるのを防ぐことができます。</p>
         <h3>現在の状態を取得</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> status = <span class="hljs-title function_">getStatus</span>();
 <span class="hljs-comment">// 各キーの同時使用状況を返す</span></code></pre>
-        <h3>購読ステータスの変化</h3>
+        <h3>サブスクリプション状態の変化</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-title function_">subscribe</span>(<span class="hljs-function">(<span class="hljs-params">newStatus</span>) =&gt;</span> {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;状態更新:&quot;</span>, newStatus);
 });</code></pre>
@@ -120,11 +120,11 @@
 } <span class="hljs-keyword">catch</span> (error) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(error.<span class="hljs-property">message</span>);
 }</code></pre>
-        <p>よくあるエラー：- <code>no_key</code> - APIキーが設定されていません</p>
+        <p>よくある間違い：- <code>no_key</code> - API キーが設定されていません</p>
         <ul>
-          <li><code>no_provider_key</code> - プロバイダーのAPIキーが指定されていません</li>
-          <li><code>concurrency_full</code> - このキーの同時実行数が満杯です</li>
-          <li><code>Unsupported provider</code> - サポートされていないプロバイダー</li>
+          <li><code>no_provider_key</code> - プロバイダーの API キーが指定されていません</li>
+          <li><code>concurrency_full</code> - このキーの同時実行数が上限に達しました</li>
+          <li><code>Unsupported provider</code> - サポートされていないプロバイダーです</li>
         </ul>
       </article>
       <div class="footer"></div>

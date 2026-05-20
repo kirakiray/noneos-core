@@ -2,7 +2,7 @@
 
 ## AI Model Management Portal
 
-In the deployed NoneOS system, applications developed based on this system can introduce the AI model key management page through the `o-page` component, allowing users to add and manage AI models via a graphical user interface (GUI).
+In a deployed NoneOS system, applications developed based on the system can introduce an AI model's key management page through the `o-page` component, allowing users to add and manage AI models through a graphical user interface (GUI).
 
 ### Using Relative Paths
 
@@ -10,13 +10,13 @@ In the deployed NoneOS system, applications developed based on this system can i
 <o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
 ```
 
-This way you can directly add an entry for AI models in your ofa.js application.
+This way, you can directly add an entry point for adding AI models in your ofa.js application.
 
-## js Add Model
+## Adding Models in js
 
-You can directly manage AI models through JavaScript code without using the `o-page` component.
+You can manage AI models directly through JavaScript code without using the `o-page` component.
 
-### Introducing the Storage Module
+### Import Storage Module
 
 ```javascript
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
@@ -45,9 +45,9 @@ await storage.setItem("ai-keys", aiKeys);
 
 ### Available Models by Provider
 
-Available models refer to the documentation of each provider.
+Refer to the documentation of each provider for available models.
 
-### Retrieve All Saved Keys
+### Get all saved Keys
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
@@ -64,24 +64,24 @@ if (index > -1) {
 }
 ```
 
-### Update the concurrency limit of the Key
+### Concurrency of updating keys
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
 const keyItem = aiKeys.find((k) => k.id === "key-id");
 if (keyItem) {
-  keyItem.concurrency = 3;  // Modify the concurrency
+  keyItem.concurrency = 3;  // Modify concurrency
   await storage.setItem("ai-keys", aiKeys);
 }
 ```
 
 ### Key Object Structure
 
-| Attribute     | Type    | Description                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | Unique identifier                         |
-| `provider`    | string  | Provider (deepseek/kimi/minimax/glm) |
-| `model`       | string  | Model name                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | Maximum concurrency                         |
-| `disabled`    | boolean | Whether disabled                           |
+| Property      | Type    | Description                         |
+| ------------- | ------- | ----------------------------------- |
+| `id`          | string  | Unique identifier                   |
+| `provider`    | string  | Provider (deepseek/kimi/minimax/glm)|
+| `model`       | string  | Model name                          |
+| `key`         | string  | API Key                             |
+| `concurrency` | number  | Max concurrency                      |
+| `disabled`    | boolean | Is disabled                         |

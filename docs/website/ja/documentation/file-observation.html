@@ -72,16 +72,16 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>ファイル変更監視</h1>
-        <p>このドキュメントでは、<code>observe</code> メソッドを使用してファイルやディレクトリの変更イベントを監視する方法について説明します。</p>
-        <h2>基本的な使い方</h2>
-        <p><code>observe()</code> メソッドを使用してファイルまたはディレクトリの変更を監視します：</p>
+        <p>このドキュメントでは、<code>observe</code> メソッドを使用してファイルまたはディレクトリの変更イベントを監視する方法について説明します。</p>
+        <h2>基本的な使用方法</h2>
+        <p><code>observe()</code> メソッドを使用してファイルまたはディレクトリの変更を監視します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
 
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
 
 <span class="hljs-keyword">const</span> events = [];
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイル変更イベントを受信しました:&quot;</span>, event);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイル変更イベントを受信:&quot;</span>, event);
   events.<span class="hljs-title function_">push</span>(event);
 });
 
@@ -94,41 +94,41 @@
 
 <span class="hljs-comment">// 監視を解除</span>
 <span class="hljs-title function_">unobserve</span>();</code></pre>
-        <p>ファイルとディレクトリの両方とも変化を監視できます。たとえば、単一のファイルを監視するには：</p>
+        <p>ファイルとディレクトリの両方で変更を監視できます。例えば、単一ファイルを監視する場合：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app/test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
 
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイルが変更されました:&quot;</span>, event.<span class="hljs-property">type</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイルが修正されました:&quot;</span>, event.<span class="hljs-property">type</span>);
 });
 
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;new content&quot;</span>);
 
 <span class="hljs-title function_">unobserve</span>();</code></pre>
         <h2>observe 戻り値</h2>
-        <p><code>observe()</code> は Promise を返し、これは resolve すると監視を解除する関数となる。この関数を呼び出すとリスニングを停止できる：</p>
+        <p><code>observe()</code> は Promise を返し、監視を解除する関数に解決されます。その関数を呼び出すと監視を停止できます：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  <span class="hljs-comment">// イベントを処理</span>
+  <span class="hljs-comment">// イベントを処理する</span>
 });
 
-<span class="hljs-comment">// 後で監視を解除</span>
+<span class="hljs-comment">// 後で監視を解除する</span>
 <span class="hljs-title function_">unobserve</span>();</code></pre>
         <h2>イベントオブジェクト</h2>
-        <p>観測コールバックが受信するイベントオブジェクトには以下の属性が含まれます：</p>
+        <p>オブザーバーコールバックで受け取るイベントオブジェクトには、次のプロパティが含まれています：</p>
         <table>
           <thead>
             <tr>
-              <th>属性</th>
+              <th>プロパティ</th>
               <th>説明</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><code>type</code></td>
-              <td>イベントタイプ。例: <code>&quot;create&quot;</code>, <code>&quot;remove&quot;</code>, <code>&quot;write&quot;</code></td>
+              <td>イベントの種類。例: <code>&quot;create&quot;</code>, <code>&quot;remove&quot;</code>, <code>&quot;write&quot;</code></td>
             </tr>
             <tr>
               <td><code>path</code></td>
-              <td>変更が発生したファイルパス</td>
+              <td>変更が発生したファイルのパス</td>
             </tr>
           </tbody>
         </table>
@@ -136,7 +136,7 @@
 
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
 
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイル変更監視テストを開始します&quot;</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;ファイル変更監視テスト開始&quot;</span>);
 
 <span class="hljs-keyword">const</span> events = [];
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
@@ -156,12 +156,12 @@
 
 <span class="hljs-title function_">unobserve</span>();
 
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`合計 <span class="hljs-subst">${events.length}</span> 個のイベントを受信しました`</span>);</code></pre>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`合計 <span class="hljs-subst">${events.length}</span> 件のイベントを受信`</span>);</code></pre>
         <h2>注意事項</h2>
         <ol>
-          <li>オブザーバーは作成後に監視を開始し、それ以前のファイル操作はキャプチャされません</li>
-          <li>監視をキャンセルすると、新たに発生するファイル変更は記録されません</li>
-          <li>ファイル変更イベントは非同期でトリガーされ、一定の遅延が発生する可能性があります</li>
+          <li>オブザーバーが作成されてから監視が開始され、それ以前のファイル操作はキャプチャされません</li>
+          <li>監視を解除すると、その後に発生したファイルの変更は記録されません</li>
+          <li>ファイル変更イベントは非同期で発生するため、ある程度の遅延が生じる可能性があります</li>
         </ol>
       </article>
       <div class="footer"></div>

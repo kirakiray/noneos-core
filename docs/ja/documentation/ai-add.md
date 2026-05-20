@@ -1,20 +1,20 @@
-# AIモデルの追加
+# AIモデルを追加
 
-## AIモデル管理エントリー
+## AIモデル管理エントリ
 
-デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、`o-page`コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。
+既にデプロイされた NoneOS システムにおいて、当該システムをベースに開発されたアプリケーションは、`o-page` コンポーネントを通じて AI モデルのキー管理ページを取り込むことができ、ユーザーがグラフィカルユーザーインターフェース（GUI）を用いて AI モデルを追加・管理できるようにします。
 
-### 相対パスを使用する
+### 相対パスの使用
 
 ```html
 <o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
 ```
 
-これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。
+これで、あなたの ofa.js アプリに AI モデルを追加する入り口を直接組み込むことができます。
 
-## jsでモデルを追加
+## JSモデルの追加
 
-あなたは `o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。
+`o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することもできます。
 
 ### ストレージモジュールの導入
 
@@ -22,7 +22,7 @@
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
 ```
 
-### API Key を保存する
+### API キーを保存
 
 ```javascript
 const newKey = {
@@ -43,17 +43,17 @@ aiKeys.push(newKey);
 await storage.setItem("ai-keys", aiKeys);
 ```
 
-### 各プロバイダーの利用可能なモデル
+### 各プロバイダーで利用可能なモデル
 
-利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。
+利用可能なモデルについては各プロバイダーのドキュメントを参照してください。
 
-### 保存済みのすべてのキーを取得する
+### 保存されたすべてのキーを取得
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
 ```
 
-### APIキーの削除
+### APIキーを削除
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
@@ -64,24 +64,24 @@ if (index > -1) {
 }
 ```
 
-### Key の同時実行数を更新する
+### キーの同時更新数
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
 const keyItem = aiKeys.find((k) => k.id === "key-id");
 if (keyItem) {
-  keyItem.concurrency = 3;  // 同時実行数を変更
+  keyItem.concurrency = 3;  // 並行数を変更
   await storage.setItem("ai-keys", aiKeys);
 }
 ```
 
 ### Key オブジェクト構造
 
-| 属性          | 类型    | 説明                               |
+| 属性          | タイプ    | 説明                               |
 | ------------- | ------- | ---------------------------------- |
-| `id`          | string  | 一意の識別子                         |
+| `id`          | string  | 一意識別子                         |
 | `provider`    | string  | プロバイダー (deepseek/kimi/minimax/glm) |
 | `model`       | string  | モデル名                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | 最大同時実行数                         |
-| `disabled`    | boolean | 無効化されているかどうか                           |
+| `key`         | string  | APIキー                            |
+| `concurrency` | number  | 最大同時実行数                     |
+| `disabled`    | boolean | 無効にするかどうか                 |

@@ -5,11 +5,13 @@ import { saveHandle, loadHandle, deleteHandle, getAllHandles } from "./db.js";
 // 检查权限
 const checkPermission = async (handle) => {
   try {
-    const result = await handle.queryPermission({ mode: "readwrite" });
+    if (handle.queryPermission) {
+      const result = await handle.queryPermission({ mode: "readwrite" });
 
-    if (result !== "granted") {
-      // 进行申请权限
-      await handle.requestPermission({ mode: "readwrite" });
+      if (result !== "granted") {
+        // 进行申请权限
+        await handle.requestPermission({ mode: "readwrite" });
+      }
     }
   } catch (err) {
     throw new Error(`Permission denied: ${err.message}`);
@@ -49,8 +51,25 @@ export const mount = async (handle) => {
   return handle;
 };
 
-export const unmount = async (id) => {
-  // 确认是存在的句柄
+export const unmount = async (idOrHandle) => {
+  let id;
+
+  if (typeof idOrHandle === "string") {
+    id = idOrHandle;
+  } else if (idOrHandle && idOrHandle.path) {
+    const path = idOrHandle.path;
+    
+    if (!path.startsWith("$mount-")) {
+      throw new Error("Only mounted handles can be unmounted");
+    }
+
+    const rootName = path.split("/")[0];
+    const [mark] = rootName.split(">");
+    id = mark.replace(/\$mount-/, "");
+  } else {
+    throw new Error("Invalid argument: expected id string or handle object");
+  }
+
   const handle = await loadHandle(id);
   if (!handle) {
     throw new Error(`Handle ${id} does not exist`);

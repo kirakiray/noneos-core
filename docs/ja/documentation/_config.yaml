@@ -8,15 +8,17 @@
       url: ./file-operations.md
     - name: ディレクトリ操作
       url: ./directory-operations.md
+    - name: ディレクトリマウント
+      url: ./directory-mounting.md
     - name: ファイルの移動とコピー
       url: ./move-and-copy.md
-    - name: ファイルハンドルの比較
+    - name: ファイルハンドル比較
       url: ./handle-comparison.md
-    - name: ファイル変更の監視
+    - name: ファイル変更監視
       url: ./file-observation.md
-    - name: sw.js 設定のコツ
+    - name: sw.js設定のヒント
       url: ./sw-advanced.md
-- name: AI 操作
+- name: AI操作
   content:
     - name: モデルの追加
       url: ./ai-add.md

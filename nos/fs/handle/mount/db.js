@@ -39,20 +39,31 @@ export const saveHandle = async (handle) => {
         if (result) {
           targetItem = item;
         }
-      })
+      }),
     );
 
     if (targetItem) {
-      // 已经挂载过了
       return targetItem.id;
     }
   }
 
-  await db.transaction("handles", "readwrite").objectStore("handles").put({
-    id,
-    handle,
-    time: Date.now(),
-  });
+  try {
+    await db.transaction("handles", "readwrite").objectStore("handles").put({
+      id,
+      handle,
+      time: Date.now(),
+    });
+  } catch (error) {
+    if (error.name === "DataCloneError") {
+      console.warn(
+        "Safari does not support storing FileSystemHandle in IndexedDB",
+      );
+      throw new Error(
+        "Browser does not support persisting file handles. Please use Chrome or Firefox for this feature.",
+      );
+    }
+    throw error;
+  }
 
   return id;
 };
@@ -62,7 +73,7 @@ export const getAllHandles = async () => {
   const db = await getHandleDB();
   return new Promise((resolve) => {
     db.transaction("handles").objectStore("handles").getAll().onsuccess = (
-      e
+      e,
     ) => {
       resolve(e.target.result);
     };

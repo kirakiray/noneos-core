@@ -1,6 +1,6 @@
-# File Changes Observation
+# File Change Observation
 
-This document introduces how to use the `observe` method to listen for change events of files or directories.
+This document describes how to use the `observe` method to monitor file or directory change events.
 
 ## Basic Usage
 
@@ -13,7 +13,7 @@ const dir = await get("my-app");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
-  console.log("Received file change event:", event);
+  console.log("File change event received:", event);
   events.push(event);
 });
 
@@ -24,11 +24,11 @@ await file.write("Hello");
 // Delete file
 await file.remove();
 
-// Cancel observation
+// Stop observing
 unobserve();
 ```
 
-Files and directories can both be monitored for changes, for example, monitoring a single file:
+Both files and directories can be monitored for changes, for example, monitoring a single file:
 
 ```javascript
 const file = await get("my-app/test.txt", { create: "file" });
@@ -42,9 +42,9 @@ await file.write("new content");
 unobserve();
 ```
 
-## observe Return Value
+## observe return value
 
-`observe()` returns a Promise that resolves to a function to cancel observation. Calling this function stops the listening:
+`observe()` returns a Promise that resolves to a function to cancel the observation. Calling that function can stop the listening:
 
 ```javascript
 const unobserve = await dir.observe((event) => {
@@ -57,11 +57,11 @@ unobserve();
 
 ## Event Object
 
-The event object received by the observation callback contains the following properties:
+Observed event object received by the callback contains the following attributes:
 
 | Property | Description |
 |------|------|
-| `type` | Event type, such as `"create"`, `"remove"`, `"write"` |
+| `type` | Event type, e.g. `"create"`, `"remove"`, `"write"` |
 | `path` | Path of the file that changed |## Complete Example
 
 ```javascript
@@ -69,7 +69,7 @@ import { get } from "/nos/fs/main.js";
 
 const dir = await get("my-app");
 
-console.log("Starting file change observation test");
+console.log("Start file change observation test");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
@@ -89,11 +89,11 @@ await new Promise((resolve) => setTimeout(resolve, 100));
 
 unobserve();
 
-console.log(`Total events received: ${events.length}`);
+console.log(`Received ${events.length} events in total`);
 ```
 
-## Important Notes
+## Notes
 
-1. The observer starts monitoring only after it is created; file operations prior to that will not be captured.
-2. After the observer is canceled, newly occurring file changes will not be recorded.
-3. File change events are triggered asynchronously and may experience some delay.
+1. The observer will only start monitoring after it is created, and previous file operations will not be captured
+2. After canceling the observation, newly occurring file changes will not be recorded
+3. File change events are triggered asynchronously and may have a certain delay

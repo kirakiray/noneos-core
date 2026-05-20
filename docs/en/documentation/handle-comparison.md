@@ -1,10 +1,10 @@
 # File Handle Comparison
 
-This document describes how to compare file handles, obtain parent directories, root directories, file sizes, and unique identifiers.
+This document describes how to compare file handles and obtain the parent directory, root directory, file size, and unique identifier.
 
 ## Get Parent Directory
 
-Use the `parent` property to get the parent directory of a file:
+Use the `parent` attribute to get the parent directory of the file:
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -19,7 +19,7 @@ const isSame = await fileParentDir.isSame(testDir);
 
 ## Get Root Directory
 
-Use the `root` attribute to obtain the root directory to which a file or directory belongs:
+Use the `root` attribute to get the root directory of a file or directory:
 
 ```javascript
 const testDir = await get("my-app/a/b/c/d");
@@ -30,7 +30,7 @@ const isSame = await root.isSame(await get("my-app"));
 // isSame === true
 ```
 
-## Determining if Handles are Identical
+## Determine if handles are the same
 
 Use the `isSame()` method to determine whether two handles point to the same file or directory:
 
@@ -76,11 +76,11 @@ console.log(id); // unique hash string
 
 ## Handle Attributes
 
-| Attribute | Description | Return Value |
-|-----------|-------------|--------------|
+| Property | Description | Return Value |
+|------|------|--------|
 | `kind` | Handle type | `"file"` or `"dir"` |
-| `name` | File or directory name | String |
-| `path` | Full path | String |
+| `name` | Name of the file or directory | string |
+| `path` | Full path | string |
 | `parent` | Parent directory | DirHandle |
 | `root` | Root directory | DirHandle |## Complete Example
 
@@ -107,11 +107,11 @@ console.log(size); // 6
 const id = await deepFile.id();
 console.log(id); // "abc123..."
 
-// Get the same file via different path
+// Get the same file through different paths
 const file2 = await deepDir.get("deep.txt");
 console.log(await deepFile.isSame(file2)); // true
 ```
 
 ## Next Chapter
 
-Learn [File Change Observation](./file-observation.md) to understand how to listen for file change events.
+Learn [File Observation](./file-observation.md) to understand how to listen for file change events.

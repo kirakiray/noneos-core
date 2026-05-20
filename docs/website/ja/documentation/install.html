@@ -72,21 +72,21 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>インストール</h1>
-        <p>NoneOS Core はブラウザベースのファイルシステムで、Service Worker を介してローカルストレージを実現する必要があります。プロジェクト自体は純粋に静的であり、動的サーバーは必要ありません。</p>
+        <p>NoneOS Core はブラウザベースのファイルシステムで、Service Worker を通じてローカルストレージを実現する必要があります。プロジェクト自体は完全に静的であり、動的サーバーは不要です。</p>
         <h2>前提条件</h2>
         <ul>
-          <li>静的サーバー（http-server、live-server、nginxなど）</li>
-          <li>ブラウザがService Workerをサポートしていること</li>
-          <li>外部アクセスする場合は、HTTPSの使用が必須です（APIの要件により）</li>
+          <li>静的サーバー（例: http-server、live-server、nginx など）</li>
+          <li>ブラウザが Service Worker をサポートしていること</li>
+          <li>外部ネットワークからアクセスする場合は、HTTPS を使用する必要があります（API 要件のため）</li>
         </ul>
-        <h2>手順</h2>
-        <h3>1. Service Worker ファイルの作成</h3>
-        <p>プロジェクトのルートディレクトリに <code>sw.js</code> ファイルを作成し、以下の内容を入力します：</p>
+        <h2>ステップ</h2>
+        <h3>1. Service Workerファイルの作成</h3>
+        <p>プロジェクトのルートディレクトリに <code>sw.js</code> ファイルを作成し、以下の内容を記述してください:</p>
         <pre><code class="hljs language-javascript">importScripts(<span class="hljs-string">&quot;https://core.noneos.com/sw/dist.js&quot;</span>);</code></pre>
-        <h3>2. エントリHTMLの作成</h3>
-        <p>エントリー HTML ファイルに <code>ofa.js</code> と <code>nos-version</code> コンポーネントを導入します。<code>nos-version</code> コンポーネントを使用すると、<code>sw.js</code> ファイルが自動的に登録されます：</p>
+        <h3>2. エントリー HTML の作成</h3>
+        <p>エントリHTMLファイルに <code>ofa.js</code> と <code>nos-version</code> コンポーネントを導入します。<code>nos-version</code> コンポーネントを使用すると、自動的に <code>sw.js</code> ファイルが登録されます。</p>
         <pre><code class="hljs language-html"><span class="hljs-meta">&lt;!DOCTYPE <span class="hljs-keyword">html</span>&gt;</span>
-<span class="hljs-tag">&lt;<span class="hljs-name">html</span> <span class="hljs-attr">lang</span>=<span class="hljs-string">&quot;ja&quot;</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">html</span> <span class="hljs-attr">lang</span>=<span class="hljs-string">&quot;zh&quot;</span>&gt;</span>
   <span class="hljs-tag">&lt;<span class="hljs-name">head</span>&gt;</span>
     <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">charset</span>=<span class="hljs-string">&quot;UTF-8&quot;</span> /&gt;</span>
     <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">name</span>=<span class="hljs-string">&quot;viewport&quot;</span> <span class="hljs-attr">content</span>=<span class="hljs-string">&quot;width=device-width, initial-scale=1.0&quot;</span> /&gt;</span>
@@ -94,29 +94,29 @@
     <span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
   <span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
   <span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
-    <span class="hljs-comment">&lt;!-- nos-version コンポーネントをロード --&gt;</span>
+    <span class="hljs-comment">&lt;!-- nos-version コンポーネントを読み込む --&gt;</span>
     <span class="hljs-tag">&lt;<span class="hljs-name">l-m</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;https://core.noneos.com/nos-tool/comps/nos-version.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">l-m</span>&gt;</span>
-    <span class="hljs-comment">&lt;!-- nos-version コンポーネントを使用 --&gt;</span>
+    <span class="hljs-comment">&lt;!-- nos-version コンポーネントを使用する --&gt;</span>
     <span class="hljs-tag">&lt;<span class="hljs-name">nos-version</span> <span class="hljs-attr">auto-install</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">nos-version</span>&gt;</span>
 
     <span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">&quot;module&quot;</span>&gt;</span><span class="language-javascript">
-      <span class="hljs-comment">// インストール完了を待機</span>
+      <span class="hljs-comment">// インストール完了を待つ</span>
       $(<span class="hljs-string">&quot;nos-version&quot;</span>).<span class="hljs-title function_">on</span>(<span class="hljs-string">&quot;installed&quot;</span>, <span class="hljs-function">() =&gt;</span> {
-        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;NoneOS Core のインストールが完了しました。使用を開始できます。&quot;</span>);
-        <span class="hljs-comment">// ここで noneos-core を使用可能</span>
+        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;NoneOS Core のインストールが完了しました。使用を開始できます&quot;</span>);
+        <span class="hljs-comment">// ここで noneos-core を使用できます</span>
       });
     </span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
   <span class="hljs-tag">&lt;/<span class="hljs-name">body</span>&gt;</span>
 <span class="hljs-tag">&lt;/<span class="hljs-name">html</span>&gt;</span></code></pre>
-        <h2>インストールステータス</h2>
-        <p><code>nos-version</code>コンポーネントはNoneOS Coreのインストール状態を自動的に検出します：</p>
+        <h2>インストール状態</h2>
+        <p><code>nos-version</code> コンポーネントは、NoneOS Core のインストール状態を自動的に検出します：</p>
         <ul>
           <li><strong>未インストール</strong>：「Install NoneOS Core」ボタンを表示</li>
           <li><strong>インストール中</strong>：インストール進捗バーを表示</li>
           <li><strong>インストール済み</strong>：現在のバージョン番号を表示</li>
           <li><strong>アップグレード可能</strong>：アップグレードボタンを表示</li>
         </ul>
-        <p>システムのインストールが完了したとき、または既にインストールされている場合、またはアップグレードが成功したときに、<code>installed</code> イベントがトリガーされ、その後、NoneOS Core のすべての機能を正常に使用できるようになります。</p>
+        <p>システムのインストールが完了したとき、または既にインストールされているとき、またはアップグレードが成功したときに、<code>installed</code>イベントがトリガーされ、その後でNoneOS Coreのすべての機能を正常に使用できます。</p>
       </article>
       <div class="footer"></div>
       <script>

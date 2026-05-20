@@ -72,15 +72,15 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>概要</h1>
-        <p>ファイルシステム（FileSystem）は、ブラウザベースの仮想ファイルシステムであり、完全なファイルおよびディレクトリ操作APIを提供します。</p>
+        <p>ファイルシステム（FileSystem）はブラウザベースの仮想ファイルシステムであり、完全なファイルとディレクトリ操作 API のセットを提供します。</p>
         <h2>初期化</h2>
-        <p>ファイルシステムを使用する前に、まずルートディレクトリを初期化する必要があります：</p>
+        <p>ファイルシステムを使用する前に、ルートディレクトリを初期化する必要があります：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);</code></pre>
-        <p>以降のチュートリアルは、<code>my-app</code> の初期化が完了していることを前提としています。</p>
+        <p>以降のチュートリアルでは、<code>my-app</code> の初期化が完了していることを前提としています。</p>
         <h2>グローバル get メソッド</h2>
-        <p>グローバルな <code>get</code> メソッドを使用して、ファイル/ディレクトリハンドルを取得または作成します：</p>
+        <p>グローバル <code>get</code> メソッドを使用してファイル/ディレクトリハンドルを取得または作成します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -89,8 +89,8 @@
         <h2>核心概念</h2>
         <h3>FileHandle と DirHandle</h3>
         <ul>
-          <li><strong>FileHandle</strong>：ファイルを表し、ファイルの読み書き操作を提供する</li>
-          <li><strong>DirHandle</strong>：ディレクトリを表し、ディレクトリの走査と子項目の操作を提供する</li>
+          <li><strong>FileHandle</strong>：ファイルを表し、ファイルの読み書き操作を提供します</li>
+          <li><strong>DirHandle</strong>：ディレクトリを表し、ディレクトリの走査とサブアイテムの操作を提供します</li>
         </ul>
         <h3>基本属性</h3>
         <ul>
@@ -98,8 +98,8 @@
           <li><code>name</code>：ファイルまたはディレクトリの名前を返します</li>
           <li><code>path</code>：ファイルまたはディレクトリの完全なパスを返します</li>
         </ul>
-        <h2>次章</h2>
-        <p><a href="./file-operations.html" olink="">ファイル操作</a>を学び、ファイルの読み書きや削除の方法を理解します。</p>
+        <h2>次の章</h2>
+        <p><a href="./file-operations.html" olink="">ファイル操作</a>を学習し、ファイルの読み書きや削除の方法を理解します。</p>
       </article>
       <div class="footer"></div>
       <script>

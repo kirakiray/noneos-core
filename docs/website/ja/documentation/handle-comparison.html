@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ファイルハンドルの比較</title>
+  <title>ファイルハンドル比較</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,10 +71,10 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>ファイルハンドルの比較</h1>
-        <p>このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、および一意識別子の取得方法について説明します。</p>
-        <h2>親ディレクトリの取得</h2>
-        <p><code>parent</code> 属性を使用してファイルの親ディレクトリを取得します：</p>
+        <h1>ファイルハンドル比較</h1>
+        <p>このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、一意識別子の取得方法について説明します。</p>
+        <h2>親ディレクトリを取得</h2>
+        <p><code>parent</code>属性を使用してファイルの親ディレクトリを取得する：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/a/b/c/d"</span>);
@@ -83,15 +83,15 @@
 
 <span class="hljs-keyword">const</span> isSame = <span class="hljs-keyword">await</span> fileParentDir.<span class="hljs-title function_">isSame</span>(testDir);
 <span class="hljs-comment">// isSame === true</span></code></pre>
-        <h2>ルートディレクトリの取得</h2>
-        <p><code>root</code> 属性を使用してファイルまたはディレクトリが属するルートディレクトリを取得する：</p>
+        <h2>ルートディレクトリを取得する</h2>
+        <p><code>root</code> 属性を使用して、ファイルまたはディレクトリが属するルートディレクトリを取得します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/a/b/c/d"</span>);
 <span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> root = testFile.<span class="hljs-property">root</span>;
 
 <span class="hljs-keyword">const</span> isSame = <span class="hljs-keyword">await</span> root.<span class="hljs-title function_">isSame</span>(<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>));
 <span class="hljs-comment">// isSame === true</span></code></pre>
-        <h2>ハンドルが同一かどうかを判定する</h2>
+        <h2>ハンドルが同一かどうかの判定</h2>
         <p><code>isSame()</code> メソッドを使用して、2つのハンドルが同じファイルまたはディレクトリを指しているかどうかを判断します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to"</span>);
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -106,7 +106,7 @@
 
 <span class="hljs-keyword">const</span> result2 = <span class="hljs-keyword">await</span> file1.<span class="hljs-title function_">isSame</span>(file3);
 <span class="hljs-comment">// result2 === false</span></code></pre>
-        <h2>ファイルサイズを取得する</h2>
+        <h2>ファイルサイズの取得</h2>
         <p><code>size()</code> メソッドを使用してファイルのサイズを取得します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
@@ -115,7 +115,7 @@
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileSize); <span class="hljs-comment">// 13 (バイト)</span></code></pre>
         <p>ディレクトリの場合、<code>size()</code> は <code>null</code> を返します。</p>
         <h2>一意の識別子を取得する</h2>
-        <p><code>id()</code> メソッドを使用してファイルまたはディレクトリの一意識別子を取得します：</p>
+        <p><code>id()</code> メソッドを使用してファイルまたはディレクトリの一意識別子を取得します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> id = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">id</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(id); <span class="hljs-comment">// 一意のハッシュ値文字列</span></code></pre>
@@ -131,17 +131,17 @@
           <tbody>
             <tr>
               <td><code>kind</code></td>
-              <td>ハンドルタイプ</td>
+              <td>ハンドルの種類</td>
               <td><code>"file"</code> または <code>"dir"</code></td>
             </tr>
             <tr>
               <td><code>name</code></td>
-              <td>ファイルまたはディレクトリ名</td>
+              <td>ファイルまたはディレクトリの名前</td>
               <td>文字列</td>
             </tr>
             <tr>
               <td><code>path</code></td>
-              <td>フルパス</td>
+              <td>完全パス</td>
               <td>文字列</td>
             </tr>
             <tr>
@@ -174,15 +174,15 @@
 <span class="hljs-keyword">const</span> size = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">size</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(size); <span class="hljs-comment">// 6</span>
 
-<span class="hljs-comment">// 一意識別子を取得</span>
+<span class="hljs-comment">// 一意の識別子を取得</span>
 <span class="hljs-keyword">const</span> id = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">id</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(id); <span class="hljs-comment">// "abc123..."</span>
 
 <span class="hljs-comment">// 異なるパスで同じファイルを取得</span>
 <span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> deepDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"deep.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">isSame</span>(file2)); <span class="hljs-comment">// true</span></code></pre>
-        <h2>次章</h2>
-        <p><a href="./file-observation.html" olink="">ファイル変更の監視</a> を学習し、ファイル変更イベントの監視方法を理解します。</p>
+        <h2>次の章</h2>
+        <p><a href="./file-observation.html" olink="">ファイル変更監視</a> を学習し、ファイル変更イベントの監視方法を理解します。</p>
       </article>
       <div class="footer"></div>
       <script>

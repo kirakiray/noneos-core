@@ -72,9 +72,9 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>File Handle Comparison</h1>
-        <p>This document describes how to compare file handles, obtain parent directories, root directories, file sizes, and unique identifiers.</p>
+        <p>This document describes how to compare file handles and obtain the parent directory, root directory, file size, and unique identifier.</p>
         <h2>Get Parent Directory</h2>
-        <p>Use the <code>parent</code> property to get the parent directory of a file:</p>
+        <p>Use the <code>parent</code> attribute to get the parent directory of the file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/a/b/c/d"</span>);
@@ -84,14 +84,14 @@
 <span class="hljs-keyword">const</span> isSame = <span class="hljs-keyword">await</span> fileParentDir.<span class="hljs-title function_">isSame</span>(testDir);
 <span class="hljs-comment">// isSame === true</span></code></pre>
         <h2>Get Root Directory</h2>
-        <p>Use the <code>root</code> attribute to obtain the root directory to which a file or directory belongs:</p>
+        <p>Use the <code>root</code> attribute to get the root directory of a file or directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> testDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/a/b/c/d"</span>);
 <span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> testDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> root = testFile.<span class="hljs-property">root</span>;
 
 <span class="hljs-keyword">const</span> isSame = <span class="hljs-keyword">await</span> root.<span class="hljs-title function_">isSame</span>(<span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>));
 <span class="hljs-comment">// isSame === true</span></code></pre>
-        <h2>Determining if Handles are Identical</h2>
+        <h2>Determine if handles are the same</h2>
         <p>Use the <code>isSame()</code> method to determine whether two handles point to the same file or directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to"</span>);
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -123,7 +123,7 @@
         <table>
           <thead>
             <tr>
-              <th>Attribute</th>
+              <th>Property</th>
               <th>Description</th>
               <th>Return Value</th>
             </tr>
@@ -136,13 +136,13 @@
             </tr>
             <tr>
               <td><code>name</code></td>
-              <td>File or directory name</td>
-              <td>String</td>
+              <td>Name of the file or directory</td>
+              <td>string</td>
             </tr>
             <tr>
               <td><code>path</code></td>
               <td>Full path</td>
-              <td>String</td>
+              <td>string</td>
             </tr>
             <tr>
               <td><code>parent</code></td>
@@ -178,11 +178,11 @@
 <span class="hljs-keyword">const</span> id = <span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">id</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(id); <span class="hljs-comment">// "abc123..."</span>
 
-<span class="hljs-comment">// Get the same file via different path</span>
+<span class="hljs-comment">// Get the same file through different paths</span>
 <span class="hljs-keyword">const</span> file2 = <span class="hljs-keyword">await</span> deepDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"deep.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">await</span> deepFile.<span class="hljs-title function_">isSame</span>(file2)); <span class="hljs-comment">// true</span></code></pre>
         <h2>Next Chapter</h2>
-        <p>Learn <a href="./file-observation.html" olink="">File Change Observation</a> to understand how to listen for file change events.</p>
+        <p>Learn <a href="./file-observation.html" olink="">File Observation</a> to understand how to listen for file change events.</p>
       </article>
       <div class="footer"></div>
       <script>

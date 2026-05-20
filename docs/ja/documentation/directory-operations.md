@@ -1,10 +1,10 @@
 # ディレクトリ操作
 
-このドキュメントでは、ファイルシステムにおけるディレクトリ操作について説明します。ディレクトリの作成、走査、検索、フラット化、削除が含まれます。
+本書では、ファイルシステムにおけるディレクトリ操作（作成、走査、検索、フラット化、削除を含む）について説明します。
 
 ## ディレクトリの作成
 
-`get` メソッドを使用して `create: "dir"` を指定してディレクトリを作成します：
+`get` メソッドを使用し、`create: "dir"` を指定してディレクトリを作成します：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -12,9 +12,9 @@ import { get } from "/nos/fs/main.js";
 const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-## サブアイテム数の取得
+## 子項目の数を取得
 
-`length()` メソッドを使用して、ディレクトリ内のサブファイル/サブディレクトリの総数を取得する：
+`length()` メソッドを使用して、ディレクトリ内の子ファイル/ディレクトリの総数を取得します：
 
 ```javascript
 const dir = await get("my-app/subDir", { create: "dir" });
@@ -25,11 +25,11 @@ const count = await dir.length();
 console.log(count); // 2
 ```
 
-## ディレクトリのトラバース
+## ディレクトリ走査
 
 ### keys() メソッド
 
-`keys()` メソッドを使用してディレクトリ内のすべての項目の名前を走査します：
+`keys()` メソッドを使用してディレクトリ内のすべての項目の名前を反復処理します。
 
 ```javascript
 for await (const key of dir.keys()) {
@@ -39,7 +39,7 @@ for await (const key of dir.keys()) {
 
 ### values() メソッド
 
-`values()` メソッドを使ってディレクトリ内のすべてのファイルとサブディレクトリを走査する：
+`values()` メソッドを使用して、ディレクトリ内のすべてのファイルとサブディレクトリを走査します：
 
 ```javascript
 const handles = [];
@@ -53,7 +53,7 @@ for await (const handle of dir.values()) {
 
 ### entries() メソッド
 
-`entries()` メソッドを使用してディレクトリ内のすべての項目を走査し、[名称, ハンドル] のペアを返します：
+`entries()` メソッドを使用してディレクトリ内のすべてのエントリを反復処理し、[名前, ハンドル] のペアを返します：
 
 ```javascript
 for await (const [name, handle] of dir.entries()) {
@@ -73,7 +73,7 @@ await dir.forEach(async (handle, name) => {
 
 ### some() メソッド
 
-`some()` メソッドを使用して条件を満たす最初のファイルまたはディレクトリを検索し、見つかった時点で自動的に走査を停止します：
+`some()` メソッドを使用して、条件を満たす最初のファイルまたはディレクトリを検索し、見つかったら自動的に走査を停止します：
 
 ```javascript
 let foundTarget = false;
@@ -84,16 +84,16 @@ await dir.some(async (handle, name) => {
   if (handle.kind === "file") {
     if (count === 2) {
       foundTarget = true;
-      return true; // trueを返して走査を停止
+      return true; // trueを返して繰り返し処理を停止する
     }
   }
   return false;
 });
 ```
 
-## ディレクトリのフラット化
+## フラット化ディレクトリ
 
-`flat()` メソッドを使用して、ディレクトリとそのすべてのサブディレクトリ内の**ファイルハンドル**を取得します（ディレクトリは含まれません）：
+`flat()` メソッドを使用して、ディレクトリとそのすべてのサブディレクトリから**ファイルハンドル**（ディレクトリを除く）を取得します。
 
 ```javascript
 const allFiles = await dir.flat();
@@ -106,7 +106,7 @@ const fileContents = await Promise.all(
 );
 ```
 
-例：
+示例：
 
 ```javascript
 const rootDir = await get("my-app");
@@ -126,7 +126,7 @@ const allFiles = await rootDir.flat();
 
 ## ディレクトリの削除
 
-`remove()` メソッドを使用してディレクトリを削除する（ディレクトリ内のすべてのコンテンツを再帰的に削除します）：
+`remove()` メソッドを使用してディレクトリを削除します（ディレクトリ内のすべての内容を再帰的に削除します）：
 
 ```javascript
 const subDir = await get("my-app/subDir", { create: "dir" });
@@ -137,7 +137,7 @@ const subDirExists = await get("my-app/subDir");
 // subDirExists === null はディレクトリが削除されたことを示します
 ```
 
-⚠️ 警告：削除操作は即座に実行され、ディレクトリ内にサブファイルやサブディレクトリが存在する場合もそれらをすべて削除し、復元できません。十分に注意して操作してください。
+⚠️ 警告：削除操作は即座に実行され、ディレクトリ下にサブファイルやサブディレクトリがあってもすべて削除され、復元できません。慎重に操作してください。
 
 ## 完全な例
 
@@ -152,22 +152,22 @@ await rootDir.get("docs/guide.md", { create: "file" });
 await rootDir.get("docs/api.md", { create: "file" });
 await rootDir.get("images", { create: "dir" });
 
-// 子項目数を取得
+// エントリ数を取得
 const count = await rootDir.length();
-console.log(`子項目数: ${count}`); // 2
+console.log(`エントリ数: ${count}`); // 2
 
-// ルートディレクトリを走査
+// ルートディレクトリを反復
 for await (const [name, handle] of rootDir.entries()) {
   console.log(`${handle.kind}: ${name}`);
 }
 // 出力: dir: docs, dir: images
 
-// すべてのファイルをフラットに取得
+// フラット化して全ファイルを取得
 const allFiles = await rootDir.flat();
 console.log(allFiles.map(f => f.path));
 // 出力: ["docs/guide.md", "docs/api.md"]
 ```
 
-## 次章
+## 次の章
 
-[ファイルの移動とコピー](./move-and-copy.md)を学習し、ファイルの移動とコピーの方法を理解します。
+[ファイルの移動とコピー](./move-and-copy.md) を学び、ファイルの移動とコピーの方法を理解します。

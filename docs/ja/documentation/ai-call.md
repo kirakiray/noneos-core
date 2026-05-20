@@ -1,23 +1,23 @@
-# AIモデルを呼び出す
+# AIモデルの呼び出し
 
-## chat モジュールの導入
+## chatモジュールの導入
 
 ```javascript
 import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
 ```
 
-## 基本的な使い方
+## 基本的な使用方法
 
 `chat` 関数はメッセージ配列とオプションオブジェクトを受け取ります：
 
 ```javascript
 const messages = [
-  { role: "user", content: "こんにちは" }
+  { role: "user", content: "你好" }
 ];
 
 const response = await chat(messages, {
-  provider: "deepseek",  // オプション、プロバイダを指定
-  callback: (chunk) => {  // オプション、ストリーミングコールバック
+  provider: "deepseek",  // オプション、プロバイダーを指定
+  callback: (chunk) => {  // オプション、ストリーム形式のコールバック
     console.log(chunk);
   },
   maxContextLength: 8192  // オプション、最大コンテキスト長
@@ -31,22 +31,22 @@ const response = await chat(messages, {
 - **minimax** - MiniMax
 - **glm** - 智譜 GLM
 
-`provider`を指定しない場合、システムは利用可能なAPI Keyを自動的に選択します。
+`provider` を指定しない場合、システムは自動的に利用可能な API キーを選択します。
 
 ## メッセージ形式
 
 ```javascript
 const messages = [
-  { role: "system", content: "あなたは役立つアシスタントです" },
+  { role: "system", content: "あなたは役に立つアシスタントです" },
   { role: "user", content: "こんにちは" },
-  { role: "assistant", content: "こんにちは、何かお手伝いできますか？" },
-  { role: "user", content: "AIとは何かを説明してください" }
+  { role: "assistant", content: "こんにちは、何かお手伝いできることはありますか？" },
+  { role: "user", content: "AIとは何か説明してください" }
 ];
 ```
 
 ## 並行制御
 
-NoneOS AIモジュールは並行制御をサポートし、同じAPIキーが過度に使用されることを防げます。
+NoneOS AI モジュールは並行制御をサポートしており、同一の API キーが過度に使用されるのを防ぐことができます。
 
 ### 現在の状態を取得
 
@@ -55,7 +55,7 @@ const status = getStatus();
 // 各キーの同時使用状況を返す
 ```
 
-### 購読ステータスの変化
+### サブスクリプション状態の変化
 
 ```javascript
 subscribe((newStatus) => {
@@ -80,7 +80,7 @@ try {
 }
 ```
 
-よくあるエラー：- `no_key` - APIキーが設定されていません
-- `no_provider_key` - プロバイダーのAPIキーが指定されていません
-- `concurrency_full` - このキーの同時実行数が満杯です
-- `Unsupported provider` - サポートされていないプロバイダー
+よくある間違い：- `no_key` - API キーが設定されていません
+- `no_provider_key` - プロバイダーの API キーが指定されていません
+- `concurrency_full` - このキーの同時実行数が上限に達しました
+- `Unsupported provider` - サポートされていないプロバイダーです

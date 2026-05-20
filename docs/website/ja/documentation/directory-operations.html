@@ -72,28 +72,28 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>ディレクトリ操作</h1>
-        <p>このドキュメントでは、ファイルシステムにおけるディレクトリ操作について説明します。ディレクトリの作成、走査、検索、フラット化、削除が含まれます。</p>
+        <p>本書では、ファイルシステムにおけるディレクトリ操作（作成、走査、検索、フラット化、削除を含む）について説明します。</p>
         <h2>ディレクトリの作成</h2>
-        <p><code>get</code> メソッドを使用して <code>create: "dir"</code> を指定してディレクトリを作成します：</p>
+        <p><code>get</code> メソッドを使用し、<code>create: "dir"</code> を指定してディレクトリを作成します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
-        <h2>サブアイテム数の取得</h2>
-        <p><code>length()</code> メソッドを使用して、ディレクトリ内のサブファイル/サブディレクトリの総数を取得する：</p>
+        <h2>子項目の数を取得</h2>
+        <p><code>length()</code> メソッドを使用して、ディレクトリ内の子ファイル/ディレクトリの総数を取得します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">length</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(count); <span class="hljs-comment">// 2</span></code></pre>
-        <h2>ディレクトリのトラバース</h2>
+        <h2>ディレクトリ走査</h2>
         <h3>keys() メソッド</h3>
-        <p><code>keys()</code> メソッドを使用してディレクトリ内のすべての項目の名前を走査します：</p>
+        <p><code>keys()</code> メソッドを使用してディレクトリ内のすべての項目の名前を反復処理します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> key <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">keys</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(key);
 }</code></pre>
         <h3>values() メソッド</h3>
-        <p><code>values()</code> メソッドを使ってディレクトリ内のすべてのファイルとサブディレクトリを走査する：</p>
+        <p><code>values()</code> メソッドを使用して、ディレクトリ内のすべてのファイルとサブディレクトリを走査します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handles = [];
 <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> handle <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">values</span>()) {
   handles.<span class="hljs-title function_">push</span>({
@@ -102,7 +102,7 @@
   });
 }</code></pre>
         <h3>entries() メソッド</h3>
-        <p><code>entries()</code> メソッドを使用してディレクトリ内のすべての項目を走査し、[名称, ハンドル] のペアを返します：</p>
+        <p><code>entries()</code> メソッドを使用してディレクトリ内のすべてのエントリを反復処理し、[名前, ハンドル] のペアを返します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }</code></pre>
@@ -112,7 +112,7 @@
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 });</code></pre>
         <h3>some() メソッド</h3>
-        <p><code>some()</code> メソッドを使用して条件を満たす最初のファイルまたはディレクトリを検索し、見つかった時点で自動的に走査を停止します：</p>
+        <p><code>some()</code> メソッドを使用して、条件を満たす最初のファイルまたはディレクトリを検索し、見つかったら自動的に走査を停止します：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> foundTarget = <span class="hljs-literal">false</span>;
 <span class="hljs-keyword">let</span> count = <span class="hljs-number">0</span>;
 
@@ -121,13 +121,13 @@
   <span class="hljs-keyword">if</span> (handle.<span class="hljs-property">kind</span> === <span class="hljs-string">"file"</span>) {
     <span class="hljs-keyword">if</span> (count === <span class="hljs-number">2</span>) {
       foundTarget = <span class="hljs-literal">true</span>;
-      <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>; <span class="hljs-comment">// trueを返して走査を停止</span>
+      <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>; <span class="hljs-comment">// trueを返して繰り返し処理を停止する</span>
     }
   }
   <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
 });</code></pre>
-        <h2>ディレクトリのフラット化</h2>
-        <p><code>flat()</code> メソッドを使用して、ディレクトリとそのすべてのサブディレクトリ内の<strong>ファイルハンドル</strong>を取得します（ディレクトリは含まれません）：</p>
+        <h2>フラット化ディレクトリ</h2>
+        <p><code>flat()</code> メソッドを使用して、ディレクトリとそのすべてのサブディレクトリから<strong>ファイルハンドル</strong>（ディレクトリを除く）を取得します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">flat</span>();
 
 <span class="hljs-keyword">const</span> fileContents = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Promise</span>.<span class="hljs-title function_">all</span>(
@@ -136,7 +136,7 @@
     <span class="hljs-attr">content</span>: <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">read</span>(),
   }))
 );</code></pre>
-        <p>例：</p>
+        <p>示例：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> rootDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app"</span>);
 <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir1"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
@@ -151,14 +151,14 @@
 <span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-comment">// 戻り値: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]</span></code></pre>
         <h2>ディレクトリの削除</h2>
-        <p><code>remove()</code> メソッドを使用してディレクトリを削除する（ディレクトリ内のすべてのコンテンツを再帰的に削除します）：</p>
+        <p><code>remove()</code> メソッドを使用してディレクトリを削除します（ディレクトリ内のすべての内容を再帰的に削除します）：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">remove</span>();
 <span class="hljs-keyword">const</span> subDirExists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>);
 <span class="hljs-comment">// subDirExists === null はディレクトリが削除されたことを示します</span></code></pre>
-        <p>⚠️ 警告：削除操作は即座に実行され、ディレクトリ内にサブファイルやサブディレクトリが存在する場合もそれらをすべて削除し、復元できません。十分に注意して操作してください。</p>
+        <p>⚠️ 警告：削除操作は即座に実行され、ディレクトリ下にサブファイルやサブディレクトリがあってもすべて削除され、復元できません。慎重に操作してください。</p>
         <h2>完全な例</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
@@ -170,22 +170,22 @@
 <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"docs/api.md"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"images"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// 子項目数を取得</span>
+<span class="hljs-comment">// エントリ数を取得</span>
 <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">length</span>();
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`子項目数: <span class="hljs-subst">${count}</span>`</span>); <span class="hljs-comment">// 2</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`エントリ数: <span class="hljs-subst">${count}</span>`</span>); <span class="hljs-comment">// 2</span>
 
-<span class="hljs-comment">// ルートディレクトリを走査</span>
+<span class="hljs-comment">// ルートディレクトリを反復</span>
 <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> rootDir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }
 <span class="hljs-comment">// 出力: dir: docs, dir: images</span>
 
-<span class="hljs-comment">// すべてのファイルをフラットに取得</span>
+<span class="hljs-comment">// フラット化して全ファイルを取得</span>
 <span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-function"><span class="hljs-params">f</span> =&gt;</span> f.<span class="hljs-property">path</span>));
 <span class="hljs-comment">// 出力: ["docs/guide.md", "docs/api.md"]</span></code></pre>
-        <h2>次章</h2>
-        <p><a href="./move-and-copy.html" olink="">ファイルの移動とコピー</a>を学習し、ファイルの移動とコピーの方法を理解します。</p>
+        <h2>次の章</h2>
+        <p><a href="./move-and-copy.html" olink="">ファイルの移動とコピー</a> を学び、ファイルの移動とコピーの方法を理解します。</p>
       </article>
       <div class="footer"></div>
       <script>

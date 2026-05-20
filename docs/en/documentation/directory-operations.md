@@ -1,10 +1,10 @@
 # Directory Operations
 
-This document describes directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.
+This document introduces directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.
 
 ## Create Directory
 
-Use the `get` method with `create: "dir"` to create a directory:
+Use the `get` method and specify `create: "dir"` to create the directory:
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -12,9 +12,9 @@ import { get } from "/nos/fs/main.js";
 const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-## Get Number of Children
+## Get Number of Sub-items
 
-Use the `length()` method to get the total number of sub-files/directories in the directory:
+Use the `length()` method to get the total number of subfiles/subdirectories in the directory:
 
 ```javascript
 const dir = await get("my-app/subDir", { create: "dir" });
@@ -25,9 +25,9 @@ const count = await dir.length();
 console.log(count); // 2
 ```
 
-## Traversing Directories
+## Traverse Directory
 
-### keys() method
+### keys() Method
 
 Use the `keys()` method to iterate over the names of all items in the directory:
 
@@ -39,7 +39,7 @@ for await (const key of dir.keys()) {
 
 ### values() method
 
-Use the `values()` method to iterate over all files and subdirectories in the directory:
+Use the `values()` method to traverse all files and subdirectories in a directory:
 
 ```javascript
 const handles = [];
@@ -53,7 +53,7 @@ for await (const handle of dir.values()) {
 
 ### entries() method
 
-Use the `entries()` method to iterate through all items in the directory, returning [name, handle] pairs:
+Use the `entries()` method to iterate over all items in a directory, returning [name, handle] pairs:
 
 ```javascript
 for await (const [name, handle] of dir.entries()) {
@@ -61,9 +61,9 @@ for await (const [name, handle] of dir.entries()) {
 }
 ```
 
-### forEach() Method
+### forEach() method
 
-Using the `forEach()` method to traverse a directory:
+Use the `forEach()` method to iterate over a directory：
 
 ```javascript
 await dir.forEach(async (handle, name) => {
@@ -71,9 +71,9 @@ await dir.forEach(async (handle, name) => {
 });
 ```
 
-### some() method
+### The some() Method
 
-Use the `some()` method to find the first file or directory that meets the condition; traversal stops automatically once it is found:
+Use the `some()` method to find the first file or directory that meets the condition, stopping the traversal automatically once found:
 
 ```javascript
 let foundTarget = false;
@@ -84,16 +84,16 @@ await dir.some(async (handle, name) => {
   if (handle.kind === "file") {
     if (count === 2) {
       foundTarget = true;
-      return true; // return true to stop iteration
+      return true; // Return true to stop iteration
     }
   }
   return false;
 });
 ```
 
-## Flatten Directory
+## Flat directory
 
-Use the `flat()` method to get all **file handles** in the directory and all its subdirectories (excluding directories):
+Use the `flat()` method to get all **file handles** (excluding directories) in a directory and all its subdirectories:
 
 ```javascript
 const allFiles = await dir.flat();
@@ -126,7 +126,7 @@ const allFiles = await rootDir.flat();
 
 ## Delete Directory
 
-Use the `remove()` method to delete a directory (this will recursively delete all contents under the directory):
+Use the `remove()` method to delete a directory (it will recursively delete all contents under the directory):
 
 ```javascript
 const subDir = await get("my-app/subDir", { create: "dir" });
@@ -137,7 +137,7 @@ const subDirExists = await get("my-app/subDir");
 // subDirExists === null indicates the directory has been deleted
 ```
 
-⚠️ Warning: The deletion will be executed immediately. Even if there are sub-files or sub-directories under the directory, they will be deleted together and cannot be recovered. Please proceed with caution.
+⚠️ Warning: The delete operation will be executed immediately, even if there are sub-files or sub-directories under the directory, they will be deleted together, and cannot be recovered. Please proceed with caution.
 
 ## Complete Example
 
@@ -156,13 +156,13 @@ await rootDir.get("images", { create: "dir" });
 const count = await rootDir.length();
 console.log(`Number of children: ${count}`); // 2
 
-// Iterate root directory
+// Iterate over root directory
 for await (const [name, handle] of rootDir.entries()) {
   console.log(`${handle.kind}: ${name}`);
 }
 // Output: dir: docs, dir: images
 
-// Flatten to get all files
+// Get all files flattened
 const allFiles = await rootDir.flat();
 console.log(allFiles.map(f => f.path));
 // Output: ["docs/guide.md", "docs/api.md"]
@@ -170,4 +170,4 @@ console.log(allFiles.map(f => f.path));
 
 ## Next Chapter
 
-Learn [File Moving and Copying](./move-and-copy.md) to understand how to move and copy files.
+Learn about [file move and copy](./move-and-copy.md), understand how to move and copy files.
