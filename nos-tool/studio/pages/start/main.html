@@ -220,7 +220,7 @@
     export const getTempHandle = () => tempHandle;
 
     export default async ({ load }) => {
-      const { mount, save } = await load("/nos/fs/handle/mount/mount.js");
+      const { open, mount } = await load("/nos/fs/handle/mount/mount.js");
       const { getLocaleText } = await load(
         "/nos/locale-text/get-locale-text.js"
       );
@@ -233,7 +233,7 @@
         },
         proto: {
           async openFolderPicker() {
-            const handle = await mount();
+            const handle = await open();
 
             // 查看是否要是有效的项目文件
             const packagejsonHandle = await handle.get("package.json");
@@ -271,7 +271,7 @@
               return;
             }
 
-            await save(handle);
+            await mount(handle);
 
             this.goto(
               `../dashboard.html?path=${encodeURIComponent(handle.path)}`
