@@ -53,20 +53,44 @@ const handle = await open();
 
 ### mount() - 挂载目录
 
-`mount()` 方法将本地目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：
+`mount()` 方法将本地目录句柄保存起来，以便后续会话可以重新访问：
 
 ```javascript
 import { open, mount } from "/nos/fs/main.js";
 
-const handle = await open();
-await mount(handle);
+const handle = await open(); // 打开目录选择器，此时 path 为虚拟路径
+await mount(handle); // 挂载后，path 变为 $mount-{id}>目录名
 
 console.log(handle.path); // 输出: $mount-123>目录名
 ```
 
 挂载后的路径格式为：`$mount-{id}>目录名`
 
+#### 两步流程的优势
+
+推荐使用两步流程（先 `open()` 后 `mount()`），而不是一次性挂载：
+
+1. **验证目录内容**：在挂载前可以先浏览目录内容，确认是否为所需目录
+2. **避免错误挂载**：防止用户选错目录后，错误地挂载到系统中
+3. **灵活决策**：可以根据目录内容决定是否挂载
+
+```javascript
+const handle = await open();
+
+// 先验证目录内容
+const packageJson = await handle.get("package.json");
+const data = await packageJson.json();
+if (data.somedata) {
+  // 确认是符合条件的目录，再挂载
+  await mount(handle);
+  console.log("符合条件的目录已挂载:", handle.path);
+} else {
+  console.log("这是不符合条件的目录，取消挂载");
+}
+```
+
 **重要**：
+
 - `mount()` 主要用于持久化 `open()` 打开的本地目录
 - 对于 `init()` 创建的虚拟文件系统目录，无需使用 `mount()`
 
@@ -124,15 +148,15 @@ const response = await fetch(`/${handle.path}/file.txt`);
 
 ### 两种目录对比
 
-| 特性 | 虚拟文件系统目录 | 本地目录（mount） |
-|------|-----------------|------------------|
-| 创建方式 | `init("dir-name")` | `open()` + `mount()` |
-| 路径格式 | `$dir-name` | `$mount-{id}>dir-name` |
-| HTTP 访问 | ✅ 直接支持 | ✅ 需要挂载后支持 |
-| 持久化 | ✅ 自动持久化 | ✅ 需要 mount 持久化 |
-| 数据位置 | 浏览器存储 | 用户本地文件系统 |
-| 是否需要 mount | ❌ 不需要 | ✅ 需要 |
-| 浏览器支持 | 所有现代浏览器 | 仅 Chrome |
+| 特性           | 虚拟文件系统目录   | 本地目录（mount）      |
+| -------------- | ------------------ | ---------------------- |
+| 创建方式       | `init("dir-name")` | `open()` + `mount()`   |
+| 路径格式       | `$dir-name`        | `$mount-{id}>dir-name` |
+| HTTP 访问      | ✅ 直接支持        | ✅ 需要挂载后支持      |
+| 持久化         | ✅ 自动持久化      | ✅ 需要 mount 持久化   |
+| 数据位置       | 浏览器存储         | 用户本地文件系统       |
+| 是否需要 mount | ❌ 不需要          | ✅ 需要                |
+| 浏览器支持     | 所有现代浏览器     | 仅 Chrome              |
 
 ## 管理已挂载的目录
 
@@ -145,11 +169,11 @@ import { getMounted } from "/nos/fs/main.js";
 
 const mountedDirs = await getMounted();
 
-mountedDirs.forEach(item => {
-  console.log(item.id);        // 挂载ID
-  console.log(item.name);      // 目录名称
-  console.log(item.path);      // 挂载路径
-  console.log(item.handle);    // DirHandle 对象
+mountedDirs.forEach((item) => {
+  console.log(item.id); // 挂载ID
+  console.log(item.name); // 目录名称
+  console.log(item.path); // 挂载路径
+  console.log(item.handle); // DirHandle 对象
 });
 ```
 
@@ -186,7 +210,7 @@ const mounted = await getMounted();
 for (const item of mounted) {
   // 使用 handle 对象卸载
   await unmount(item.handle);
-  
+
   // 或者使用 ID 卸载
   // await unmount(item.id);
 }
@@ -279,7 +303,7 @@ const handle = await open();
 
 // 检查是否已挂载
 const mounted = await getMounted();
-const existing = mounted.find(item => item.name === handle.name);
+const existing = mounted.find((item) => item.name === handle.name);
 
 if (existing) {
   console.log("目录已挂载:", existing.path);
@@ -306,9 +330,7 @@ import { getMounted, unmount } from "/nos/fs/main.js";
 const allMounts = await getMounted();
 
 // 过滤特定项目
-const projects = allMounts.filter(item => 
-  item.name.includes("project")
-);
+const projects = allMounts.filter((item) => item.name.includes("project"));
 
 // 卸载旧项目
 for (const project of projects) {
@@ -343,14 +365,13 @@ try {
 
 ### 支持情况
 
-- ✅ Chrome 86+ - **完整支持**（推荐使用）
-- ⚠️ Edge 86+ - 支持 `showDirectoryPicker`，但持久化存储可能有限制
-- ⚠️ Firefox 111+ - 支持 `showDirectoryPicker`，但持久化存储可能有限制
-- ❌ Safari - **不支持 `showDirectoryPicker` API**
+- ✅ Chrome 86+ / Edge 86+  - **完整支持**（推荐使用）
+- ⚠️ Firefox 111+ - **不支持** `showDirectoryPicker`，但可挂载虚拟目录
+- ❌ Safari - **不支持** `showDirectoryPicker`，也不支持挂载虚拟目录
 
 ### 核心功能说明
 
-**`open()` 方法**依赖于 `showDirectoryPicker` API，这是 Chrome 独有的功能：
+**`open()` 方法**依赖于 `showDirectoryPicker` API，暂时是 Chrome 独有的功能：
 
 - **Chrome**：完整支持，可以弹出目录选择器，并持久化存储句柄
 - **其他浏览器**：不支持目录选择功能，无法使用 `open()` 方法
@@ -411,14 +432,16 @@ import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
 async function setupLocalProject() {
   // 1. 检测浏览器支持
   if (!window.showDirectoryPicker) {
-    alert("此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。");
+    alert(
+      "此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。",
+    );
     return null;
   }
 
   try {
     // 2. 打开并挂载目录
     const handle = await open({ mount: true });
-    
+
     // 3. 验证是否为有效项目
     const packageJson = await handle.get("package.json");
     if (!packageJson) {

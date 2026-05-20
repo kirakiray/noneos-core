@@ -108,14 +108,33 @@
         <p>用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 <code>DirHandle</code> 对象。</p>
         <p><strong>注意</strong>：<code>open()</code> 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 <code>init()</code> 创建。</p>
         <h3>mount() - 挂载目录</h3>
-        <p><code>mount()</code> 方法将本地目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：</p>
+        <p><code>mount()</code> 方法将本地目录句柄保存起来，以便后续会话可以重新访问：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
-<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
-<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// 打开目录选择器，此时 path 为虚拟路径</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle); <span class="hljs-comment">// 挂载后，path 变为 $mount-{id}&gt;目录名</span>
 
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(handle.<span class="hljs-property">path</span>); <span class="hljs-comment">// 输出: $mount-123&gt;目录名</span></code></pre>
         <p>挂载后的路径格式为：<code>$mount-{id}&gt;目录名</code></p>
+        <h4>两步流程的优势</h4>
+        <p>推荐使用两步流程（先 <code>open()</code> 后 <code>mount()</code>），而不是一次性挂载：</p>
+        <ol>
+          <li><strong>验证目录内容</strong>：在挂载前可以先浏览目录内容，确认是否为所需目录</li>
+          <li><strong>避免错误挂载</strong>：防止用户选错目录后，错误地挂载到系统中</li>
+          <li><strong>灵活决策</strong>：可以根据目录内容决定是否挂载</li>
+        </ol>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// 先验证目录内容</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+<span class="hljs-keyword">if</span> (data.<span class="hljs-property">somedata</span>) {
+  <span class="hljs-comment">// 确认是符合条件的目录，再挂载</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"符合条件的目录已挂载:"</span>, handle.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"这是不符合条件的目录，取消挂载"</span>);
+}</code></pre>
         <p><strong>重要</strong>：</p>
         <ul>
           <li><code>mount()</code> 主要用于持久化 <code>open()</code> 打开的本地目录</li>
@@ -209,11 +228,11 @@
 
 <span class="hljs-keyword">const</span> mountedDirs = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
 
-mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> {
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">id</span>);        <span class="hljs-comment">// 挂载ID</span>
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">name</span>);      <span class="hljs-comment">// 目录名称</span>
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">path</span>);      <span class="hljs-comment">// 挂载路径</span>
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>);    <span class="hljs-comment">// DirHandle 对象</span>
+mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">id</span>); <span class="hljs-comment">// 挂载ID</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">name</span>); <span class="hljs-comment">// 目录名称</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">path</span>); <span class="hljs-comment">// 挂载路径</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>); <span class="hljs-comment">// DirHandle 对象</span>
 });</code></pre>
         <h3>卸载目录</h3>
         <p>使用 <code>unmount()</code> 移除已挂载的目录。该方法支持两种参数类型：</p>
@@ -236,7 +255,7 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
 <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> item <span class="hljs-keyword">of</span> mounted) {
   <span class="hljs-comment">// 使用 handle 对象卸载</span>
   <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(item.<span class="hljs-property">handle</span>);
-  
+
   <span class="hljs-comment">// 或者使用 ID 卸载</span>
   <span class="hljs-comment">// await unmount(item.id);</span>
 }</code></pre>
@@ -302,7 +321,7 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
 
 <span class="hljs-comment">// 检查是否已挂载</span>
 <span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
-<span class="hljs-keyword">const</span> existing = mounted.<span class="hljs-title function_">find</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> item.<span class="hljs-property">name</span> === handle.<span class="hljs-property">name</span>);
+<span class="hljs-keyword">const</span> existing = mounted.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span> === handle.<span class="hljs-property">name</span>);
 
 <span class="hljs-keyword">if</span> (existing) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"目录已挂载:"</span>, existing.<span class="hljs-property">path</span>);
@@ -325,9 +344,7 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
 <span class="hljs-keyword">const</span> allMounts = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
 
 <span class="hljs-comment">// 过滤特定项目</span>
-<span class="hljs-keyword">const</span> projects = allMounts.<span class="hljs-title function_">filter</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> 
-  item.<span class="hljs-property">name</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"project"</span>)
-);
+<span class="hljs-keyword">const</span> projects = allMounts.<span class="hljs-title function_">filter</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"project"</span>));
 
 <span class="hljs-comment">// 卸载旧项目</span>
 <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> project <span class="hljs-keyword">of</span> projects) {
@@ -353,13 +370,12 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
         <h2>浏览器兼容性</h2>
         <h3>支持情况</h3>
         <ul>
-          <li>✅ Chrome 86+ - <strong>完整支持</strong>（推荐使用）</li>
-          <li>⚠️ Edge 86+ - 支持 <code>showDirectoryPicker</code>，但持久化存储可能有限制</li>
-          <li>⚠️ Firefox 111+ - 支持 <code>showDirectoryPicker</code>，但持久化存储可能有限制</li>
-          <li>❌ Safari - <strong>不支持 <code>showDirectoryPicker</code> API</strong></li>
+          <li>✅ Chrome 86+ / Edge 86+ - <strong>完整支持</strong>（推荐使用）</li>
+          <li>⚠️ Firefox 111+ - <strong>不支持</strong> <code>showDirectoryPicker</code>，但可挂载虚拟目录</li>
+          <li>❌ Safari - <strong>不支持</strong> <code>showDirectoryPicker</code>，也不支持挂载虚拟目录</li>
         </ul>
         <h3>核心功能说明</h3>
-        <p><strong><code>open()</code> 方法</strong>依赖于 <code>showDirectoryPicker</code> API，这是 Chrome 独有的功能：</p>
+        <p><strong><code>open()</code> 方法</strong>依赖于 <code>showDirectoryPicker</code> API，暂时是 Chrome 独有的功能：</p>
         <ul>
           <li><strong>Chrome</strong>：完整支持，可以弹出目录选择器，并持久化存储句柄</li>
           <li><strong>其他浏览器</strong>：不支持目录选择功能，无法使用 <code>open()</code> 方法</li>
@@ -405,14 +421,16 @@ mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-
 <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">setupLocalProject</span>(<span class="hljs-params"></span>) {
   <span class="hljs-comment">// 1. 检测浏览器支持</span>
   <span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
-    <span class="hljs-title function_">alert</span>(<span class="hljs-string">"此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。"</span>);
+    <span class="hljs-title function_">alert</span>(
+      <span class="hljs-string">"此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。"</span>,
+    );
     <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
   }
 
   <span class="hljs-keyword">try</span> {
     <span class="hljs-comment">// 2. 打开并挂载目录</span>
     <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
-    
+
     <span class="hljs-comment">// 3. 验证是否为有效项目</span>
     <span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
     <span class="hljs-keyword">if</span> (!packageJson) {

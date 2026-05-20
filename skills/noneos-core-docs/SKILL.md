@@ -212,6 +212,109 @@ await dir.remove();
 
 ---
 
+## 目录挂载
+
+目录挂载功能允许访问用户本地文件系统中的目录，并将其持久化存储。
+
+### 重要说明
+
+- `open()` 方法依赖于 `showDirectoryPicker` API，目前**仅 Chrome 浏览器完整支持**
+- `mount()` 主要用于配合 `open()` 使用，将用户选择的本地目录持久化存储
+- 对于通过 `init()` 创建的虚拟文件系统目录，不需要使用 `mount()`
+
+### open() - 打开目录选择器
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open();
+```
+
+弹出系统目录选择器，让用户选择一个本地目录。
+
+### mount() - 挂载目录
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open();
+await mount(handle);
+
+console.log(handle.path); // 输出: $mount-123>目录名
+```
+
+挂载后的路径格式为：`$mount-{id}>目录名`
+
+### 一次性打开并挂载
+
+```javascript
+const handle = await open({ mount: true });
+```
+
+### 获取已挂载目录列表
+
+```javascript
+import { getMounted } from "/nos/fs/main.js";
+
+const mountedDirs = await getMounted();
+mountedDirs.forEach(item => {
+  console.log(item.id);        // 挂载ID
+  console.log(item.name);      // 目录名称
+  console.log(item.path);      // 挂载路径
+  console.log(item.handle);    // DirHandle 对象
+});
+```
+
+### 卸载目录
+
+支持两种方式：
+
+```javascript
+import { unmount } from "/nos/fs/main.js";
+
+// 方式 1：通过 ID 卸载
+await unmount(mountId);
+
+// 方式 2：通过 Handle 对象卸载（推荐）
+await unmount(handle);
+```
+
+### 通过挂载路径访问文件
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// 假设已挂载的路径是 $mount-123>my-project
+const file = await get("$mount-123>my-project/src/index.js");
+const content = await file.text();
+```
+
+### 通过 HTTP 访问挂载文件
+
+挂载后的目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能：
+
+```javascript
+const handle = await open({ mount: true });
+
+// 通过 HTTP 访问本地文件
+const response = await fetch(`/${handle.path}/index.html`);
+const content = await response.text();
+```
+
+### 两种目录对比
+
+| 特性 | 虚拟文件系统目录 | 本地目录（mount） |
+|------|-----------------|------------------|
+| 创建方式 | `init("dir-name")` | `open()` + `mount()` |
+| 路径格式 | `$dir-name` | `$mount-{id}>dir-name` |
+| HTTP 访问 | ✅ 直接支持 | ✅ 需要挂载后支持 |
+| 持久化 | ✅ 自动持久化 | ✅ 需要 mount 持久化 |
+| 数据位置 | 浏览器存储 | 用户本地文件系统 |
+| 是否需要 mount | ❌ 不需要 | ✅ 需要 |
+| 浏览器支持 | 所有现代浏览器 | 仅 Chrome |
+
+---
+
 ## 移动与复制
 
 ### 移动文件
