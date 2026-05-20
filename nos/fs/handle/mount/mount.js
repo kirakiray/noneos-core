@@ -5,11 +5,13 @@ import { saveHandle, loadHandle, deleteHandle, getAllHandles } from "./db.js";
 // 检查权限
 const checkPermission = async (handle) => {
   try {
-    const result = await handle.queryPermission({ mode: "readwrite" });
+    if (handle.queryPermission) {
+      const result = await handle.queryPermission({ mode: "readwrite" });
 
-    if (result !== "granted") {
-      // 进行申请权限
-      await handle.requestPermission({ mode: "readwrite" });
+      if (result !== "granted") {
+        // 进行申请权限
+        await handle.requestPermission({ mode: "readwrite" });
+      }
     }
   } catch (err) {
     throw new Error(`Permission denied: ${err.message}`);
