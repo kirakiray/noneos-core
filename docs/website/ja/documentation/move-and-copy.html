@@ -72,9 +72,9 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>ファイルの移動とコピー</h1>
-        <p>この文書では、ファイルやディレクトリの移動とコピーについて説明します。</p>
+        <p>このドキュメントでは、ファイルとディレクトリの移動とコピーの方法を説明します。</p>
         <h2>ファイルの移動</h2>
-        <p><code>moveTo()</code> メソッドを使用してファイルをターゲットディレクトリに移動します：</p>
+        <p><code>moveTo()</code> メソッドを使用してファイルをターゲットディレクトリに移動します。</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -82,7 +82,7 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// 第二引数はターゲットファイル名、指定しない場合は元のファイル名を使用</span>
+<span class="hljs-comment">// 第2引数はターゲットファイル名です。指定しない場合は元のファイル名が使用されます</span>
 <span class="hljs-keyword">const</span> movedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(targetDir);
 <span class="hljs-comment">// sourceFile.moveTo(targetDir, "source.txt") と同等</span>
 
@@ -90,9 +90,9 @@
 <span class="hljs-comment">// content === "Hello, World!"</span>
 
 <span class="hljs-keyword">const</span> oldFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
-<span class="hljs-comment">// oldFile === null は元のファイルが移動されたことを示す</span></code></pre>
+<span class="hljs-comment">// oldFile === null は元のファイルが移動されたことを示します</span></code></pre>
         <h2>ディレクトリの移動</h2>
-        <p><code>moveTo()</code> メソッドはディレクトリにも適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータはターゲットディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：</p>
+        <p><code>moveTo()</code> メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータは移動先のディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -102,28 +102,28 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> movedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">moveTo</span>(targetDir);
-<span class="hljs-comment">// 等同于 sourceDir.moveTo(targetDir, "sourceDir")</span>
+<span class="hljs-comment">// sourceDir.moveTo(targetDir, "sourceDir") と同等</span>
 
-<span class="hljs-comment">// movedDir 包含 file1.txt 和 subDir/file2.txt</span></code></pre>
-        <h2>ファイルをコピーする</h2>
-        <p><code>copyTo()</code> メソッドを使用してファイルを対象ディレクトリにコピーする：</p>
+<span class="hljs-comment">// movedDir には file1.txt と subDir/file2.txt が含まれている</span></code></pre>
+        <h2>ファイルのコピー</h2>
+        <p><code>copyTo()</code> メソッドを使用してファイルをターゲットディレクトリにコピーします：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// 第二引数はターゲットファイル名、省略時は元のファイル名を継続使用</span>
+<span class="hljs-comment">// 2番目の引数はターゲットファイル名で、省略した場合は元のファイル名が使われる</span>
 <span class="hljs-keyword">const</span> copiedFile = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(targetDir);
 <span class="hljs-comment">// sourceFile.copyTo(targetDir, "source.txt") と同等</span>
 
 <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> copiedFile.<span class="hljs-title function_">text</span>();
 <span class="hljs-comment">// content === "Hello, World!"</span>
 
-<span class="hljs-comment">// 元ファイルは依然として存在</span>
+<span class="hljs-comment">// 元のファイルは依然として存在する</span>
 <span class="hljs-keyword">const</span> originalFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/source.txt"</span>);
 <span class="hljs-comment">// originalFile !== null</span></code></pre>
-        <h2>ディレクトリをコピーする</h2>
-        <p><code>copyTo()</code> メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。2番目の引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名が使われます：</p>
+        <h2>ディレクトリをコピー</h2>
+        <p><code>copyTo()</code> メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。第二引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名がそのまま使用されます：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> sourceDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/sourceDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"subDir/file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
@@ -133,9 +133,9 @@
 
 <span class="hljs-keyword">const</span> targetDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/target"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> copiedDir = <span class="hljs-keyword">await</span> sourceDir.<span class="hljs-title function_">copyTo</span>(targetDir);
-<span class="hljs-comment">// sourceDir.copyTo(targetDir, "sourceDir") と同等</span>
+<span class="hljs-comment">// sourceDir.copyTo(targetDir, "sourceDir") と同等です</span>
 
-<span class="hljs-comment">// copiedDir は file1.txt と subDir/file2.txt を含む</span></code></pre>
+<span class="hljs-comment">// copiedDir には file1.txt と subDir/file2.txt が含まれます</span></code></pre>
         <h2>完全な例</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
@@ -145,18 +145,18 @@
 <span class="hljs-keyword">const</span> backupDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/backup"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">const</span> archiveDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/archive"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 
-<span class="hljs-comment">// ファイルのコピー</span>
+<span class="hljs-comment">// ファイルをコピーする</span>
 <span class="hljs-keyword">const</span> backup = <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">copyTo</span>(backupDir, <span class="hljs-string">"document_backup.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">await</span> backup.<span class="hljs-title function_">text</span>()); <span class="hljs-comment">// "Important content"</span>
 
-<span class="hljs-comment">// ファイルの移動</span>
+<span class="hljs-comment">// ファイルを移動する</span>
 <span class="hljs-keyword">await</span> sourceFile.<span class="hljs-title function_">moveTo</span>(archiveDir, <span class="hljs-string">"document_archived.txt"</span>);
 
-<span class="hljs-comment">// 移動結果の検証</span>
+<span class="hljs-comment">// 移動の結果を確認する</span>
 <span class="hljs-keyword">const</span> original = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/document.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(original); <span class="hljs-comment">// null</span></code></pre>
-        <h2>次章</h2>
-        <p><a href="./handle-comparison.html" olink="">ファイルハンドルの比較</a>を学び、ファイルハンドルを比較する方法を理解します。</p>
+        <h2>次の章</h2>
+        <p><a href="./handle-comparison.html" olink="">ファイルハンドルの比較</a>を学習して、ファイルハンドルの比較方法を理解しましょう。</p>
       </article>
       <div class="footer"></div>
       <script>

@@ -72,34 +72,34 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>Overview</h1>
-        <p>FileSystem is a browser-based virtual file system that provides a complete set of APIs for file and directory operations.</p>
+        <p>FileSystem (FileSystem) is a browser-based virtual file system that provides a complete set of file and directory operation APIs.</p>
         <h2>Initialization</h2>
-        <p>Before using the file system, you need to first initialize a root directory:</p>
+        <p>Before using the file system, you need to initialize a root directory：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);</code></pre>
-        <p>Subsequent tutorials all assume that the initialization of <code>my-app</code> has been completed.</p>
+        <p>Subsequent tutorials assume that the initialization of <code>my-app</code> has been completed.</p>
         <h2>Global get method</h2>
-        <p>Use the global <code>get</code> method to obtain or create file/directory handles:</p>
+        <p>Use the global <code>get</code> method to get or create a file/directory handle:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
-        <p>Path format: <code>rootDirName/filePath</code>, do not start with <code>/</code>.</p>
+        <p>Path format: <code>Root directory name/file path</code>, do not start with <code>/</code>.</p>
         <h2>Core Concepts</h2>
         <h3>FileHandle and DirHandle</h3>
         <ul>
-          <li><strong>FileHandle</strong>: Represents a file and provides file read/write operations</li>
-          <li><strong>DirHandle</strong>: Represents a directory and provides directory traversal and item operations</li>
+          <li><strong>FileHandle</strong>：Represents a file, providing file read and write operations</li>
+          <li><strong>DirHandle</strong>：Represents a directory, providing directory traversal and sub-item operations</li>
         </ul>
-        <h3>Basic Properties</h3>
+        <h3>Basic Attributes</h3>
         <ul>
           <li><code>kind</code>: Returns <code>"file"</code> or <code>"dir"</code>, indicating the handle type</li>
           <li><code>name</code>: Returns the name of the file or directory</li>
           <li><code>path</code>: Returns the full path of the file or directory</li>
         </ul>
         <h2>Next Chapter</h2>
-        <p>Learn <a href="./file-operations.html" olink="">File Operations</a> to understand how to read, write, and delete files.</p>
+        <p>Learn <a href="./file-operations.html" olink="">File Operations</a> to understand how to read/write and delete files.</p>
       </article>
       <div class="footer"></div>
       <script>

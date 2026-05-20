@@ -1,18 +1,18 @@
 # Installation
 
-NoneOS Core is a browser-based file system that relies on Service Worker for local storage. The project itself is purely static and does not require a dynamic server.
+NoneOS Core is a browser-based file system that needs to implement local storage through a Service Worker. The project itself is purely static and does not require a dynamic server.
 
 ## Prerequisites
 
-- A static server (e.g. http-server, live-server, nginx, etc.)
-- Browser support for Service Worker
-- For external access, HTTPS must be used (due to API requirements)
+- A static server (such as http-server, live-server, nginx, etc.)
+- Browser supports Service Worker
+- If accessed from an external network, HTTPS must be used (due to API requirements)
 
 ## Steps
 
-### 1. Create Service Worker File
+### 1. Create a Service Worker file
 
-Create a `sw.js` file in the project root directory and fill in the following content:
+Create a `sw.js` file in the root directory of the project and fill in the following content:
 
 ```javascript
 importScripts("https://core.noneos.com/sw/dist.js");
@@ -40,8 +40,8 @@ In the entry HTML file, import `ofa.js` and the `nos-version` component. After u
     <script type="module">
       // Wait for installation to complete
       $("nos-version").on("installed", () => {
-        console.log("NoneOS Core installation completed, ready to use");
-        // noneos-core can be used here
+        console.log("NoneOS Core installation complete, ready to use");
+        // Now you can use noneos-core
       });
     </script>
   </body>
@@ -50,11 +50,11 @@ In the entry HTML file, import `ofa.js` and the `nos-version` component. After u
 
 ## Installation Status
 
-The `nos-version` component automatically detects the installation status of NoneOS Core:
+`nos-version` component will automatically detect the installation status of NoneOS Core:
 
-- **Not installed**: Display "Install NoneOS Core" button
+- **Not Installed**: Display "Install NoneOS Core" button
 - **Installing**: Display installation progress bar
 - **Installed**: Display current version number
-- **Upgrade available**: Display upgrade button
+- **Upgradable**: Display upgrade button
 
-When the system installation is completed, or has already been installed, or the upgrade is successful, the `installed` event will be triggered, after which all functions of NoneOS Core can be used normally.
+When the system installation is complete, or has already been installed, or upgraded successfully, the `installed` event will be triggered, and then all functions of NoneOS Core can be used normally.

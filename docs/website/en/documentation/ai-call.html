@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Call AI Model</title>
+  <title>Calling the AI Model</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,7 +71,7 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>Call AI Model</h1>
+        <h1>Calling the AI Model</h1>
         <h2>Introducing the chat module</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { chat, subscribe, getStatus, getAvailableProviders } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/ai/chat.js&quot;</span>;</code></pre>
         <h2>Basic Usage</h2>
@@ -81,11 +81,11 @@
 ];
 
 <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">chat</span>(messages, {
-  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// optional, specify provider</span>
-  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// optional, streaming callback</span>
+  <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// Optional, specify provider</span>
+  <span class="hljs-attr">callback</span>: <span class="hljs-function">(<span class="hljs-params">chunk</span>) =&gt;</span> {  <span class="hljs-comment">// Optional, streaming callback</span>
     <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(chunk);
   },
-  <span class="hljs-attr">maxContextLength</span>: <span class="hljs-number">8192</span>  <span class="hljs-comment">// optional, maximum context length</span>
+  <span class="hljs-attr">maxContextLength</span>: <span class="hljs-number">8192</span>  <span class="hljs-comment">// Optional, maximum context length</span>
 });</code></pre>
         <h2>Supported Providers</h2>
         <ul>
@@ -94,7 +94,7 @@
           <li><strong>minimax</strong> - MiniMax</li>
           <li><strong>glm</strong> - Zhipu GLM</li>
         </ul>
-        <p>If <code>provider</code> is not specified, the system will automatically select an available API Key.</p>
+        <p>If no <code>provider</code> is specified, the system will automatically select an available API Key.</p>
         <h2>Message Format</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> messages = [
   { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;system&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;You are a helpful assistant&quot;</span> },
@@ -103,13 +103,13 @@
   { <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">&quot;Explain what AI is&quot;</span> }
 ];</code></pre>
         <h2>Concurrency Control</h2>
-        <p>The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.</p>
+        <p>NoneOS AI module supports concurrency control, which can prevent the same API Key from being overused.</p>
         <h3>Get Current Status</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> status = <span class="hljs-title function_">getStatus</span>();
-<span class="hljs-comment">// Returns the concurrent usage of each key</span></code></pre>
-        <h3>Subscription Status Changes</h3>
+<span class="hljs-comment">// Return the concurrent usage of each Key</span></code></pre>
+        <h3>Subscription Status Change</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-title function_">subscribe</span>(<span class="hljs-function">(<span class="hljs-params">newStatus</span>) =&gt;</span> {
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Status updated:&quot;</span>, newStatus);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Status update:&quot;</span>, newStatus);
 });</code></pre>
         <h2>Get Available Providers</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> providers = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getAvailableProviders</span>();
@@ -122,8 +122,8 @@
 }</code></pre>
         <p>Common Mistakes:- <code>no_key</code> - No API Key configured</p>
         <ul>
-          <li><code>no_provider_key</code> - No provider&#39;s API Key specified</li>
-          <li><code>concurrency_full</code> - The concurrency limit for this Key has been reached</li>
+          <li><code>no_provider_key</code> - No provider API Key specified</li>
+          <li><code>concurrency_full</code> - The Key&#39;s concurrency is full</li>
           <li><code>Unsupported provider</code> - Unsupported provider</li>
         </ul>
       </article>

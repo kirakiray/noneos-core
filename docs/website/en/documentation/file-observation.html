@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>File Changes Observation</title>
+  <title>File Change Observation</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,8 +71,8 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>File Changes Observation</h1>
-        <p>This document introduces how to use the <code>observe</code> method to listen for change events of files or directories.</p>
+        <h1>File Change Observation</h1>
+        <p>This document describes how to use the <code>observe</code> method to monitor file or directory change events.</p>
         <h2>Basic Usage</h2>
         <p>Use the <code>observe()</code> method to monitor changes in files or directories:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/nos/fs/main.js&quot;</span>;
@@ -81,7 +81,7 @@
 
 <span class="hljs-keyword">const</span> events = [];
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
-  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Received file change event:&quot;</span>, event);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;File change event received:&quot;</span>, event);
   events.<span class="hljs-title function_">push</span>(event);
 });
 
@@ -92,9 +92,9 @@
 <span class="hljs-comment">// Delete file</span>
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
 
-<span class="hljs-comment">// Cancel observation</span>
+<span class="hljs-comment">// Stop observing</span>
 <span class="hljs-title function_">unobserve</span>();</code></pre>
-        <p>Files and directories can both be monitored for changes, for example, monitoring a single file:</p>
+        <p>Both files and directories can be monitored for changes, for example, monitoring a single file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app/test.txt&quot;</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">&quot;file&quot;</span> });
 
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
@@ -104,8 +104,8 @@
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">&quot;new content&quot;</span>);
 
 <span class="hljs-title function_">unobserve</span>();</code></pre>
-        <h2>observe Return Value</h2>
-        <p><code>observe()</code> returns a Promise that resolves to a function to cancel observation. Calling this function stops the listening:</p>
+        <h2>observe return value</h2>
+        <p><code>observe()</code> returns a Promise that resolves to a function to cancel the observation. Calling that function can stop the listening:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
   <span class="hljs-comment">// Handle event</span>
 });
@@ -113,7 +113,7 @@
 <span class="hljs-comment">// Unobserve later</span>
 <span class="hljs-title function_">unobserve</span>();</code></pre>
         <h2>Event Object</h2>
-        <p>The event object received by the observation callback contains the following properties:</p>
+        <p>Observed event object received by the callback contains the following attributes:</p>
         <table>
           <thead>
             <tr>
@@ -124,7 +124,7 @@
           <tbody>
             <tr>
               <td><code>type</code></td>
-              <td>Event type, such as <code>&quot;create&quot;</code>, <code>&quot;remove&quot;</code>, <code>&quot;write&quot;</code></td>
+              <td>Event type, e.g. <code>&quot;create&quot;</code>, <code>&quot;remove&quot;</code>, <code>&quot;write&quot;</code></td>
             </tr>
             <tr>
               <td><code>path</code></td>
@@ -136,7 +136,7 @@
 
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">&quot;my-app&quot;</span>);
 
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Starting file change observation test&quot;</span>);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;Start file change observation test&quot;</span>);
 
 <span class="hljs-keyword">const</span> events = [];
 <span class="hljs-keyword">const</span> unobserve = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">observe</span>(<span class="hljs-function">(<span class="hljs-params">event</span>) =&gt;</span> {
@@ -156,12 +156,12 @@
 
 <span class="hljs-title function_">unobserve</span>();
 
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`Total events received: <span class="hljs-subst">${events.length}</span>`</span>);</code></pre>
-        <h2>Important Notes</h2>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`Received <span class="hljs-subst">${events.length}</span> events in total`</span>);</code></pre>
+        <h2>Notes</h2>
         <ol>
-          <li>The observer starts monitoring only after it is created; file operations prior to that will not be captured.</li>
-          <li>After the observer is canceled, newly occurring file changes will not be recorded.</li>
-          <li>File change events are triggered asynchronously and may experience some delay.</li>
+          <li>The observer will only start monitoring after it is created, and previous file operations will not be captured</li>
+          <li>After canceling the observation, newly occurring file changes will not be recorded</li>
+          <li>File change events are triggered asynchronously and may have a certain delay</li>
         </ol>
       </article>
       <div class="footer"></div>

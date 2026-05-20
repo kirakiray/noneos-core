@@ -1,8 +1,162 @@
+<!-- overview.html -->
+
+# Overview
+
+FileSystem (FileSystem) is a browser-based virtual file system that provides a complete set of file and directory operation APIs.
+
+## Initialization
+
+Before using the file system, you need to initialize a root directory：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+await init("my-app");
+```
+
+Subsequent tutorials assume that the initialization of `my-app` has been completed.
+
+## Global get method
+
+Use the global `get` method to get or create a file/directory handle:
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
+```
+
+Path format: `Root directory name/file path`, do not start with `/`.
+
+## Core Concepts
+
+### FileHandle and DirHandle
+
+- **FileHandle**：Represents a file, providing file read and write operations
+- **DirHandle**：Represents a directory, providing directory traversal and sub-item operations
+
+### Basic Attributes
+
+- `kind`: Returns `"file"` or `"dir"`, indicating the handle type
+- `name`: Returns the name of the file or directory
+- `path`: Returns the full path of the file or directory
+
+## Next Chapter
+
+Learn [File Operations](./file-operations.md) to understand how to read/write and delete files.
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js configuration tips
+
+## Version Number Control and Cache Update
+
+When releasing a new version, if the server is configured with a `max-age=0` response header, the browser may still cache the old version of the `sw.js` file, causing the update to not take effect in a timely manner. By adding a version parameter to the URL, you can force the browser to request the latest file, thus solving this problem.
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+When referencing dist.js, add the `?v=` parameter and update the version number each time a new version is released, so that the browser will request the new file instead of using the cache.
+
+## Official Tools
+
+Using `nos-tool` directorytools,caneasilymanage NoneOS system.
+
+- **ai** - AI model management, including chat, configuration, and key management
+- **editor** - Monaco editor integration, supporting code highlighting, formatting, and AI completion
+- **file-explore** - File explorer
+- **file-list** - File list view and handle management
+- **studio** - Development studio, providing file management, color tools, theme editing, and other features
+
+These tools are located in the `nos-tool` directory and can be imported and used as needed.
+
+---
+
+<!-- install.html -->
+
+# Installation
+
+NoneOS Core is a browser-based file system that needs to implement local storage through a Service Worker. The project itself is purely static and does not require a dynamic server.
+
+## Prerequisites
+
+- A static server (such as http-server, live-server, nginx, etc.)
+- Browser supports Service Worker
+- If accessed from an external network, HTTPS must be used (due to API requirements)
+
+## Steps
+
+### 1. Create a Service Worker file
+
+Create a `sw.js` file in the root directory of the project and fill in the following content:
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. Create Entry HTML
+
+In the entry HTML file, import `ofa.js` and the `nos-version` component. After using the `nos-version` component, the `sw.js` file will be automatically registered:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- Load nos-version component -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- Use nos-version component -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // Wait for installation to complete
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core installation complete, ready to use");
+        // Now you can use noneos-core
+      });
+    </script>
+  </body>
+</html>
+```
+
+## Installation Status
+
+`nos-version` component will automatically detect the installation status of NoneOS Core:
+
+- **Not Installed**: Display "Install NoneOS Core" button
+- **Installing**: Display installation progress bar
+- **Installed**: Display current version number
+- **Upgradable**: Display upgrade button
+
+When the system installation is complete, or has already been installed, or upgraded successfully, the `installed` event will be triggered, and then all functions of NoneOS Core can be used normally.
+
+---
+
 <!-- file-observation.html -->
 
-# File Changes Observation
+# File Change Observation
 
-This document introduces how to use the `observe` method to listen for change events of files or directories.
+This document describes how to use the `observe` method to monitor file or directory change events.
 
 ## Basic Usage
 
@@ -15,7 +169,7 @@ const dir = await get("my-app");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
-  console.log("Received file change event:", event);
+  console.log("File change event received:", event);
   events.push(event);
 });
 
@@ -26,11 +180,11 @@ await file.write("Hello");
 // Delete file
 await file.remove();
 
-// Cancel observation
+// Stop observing
 unobserve();
 ```
 
-Files and directories can both be monitored for changes, for example, monitoring a single file:
+Both files and directories can be monitored for changes, for example, monitoring a single file:
 
 ```javascript
 const file = await get("my-app/test.txt", { create: "file" });
@@ -44,9 +198,9 @@ await file.write("new content");
 unobserve();
 ```
 
-## observe Return Value
+## observe return value
 
-`observe()` returns a Promise that resolves to a function to cancel observation. Calling this function stops the listening:
+`observe()` returns a Promise that resolves to a function to cancel the observation. Calling that function can stop the listening:
 
 ```javascript
 const unobserve = await dir.observe((event) => {
@@ -59,11 +213,11 @@ unobserve();
 
 ## Event Object
 
-The event object received by the observation callback contains the following properties:
+Observed event object received by the callback contains the following attributes:
 
 | Property | Description |
 |------|------|
-| `type` | Event type, such as `"create"`, `"remove"`, `"write"` |
+| `type` | Event type, e.g. `"create"`, `"remove"`, `"write"` |
 | `path` | Path of the file that changed |## Complete Example
 
 ```javascript
@@ -71,7 +225,7 @@ import { get } from "/nos/fs/main.js";
 
 const dir = await get("my-app");
 
-console.log("Starting file change observation test");
+console.log("Start file change observation test");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
@@ -91,242 +245,14 @@ await new Promise((resolve) => setTimeout(resolve, 100));
 
 unobserve();
 
-console.log(`Total events received: ${events.length}`);
+console.log(`Received ${events.length} events in total`);
 ```
 
-## Important Notes
-
-1. The observer starts monitoring only after it is created; file operations prior to that will not be captured.
-2. After the observer is canceled, newly occurring file changes will not be recorded.
-3. File change events are triggered asynchronously and may experience some delay.
-
----
-
-<!-- overview.html -->
-
-# Overview
-
-FileSystem is a browser-based virtual file system that provides a complete set of APIs for file and directory operations.
-
-## Initialization
-
-Before using the file system, you need to first initialize a root directory:
-
-```javascript
-import { init } from "/nos/fs/main.js";
-
-await init("my-app");
-```
-
-Subsequent tutorials all assume that the initialization of `my-app` has been completed.
-
-## Global get method
-
-Use the global `get` method to obtain or create file/directory handles:
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/hello.txt", { create: "file" });
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-Path format: `rootDirName/filePath`, do not start with `/`.
-
-## Core Concepts
-
-### FileHandle and DirHandle
-
-- **FileHandle**: Represents a file and provides file read/write operations
-- **DirHandle**: Represents a directory and provides directory traversal and item operations
-
-### Basic Properties
-
-- `kind`: Returns `"file"` or `"dir"`, indicating the handle type
-- `name`: Returns the name of the file or directory
-- `path`: Returns the full path of the file or directory
-
-## Next Chapter
-
-Learn [File Operations](./file-operations.md) to understand how to read, write, and delete files.
-
----
-
-<!-- directory-operations.html -->
-
-# Directory Operations
-
-This document describes directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.
-
-## Create Directory
-
-Use the `get` method with `create: "dir"` to create a directory:
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-## Get Number of Children
-
-Use the `length()` method to get the total number of sub-files/directories in the directory:
-
-```javascript
-const dir = await get("my-app/subDir", { create: "dir" });
-await dir.get("file1.txt", { create: "file" });
-await dir.get("file2.txt", { create: "file" });
-
-const count = await dir.length();
-console.log(count); // 2
-```
-
-## Traversing Directories
-
-### keys() method
-
-Use the `keys()` method to iterate over the names of all items in the directory:
-
-```javascript
-for await (const key of dir.keys()) {
-  console.log(key);
-}
-```
-
-### values() method
-
-Use the `values()` method to iterate over all files and subdirectories in the directory:
-
-```javascript
-const handles = [];
-for await (const handle of dir.values()) {
-  handles.push({
-    kind: handle.kind,
-    name: handle.name,
-  });
-}
-```
-
-### entries() method
-
-Use the `entries()` method to iterate through all items in the directory, returning [name, handle] pairs:
-
-```javascript
-for await (const [name, handle] of dir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-```
-
-### forEach() Method
-
-Using the `forEach()` method to traverse a directory:
-
-```javascript
-await dir.forEach(async (handle, name) => {
-  console.log(`${handle.kind}: ${name}`);
-});
-```
-
-### some() method
-
-Use the `some()` method to find the first file or directory that meets the condition; traversal stops automatically once it is found:
-
-```javascript
-let foundTarget = false;
-let count = 0;
-
-await dir.some(async (handle, name) => {
-  count++;
-  if (handle.kind === "file") {
-    if (count === 2) {
-      foundTarget = true;
-      return true; // return true to stop iteration
-    }
-  }
-  return false;
-});
-```
-
-## Flatten Directory
-
-Use the `flat()` method to get all **file handles** in the directory and all its subdirectories (excluding directories):
-
-```javascript
-const allFiles = await dir.flat();
-
-const fileContents = await Promise.all(
-  allFiles.map(async (file) => ({
-    path: file.path,
-    content: await file.read(),
-  }))
-);
-```
-
-Example:
-
-```javascript
-const rootDir = await get("my-app");
-await rootDir.get("file1.txt", { create: "file" });
-await rootDir.get("subDir1", { create: "dir" });
-await rootDir.get("subDir1/file2.txt", { create: "file" });
-await rootDir.get("subDir1/subDir2", { create: "dir" });
-await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
-
-await (await rootDir.get("file1.txt")).write("root file");
-await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
-await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
-
-const allFiles = await rootDir.flat();
-// Returns: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
-```
-
-## Delete Directory
-
-Use the `remove()` method to delete a directory (this will recursively delete all contents under the directory):
-
-```javascript
-const subDir = await get("my-app/subDir", { create: "dir" });
-await subDir.get("file2.txt", { create: "file" });
-
-await subDir.remove();
-const subDirExists = await get("my-app/subDir");
-// subDirExists === null indicates the directory has been deleted
-```
-
-⚠️ Warning: The deletion will be executed immediately. Even if there are sub-files or sub-directories under the directory, they will be deleted together and cannot be recovered. Please proceed with caution.
-
-## Complete Example
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const rootDir = await get("my-app");
-
-// Create directory structure
-await rootDir.get("docs", { create: "dir" });
-await rootDir.get("docs/guide.md", { create: "file" });
-await rootDir.get("docs/api.md", { create: "file" });
-await rootDir.get("images", { create: "dir" });
-
-// Get number of children
-const count = await rootDir.length();
-console.log(`Number of children: ${count}`); // 2
-
-// Iterate root directory
-for await (const [name, handle] of rootDir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-// Output: dir: docs, dir: images
-
-// Flatten to get all files
-const allFiles = await rootDir.flat();
-console.log(allFiles.map(f => f.path));
-// Output: ["docs/guide.md", "docs/api.md"]
-```
-
-## Next Chapter
-
-Learn [File Moving and Copying](./move-and-copy.md) to understand how to move and copy files.
+## Notes
+
+1. The observer will only start monitoring after it is created, and previous file operations will not be captured
+2. After canceling the observation, newly occurring file changes will not be recorded
+3. File change events are triggered asynchronously and may have a certain delay
 
 ---
 
@@ -334,11 +260,11 @@ Learn [File Moving and Copying](./move-and-copy.md) to understand how to move an
 
 # File Handle Comparison
 
-This document describes how to compare file handles, obtain parent directories, root directories, file sizes, and unique identifiers.
+This document describes how to compare file handles and obtain the parent directory, root directory, file size, and unique identifier.
 
 ## Get Parent Directory
 
-Use the `parent` property to get the parent directory of a file:
+Use the `parent` attribute to get the parent directory of the file:
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -353,7 +279,7 @@ const isSame = await fileParentDir.isSame(testDir);
 
 ## Get Root Directory
 
-Use the `root` attribute to obtain the root directory to which a file or directory belongs:
+Use the `root` attribute to get the root directory of a file or directory:
 
 ```javascript
 const testDir = await get("my-app/a/b/c/d");
@@ -364,7 +290,7 @@ const isSame = await root.isSame(await get("my-app"));
 // isSame === true
 ```
 
-## Determining if Handles are Identical
+## Determine if handles are the same
 
 Use the `isSame()` method to determine whether two handles point to the same file or directory:
 
@@ -410,11 +336,11 @@ console.log(id); // unique hash string
 
 ## Handle Attributes
 
-| Attribute | Description | Return Value |
-|-----------|-------------|--------------|
+| Property | Description | Return Value |
+|------|------|--------|
 | `kind` | Handle type | `"file"` or `"dir"` |
-| `name` | File or directory name | String |
-| `path` | Full path | String |
+| `name` | Name of the file or directory | string |
+| `path` | Full path | string |
 | `parent` | Parent directory | DirHandle |
 | `root` | Root directory | DirHandle |## Complete Example
 
@@ -441,322 +367,14 @@ console.log(size); // 6
 const id = await deepFile.id();
 console.log(id); // "abc123..."
 
-// Get the same file via different path
+// Get the same file through different paths
 const file2 = await deepDir.get("deep.txt");
 console.log(await deepFile.isSame(file2)); // true
 ```
 
 ## Next Chapter
 
-Learn [File Change Observation](./file-observation.md) to understand how to listen for file change events.
-
----
-
-<!-- file-operations.html -->
-
-# File Operations
-
-This document introduces file operations in the file system, including creating, writing, reading, and deleting files.
-
-## Create File
-
-Use the `get` method and specify `create: "file"` to create a file:
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const file = await get("my-app/path/to/file.txt", { create: "file" });
-```
-
-## Writing Files
-
-Using the `write` method to write content to a file:
-
-```javascript
-const file = await get("my-app/hello.txt", { create: "file" });
-await file.write("Hello, World!");
-```
-
-The `write` method supports writing string or Blob data.
-
-## Reading Files
-
-### text() method
-
-Read the text content of a file using the `text()` method:
-
-```javascript
-const content = await file.text();
-console.log(content); // "Hello, World!"
-```
-
-### file() method
-
-Using the `file()` method to read the original [File object](https://developer.mozilla.org/zh-CN/docs/Web/API/File):
-
-```javascript
-const fileObj = await file.file();
-console.log(fileObj.name); // filename
-console.log(fileObj.size); // file size
-console.log(fileObj.lastModified); // last modified time
-```
-
-### buffer() method
-
-Use the `buffer()` method to read the file's [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) data:
-
-```javascript
-const arrayBuffer = await file.buffer();
-```
-
-### read() Method
-
-The `read()` method is the underlying reading method that supports more options:
-
-```javascript
-const content = await file.read({
-  type: "text",    // Return type: "text" | "file" | "buffer"
-  start: 0,        // Start byte
-  end: 100,        // End byte
-});
-```
-
-## JSON Operations
-
-### json() method
-
-Use the `json()` method to directly read and parse a JSON file:
-
-```javascript
-const data = await file.json();
-```
-
-### base64() Method
-
-Use the `base64()` method to convert the file content to [base64](https://developer.mozilla.org/en-US/docs/Glossary/Base64) encoding):
-
-```javascript
-const base64String = await file.base64();
-console.log(base64String); // "data:application/octet-stream;base64,..."
-```
-
-## Get File Information
-
-### lastModified() method
-
-Use `lastModified()` to get the last modified time of a file:
-
-```javascript
-const timestamp = await file.lastModified();
-console.log(new Date(timestamp)); // Date object
-```
-
-### size attribute
-
-Get the file size through the `file()` method:
-
-```javascript
-const fileObj = await file.file();
-console.log(fileObj.size); // file size (bytes)
-```
-
-## Fetching files via fetch
-
-In addition to using a handle, after writing to a file you can also use the browser’s `fetch` API to retrieve the file’s contents via its URL:
-
-```javascript
-const file = await get("my-app/file1.txt", { create: "file" });
-const someText = "Write some text " + Math.random();
-await file.write(someText);
-
-await new Promise((resolve) => setTimeout(resolve, 300));
-
-const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
-```
-
-### Preview HTML Files
-
-If the file written is an HTML file, it can be previewed directly in the browser:
-
-```javascript
-const htmlFile = await get("my-app/index.html", { create: "file" });
-await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
-
-// Open /$my-app/index.html in your browser to preview (remember to include the $ prefix)
-```
-
-## Delete Files
-
-Using the `remove()` method to delete a file:
-
-```javascript
-const file = await get("my-app/file1.txt", { create: "file" });
-await file.remove();
-
-const fileExists = await get("my-app/file1.txt");
-// fileExists === null indicates the file has been deleted
-```
-
-## Complete Example
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-// Create and write file
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("This is a test file.");
-
-// Read file
-const content = await file.text();
-console.log(content); // "This is a test file."
-
-// Get file info
-const fileInfo = await file.file();
-console.log(`File name: ${fileInfo.name}, Size: ${fileInfo.size}`);
-
-// Get last modified time
-const modified = await file.lastModified();
-console.log(`Last modified: ${new Date(modified)}`);
-
-// Delete file
-await file.remove();
-const exists = await get("my-app/example.txt");
-console.log(exists); // null
-```
-
-## Next Chapter
-
-Study [Directory Operations](./directory-operations.md) to learn how to traverse and manage directories.
-
----
-
-<!-- ai-call.html -->
-
-# Call AI Model
-
-## Introducing the chat module
-
-```javascript
-import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
-```
-
-## Basic Usage
-
-The `chat` function accepts a message array and an options object:
-
-```javascript
-const messages = [
-  { role: "user", content: "Hello" }
-];
-
-const response = await chat(messages, {
-  provider: "deepseek",  // optional, specify provider
-  callback: (chunk) => {  // optional, streaming callback
-    console.log(chunk);
-  },
-  maxContextLength: 8192  // optional, maximum context length
-});
-```
-
-## Supported Providers
-
-- **deepseek** - DeepSeek
-- **kimi** - Kimi (Moonshot)
-- **minimax** - MiniMax
-- **glm** - Zhipu GLM
-
-If `provider` is not specified, the system will automatically select an available API Key.
-
-## Message Format
-
-```javascript
-const messages = [
-  { role: "system", content: "You are a helpful assistant" },
-  { role: "user", content: "Hello" },
-  { role: "assistant", content: "Hello, how can I help you?" },
-  { role: "user", content: "Explain what AI is" }
-];
-```
-
-## Concurrency Control
-
-The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.
-
-### Get Current Status
-
-```javascript
-const status = getStatus();
-// Returns the concurrent usage of each key
-```
-
-### Subscription Status Changes
-
-```javascript
-subscribe((newStatus) => {
-  console.log("Status updated:", newStatus);
-});
-```
-
-## Get Available Providers
-
-```javascript
-const providers = await getAvailableProviders();
-console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
-```
-
-## Error Handling
-
-```javascript
-try {
-  const response = await chat(messages);
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-Common Mistakes:- `no_key` - No API Key configured
-- `no_provider_key` - No provider's API Key specified
-- `concurrency_full` - The concurrency limit for this Key has been reached
-- `Unsupported provider` - Unsupported provider
-
----
-
-<!-- sw-advanced.html -->
-
-# sw.js Configuration Tips
-
-## Version Number Control and Cache Update
-
-When releasing a new version, if the server is configured with a `max-age=0` response header, the browser may still cache the old version of the `sw.js` file, preventing updates from taking effect promptly. By adding a version parameter to the URL, you can force the browser to request the latest file, thereby resolving this issue.
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-When referencing dist.js, add the `?v=` parameter and update the version number each time a new version is released. The browser will then request the new file instead of using the cached one.
-
-## Official Tools
-
-Using the tools in the `nos-tool` directory, you can conveniently manage the NoneOS system.
-
-- **ai** - AI model management, including chat, configuration, and key management
-- **editor** - Monaco editor integration, supporting syntax highlighting, formatting, and AI completion
-- **file-explore** - File explorer
-- **file-list** - File list view and handle management
-- **studio** - Development studio, providing file management, color tools, theme editing, and more
-
-These tools are located in the `nos-tool` directory and can be imported and used as needed.
+Learn [File Observation](./file-observation.md) to understand how to listen for file change events.
 
 ---
 
@@ -766,7 +384,7 @@ These tools are located in the `nos-tool` directory and can be imported and used
 
 ## AI Model Management Portal
 
-In the deployed NoneOS system, applications developed based on this system can introduce the AI model key management page through the `o-page` component, allowing users to add and manage AI models via a graphical user interface (GUI).
+In a deployed NoneOS system, applications developed based on the system can introduce an AI model's key management page through the `o-page` component, allowing users to add and manage AI models through a graphical user interface (GUI).
 
 ### Using Relative Paths
 
@@ -774,13 +392,13 @@ In the deployed NoneOS system, applications developed based on this system can i
 <o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
 ```
 
-This way you can directly add an entry for AI models in your ofa.js application.
+This way, you can directly add an entry point for adding AI models in your ofa.js application.
 
-## js Add Model
+## Adding Models in js
 
-You can directly manage AI models through JavaScript code without using the `o-page` component.
+You can manage AI models directly through JavaScript code without using the `o-page` component.
 
-### Introducing the Storage Module
+### Import Storage Module
 
 ```javascript
 import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
@@ -809,9 +427,9 @@ await storage.setItem("ai-keys", aiKeys);
 
 ### Available Models by Provider
 
-Available models refer to the documentation of each provider.
+Refer to the documentation of each provider for available models.
 
-### Retrieve All Saved Keys
+### Get all saved Keys
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
@@ -828,92 +446,954 @@ if (index > -1) {
 }
 ```
 
-### Update the concurrency limit of the Key
+### Concurrency of updating keys
 
 ```javascript
 const aiKeys = (await storage.getItem("ai-keys")) || [];
 const keyItem = aiKeys.find((k) => k.id === "key-id");
 if (keyItem) {
-  keyItem.concurrency = 3;  // Modify the concurrency
+  keyItem.concurrency = 3;  // Modify concurrency
   await storage.setItem("ai-keys", aiKeys);
 }
 ```
 
 ### Key Object Structure
 
-| Attribute     | Type    | Description                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | Unique identifier                         |
-| `provider`    | string  | Provider (deepseek/kimi/minimax/glm) |
-| `model`       | string  | Model name                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | Maximum concurrency                         |
-| `disabled`    | boolean | Whether disabled                           |
+| Property      | Type    | Description                         |
+| ------------- | ------- | ----------------------------------- |
+| `id`          | string  | Unique identifier                   |
+| `provider`    | string  | Provider (deepseek/kimi/minimax/glm)|
+| `model`       | string  | Model name                          |
+| `key`         | string  | API Key                             |
+| `concurrency` | number  | Max concurrency                      |
+| `disabled`    | boolean | Is disabled                         |
 
 ---
 
-<!-- install.html -->
+<!-- directory-operations.html -->
 
-# Installation
+# Directory Operations
 
-NoneOS Core is a browser-based file system that relies on Service Worker for local storage. The project itself is purely static and does not require a dynamic server.
+This document introduces directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.
 
-## Prerequisites
+## Create Directory
 
-- A static server (e.g. http-server, live-server, nginx, etc.)
-- Browser support for Service Worker
-- For external access, HTTPS must be used (due to API requirements)
-
-## Steps
-
-### 1. Create Service Worker File
-
-Create a `sw.js` file in the project root directory and fill in the following content:
+Use the `get` method and specify `create: "dir"` to create the directory:
 
 ```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-### 2. Create Entry HTML
+## Get Number of Sub-items
 
-In the entry HTML file, import `ofa.js` and the `nos-version` component. After using the `nos-version` component, the `sw.js` file will be automatically registered:
+Use the `length()` method to get the total number of subfiles/subdirectories in the directory:
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- Load nos-version component -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- Use nos-version component -->
-    <nos-version auto-install></nos-version>
+```javascript
+const dir = await get("my-app/subDir", { create: "dir" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
 
-    <script type="module">
-      // Wait for installation to complete
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core installation completed, ready to use");
-        // noneos-core can be used here
-      });
-    </script>
-  </body>
-</html>
+const count = await dir.length();
+console.log(count); // 2
 ```
 
-## Installation Status
+## Traverse Directory
 
-The `nos-version` component automatically detects the installation status of NoneOS Core:
+### keys() Method
 
-- **Not installed**: Display "Install NoneOS Core" button
-- **Installing**: Display installation progress bar
-- **Installed**: Display current version number
-- **Upgrade available**: Display upgrade button
+Use the `keys()` method to iterate over the names of all items in the directory:
 
-When the system installation is completed, or has already been installed, or the upgrade is successful, the `installed` event will be triggered, after which all functions of NoneOS Core can be used normally.
+```javascript
+for await (const key of dir.keys()) {
+  console.log(key);
+}
+```
+
+### values() method
+
+Use the `values()` method to traverse all files and subdirectories in a directory:
+
+```javascript
+const handles = [];
+for await (const handle of dir.values()) {
+  handles.push({
+    kind: handle.kind,
+    name: handle.name,
+  });
+}
+```
+
+### entries() method
+
+Use the `entries()` method to iterate over all items in a directory, returning [name, handle] pairs:
+
+```javascript
+for await (const [name, handle] of dir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() method
+
+Use the `forEach()` method to iterate over a directory：
+
+```javascript
+await dir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
+### The some() Method
+
+Use the `some()` method to find the first file or directory that meets the condition, stopping the traversal automatically once found:
+
+```javascript
+let foundTarget = false;
+let count = 0;
+
+await dir.some(async (handle, name) => {
+  count++;
+  if (handle.kind === "file") {
+    if (count === 2) {
+      foundTarget = true;
+      return true; // Return true to stop iteration
+    }
+  }
+  return false;
+});
+```
+
+## Flat directory
+
+Use the `flat()` method to get all **file handles** (excluding directories) in a directory and all its subdirectories:
+
+```javascript
+const allFiles = await dir.flat();
+
+const fileContents = await Promise.all(
+  allFiles.map(async (file) => ({
+    path: file.path,
+    content: await file.read(),
+  }))
+);
+```
+
+Example:
+
+```javascript
+const rootDir = await get("my-app");
+await rootDir.get("file1.txt", { create: "file" });
+await rootDir.get("subDir1", { create: "dir" });
+await rootDir.get("subDir1/file2.txt", { create: "file" });
+await rootDir.get("subDir1/subDir2", { create: "dir" });
+await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+
+await (await rootDir.get("file1.txt")).write("root file");
+await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
+await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
+
+const allFiles = await rootDir.flat();
+// Returns: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
+```
+
+## Delete Directory
+
+Use the `remove()` method to delete a directory (it will recursively delete all contents under the directory):
+
+```javascript
+const subDir = await get("my-app/subDir", { create: "dir" });
+await subDir.get("file2.txt", { create: "file" });
+
+await subDir.remove();
+const subDirExists = await get("my-app/subDir");
+// subDirExists === null indicates the directory has been deleted
+```
+
+⚠️ Warning: The delete operation will be executed immediately, even if there are sub-files or sub-directories under the directory, they will be deleted together, and cannot be recovered. Please proceed with caution.
+
+## Complete Example
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const rootDir = await get("my-app");
+
+// Create directory structure
+await rootDir.get("docs", { create: "dir" });
+await rootDir.get("docs/guide.md", { create: "file" });
+await rootDir.get("docs/api.md", { create: "file" });
+await rootDir.get("images", { create: "dir" });
+
+// Get number of children
+const count = await rootDir.length();
+console.log(`Number of children: ${count}`); // 2
+
+// Iterate over root directory
+for await (const [name, handle] of rootDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+// Output: dir: docs, dir: images
+
+// Get all files flattened
+const allFiles = await rootDir.flat();
+console.log(allFiles.map(f => f.path));
+// Output: ["docs/guide.md", "docs/api.md"]
+```
+
+## Next Chapter
+
+Learn about [file move and copy](./move-and-copy.md), understand how to move and copy files.
+
+---
+
+<!-- ai-call.html -->
+
+# Calling the AI Model
+
+## Introducing the chat module
+
+```javascript
+import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
+```
+
+## Basic Usage
+
+The `chat` function accepts a message array and an options object:
+
+```javascript
+const messages = [
+  { role: "user", content: "Hello" }
+];
+
+const response = await chat(messages, {
+  provider: "deepseek",  // Optional, specify provider
+  callback: (chunk) => {  // Optional, streaming callback
+    console.log(chunk);
+  },
+  maxContextLength: 8192  // Optional, maximum context length
+});
+```
+
+## Supported Providers
+
+- **deepseek** - DeepSeek
+- **kimi** - Kimi (Moonshot)
+- **minimax** - MiniMax
+- **glm** - Zhipu GLM
+
+If no `provider` is specified, the system will automatically select an available API Key.
+
+## Message Format
+
+```javascript
+const messages = [
+  { role: "system", content: "You are a helpful assistant" },
+  { role: "user", content: "Hello" },
+  { role: "assistant", content: "Hello, how can I help you?" },
+  { role: "user", content: "Explain what AI is" }
+];
+```
+
+## Concurrency Control
+
+NoneOS AI module supports concurrency control, which can prevent the same API Key from being overused.
+
+### Get Current Status
+
+```javascript
+const status = getStatus();
+// Return the concurrent usage of each Key
+```
+
+### Subscription Status Change
+
+```javascript
+subscribe((newStatus) => {
+  console.log("Status update:", newStatus);
+});
+```
+
+## Get Available Providers
+
+```javascript
+const providers = await getAvailableProviders();
+console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
+```
+
+## Error Handling
+
+```javascript
+try {
+  const response = await chat(messages);
+} catch (error) {
+  console.error(error.message);
+}
+```
+
+Common Mistakes:- `no_key` - No API Key configured
+- `no_provider_key` - No provider API Key specified
+- `concurrency_full` - The Key's concurrency is full
+- `Unsupported provider` - Unsupported provider
+
+---
+
+<!-- file-operations.html -->
+
+# File Operations
+
+This document describes file operations in the file system, including creating, writing, reading, and deleting files.
+
+## Create a file
+
+Use the `get` method and specify `create: "file"` to create the file:
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const file = await get("my-app/path/to/file.txt", { create: "file" });
+```
+
+## Write to File
+
+Use the `write` method to write content to a file:
+
+```javascript
+const file = await get("my-app/hello.txt", { create: "file" });
+await file.write("Hello, World!");
+```
+
+`write` method supports writing strings or Blob data.
+
+## Read File
+
+### text() method
+
+Use the `text()` method to read the text content of the file:
+
+```javascript
+const content = await file.text();
+console.log(content); // "Hello, World!"
+```
+
+### file() Method
+
+Use the `file()` method to read the raw [File object](https://developer.mozilla.org/zh-CN/docs/Web/API/File):
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.name); // file name
+console.log(fileObj.size); // file size
+console.log(fileObj.lastModified); // last modified time
+```
+
+### buffer() Method
+
+Use the `buffer()` method to read the file's [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) data:
+
+```javascript
+const arrayBuffer = await file.buffer();
+```
+
+### read() Method
+
+`read()` method is a low-level reading method that supports more options:
+
+```javascript
+const content = await file.read({
+  type: "text",    // Return type: "text" | "file" | "buffer"
+  start: 0,        // start byte
+  end: 100,        // end byte
+});
+```
+
+## JSON Operations
+
+### The json() method
+
+Use the `json()` method to directly read and parse JSON files:
+
+```javascript
+const data = await file.json();
+```
+
+### base64() Method
+
+Use the `base64()` method to convert the file content to [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) encoding):
+
+```javascript
+const base64String = await file.base64();
+console.log(base64String); // "data:application/octet-stream;base64,..."
+```
+
+## Get File Information
+
+### lastModified() method
+
+Use `lastModified()` to get the last modified time of a file:
+
+```javascript
+const timestamp = await file.lastModified();
+console.log(new Date(timestamp)); // Date object
+```
+
+### size attribute
+
+Get file size via `file()` method:
+
+```javascript
+const fileObj = await file.file();
+console.log(fileObj.size); // File size in bytes
+```
+
+## Get a file via fetch
+
+Besides using handles, after writing the file, you can also use the browser's `fetch` API to get the file content via URL:
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+const someText = "Write some text " + Math.random();
+await file.write(someText);
+
+await new Promise((resolve) => setTimeout(resolve, 300));
+
+const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
+```
+
+### Preview HTML file
+
+If it's an HTML file, you can preview it directly in the browser:
+
+```javascript
+const htmlFile = await get("my-app/index.html", { create: "file" });
+await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
+
+// Open /$my-app/index.html in your browser to preview (remember to include the $ prefix)
+```
+
+## Delete File
+
+Use the `remove()` method to delete a file:
+
+```javascript
+const file = await get("my-app/file1.txt", { create: "file" });
+await file.remove();
+
+const fileExists = await get("my-app/file1.txt");
+// fileExists === null indicates the file has been deleted
+```
+
+## Complete Example
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// Create and write to a file
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("This is a test file.");
+
+// Read the file
+const content = await file.text();
+console.log(content); // "This is a test file."
+
+// Get file info
+const fileInfo = await file.file();
+console.log(`File name: ${fileInfo.name}, Size: ${fileInfo.size}`);
+
+// Get last modified time
+const modified = await file.lastModified();
+console.log(`Last modified: ${new Date(modified)}`);
+
+// Delete the file
+await file.remove();
+const exists = await get("my-app/example.txt");
+console.log(exists); // null
+```
+
+## Next Chapter
+
+Learn [directory operations](./directory-operations.md) to understand how to traverse and manage directories.
+
+---
+
+<!-- directory-mounting.html -->
+
+# Directory Mounting
+
+The directory mounting feature allows you to access **real directories** in the user's local file system and persistently store them for continued use in subsequent sessions.
+
+> **Real directory**：refers to the actual folder on your **Windows** / **macOS** / **Linux** system, as opposed to a directory in the virtual file system.
+
+## Important Notice
+
+### Browser Support
+
+The `open()` method depends on the browser's `showDirectoryPicker` API, and currently **only Chrome fully supports** this functionality.
+
+```javascript
+// Detect browser support
+if (!window.showDirectoryPicker) {
+  console.error("Current browser does not support directory selection");
+  console.log("Please use Chrome browser for full functionality");
+  return;
+}
+```
+
+### Core Uses
+
+The main purpose of directory mounting is to work with `open()` to access the user's local file system:
+
+1. **Local File Access**: Let users select a local directory and directly access file content through the browser
+2. **Static Server Functionality**: After mounting, the local directory can be accessed via HTTP requests, implementing functionality similar to a local static server
+3. **Persistent Access**: After mounting via `mount()`, the same local directory can be accessed in subsequent sessions without re-selection
+
+**Note**: For virtual file system directories created via `init()`, HTTP access is already automatically supported, no need to use `mount()`.
+
+### Typical Application Scenarios
+
+- Local project development: Access and edit local project files directly in the browser
+- Static resource service: Mount local directories as accessible static resource paths
+- File management tool: Build a browser-based file management application
+
+## Basic Concepts
+
+### open() - Open directory selector
+
+The `open()` method will pop up the system directory picker, allowing the user to select a local directory:
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open();
+```
+
+After the user selects a directory, the system will request read and write permissions. If the user grants permission, a `DirHandle` object will be returned.
+
+**Note**: `open()` is only used to access the user's local file system. For virtual file system directories, use `init()` to create them.
+
+### mount() - Mount Directory
+
+The `mount()` method saves the local directory handle so that subsequent sessions can access it again:
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open(); // Open directory picker, at this point path is a virtual path
+await mount(handle); // After mounting, path becomes $mount-{id}>directory name
+
+console.log(handle.path); // Output: $mount-123>directory name
+```
+
+The path format after mounting is: `$mount-{id}>directory name`
+
+#### Advantages of the Two-Step Process
+
+It is recommended to use a two-step process (first `open()` then `mount()`) instead of mounting all at once:
+
+1. **Verify directory contents**: Before mounting, you can browse the directory contents to confirm it is the desired directory
+2. **Avoid incorrect mounting**: Prevents users from mistakenly mounting the wrong directory into the system
+3. **Flexible decision-making**: Allows deciding whether to mount based on the directory contents
+
+```javascript
+const handle = await open();
+
+// First verify the directory contents
+const packageJson = await handle.get("package.json");
+const data = await packageJson.json();
+if (data.somedata) {
+  // Confirm it's a matching directory, then mount
+  await mount(handle);
+  console.log("Matching directory mounted:", handle.path);
+} else {
+  console.log("This is a non-matching directory, mount canceled");
+}
+```
+
+**Important**：
+
+- `mount()` is primarily used to persist local directories opened by `open()`
+- For virtual file system directories created by `init()`, `mount()` is not needed
+
+### Open and mount in one go
+
+You can use the `mount` parameter of `open()` to automatically mount after selecting a directory:
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// Equivalent to:
+// const handle = await open();
+// await mount(handle);
+```
+
+## Main Purpose of mount()
+
+`mount()` method is mainly used in conjunction with `open()` to persist the user-selected local directory. **For the virtual file system directory created via `init()`, `mount()` is not required**.
+
+### Virtual File System Directory (No mount required)
+
+Directories created via `init()` can already be accessed directly via HTTP:
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+// Create virtual file system directory
+const dir = await init("my-app");
+await dir.get("test.txt", { create: "file" });
+
+// Access directly via $rootdirName
+const response = await fetch("/$my-app/test.txt");
+const content = await response.text();
+```
+
+These directory path formats are: `$directory name`, accessible via HTTP without mounting.
+
+### Local directory (requires mount)
+
+Local directories opened via `open()` need to be mounted for persistent access:
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// Open the user's local directory
+const handle = await open();
+
+// Need to mount to continue accessing in subsequent sessions
+await mount(handle);
+
+// After mounting, it can be accessed via $mount-{id}>directory name
+const response = await fetch(`/${handle.path}/file.txt`);
+```
+
+### Comparison of Two Directory Types
+
+| Feature                | Virtual File System Directory | Local Directory (mount)          |
+| ---------------------- | ----------------------------- | --------------------------------- |
+| Creation method        | `init("dir-name")`            | `open()` + `mount()`              |
+| Path format            | `$dir-name`                   | `$mount-{id}>dir-name`            |
+| HTTP access            | ✅ Directly supported        | ✅ Supported after mounting       |
+| Persistence            | ✅ Automatic persistence     | ✅ Requires mount persistence    |
+| Data location          | Browser storage               | User's local file system          |
+| Mount required         | ❌ Not required               | ✅ Required                       |
+| Browser support        | All modern browsers           | Chrome only                       |## Managing Mounted Directories
+
+### Get list of mounted directories
+
+Use `getMounted()` to get all mounted directories:
+
+```javascript
+import { getMounted } from "/nos/fs/main.js";
+
+const mountedDirs = await getMounted();
+
+mountedDirs.forEach((item) => {
+  console.log(item.id); // Mount ID
+  console.log(item.name); // Directory name
+  console.log(item.path); // Mount path
+  console.log(item.handle); // DirHandle object
+});
+```
+
+### Uninstall directory
+
+Use `unmount()` to remove a mounted directory. This method supports two parameter types:
+
+#### Method 1: Uninstall by ID
+
+```javascript
+import { unmount } from "/nos/fs/main.js";
+
+await unmount(mountId);
+```
+
+#### Method 2: Uninstall via Handle Object (Recommended)
+
+```javascript
+import { open, mount, unmount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// Use handle...
+
+// Unmount using the handle object directly
+await unmount(handle);
+```
+
+#### Unmount from the mount list
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+const mounted = await getMounted();
+for (const item of mounted) {
+  // Unmount using handle object
+  await unmount(item.handle);
+
+  // Or unmount using ID
+  // await unmount(item.id);
+}
+```
+
+After uninstallation, this directory will no longer be accessible via the mount path.
+
+**Note**: Only mounted handles (with a path starting with `$mount-`) can be unmounted. Attempting to unmount an unmounted handle will throw an error.
+
+## Access Files via Mount Path
+
+### Using the get() method
+
+The mounted directory can be accessed via the mount path:
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// Assuming the mounted path is $mount-123>my-project
+const file = await get("$mount-123>my-project/src/index.js");
+const content = await file.text();
+```
+
+### Accessing Subdirectories
+
+```javascript
+const subdir = await get("$mount-123>my-project/src");
+const files = await subdir.values();
+
+for await (const file of files) {
+  console.log(file.name);
+}
+```
+
+## Access mounted files via HTTP (static server functionality)
+
+The mounted directory can access files through HTTP requests, implementing functionality similar to a local static server. This is one of the core features of directory mounting.
+
+### Basic Usage
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+
+// Create a test file
+const testFile = await handle.get("test.txt", { create: "file" });
+await testFile.write("Hello, World!");
+
+// Access via HTTP (like a static server)
+const response = await fetch(`/${handle.path}/test.txt`);
+const content = await response.text();
+console.log(content); // Output: Hello, World!
+```
+
+### Practical Application Examples
+
+```javascript
+// Mount local project directory
+const projectHandle = await open({ mount: true });
+
+// Now any file in the project can be accessed via HTTP
+const htmlResponse = await fetch(`/${projectHandle.path}/index.html`);
+const htmlContent = await htmlResponse.text();
+
+const jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);
+const jsContent = await jsResponse.text();
+
+const cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);
+const cssContent = await cssResponse.text();
+
+// Just like accessing a local static server
+```
+
+### Application Scenarios
+
+- **Local Development Server**: Access local files directly in the browser without starting a Node.js server
+- **Project Preview**: Real-time preview of local HTML/CSS/JS projects
+- **Resource Loading**: Load local images, fonts, and other resources in web applications
+
+## Complete Example
+
+### Create and Mount the Project
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+// Open directory picker
+const handle = await open();
+
+// Check if already mounted
+const mounted = await getMounted();
+const existing = mounted.find((item) => item.name === handle.name);
+
+if (existing) {
+  console.log("Directory mounted:", existing.path);
+} else {
+  // Mount directory
+  await mount(handle);
+  console.log("Directory mounted:", handle.path);
+}
+
+// Use mounted directory
+const packageJson = await handle.get("package.json");
+if (packageJson) {
+  const config = await packageJson.json();
+  console.log("Project name:", config.name);
+}
+```
+
+### Managing Multiple Mount Directories
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+// Get all mounts
+const allMounts = await getMounted();
+
+// Filter specific projects
+const projects = allMounts.filter((item) => item.name.includes("project"));
+
+// Unmount old projects
+for (const project of projects) {
+  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {
+    await unmount(project.handle);
+    console.log("Unmounted:", project.name);
+  }
+}
+```
+
+## Permission Management
+
+### Check and Request Permissions
+
+The browser will request permission on first access. If denied or expired, you need to request it again:
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+try {
+  const handle = await get("$mount-123>my-project");
+  // Use handle
+} catch (error) {
+  if (error.message.includes("Permission denied")) {
+    console.log("Re-authorization required");
+    // Prompt user to re-select directory
+  }
+}
+```
+
+## Browser Compatibility
+
+### Support Status
+
+- ✅ Chrome 86+ / Edge 86+  - **Full Support** (Recommended)
+- ⚠️ Firefox 111+ - **Does not support** `showDirectoryPicker`, but can mount virtual directories
+- ❌ Safari - **Does not support** `showDirectoryPicker`, and also does not support mounting virtual directories
+
+### Core Functionality Description
+
+**`open()` method** relies on the `showDirectoryPicker` API, which is currently a Chrome-only feature:
+
+- **Chrome**: Full support, can pop up a directory picker, and persistently store the handle
+- **Other browsers**: Do not support the directory selection feature, cannot use the `open()` method
+
+### Recommended Usage
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// Check browser support
+if (!window.showDirectoryPicker) {
+  alert("This feature requires Chrome browser support");
+  return;
+}
+
+// Usage in Chrome
+const handle = await open({ mount: true });
+console.log("Local directory mounted:", handle.path);
+
+// Access local files via HTTP
+const response = await fetch(`/${handle.path}/index.html`);
+const content = await response.text();
+```
+
+### Safari Does Not Support Completely
+
+Safari neither supports the `showDirectoryPicker` API nor supports storing `FileSystemHandle` in IndexedDB:
+
+```javascript
+// Not supported in Safari
+const handle = await open(); // ❌ Error: showDirectoryPicker is not supported
+```
+
+### Detect Browser Support
+
+```javascript
+const isFileSystemSupported = !!window.showDirectoryPicker;
+
+if (!isFileSystemSupported) {
+  console.log("The current browser does not support directory selection.");
+  console.log("Please use Chrome browser to get full functionality.");
+}
+```
+
+## Best Practices
+
+1. **Browser Detection**: Detect whether the browser supports `showDirectoryPicker` before use
+2. **User Prompt**: Clearly inform users that this feature requires Chrome browser
+3. **Error Handling**: Handle cases of permission denial and non-existent directories
+4. **Clean Up Old Mounts**: Periodically clean up mount directories that are no longer needed
+5. **Static Server Functionality**: Fully utilize HTTP access features to implement a local file server
+
+### Recommended Full Implementation
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+async function setupLocalProject() {
+  // 1. Check browser support
+  if (!window.showDirectoryPicker) {
+    alert(
+      "This function requires Chrome browser support.\n\nPlease use Chrome browser to get full local file access capabilities.",
+    );
+    return null;
+  }
+
+  try {
+    // 2. Open and mount the directory
+    const handle = await open({ mount: true });
+
+    // 3. Verify if it's a valid project
+    const packageJson = await handle.get("package.json");
+    if (!packageJson) {
+      console.warn("The selected directory is not a valid project");
+    }
+
+    console.log("Local project mounted:", handle.path);
+    console.log("Accessible via HTTP:", `/${handle.path}/`);
+
+    return handle;
+  } catch (error) {
+    if (error.message.includes("Permission denied")) {
+      alert("Directory access permission is required to use this feature");
+    } else {
+      console.error("Mount failed:", error);
+    }
+    return null;
+  }
+}
+
+// Usage example
+const projectHandle = await setupLocalProject();
+if (projectHandle) {
+  // Access local files via HTTP
+  const response = await fetch(`/${projectHandle.path}/README.md`);
+  const readme = await response.text();
+  console.log(readme);
+}
+```
+
+## Next Chapter
+
+Learn about [file operations](./file-operations.md), including how to read, write, and delete files.
 
 ---
 
@@ -923,9 +1403,9 @@ When the system installation is completed, or has already been installed, or the
 
 This document describes how to move and copy files and directories.
 
-## Moving Files
+## Move Files
 
-Use the `moveTo()` method to move the file to the target directory:
+Use the `moveTo()` method to move the file to the target directory：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -935,7 +1415,7 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// The second parameter is the target file name; omit it to keep the original name
+// The second parameter is the target file name; if omitted, the original file name is used
 const movedFile = await sourceFile.moveTo(targetDir);
 // Equivalent to sourceFile.moveTo(targetDir, "source.txt")
 
@@ -943,12 +1423,12 @@ const content = await movedFile.text();
 // content === "Hello, World!"
 
 const oldFile = await get("my-app/source.txt");
-// oldFile === null means the original file has been moved
+// oldFile === null indicates the original file has been moved
 ```
 
 ## Move Directory
 
-The `moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+`moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name will be used:
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -965,7 +1445,7 @@ const movedDir = await sourceDir.moveTo(targetDir);
 // movedDir contains file1.txt and subDir/file2.txt
 ```
 
-## Copy File
+## Copy Files
 
 Use the `copyTo()` method to copy the file to the target directory:
 
@@ -975,7 +1455,7 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// The second parameter is the target file name; if not provided, the original file name is used.
+// The second parameter is the target filename; if omitted, the original filename is used
 const copiedFile = await sourceFile.copyTo(targetDir);
 // Equivalent to sourceFile.copyTo(targetDir, "source.txt")
 
@@ -989,7 +1469,7 @@ const originalFile = await get("my-app/source.txt");
 
 ## Copy Directory
 
-The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name, if not provided, the original directory name is retained:
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -1001,7 +1481,7 @@ await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const copiedDir = await sourceDir.copyTo(targetDir);
-// Same as sourceDir.copyTo(targetDir, "sourceDir")
+// Equivalent to sourceDir.copyTo(targetDir, "sourceDir")
 
 // copiedDir contains file1.txt and subDir/file2.txt
 ```
@@ -1031,4 +1511,4 @@ console.log(original); // null
 
 ## Next Chapter
 
-Study [File Handle Comparison](./handle-comparison.md) to learn how to compare file handles.
+Learn about [file handle comparison](./handle-comparison.md)，and how to compare file handles。

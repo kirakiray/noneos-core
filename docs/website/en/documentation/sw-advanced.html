@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sw.js Configuration Tips</title>
+  <title>sw.js configuration tips</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,9 +71,9 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>sw.js Configuration Tips</h1>
+        <h1>sw.js configuration tips</h1>
         <h2>Version Number Control and Cache Update</h2>
-        <p>When releasing a new version, if the server is configured with a <code>max-age=0</code> response header, the browser may still cache the old version of the <code>sw.js</code> file, preventing updates from taking effect promptly. By adding a version parameter to the URL, you can force the browser to request the latest file, thereby resolving this issue.</p>
+        <p>When releasing a new version, if the server is configured with a <code>max-age=0</code> response header, the browser may still cache the old version of the <code>sw.js</code> file, causing the update to not take effect in a timely manner. By adding a version parameter to the URL, you can force the browser to request the latest file, thus solving this problem.</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> version = <span class="hljs-string">&quot;&quot;</span>;
 <span class="hljs-keyword">if</span> (globalThis.<span class="hljs-property">serviceWorker</span>) {
   <span class="hljs-keyword">const</span> urlParams = <span class="hljs-keyword">new</span> <span class="hljs-title class_">URLSearchParams</span>(
@@ -86,15 +86,15 @@
 }
 
 importScripts(<span class="hljs-string">&quot;https://core.noneos.com/sw/dist.js?v=&quot;</span> + version);</code></pre>
-        <p>When referencing dist.js, add the <code>?v=</code> parameter and update the version number each time a new version is released. The browser will then request the new file instead of using the cached one.</p>
+        <p>When referencing dist.js, add the <code>?v=</code> parameter and update the version number each time a new version is released, so that the browser will request the new file instead of using the cache.</p>
         <h2>Official Tools</h2>
-        <p>Using the tools in the <code>nos-tool</code> directory, you can conveniently manage the NoneOS system.</p>
+        <p>Using <code>nos-tool</code> directorytools,caneasilymanage NoneOS system.</p>
         <ul>
           <li><strong>ai</strong> - AI model management, including chat, configuration, and key management</li>
-          <li><strong>editor</strong> - Monaco editor integration, supporting syntax highlighting, formatting, and AI completion</li>
+          <li><strong>editor</strong> - Monaco editor integration, supporting code highlighting, formatting, and AI completion</li>
           <li><strong>file-explore</strong> - File explorer</li>
           <li><strong>file-list</strong> - File list view and handle management</li>
-          <li><strong>studio</strong> - Development studio, providing file management, color tools, theme editing, and more</li>
+          <li><strong>studio</strong> - Development studio, providing file management, color tools, theme editing, and other features</li>
         </ul>
         <p>These tools are located in the <code>nos-tool</code> directory and can be imported and used as needed.</p>
       </article>

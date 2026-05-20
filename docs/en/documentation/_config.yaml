@@ -1,4 +1,4 @@
-- name: Install
+- name: Installation
   url: ./install.md
 - name: Basic Operations
   content:
@@ -8,7 +8,9 @@
       url: ./file-operations.md
     - name: Directory Operations
       url: ./directory-operations.md
-    - name: File Moving & Copying
+    - name: Directory Mounting
+      url: ./directory-mounting.md
+    - name: Move and Copy
       url: ./move-and-copy.md
     - name: File Handle Comparison
       url: ./handle-comparison.md

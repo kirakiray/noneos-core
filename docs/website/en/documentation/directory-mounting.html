@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Directory Mounting</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>Directory Mounting</h1>
+        <p>The directory mounting feature allows you to access <strong>real directories</strong> in the user's local file system and persistently store them for continued use in subsequent sessions.</p>
+        <blockquote>
+          <p><strong>Real directory</strong>：refers to the actual folder on your <strong>Windows</strong> / <strong>macOS</strong> / <strong>Linux</strong> system, as opposed to a directory in the virtual file system.</p>
+        </blockquote>
+        <h2>Important Notice</h2>
+        <h3>Browser Support</h3>
+        <p>The <code>open()</code> method depends on the browser's <code>showDirectoryPicker</code> API, and currently <strong>only Chrome fully supports</strong> this functionality.</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// Detect browser support</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"Current browser does not support directory selection"</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Please use Chrome browser for full functionality"</span>);
+  <span class="hljs-keyword">return</span>;
+}</code></pre>
+        <h3>Core Uses</h3>
+        <p>The main purpose of directory mounting is to work with <code>open()</code> to access the user's local file system:</p>
+        <ol>
+          <li><strong>Local File Access</strong>: Let users select a local directory and directly access file content through the browser</li>
+          <li><strong>Static Server Functionality</strong>: After mounting, the local directory can be accessed via HTTP requests, implementing functionality similar to a local static server</li>
+          <li><strong>Persistent Access</strong>: After mounting via <code>mount()</code>, the same local directory can be accessed in subsequent sessions without re-selection</li>
+        </ol>
+        <p><strong>Note</strong>: For virtual file system directories created via <code>init()</code>, HTTP access is already automatically supported, no need to use <code>mount()</code>.</p>
+        <h3>Typical Application Scenarios</h3>
+        <ul>
+          <li>Local project development: Access and edit local project files directly in the browser</li>
+          <li>Static resource service: Mount local directories as accessible static resource paths</li>
+          <li>File management tool: Build a browser-based file management application</li>
+        </ul>
+        <h2>Basic Concepts</h2>
+        <h3>open() - Open directory selector</h3>
+        <p>The <code>open()</code> method will pop up the system directory picker, allowing the user to select a local directory:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();</code></pre>
+        <p>After the user selects a directory, the system will request read and write permissions. If the user grants permission, a <code>DirHandle</code> object will be returned.</p>
+        <p><strong>Note</strong>: <code>open()</code> is only used to access the user's local file system. For virtual file system directories, use <code>init()</code> to create them.</p>
+        <h3>mount() - Mount Directory</h3>
+        <p>The <code>mount()</code> method saves the local directory handle so that subsequent sessions can access it again:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// Open directory picker, at this point path is a virtual path</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle); <span class="hljs-comment">// After mounting, path becomes $mount-{id}&gt;directory name</span>
+
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(handle.<span class="hljs-property">path</span>); <span class="hljs-comment">// Output: $mount-123&gt;directory name</span></code></pre>
+        <p>The path format after mounting is: <code>$mount-{id}&gt;directory name</code></p>
+        <h4>Advantages of the Two-Step Process</h4>
+        <p>It is recommended to use a two-step process (first <code>open()</code> then <code>mount()</code>) instead of mounting all at once:</p>
+        <ol>
+          <li><strong>Verify directory contents</strong>: Before mounting, you can browse the directory contents to confirm it is the desired directory</li>
+          <li><strong>Avoid incorrect mounting</strong>: Prevents users from mistakenly mounting the wrong directory into the system</li>
+          <li><strong>Flexible decision-making</strong>: Allows deciding whether to mount based on the directory contents</li>
+        </ol>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// First verify the directory contents</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+<span class="hljs-keyword">if</span> (data.<span class="hljs-property">somedata</span>) {
+  <span class="hljs-comment">// Confirm it's a matching directory, then mount</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Matching directory mounted:"</span>, handle.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"This is a non-matching directory, mount canceled"</span>);
+}</code></pre>
+        <p><strong>Important</strong>：</p>
+        <ul>
+          <li><code>mount()</code> is primarily used to persist local directories opened by <code>open()</code></li>
+          <li>For virtual file system directories created by <code>init()</code>, <code>mount()</code> is not needed</li>
+        </ul>
+        <h3>Open and mount in one go</h3>
+        <p>You can use the <code>mount</code> parameter of <code>open()</code> to automatically mount after selecting a directory:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// Equivalent to:</span>
+<span class="hljs-comment">// const handle = await open();</span>
+<span class="hljs-comment">// await mount(handle);</span></code></pre>
+        <h2>Main Purpose of mount()</h2>
+        <p><code>mount()</code> method is mainly used in conjunction with <code>open()</code> to persist the user-selected local directory. <strong>For the virtual file system directory created via <code>init()</code>, <code>mount()</code> is not required</strong>.</p>
+        <h3>Virtual File System Directory (No mount required)</h3>
+        <p>Directories created via <code>init()</code> can already be accessed directly via HTTP:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Create virtual file system directory</span>
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-comment">// Access directly via $rootdirName</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$my-app/test.txt"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <p>These directory path formats are: <code>$directory name</code>, accessible via HTTP without mounting.</p>
+        <h3>Local directory (requires mount)</h3>
+        <p>Local directories opened via <code>open()</code> need to be mounted for persistent access:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Open the user's local directory</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// Need to mount to continue accessing in subsequent sessions</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+
+<span class="hljs-comment">// After mounting, it can be accessed via $mount-{id}&gt;directory name</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/file.txt`</span>);</code></pre>
+        <h3>Comparison of Two Directory Types</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Virtual File System Directory</th>
+              <th>Local Directory (mount)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Creation method</td>
+              <td><code>init("dir-name")</code></td>
+              <td><code>open()</code> + <code>mount()</code></td>
+            </tr>
+            <tr>
+              <td>Path format</td>
+              <td><code>$dir-name</code></td>
+              <td><code>$mount-{id}&gt;dir-name</code></td>
+            </tr>
+            <tr>
+              <td>HTTP access</td>
+              <td>✅ Directly supported</td>
+              <td>✅ Supported after mounting</td>
+            </tr>
+            <tr>
+              <td>Persistence</td>
+              <td>✅ Automatic persistence</td>
+              <td>✅ Requires mount persistence</td>
+            </tr>
+            <tr>
+              <td>Data location</td>
+              <td>Browser storage</td>
+              <td>User's local file system</td>
+            </tr>
+            <tr>
+              <td>Mount required</td>
+              <td>❌ Not required</td>
+              <td>✅ Required</td>
+            </tr>
+            <tr>
+              <td>Browser support</td>
+              <td>All modern browsers</td>
+              <td>Chrome only</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Get list of mounted directories</h3>
+        <p>Use <code>getMounted()</code> to get all mounted directories:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mountedDirs = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">id</span>); <span class="hljs-comment">// Mount ID</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">name</span>); <span class="hljs-comment">// Directory name</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">path</span>); <span class="hljs-comment">// Mount path</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>); <span class="hljs-comment">// DirHandle object</span>
+});</code></pre>
+        <h3>Uninstall directory</h3>
+        <p>Use <code>unmount()</code> to remove a mounted directory. This method supports two parameter types:</p>
+        <h4>Method 1: Uninstall by ID</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(mountId);</code></pre>
+        <h4>Method 2: Uninstall via Handle Object (Recommended)</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// Use handle...</span>
+
+<span class="hljs-comment">// Unmount using the handle object directly</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(handle);</code></pre>
+        <h4>Unmount from the mount list</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> item <span class="hljs-keyword">of</span> mounted) {
+  <span class="hljs-comment">// Unmount using handle object</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(item.<span class="hljs-property">handle</span>);
+
+  <span class="hljs-comment">// Or unmount using ID</span>
+  <span class="hljs-comment">// await unmount(item.id);</span>
+}</code></pre>
+        <p>After uninstallation, this directory will no longer be accessible via the mount path.</p>
+        <p><strong>Note</strong>: Only mounted handles (with a path starting with <code>$mount-</code>) can be unmounted. Attempting to unmount an unmounted handle will throw an error.</p>
+        <h2>Access Files via Mount Path</h2>
+        <h3>Using the get() method</h3>
+        <p>The mounted directory can be accessed via the mount path:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Assuming the mounted path is $mount-123&gt;my-project</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src/index.js"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>Accessing Subdirectories</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subdir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src"</span>);
+<span class="hljs-keyword">const</span> files = <span class="hljs-keyword">await</span> subdir.<span class="hljs-title function_">values</span>();
+
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> file <span class="hljs-keyword">of</span> files) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(file.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h2>Access mounted files via HTTP (static server functionality)</h2>
+        <p>The mounted directory can access files through HTTP requests, implementing functionality similar to a local static server. This is one of the core features of directory mounting.</p>
+        <h3>Basic Usage</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// Create a test file</span>
+<span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> testFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-comment">// Access via HTTP (like a static server)</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/test.txt`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// Output: Hello, World!</span></code></pre>
+        <h3>Practical Application Examples</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// Mount local project directory</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// Now any file in the project can be accessed via HTTP</span>
+<span class="hljs-keyword">const</span> htmlResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> htmlContent = <span class="hljs-keyword">await</span> htmlResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> jsResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/src/app.js`</span>);
+<span class="hljs-keyword">const</span> jsContent = <span class="hljs-keyword">await</span> jsResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> cssResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/styles/main.css`</span>);
+<span class="hljs-keyword">const</span> cssContent = <span class="hljs-keyword">await</span> cssResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-comment">// Just like accessing a local static server</span></code></pre>
+        <h3>Application Scenarios</h3>
+        <ul>
+          <li><strong>Local Development Server</strong>: Access local files directly in the browser without starting a Node.js server</li>
+          <li><strong>Project Preview</strong>: Real-time preview of local HTML/CSS/JS projects</li>
+          <li><strong>Resource Loading</strong>: Load local images, fonts, and other resources in web applications</li>
+        </ul>
+        <h2>Complete Example</h2>
+        <h3>Create and Mount the Project</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Open directory picker</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// Check if already mounted</span>
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">const</span> existing = mounted.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span> === handle.<span class="hljs-property">name</span>);
+
+<span class="hljs-keyword">if</span> (existing) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Directory mounted:"</span>, existing.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-comment">// Mount directory</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Directory mounted:"</span>, handle.<span class="hljs-property">path</span>);
+}
+
+<span class="hljs-comment">// Use mounted directory</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">if</span> (packageJson) {
+  <span class="hljs-keyword">const</span> config = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Project name:"</span>, config.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h3>Managing Multiple Mount Directories</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Get all mounts</span>
+<span class="hljs-keyword">const</span> allMounts = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+<span class="hljs-comment">// Filter specific projects</span>
+<span class="hljs-keyword">const</span> projects = allMounts.<span class="hljs-title function_">filter</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"project"</span>));
+
+<span class="hljs-comment">// Unmount old projects</span>
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> project <span class="hljs-keyword">of</span> projects) {
+  <span class="hljs-keyword">if</span> (project.<span class="hljs-property">time</span> &lt; <span class="hljs-title class_">Date</span>.<span class="hljs-title function_">now</span>() - <span class="hljs-number">30</span> * <span class="hljs-number">24</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">1000</span>) {
+    <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(project.<span class="hljs-property">handle</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Unmounted:"</span>, project.<span class="hljs-property">name</span>);
+  }
+}</code></pre>
+        <h2>Permission Management</h2>
+        <h3>Check and Request Permissions</h3>
+        <p>The browser will request permission on first access. If denied or expired, you need to request it again:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project"</span>);
+  <span class="hljs-comment">// Use handle</span>
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Re-authorization required"</span>);
+    <span class="hljs-comment">// Prompt user to re-select directory</span>
+  }
+}</code></pre>
+        <h2>Browser Compatibility</h2>
+        <h3>Support Status</h3>
+        <ul>
+          <li>✅ Chrome 86+ / Edge 86+ - <strong>Full Support</strong> (Recommended)</li>
+          <li>⚠️ Firefox 111+ - <strong>Does not support</strong> <code>showDirectoryPicker</code>, but can mount virtual directories</li>
+          <li>❌ Safari - <strong>Does not support</strong> <code>showDirectoryPicker</code>, and also does not support mounting virtual directories</li>
+        </ul>
+        <h3>Core Functionality Description</h3>
+        <p><strong><code>open()</code> method</strong> relies on the <code>showDirectoryPicker</code> API, which is currently a Chrome-only feature:</p>
+        <ul>
+          <li><strong>Chrome</strong>: Full support, can pop up a directory picker, and persistently store the handle</li>
+          <li><strong>Other browsers</strong>: Do not support the directory selection feature, cannot use the <code>open()</code> method</li>
+        </ul>
+        <h3>Recommended Usage</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// Check browser support</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-title function_">alert</span>(<span class="hljs-string">"This feature requires Chrome browser support"</span>);
+  <span class="hljs-keyword">return</span>;
+}
+
+<span class="hljs-comment">// Usage in Chrome</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Local directory mounted:"</span>, handle.<span class="hljs-property">path</span>);
+
+<span class="hljs-comment">// Access local files via HTTP</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>Safari Does Not Support Completely</h3>
+        <p>Safari neither supports the <code>showDirectoryPicker</code> API nor supports storing <code>FileSystemHandle</code> in IndexedDB:</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// Not supported in Safari</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// ❌ Error: showDirectoryPicker is not supported</span></code></pre>
+        <h3>Detect Browser Support</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> isFileSystemSupported = !!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>;
+
+<span class="hljs-keyword">if</span> (!isFileSystemSupported) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"The current browser does not support directory selection."</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Please use Chrome browser to get full functionality."</span>);
+}</code></pre>
+        <h2>Best Practices</h2>
+        <ol>
+          <li><strong>Browser Detection</strong>: Detect whether the browser supports <code>showDirectoryPicker</code> before use</li>
+          <li><strong>User Prompt</strong>: Clearly inform users that this feature requires Chrome browser</li>
+          <li><strong>Error Handling</strong>: Handle cases of permission denial and non-existent directories</li>
+          <li><strong>Clean Up Old Mounts</strong>: Periodically clean up mount directories that are no longer needed</li>
+          <li><strong>Static Server Functionality</strong>: Fully utilize HTTP access features to implement a local file server</li>
+        </ol>
+        <h3>Recommended Full Implementation</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">setupLocalProject</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-comment">// 1. Check browser support</span>
+  <span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+    <span class="hljs-title function_">alert</span>(
+      <span class="hljs-string">"This function requires Chrome browser support.\n\nPlease use Chrome browser to get full local file access capabilities."</span>,
+    );
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-comment">// 2. Open and mount the directory</span>
+    <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+    <span class="hljs-comment">// 3. Verify if it's a valid project</span>
+    <span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+    <span class="hljs-keyword">if</span> (!packageJson) {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">warn</span>(<span class="hljs-string">"The selected directory is not a valid project"</span>);
+    }
+
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Local project mounted:"</span>, handle.<span class="hljs-property">path</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"Accessible via HTTP:"</span>, <span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/`</span>);
+
+    <span class="hljs-keyword">return</span> handle;
+  } <span class="hljs-keyword">catch</span> (error) {
+    <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+      <span class="hljs-title function_">alert</span>(<span class="hljs-string">"Directory access permission is required to use this feature"</span>);
+    } <span class="hljs-keyword">else</span> {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"Mount failed:"</span>, error);
+    }
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+}
+
+<span class="hljs-comment">// Usage example</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">setupLocalProject</span>();
+<span class="hljs-keyword">if</span> (projectHandle) {
+  <span class="hljs-comment">// Access local files via HTTP</span>
+  <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/README.md`</span>);
+  <span class="hljs-keyword">const</span> readme = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(readme);
+}</code></pre>
+        <h2>Next Chapter</h2>
+        <p>Learn about <a href="./file-operations.html" olink="">file operations</a>, including how to read, write, and delete files.</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

@@ -1,246 +1,3 @@
-<!-- install.html -->
-
-# 安装
-
-NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
-
-## 前提条件
-
-- 一个静态服务器（如 http-server、live-server、nginx 等）
-- 浏览器支持 Service Worker
-- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
-
-## 步骤
-
-### 1. 创建 Service Worker 文件
-
-在项目根目录下创建 `sw.js` 文件，填入以下内容：
-
-```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
-```
-
-### 2. 创建入口 HTML
-
-在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
-
-```html
-<!DOCTYPE html>
-<html lang="zh">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- 加载 nos-version 组件 -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- 使用 nos-version 组件 -->
-    <nos-version auto-install></nos-version>
-
-    <script type="module">
-      // 等待安装完成
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core 安装完成，可以开始使用了");
-        // 这里可以使用 noneos-core
-      });
-    </script>
-  </body>
-</html>
-```
-
-## 安装状态
-
-`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
-
-- **未安装**：显示 "Install NoneOS Core" 按钮
-- **安装中**：显示安装进度条
-- **已安装**：显示当前版本号
-- **可升级**：显示升级按钮
-
-当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
-
----
-
-<!-- directory-operations.html -->
-
-# 目录操作
-
-本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。
-
-## 创建目录
-
-使用 `get` 方法并指定 `create: "dir"` 来创建目录：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-## 获取子项数量
-
-使用 `length()` 方法获取目录中子文件/目录的总数量：
-
-```javascript
-const dir = await get("my-app/subDir", { create: "dir" });
-await dir.get("file1.txt", { create: "file" });
-await dir.get("file2.txt", { create: "file" });
-
-const count = await dir.length();
-console.log(count); // 2
-```
-
-## 遍历目录
-
-### keys() 方法
-
-使用 `keys()` 方法遍历目录中所有项的名称：
-
-```javascript
-for await (const key of dir.keys()) {
-  console.log(key);
-}
-```
-
-### values() 方法
-
-使用 `values()` 方法遍历目录中的所有文件和子目录：
-
-```javascript
-const handles = [];
-for await (const handle of dir.values()) {
-  handles.push({
-    kind: handle.kind,
-    name: handle.name,
-  });
-}
-```
-
-### entries() 方法
-
-使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
-
-```javascript
-for await (const [name, handle] of dir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-```
-
-### forEach() 方法
-
-使用 `forEach()` 方法遍历目录：
-
-```javascript
-await dir.forEach(async (handle, name) => {
-  console.log(`${handle.kind}: ${name}`);
-});
-```
-
-### some() 方法
-
-使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
-
-```javascript
-let foundTarget = false;
-let count = 0;
-
-await dir.some(async (handle, name) => {
-  count++;
-  if (handle.kind === "file") {
-    if (count === 2) {
-      foundTarget = true;
-      return true; // 返回 true 停止遍历
-    }
-  }
-  return false;
-});
-```
-
-## 扁平化目录
-
-使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
-
-```javascript
-const allFiles = await dir.flat();
-
-const fileContents = await Promise.all(
-  allFiles.map(async (file) => ({
-    path: file.path,
-    content: await file.read(),
-  }))
-);
-```
-
-示例：
-
-```javascript
-const rootDir = await get("my-app");
-await rootDir.get("file1.txt", { create: "file" });
-await rootDir.get("subDir1", { create: "dir" });
-await rootDir.get("subDir1/file2.txt", { create: "file" });
-await rootDir.get("subDir1/subDir2", { create: "dir" });
-await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
-
-await (await rootDir.get("file1.txt")).write("root file");
-await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
-await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
-
-const allFiles = await rootDir.flat();
-// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
-```
-
-## 删除目录
-
-使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
-
-```javascript
-const subDir = await get("my-app/subDir", { create: "dir" });
-await subDir.get("file2.txt", { create: "file" });
-
-await subDir.remove();
-const subDirExists = await get("my-app/subDir");
-// subDirExists === null 表示目录已被删除
-```
-
-⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const rootDir = await get("my-app");
-
-// 创建目录结构
-await rootDir.get("docs", { create: "dir" });
-await rootDir.get("docs/guide.md", { create: "file" });
-await rootDir.get("docs/api.md", { create: "file" });
-await rootDir.get("images", { create: "dir" });
-
-// 获取子项数量
-const count = await rootDir.length();
-console.log(`子项数量: ${count}`); // 2
-
-// 遍历根目录
-for await (const [name, handle] of rootDir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-// 输出: dir: docs, dir: images
-
-// 扁平化获取所有文件
-const allFiles = await rootDir.flat();
-console.log(allFiles.map(f => f.path));
-// 输出: ["docs/guide.md", "docs/api.md"]
-```
-
-## 下一章
-
-学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
-
----
-
 <!-- file-observation.html -->
 
 # 文件变化观察
@@ -471,830 +228,53 @@ console.log(await deepFile.isSame(file2)); // true
 
 ---
 
-<!-- ai-call.html -->
+<!-- overview.html -->
 
-# 调用 AI 模型
+# 概述
 
-## 引入 chat 模块
+文件系统（FileSystem）是一个基于浏览器的虚拟文件系统，提供了一套完整的文件和目录操作 API。
 
-```javascript
-import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
-```
+## 初始化
 
-## 基本用法
-
-`chat` 函数接受消息数组和选项对象：
-
-```javascript
-const messages = [
-  { role: "user", content: "你好" }
-];
-
-const response = await chat(messages, {
-  provider: "deepseek",  // 可选，指定提供商
-  callback: (chunk) => {  // 可选，流式回调
-    console.log(chunk);
-  },
-  maxContextLength: 8192  // 可选，最大上下文长度
-});
-```
-
-## 支持的提供商
-
-- **deepseek** - DeepSeek
-- **kimi** - Kimi (Moonshot)
-- **minimax** - MiniMax
-- **glm** - 智谱 GLM
-
-如果不指定 `provider`，系统会自动选择一个可用的 API Key。
-
-## 消息格式
-
-```javascript
-const messages = [
-  { role: "system", content: "你是一个有用的助手" },
-  { role: "user", content: "你好" },
-  { role: "assistant", content: "你好，有什么可以帮助你的吗？" },
-  { role: "user", content: "解释一下什么是 AI" }
-];
-```
-
-## 并发控制
-
-NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。
-
-### 获取当前状态
-
-```javascript
-const status = getStatus();
-// 返回各 Key 的并发使用情况
-```
-
-### 订阅状态变化
-
-```javascript
-subscribe((newStatus) => {
-  console.log("状态更新:", newStatus);
-});
-```
-
-## 获取可用提供商
-
-```javascript
-const providers = await getAvailableProviders();
-console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
-```
-
-## 错误处理
-
-```javascript
-try {
-  const response = await chat(messages);
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-常见错误：
-- `no_key` - 没有配置任何 API Key
-- `no_provider_key` - 没有指定提供商的 API Key
-- `concurrency_full` - 该 Key 的并发数已满
-- `Unsupported provider` - 不支持的提供商
-
-
----
-
-<!-- move-and-copy.html -->
-
-# 文件移动与复制
-
-本文档介绍如何移动和复制文件及目录。
-
-## 移动文件
-
-使用 `moveTo()` 方法将文件移动到目标目录：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二个参数为目标文件名，不传则沿用原文件名
-const movedFile = await sourceFile.moveTo(targetDir);
-// 等同于 sourceFile.moveTo(targetDir, "source.txt")
-
-const content = await movedFile.text();
-// content === "Hello, World!"
-
-const oldFile = await get("my-app/source.txt");
-// oldFile === null 表示原文件已被移动
-```
-
-## 移动目录
-
-`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
-
-```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
-
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const movedDir = await sourceDir.moveTo(targetDir);
-// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
-
-// movedDir 包含 file1.txt 和 subDir/file2.txt
-```
-
-## 复制文件
-
-使用 `copyTo()` 方法将文件复制到目标目录：
-
-```javascript
-const sourceFile = await get("my-app/source.txt", { create: "file" });
-await sourceFile.write("Hello, World!");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-
-// 第二个参数为目标文件名，不传则沿用原文件名
-const copiedFile = await sourceFile.copyTo(targetDir);
-// 等同于 sourceFile.copyTo(targetDir, "source.txt")
-
-const content = await copiedFile.text();
-// content === "Hello, World!"
-
-// 原文件仍然存在
-const originalFile = await get("my-app/source.txt");
-// originalFile !== null
-```
-
-## 复制目录
-
-`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
-
-```javascript
-const sourceDir = await get("my-app/sourceDir", { create: "dir" });
-await sourceDir.get("file1.txt", { create: "file" });
-await sourceDir.get("subDir/file2.txt", { create: "file" });
-
-await (await sourceDir.get("file1.txt")).write("Content 1");
-await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
-
-const targetDir = await get("my-app/target", { create: "dir" });
-const copiedDir = await sourceDir.copyTo(targetDir);
-// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
-
-// copiedDir 包含 file1.txt 和 subDir/file2.txt
-```
-
-## 完整示例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const sourceFile = await get("my-app/document.txt", { create: "file" });
-await sourceFile.write("Important content");
-
-const backupDir = await get("my-app/backup", { create: "dir" });
-const archiveDir = await get("my-app/archive", { create: "dir" });
-
-// 复制文件
-const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
-console.log(await backup.text()); // "Important content"
-
-// 移动文件
-await sourceFile.moveTo(archiveDir, "document_archived.txt");
-
-// 验证移动结果
-const original = await get("my-app/document.txt");
-console.log(original); // null
-```
-
-## 下一章
-
-学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。
-
----
-
-<!-- directory-mounting.html -->
-
-# 目录挂载
-
-目录挂载功能允许你访问用户本地文件系统中的**真实目录**，并将其持久化存储，以便在后续会话中继续使用。
-
-> **真实目录**：指您 **Windows** / **macOS** / **Linux** 系统上的实际文件夹，区别于虚拟文件系统中的目录。
-
-## 重要说明
-
-### 浏览器支持
-
-`open()` 方法依赖于浏览器的 `showDirectoryPicker` API，目前**仅 Chrome 浏览器完整支持**此功能。
-
-```javascript
-// 检测浏览器是否支持
-if (!window.showDirectoryPicker) {
-  console.error("当前浏览器不支持目录选择功能");
-  console.log("请使用 Chrome 浏览器以获得完整功能");
-  return;
-}
-```
-
-### 核心用途
-
-目录挂载的主要用途是配合 `open()` 访问用户本地文件系统：
-
-1. **本地文件访问**：让用户选择本地目录，通过浏览器直接访问文件内容
-2. **静态服务器功能**：挂载后的本地目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能
-3. **持久化访问**：通过 `mount()` 挂载后，可以在后续会话中继续访问同一本地目录，无需重复选择
-
-**注意**：对于通过 `init()` 创建的虚拟文件系统目录，已经自动支持 HTTP 访问，无需使用 `mount()`。
-
-### 典型应用场景
-
-- 本地项目开发：直接在浏览器中访问和编辑本地项目文件
-- 静态资源服务：将本地目录挂载为可访问的静态资源路径
-- 文件管理工具：构建基于浏览器的文件管理应用
-
-## 基本概念
-
-### open() - 打开目录选择器
-
-`open()` 方法会弹出系统的目录选择器，让用户选择一个本地目录：
-
-```javascript
-import { open } from "/nos/fs/main.js";
-
-const handle = await open();
-```
-
-用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 `DirHandle` 对象。
-
-**注意**：`open()` 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 `init()` 创建。
-
-### mount() - 挂载目录
-
-`mount()` 方法将本地目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：
-
-```javascript
-import { open, mount } from "/nos/fs/main.js";
-
-const handle = await open(); // 打开目录选择器，此时 path 为虚拟路径
-await mount(handle); // 挂载后，path 变为 $mount-{id}>目录名
-
-console.log(handle.path); // 输出: $mount-123>目录名
-```
-
-挂载后的路径格式为：`$mount-{id}>目录名`
-
-#### 两步流程的优势
-
-推荐使用两步流程（先 `open()` 后 `mount()`），而不是一次性挂载：
-
-1. **验证目录内容**：在挂载前可以先浏览目录内容，确认是否为所需目录
-2. **避免错误挂载**：防止用户选错目录后，错误地挂载到系统中
-3. **灵活决策**：可以根据目录内容决定是否挂载
-
-```javascript
-const handle = await open();
-
-// 先验证目录内容
-const packageJson = await handle.get("package.json");
-if (packageJson) {
-  // 确认是项目目录，再挂载
-  await mount(handle);
-  console.log("项目目录已挂载:", handle.path);
-} else {
-  console.log("这不是一个有效的项目目录，取消挂载");
-}
-```
-
-**重要**：
-- `mount()` 主要用于持久化 `open()` 打开的本地目录
-- 对于 `init()` 创建的虚拟文件系统目录，无需使用 `mount()`
-
-### 一次性打开并挂载
-
-你可以使用 `open()` 的 `mount` 参数，在选择目录后自动挂载：
-
-```javascript
-import { open } from "/nos/fs/main.js";
-
-const handle = await open({ mount: true });
-// 等价于：
-// const handle = await open();
-// await mount(handle);
-```
-
-## mount() 的主要用途
-
-`mount()` 方法主要用于配合 `open()` 使用，将用户选择的本地目录持久化存储。**对于通过 `init()` 创建的虚拟文件系统目录，不需要使用 `mount()`**。
-
-### 虚拟文件系统目录（不需要 mount）
-
-通过 `init()` 创建的目录已经可以直接通过 HTTP 访问：
+使用文件系统前，需要先初始化一个根目录：
 
 ```javascript
 import { init } from "/nos/fs/main.js";
 
-// 创建虚拟文件系统目录
-const dir = await init("my-app");
-await dir.get("test.txt", { create: "file" });
-
-// 直接通过 $rootdirName 方式访问
-const response = await fetch("/$my-app/test.txt");
-const content = await response.text();
+await init("my-app");
 ```
 
-这些目录路径格式为：`$目录名`，无需挂载即可通过 HTTP 访问。
+后续教程均假设已完成 `my-app` 的初始化。
 
-### 本地目录（需要 mount）
+## 全局 get 方法
 
-通过 `open()` 打开的本地目录需要挂载才能持久化访问：
-
-```javascript
-import { open, mount } from "/nos/fs/main.js";
-
-// 打开用户本地目录
-const handle = await open();
-
-// 需要挂载才能在后续会话中继续访问
-await mount(handle);
-
-// 挂载后可通过 $mount-{id}>目录名 方式访问
-const response = await fetch(`/${handle.path}/file.txt`);
-```
-
-### 两种目录对比
-
-| 特性 | 虚拟文件系统目录 | 本地目录（mount） |
-|------|-----------------|------------------|
-| 创建方式 | `init("dir-name")` | `open()` + `mount()` |
-| 路径格式 | `$dir-name` | `$mount-{id}>dir-name` |
-| HTTP 访问 | ✅ 直接支持 | ✅ 需要挂载后支持 |
-| 持久化 | ✅ 自动持久化 | ✅ 需要 mount 持久化 |
-| 数据位置 | 浏览器存储 | 用户本地文件系统 |
-| 是否需要 mount | ❌ 不需要 | ✅ 需要 |
-| 浏览器支持 | 所有现代浏览器 | 仅 Chrome |
-
-## 管理已挂载的目录
-
-### 获取已挂载目录列表
-
-使用 `getMounted()` 获取所有已挂载的目录：
-
-```javascript
-import { getMounted } from "/nos/fs/main.js";
-
-const mountedDirs = await getMounted();
-
-mountedDirs.forEach(item => {
-  console.log(item.id);        // 挂载ID
-  console.log(item.name);      // 目录名称
-  console.log(item.path);      // 挂载路径
-  console.log(item.handle);    // DirHandle 对象
-});
-```
-
-### 卸载目录
-
-使用 `unmount()` 移除已挂载的目录。该方法支持两种参数类型：
-
-#### 方式 1：通过 ID 卸载
-
-```javascript
-import { unmount } from "/nos/fs/main.js";
-
-await unmount(mountId);
-```
-
-#### 方式 2：通过 Handle 对象卸载（推荐）
-
-```javascript
-import { open, mount, unmount } from "/nos/fs/main.js";
-
-const handle = await open({ mount: true });
-// 使用 handle...
-
-// 直接使用 handle 对象卸载
-await unmount(handle);
-```
-
-#### 从挂载列表中卸载
-
-```javascript
-import { getMounted, unmount } from "/nos/fs/main.js";
-
-const mounted = await getMounted();
-for (const item of mounted) {
-  // 使用 handle 对象卸载
-  await unmount(item.handle);
-  
-  // 或者使用 ID 卸载
-  // await unmount(item.id);
-}
-```
-
-卸载后，该目录将无法通过挂载路径访问。
-
-**注意**：只能卸载已挂载的 handle（路径以 `$mount-` 开头）。尝试卸载未挂载的 handle 会抛出错误。
-
-## 通过挂载路径访问文件
-
-### 使用 get() 方法
-
-挂载后的目录可以通过挂载路径访问：
+使用全局 `get` 方法获取或创建文件/目录句柄：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-// 假设已挂载的路径是 $mount-123>my-project
-const file = await get("$mount-123>my-project/src/index.js");
-const content = await file.text();
+const file = await get("my-app/hello.txt", { create: "file" });
+const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-### 访问子目录
+路径格式：`根目录名/文件路径`，不使用 `/` 开头。
 
-```javascript
-const subdir = await get("$mount-123>my-project/src");
-const files = await subdir.values();
+## 核心概念
 
-for await (const file of files) {
-  console.log(file.name);
-}
-```
+### FileHandle 和 DirHandle
 
-## 通过 HTTP 访问挂载文件（静态服务器功能）
+- **FileHandle**：代表一个文件，提供文件读写操作
+- **DirHandle**：代表一个目录，提供目录遍历和子项操作
 
-挂载后的目录可以通过 HTTP 请求访问文件，实现类似本地静态服务器的功能。这是目录挂载的核心特性之一。
+### 基本属性
 
-### 基本用法
-
-```javascript
-import { open, mount } from "/nos/fs/main.js";
-
-const handle = await open({ mount: true });
-
-// 创建测试文件
-const testFile = await handle.get("test.txt", { create: "file" });
-await testFile.write("Hello, World!");
-
-// 通过 HTTP 访问（类似静态服务器）
-const response = await fetch(`/${handle.path}/test.txt`);
-const content = await response.text();
-console.log(content); // 输出: Hello, World!
-```
-
-### 实际应用示例
-
-```javascript
-// 挂载本地项目目录
-const projectHandle = await open({ mount: true });
-
-// 现在可以通过 HTTP 访问项目中的任何文件
-const htmlResponse = await fetch(`/${projectHandle.path}/index.html`);
-const htmlContent = await htmlResponse.text();
-
-const jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);
-const jsContent = await jsResponse.text();
-
-const cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);
-const cssContent = await cssResponse.text();
-
-// 就像访问本地静态服务器一样
-```
-
-### 应用场景
-
-- **本地开发服务器**：无需启动 Node.js 服务器，直接在浏览器中访问本地文件
-- **项目预览**：实时预览本地 HTML/CSS/JS 项目
-- **资源加载**：在 Web 应用中加载本地图片、字体等资源
-
-## 完整示例
-
-### 创建项目并挂载
-
-```javascript
-import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
-
-// 打开目录选择器
-const handle = await open();
-
-// 检查是否已挂载
-const mounted = await getMounted();
-const existing = mounted.find(item => item.name === handle.name);
-
-if (existing) {
-  console.log("目录已挂载:", existing.path);
-} else {
-  // 挂载目录
-  await mount(handle);
-  console.log("目录已挂载:", handle.path);
-}
-
-// 使用挂载的目录
-const packageJson = await handle.get("package.json");
-if (packageJson) {
-  const config = await packageJson.json();
-  console.log("项目名称:", config.name);
-}
-```
-
-### 管理多个挂载目录
-
-```javascript
-import { getMounted, unmount } from "/nos/fs/main.js";
-
-// 获取所有挂载
-const allMounts = await getMounted();
-
-// 过滤特定项目
-const projects = allMounts.filter(item => 
-  item.name.includes("project")
-);
-
-// 卸载旧项目
-for (const project of projects) {
-  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {
-    await unmount(project.handle);
-    console.log("已卸载:", project.name);
-  }
-}
-```
-
-## 权限管理
-
-### 检查和请求权限
-
-浏览器会在首次访问时请求权限。如果权限被拒绝或过期，需要重新请求：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-try {
-  const handle = await get("$mount-123>my-project");
-  // 使用 handle
-} catch (error) {
-  if (error.message.includes("Permission denied")) {
-    console.log("需要重新授权");
-    // 提示用户重新选择目录
-  }
-}
-```
-
-## 浏览器兼容性
-
-### 支持情况
-
-- ✅ Chrome 86+ - **完整支持**（推荐使用）
-- ⚠️ Edge 86+ - 支持 `showDirectoryPicker`，但持久化存储可能有限制
-- ⚠️ Firefox 111+ - 支持 `showDirectoryPicker`，但持久化存储可能有限制
-- ❌ Safari - **不支持 `showDirectoryPicker` API**
-
-### 核心功能说明
-
-**`open()` 方法**依赖于 `showDirectoryPicker` API，这是 Chrome 独有的功能：
-
-- **Chrome**：完整支持，可以弹出目录选择器，并持久化存储句柄
-- **其他浏览器**：不支持目录选择功能，无法使用 `open()` 方法
-
-### 推荐使用方式
-
-```javascript
-import { open, mount } from "/nos/fs/main.js";
-
-// 检测浏览器支持
-if (!window.showDirectoryPicker) {
-  alert("此功能需要 Chrome 浏览器支持");
-  return;
-}
-
-// Chrome 中使用
-const handle = await open({ mount: true });
-console.log("已挂载本地目录:", handle.path);
-
-// 通过 HTTP 访问本地文件
-const response = await fetch(`/${handle.path}/index.html`);
-const content = await response.text();
-```
-
-### Safari 完全不支持
-
-Safari 既不支持 `showDirectoryPicker` API，也不支持将 `FileSystemHandle` 存储到 IndexedDB：
-
-```javascript
-// Safari 中无法使用
-const handle = await open(); // ❌ 报错: showDirectoryPicker is not supported
-```
-
-### 检测浏览器支持
-
-```javascript
-const isFileSystemSupported = !!window.showDirectoryPicker;
-
-if (!isFileSystemSupported) {
-  console.log("当前浏览器不支持目录选择功能");
-  console.log("请使用 Chrome 浏览器以获得完整功能");
-}
-```
-
-## 最佳实践
-
-1. **浏览器检测**：在使用前检测浏览器是否支持 `showDirectoryPicker`
-2. **用户提示**：明确告知用户此功能需要 Chrome 浏览器
-3. **错误处理**：处理权限拒绝和目录不存在的情况
-4. **清理旧挂载**：定期清理不再需要的挂载目录
-5. **静态服务器功能**：充分利用 HTTP 访问特性，实现本地文件服务
-
-### 推荐的完整实现
-
-```javascript
-import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
-
-async function setupLocalProject() {
-  // 1. 检测浏览器支持
-  if (!window.showDirectoryPicker) {
-    alert("此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。");
-    return null;
-  }
-
-  try {
-    // 2. 打开并挂载目录
-    const handle = await open({ mount: true });
-    
-    // 3. 验证是否为有效项目
-    const packageJson = await handle.get("package.json");
-    if (!packageJson) {
-      console.warn("选择的目录不是一个有效的项目");
-    }
-
-    console.log("本地项目已挂载:", handle.path);
-    console.log("可通过 HTTP 访问:", `/${handle.path}/`);
-
-    return handle;
-  } catch (error) {
-    if (error.message.includes("Permission denied")) {
-      alert("需要授予目录访问权限才能使用此功能");
-    } else {
-      console.error("挂载失败:", error);
-    }
-    return null;
-  }
-}
-
-// 使用示例
-const projectHandle = await setupLocalProject();
-if (projectHandle) {
-  // 通过 HTTP 访问本地文件
-  const response = await fetch(`/${projectHandle.path}/README.md`);
-  const readme = await response.text();
-  console.log(readme);
-}
-```
+- `kind`：返回 `"file"` 或 `"dir"`，表示句柄类型
+- `name`：返回文件或目录的名称
+- `path`：返回文件或目录的完整路径
 
 ## 下一章
 
 学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。
-
-
----
-
-<!-- ai-add.html -->
-
-# 添加 AI 模型
-
-## AI 模型管理入口
-
-在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。
-
-### 使用相对路径
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
-
-## js添加模型
-
-你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。
-
-### 引入存储模块
-
-```javascript
-import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-```
-
-### 保存 API Key
-
-```javascript
-const newKey = {
-  id: `${Math.random().toString(36).slice(2, 11)}`,
-  provider: "deepseek",  // deepseek | kimi | minimax | glm
-  model: "deepseek-chat",
-  key: "your-api-key-here",
-  concurrency: 1,  // 并发数
-};
-
-// 获取现有 keys
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-
-// 添加新 key
-aiKeys.push(newKey);
-
-// 保存
-await storage.setItem("ai-keys", aiKeys);
-```
-
-### 各提供商的可用模型
-
-可用模型参考各提供商的文档。
-
-### 获取所有已保存的 Keys
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-```
-
-### 删除 API Key
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const index = aiKeys.findIndex((k) => k.id === "key-id");
-if (index > -1) {
-  aiKeys.splice(index, 1);
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### 更新 Key 的并发数
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const keyItem = aiKeys.find((k) => k.id === "key-id");
-if (keyItem) {
-  keyItem.concurrency = 3;  // 修改并发数
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key 对象结构
-
-| 属性          | 类型    | 说明                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | 唯一标识符                         |
-| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |
-| `model`       | string  | 模型名称                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | 最大并发数                         |
-| `disabled`    | boolean | 是否禁用                           |
-
-
-
----
-
-<!-- sw-advanced.html -->
-
-# sw.js 配置技巧
-
-## 版本号控制与缓存更新
-
-在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
-
-```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
-}
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
-
-## 官方工具
-
-使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
-
-- **ai** - AI 模型管理，包括聊天、配置、密钥管理
-- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
-- **file-explore** - 文件浏览器
-- **file-list** - 文件列表视图和句柄管理
-- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
-
-这些工具位于 `nos-tool` 目录下，可按需引入和使用。
-
 
 ---
 
@@ -1476,49 +456,1069 @@ console.log(exists); // null
 
 ---
 
-<!-- overview.html -->
+<!-- ai-add.html -->
 
-# 概述
+# 添加 AI 模型
 
-文件系统（FileSystem）是一个基于浏览器的虚拟文件系统，提供了一套完整的文件和目录操作 API。
+## AI 模型管理入口
 
-## 初始化
+在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。
 
-使用文件系统前，需要先初始化一个根目录：
+### 使用相对路径
 
-```javascript
-import { init } from "/nos/fs/main.js";
-
-await init("my-app");
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
 ```
 
-后续教程均假设已完成 `my-app` 的初始化。
+这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。
 
-## 全局 get 方法
+## js添加模型
 
-使用全局 `get` 方法获取或创建文件/目录句柄：
+你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。
+
+### 引入存储模块
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### 保存 API Key
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // 并发数
+};
+
+// 获取现有 keys
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// 添加新 key
+aiKeys.push(newKey);
+
+// 保存
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### 各提供商的可用模型
+
+可用模型参考各提供商的文档。
+
+### 获取所有已保存的 Keys
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### 删除 API Key
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### 更新 Key 的并发数
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // 修改并发数
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key 对象结构
+
+| 属性          | 类型    | 说明                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | 唯一标识符                         |
+| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |
+| `model`       | string  | 模型名称                           |
+| `key`         | string  | API Key                            |
+| `concurrency` | number  | 最大并发数                         |
+| `disabled`    | boolean | 是否禁用                           |
+
+
+
+---
+
+<!-- move-and-copy.html -->
+
+# 文件移动与复制
+
+本文档介绍如何移动和复制文件及目录。
+
+## 移动文件
+
+使用 `moveTo()` 方法将文件移动到目标目录：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-const file = await get("my-app/hello.txt", { create: "file" });
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二个参数为目标文件名，不传则沿用原文件名
+const movedFile = await sourceFile.moveTo(targetDir);
+// 等同于 sourceFile.moveTo(targetDir, "source.txt")
+
+const content = await movedFile.text();
+// content === "Hello, World!"
+
+const oldFile = await get("my-app/source.txt");
+// oldFile === null 表示原文件已被移动
+```
+
+## 移动目录
+
+`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const movedDir = await sourceDir.moveTo(targetDir);
+// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
+
+// movedDir 包含 file1.txt 和 subDir/file2.txt
+```
+
+## 复制文件
+
+使用 `copyTo()` 方法将文件复制到目标目录：
+
+```javascript
+const sourceFile = await get("my-app/source.txt", { create: "file" });
+await sourceFile.write("Hello, World!");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+
+// 第二个参数为目标文件名，不传则沿用原文件名
+const copiedFile = await sourceFile.copyTo(targetDir);
+// 等同于 sourceFile.copyTo(targetDir, "source.txt")
+
+const content = await copiedFile.text();
+// content === "Hello, World!"
+
+// 原文件仍然存在
+const originalFile = await get("my-app/source.txt");
+// originalFile !== null
+```
+
+## 复制目录
+
+`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：
+
+```javascript
+const sourceDir = await get("my-app/sourceDir", { create: "dir" });
+await sourceDir.get("file1.txt", { create: "file" });
+await sourceDir.get("subDir/file2.txt", { create: "file" });
+
+await (await sourceDir.get("file1.txt")).write("Content 1");
+await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
+
+const targetDir = await get("my-app/target", { create: "dir" });
+const copiedDir = await sourceDir.copyTo(targetDir);
+// 等同于 sourceDir.copyTo(targetDir, "sourceDir")
+
+// copiedDir 包含 file1.txt 和 subDir/file2.txt
+```
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const sourceFile = await get("my-app/document.txt", { create: "file" });
+await sourceFile.write("Important content");
+
+const backupDir = await get("my-app/backup", { create: "dir" });
+const archiveDir = await get("my-app/archive", { create: "dir" });
+
+// 复制文件
+const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
+console.log(await backup.text()); // "Important content"
+
+// 移动文件
+await sourceFile.moveTo(archiveDir, "document_archived.txt");
+
+// 验证移动结果
+const original = await get("my-app/document.txt");
+console.log(original); // null
+```
+
+## 下一章
+
+学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。
+
+---
+
+<!-- ai-call.html -->
+
+# 调用 AI 模型
+
+## 引入 chat 模块
+
+```javascript
+import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
+```
+
+## 基本用法
+
+`chat` 函数接受消息数组和选项对象：
+
+```javascript
+const messages = [
+  { role: "user", content: "你好" }
+];
+
+const response = await chat(messages, {
+  provider: "deepseek",  // 可选，指定提供商
+  callback: (chunk) => {  // 可选，流式回调
+    console.log(chunk);
+  },
+  maxContextLength: 8192  // 可选，最大上下文长度
+});
+```
+
+## 支持的提供商
+
+- **deepseek** - DeepSeek
+- **kimi** - Kimi (Moonshot)
+- **minimax** - MiniMax
+- **glm** - 智谱 GLM
+
+如果不指定 `provider`，系统会自动选择一个可用的 API Key。
+
+## 消息格式
+
+```javascript
+const messages = [
+  { role: "system", content: "你是一个有用的助手" },
+  { role: "user", content: "你好" },
+  { role: "assistant", content: "你好，有什么可以帮助你的吗？" },
+  { role: "user", content: "解释一下什么是 AI" }
+];
+```
+
+## 并发控制
+
+NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。
+
+### 获取当前状态
+
+```javascript
+const status = getStatus();
+// 返回各 Key 的并发使用情况
+```
+
+### 订阅状态变化
+
+```javascript
+subscribe((newStatus) => {
+  console.log("状态更新:", newStatus);
+});
+```
+
+## 获取可用提供商
+
+```javascript
+const providers = await getAvailableProviders();
+console.log(providers); // ["deepseek", "kimi", "glm", "minimax"]
+```
+
+## 错误处理
+
+```javascript
+try {
+  const response = await chat(messages);
+} catch (error) {
+  console.error(error.message);
+}
+```
+
+常见错误：
+- `no_key` - 没有配置任何 API Key
+- `no_provider_key` - 没有指定提供商的 API Key
+- `concurrency_full` - 该 Key 的并发数已满
+- `Unsupported provider` - 不支持的提供商
+
+
+---
+
+<!-- install.html -->
+
+# 安装
+
+NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。
+
+## 前提条件
+
+- 一个静态服务器（如 http-server、live-server、nginx 等）
+- 浏览器支持 Service Worker
+- 如果是外网访问，必须使用 HTTPS（因为 API 需求）
+
+## 步骤
+
+### 1. 创建 Service Worker 文件
+
+在项目根目录下创建 `sw.js` 文件，填入以下内容：
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. 创建入口 HTML
+
+在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- 加载 nos-version 组件 -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- 使用 nos-version 组件 -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // 等待安装完成
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core 安装完成，可以开始使用了");
+        // 这里可以使用 noneos-core
+      });
+    </script>
+  </body>
+</html>
+```
+
+## 安装状态
+
+`nos-version` 组件会自动检测 NoneOS Core 的安装状态：
+
+- **未安装**：显示 "Install NoneOS Core" 按钮
+- **安装中**：显示安装进度条
+- **已安装**：显示当前版本号
+- **可升级**：显示升级按钮
+
+当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js 配置技巧
+
+## 版本号控制与缓存更新
+
+在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。
+
+## 官方工具
+
+使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
+
+- **ai** - AI 模型管理，包括聊天、配置、密钥管理
+- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
+- **file-explore** - 文件浏览器
+- **file-list** - 文件列表视图和句柄管理
+- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
+
+这些工具位于 `nos-tool` 目录下，可按需引入和使用。
+
+
+---
+
+<!-- directory-operations.html -->
+
+# 目录操作
+
+本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。
+
+## 创建目录
+
+使用 `get` 方法并指定 `create: "dir"` 来创建目录：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
 const dir = await get("my-app/path/to/dir", { create: "dir" });
 ```
 
-路径格式：`根目录名/文件路径`，不使用 `/` 开头。
+## 获取子项数量
 
-## 核心概念
+使用 `length()` 方法获取目录中子文件/目录的总数量：
 
-### FileHandle 和 DirHandle
+```javascript
+const dir = await get("my-app/subDir", { create: "dir" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
 
-- **FileHandle**：代表一个文件，提供文件读写操作
-- **DirHandle**：代表一个目录，提供目录遍历和子项操作
+const count = await dir.length();
+console.log(count); // 2
+```
 
-### 基本属性
+## 遍历目录
 
-- `kind`：返回 `"file"` 或 `"dir"`，表示句柄类型
-- `name`：返回文件或目录的名称
-- `path`：返回文件或目录的完整路径
+### keys() 方法
+
+使用 `keys()` 方法遍历目录中所有项的名称：
+
+```javascript
+for await (const key of dir.keys()) {
+  console.log(key);
+}
+```
+
+### values() 方法
+
+使用 `values()` 方法遍历目录中的所有文件和子目录：
+
+```javascript
+const handles = [];
+for await (const handle of dir.values()) {
+  handles.push({
+    kind: handle.kind,
+    name: handle.name,
+  });
+}
+```
+
+### entries() 方法
+
+使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：
+
+```javascript
+for await (const [name, handle] of dir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() 方法
+
+使用 `forEach()` 方法遍历目录：
+
+```javascript
+await dir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
+### some() 方法
+
+使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：
+
+```javascript
+let foundTarget = false;
+let count = 0;
+
+await dir.some(async (handle, name) => {
+  count++;
+  if (handle.kind === "file") {
+    if (count === 2) {
+      foundTarget = true;
+      return true; // 返回 true 停止遍历
+    }
+  }
+  return false;
+});
+```
+
+## 扁平化目录
+
+使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：
+
+```javascript
+const allFiles = await dir.flat();
+
+const fileContents = await Promise.all(
+  allFiles.map(async (file) => ({
+    path: file.path,
+    content: await file.read(),
+  }))
+);
+```
+
+示例：
+
+```javascript
+const rootDir = await get("my-app");
+await rootDir.get("file1.txt", { create: "file" });
+await rootDir.get("subDir1", { create: "dir" });
+await rootDir.get("subDir1/file2.txt", { create: "file" });
+await rootDir.get("subDir1/subDir2", { create: "dir" });
+await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+
+await (await rootDir.get("file1.txt")).write("root file");
+await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
+await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
+
+const allFiles = await rootDir.flat();
+// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
+```
+
+## 删除目录
+
+使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：
+
+```javascript
+const subDir = await get("my-app/subDir", { create: "dir" });
+await subDir.get("file2.txt", { create: "file" });
+
+await subDir.remove();
+const subDirExists = await get("my-app/subDir");
+// subDirExists === null 表示目录已被删除
+```
+
+⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。
+
+## 完整示例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const rootDir = await get("my-app");
+
+// 创建目录结构
+await rootDir.get("docs", { create: "dir" });
+await rootDir.get("docs/guide.md", { create: "file" });
+await rootDir.get("docs/api.md", { create: "file" });
+await rootDir.get("images", { create: "dir" });
+
+// 获取子项数量
+const count = await rootDir.length();
+console.log(`子项数量: ${count}`); // 2
+
+// 遍历根目录
+for await (const [name, handle] of rootDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+// 输出: dir: docs, dir: images
+
+// 扁平化获取所有文件
+const allFiles = await rootDir.flat();
+console.log(allFiles.map(f => f.path));
+// 输出: ["docs/guide.md", "docs/api.md"]
+```
+
+## 下一章
+
+学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。
+
+---
+
+<!-- directory-mounting.html -->
+
+# 目录挂载
+
+目录挂载功能允许你访问用户本地文件系统中的**真实目录**，并将其持久化存储，以便在后续会话中继续使用。
+
+> **真实目录**：指您 **Windows** / **macOS** / **Linux** 系统上的实际文件夹，区别于虚拟文件系统中的目录。
+
+## 重要说明
+
+### 浏览器支持
+
+`open()` 方法依赖于浏览器的 `showDirectoryPicker` API，目前**仅 Chrome 浏览器完整支持**此功能。
+
+```javascript
+// 检测浏览器是否支持
+if (!window.showDirectoryPicker) {
+  console.error("当前浏览器不支持目录选择功能");
+  console.log("请使用 Chrome 浏览器以获得完整功能");
+  return;
+}
+```
+
+### 核心用途
+
+目录挂载的主要用途是配合 `open()` 访问用户本地文件系统：
+
+1. **本地文件访问**：让用户选择本地目录，通过浏览器直接访问文件内容
+2. **静态服务器功能**：挂载后的本地目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能
+3. **持久化访问**：通过 `mount()` 挂载后，可以在后续会话中继续访问同一本地目录，无需重复选择
+
+**注意**：对于通过 `init()` 创建的虚拟文件系统目录，已经自动支持 HTTP 访问，无需使用 `mount()`。
+
+### 典型应用场景
+
+- 本地项目开发：直接在浏览器中访问和编辑本地项目文件
+- 静态资源服务：将本地目录挂载为可访问的静态资源路径
+- 文件管理工具：构建基于浏览器的文件管理应用
+
+## 基本概念
+
+### open() - 打开目录选择器
+
+`open()` 方法会弹出系统的目录选择器，让用户选择一个本地目录：
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open();
+```
+
+用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 `DirHandle` 对象。
+
+**注意**：`open()` 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 `init()` 创建。
+
+### mount() - 挂载目录
+
+`mount()` 方法将本地目录句柄保存起来，以便后续会话可以重新访问：
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open(); // 打开目录选择器，此时 path 为虚拟路径
+await mount(handle); // 挂载后，path 变为 $mount-{id}>目录名
+
+console.log(handle.path); // 输出: $mount-123>目录名
+```
+
+挂载后的路径格式为：`$mount-{id}>目录名`
+
+#### 两步流程的优势
+
+推荐使用两步流程（先 `open()` 后 `mount()`），而不是一次性挂载：
+
+1. **验证目录内容**：在挂载前可以先浏览目录内容，确认是否为所需目录
+2. **避免错误挂载**：防止用户选错目录后，错误地挂载到系统中
+3. **灵活决策**：可以根据目录内容决定是否挂载
+
+```javascript
+const handle = await open();
+
+// 先验证目录内容
+const packageJson = await handle.get("package.json");
+const data = await packageJson.json();
+if (data.somedata) {
+  // 确认是符合条件的目录，再挂载
+  await mount(handle);
+  console.log("符合条件的目录已挂载:", handle.path);
+} else {
+  console.log("这是不符合条件的目录，取消挂载");
+}
+```
+
+**重要**：
+
+- `mount()` 主要用于持久化 `open()` 打开的本地目录
+- 对于 `init()` 创建的虚拟文件系统目录，无需使用 `mount()`
+
+### 一次性打开并挂载
+
+你可以使用 `open()` 的 `mount` 参数，在选择目录后自动挂载：
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// 等价于：
+// const handle = await open();
+// await mount(handle);
+```
+
+## mount() 的主要用途
+
+`mount()` 方法主要用于配合 `open()` 使用，将用户选择的本地目录持久化存储。**对于通过 `init()` 创建的虚拟文件系统目录，不需要使用 `mount()`**。
+
+### 虚拟文件系统目录（不需要 mount）
+
+通过 `init()` 创建的目录已经可以直接通过 HTTP 访问：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+// 创建虚拟文件系统目录
+const dir = await init("my-app");
+await dir.get("test.txt", { create: "file" });
+
+// 直接通过 $rootdirName 方式访问
+const response = await fetch("/$my-app/test.txt");
+const content = await response.text();
+```
+
+这些目录路径格式为：`$目录名`，无需挂载即可通过 HTTP 访问。
+
+### 本地目录（需要 mount）
+
+通过 `open()` 打开的本地目录需要挂载才能持久化访问：
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// 打开用户本地目录
+const handle = await open();
+
+// 需要挂载才能在后续会话中继续访问
+await mount(handle);
+
+// 挂载后可通过 $mount-{id}>目录名 方式访问
+const response = await fetch(`/${handle.path}/file.txt`);
+```
+
+### 两种目录对比
+
+| 特性           | 虚拟文件系统目录   | 本地目录（mount）      |
+| -------------- | ------------------ | ---------------------- |
+| 创建方式       | `init("dir-name")` | `open()` + `mount()`   |
+| 路径格式       | `$dir-name`        | `$mount-{id}>dir-name` |
+| HTTP 访问      | ✅ 直接支持        | ✅ 需要挂载后支持      |
+| 持久化         | ✅ 自动持久化      | ✅ 需要 mount 持久化   |
+| 数据位置       | 浏览器存储         | 用户本地文件系统       |
+| 是否需要 mount | ❌ 不需要          | ✅ 需要                |
+| 浏览器支持     | 所有现代浏览器     | 仅 Chrome              |
+
+## 管理已挂载的目录
+
+### 获取已挂载目录列表
+
+使用 `getMounted()` 获取所有已挂载的目录：
+
+```javascript
+import { getMounted } from "/nos/fs/main.js";
+
+const mountedDirs = await getMounted();
+
+mountedDirs.forEach((item) => {
+  console.log(item.id); // 挂载ID
+  console.log(item.name); // 目录名称
+  console.log(item.path); // 挂载路径
+  console.log(item.handle); // DirHandle 对象
+});
+```
+
+### 卸载目录
+
+使用 `unmount()` 移除已挂载的目录。该方法支持两种参数类型：
+
+#### 方式 1：通过 ID 卸载
+
+```javascript
+import { unmount } from "/nos/fs/main.js";
+
+await unmount(mountId);
+```
+
+#### 方式 2：通过 Handle 对象卸载（推荐）
+
+```javascript
+import { open, mount, unmount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// 使用 handle...
+
+// 直接使用 handle 对象卸载
+await unmount(handle);
+```
+
+#### 从挂载列表中卸载
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+const mounted = await getMounted();
+for (const item of mounted) {
+  // 使用 handle 对象卸载
+  await unmount(item.handle);
+
+  // 或者使用 ID 卸载
+  // await unmount(item.id);
+}
+```
+
+卸载后，该目录将无法通过挂载路径访问。
+
+**注意**：只能卸载已挂载的 handle（路径以 `$mount-` 开头）。尝试卸载未挂载的 handle 会抛出错误。
+
+## 通过挂载路径访问文件
+
+### 使用 get() 方法
+
+挂载后的目录可以通过挂载路径访问：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// 假设已挂载的路径是 $mount-123>my-project
+const file = await get("$mount-123>my-project/src/index.js");
+const content = await file.text();
+```
+
+### 访问子目录
+
+```javascript
+const subdir = await get("$mount-123>my-project/src");
+const files = await subdir.values();
+
+for await (const file of files) {
+  console.log(file.name);
+}
+```
+
+## 通过 HTTP 访问挂载文件（静态服务器功能）
+
+挂载后的目录可以通过 HTTP 请求访问文件，实现类似本地静态服务器的功能。这是目录挂载的核心特性之一。
+
+### 基本用法
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+
+// 创建测试文件
+const testFile = await handle.get("test.txt", { create: "file" });
+await testFile.write("Hello, World!");
+
+// 通过 HTTP 访问（类似静态服务器）
+const response = await fetch(`/${handle.path}/test.txt`);
+const content = await response.text();
+console.log(content); // 输出: Hello, World!
+```
+
+### 实际应用示例
+
+```javascript
+// 挂载本地项目目录
+const projectHandle = await open({ mount: true });
+
+// 现在可以通过 HTTP 访问项目中的任何文件
+const htmlResponse = await fetch(`/${projectHandle.path}/index.html`);
+const htmlContent = await htmlResponse.text();
+
+const jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);
+const jsContent = await jsResponse.text();
+
+const cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);
+const cssContent = await cssResponse.text();
+
+// 就像访问本地静态服务器一样
+```
+
+### 应用场景
+
+- **本地开发服务器**：无需启动 Node.js 服务器，直接在浏览器中访问本地文件
+- **项目预览**：实时预览本地 HTML/CSS/JS 项目
+- **资源加载**：在 Web 应用中加载本地图片、字体等资源
+
+## 完整示例
+
+### 创建项目并挂载
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+// 打开目录选择器
+const handle = await open();
+
+// 检查是否已挂载
+const mounted = await getMounted();
+const existing = mounted.find((item) => item.name === handle.name);
+
+if (existing) {
+  console.log("目录已挂载:", existing.path);
+} else {
+  // 挂载目录
+  await mount(handle);
+  console.log("目录已挂载:", handle.path);
+}
+
+// 使用挂载的目录
+const packageJson = await handle.get("package.json");
+if (packageJson) {
+  const config = await packageJson.json();
+  console.log("项目名称:", config.name);
+}
+```
+
+### 管理多个挂载目录
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+// 获取所有挂载
+const allMounts = await getMounted();
+
+// 过滤特定项目
+const projects = allMounts.filter((item) => item.name.includes("project"));
+
+// 卸载旧项目
+for (const project of projects) {
+  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {
+    await unmount(project.handle);
+    console.log("已卸载:", project.name);
+  }
+}
+```
+
+## 权限管理
+
+### 检查和请求权限
+
+浏览器会在首次访问时请求权限。如果权限被拒绝或过期，需要重新请求：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+try {
+  const handle = await get("$mount-123>my-project");
+  // 使用 handle
+} catch (error) {
+  if (error.message.includes("Permission denied")) {
+    console.log("需要重新授权");
+    // 提示用户重新选择目录
+  }
+}
+```
+
+## 浏览器兼容性
+
+### 支持情况
+
+- ✅ Chrome 86+ / Edge 86+  - **完整支持**（推荐使用）
+- ⚠️ Firefox 111+ - **不支持** `showDirectoryPicker`，但可挂载虚拟目录
+- ❌ Safari - **不支持** `showDirectoryPicker`，也不支持挂载虚拟目录
+
+### 核心功能说明
+
+**`open()` 方法**依赖于 `showDirectoryPicker` API，暂时是 Chrome 独有的功能：
+
+- **Chrome**：完整支持，可以弹出目录选择器，并持久化存储句柄
+- **其他浏览器**：不支持目录选择功能，无法使用 `open()` 方法
+
+### 推荐使用方式
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// 检测浏览器支持
+if (!window.showDirectoryPicker) {
+  alert("此功能需要 Chrome 浏览器支持");
+  return;
+}
+
+// Chrome 中使用
+const handle = await open({ mount: true });
+console.log("已挂载本地目录:", handle.path);
+
+// 通过 HTTP 访问本地文件
+const response = await fetch(`/${handle.path}/index.html`);
+const content = await response.text();
+```
+
+### Safari 完全不支持
+
+Safari 既不支持 `showDirectoryPicker` API，也不支持将 `FileSystemHandle` 存储到 IndexedDB：
+
+```javascript
+// Safari 中无法使用
+const handle = await open(); // ❌ 报错: showDirectoryPicker is not supported
+```
+
+### 检测浏览器支持
+
+```javascript
+const isFileSystemSupported = !!window.showDirectoryPicker;
+
+if (!isFileSystemSupported) {
+  console.log("当前浏览器不支持目录选择功能");
+  console.log("请使用 Chrome 浏览器以获得完整功能");
+}
+```
+
+## 最佳实践
+
+1. **浏览器检测**：在使用前检测浏览器是否支持 `showDirectoryPicker`
+2. **用户提示**：明确告知用户此功能需要 Chrome 浏览器
+3. **错误处理**：处理权限拒绝和目录不存在的情况
+4. **清理旧挂载**：定期清理不再需要的挂载目录
+5. **静态服务器功能**：充分利用 HTTP 访问特性，实现本地文件服务
+
+### 推荐的完整实现
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+async function setupLocalProject() {
+  // 1. 检测浏览器支持
+  if (!window.showDirectoryPicker) {
+    alert(
+      "此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。",
+    );
+    return null;
+  }
+
+  try {
+    // 2. 打开并挂载目录
+    const handle = await open({ mount: true });
+
+    // 3. 验证是否为有效项目
+    const packageJson = await handle.get("package.json");
+    if (!packageJson) {
+      console.warn("选择的目录不是一个有效的项目");
+    }
+
+    console.log("本地项目已挂载:", handle.path);
+    console.log("可通过 HTTP 访问:", `/${handle.path}/`);
+
+    return handle;
+  } catch (error) {
+    if (error.message.includes("Permission denied")) {
+      alert("需要授予目录访问权限才能使用此功能");
+    } else {
+      console.error("挂载失败:", error);
+    }
+    return null;
+  }
+}
+
+// 使用示例
+const projectHandle = await setupLocalProject();
+if (projectHandle) {
+  // 通过 HTTP 访问本地文件
+  const response = await fetch(`/${projectHandle.path}/README.md`);
+  const readme = await response.text();
+  console.log(readme);
+}
+```
 
 ## 下一章
 

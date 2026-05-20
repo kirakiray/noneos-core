@@ -72,28 +72,28 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>Directory Operations</h1>
-        <p>This document describes directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.</p>
+        <p>This document introduces directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.</p>
         <h2>Create Directory</h2>
-        <p>Use the <code>get</code> method with <code>create: "dir"</code> to create a directory:</p>
+        <p>Use the <code>get</code> method and specify <code>create: "dir"</code> to create the directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/dir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });</code></pre>
-        <h2>Get Number of Children</h2>
-        <p>Use the <code>length()</code> method to get the total number of sub-files/directories in the directory:</p>
+        <h2>Get Number of Sub-items</h2>
+        <p>Use the <code>length()</code> method to get the total number of subfiles/subdirectories in the directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">length</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(count); <span class="hljs-comment">// 2</span></code></pre>
-        <h2>Traversing Directories</h2>
-        <h3>keys() method</h3>
+        <h2>Traverse Directory</h2>
+        <h3>keys() Method</h3>
         <p>Use the <code>keys()</code> method to iterate over the names of all items in the directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> key <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">keys</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(key);
 }</code></pre>
         <h3>values() method</h3>
-        <p>Use the <code>values()</code> method to iterate over all files and subdirectories in the directory:</p>
+        <p>Use the <code>values()</code> method to traverse all files and subdirectories in a directory:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handles = [];
 <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> handle <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">values</span>()) {
   handles.<span class="hljs-title function_">push</span>({
@@ -102,17 +102,17 @@
   });
 }</code></pre>
         <h3>entries() method</h3>
-        <p>Use the <code>entries()</code> method to iterate through all items in the directory, returning [name, handle] pairs:</p>
+        <p>Use the <code>entries()</code> method to iterate over all items in a directory, returning [name, handle] pairs:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> dir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }</code></pre>
-        <h3>forEach() Method</h3>
-        <p>Using the <code>forEach()</code> method to traverse a directory:</p>
+        <h3>forEach() method</h3>
+        <p>Use the <code>forEach()</code> method to iterate over a directory：</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">forEach</span>(<span class="hljs-keyword">async</span> (handle, name) =&gt; {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 });</code></pre>
-        <h3>some() method</h3>
-        <p>Use the <code>some()</code> method to find the first file or directory that meets the condition; traversal stops automatically once it is found:</p>
+        <h3>The some() Method</h3>
+        <p>Use the <code>some()</code> method to find the first file or directory that meets the condition, stopping the traversal automatically once found:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">let</span> foundTarget = <span class="hljs-literal">false</span>;
 <span class="hljs-keyword">let</span> count = <span class="hljs-number">0</span>;
 
@@ -121,13 +121,13 @@
   <span class="hljs-keyword">if</span> (handle.<span class="hljs-property">kind</span> === <span class="hljs-string">"file"</span>) {
     <span class="hljs-keyword">if</span> (count === <span class="hljs-number">2</span>) {
       foundTarget = <span class="hljs-literal">true</span>;
-      <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>; <span class="hljs-comment">// return true to stop iteration</span>
+      <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>; <span class="hljs-comment">// Return true to stop iteration</span>
     }
   }
   <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
 });</code></pre>
-        <h2>Flatten Directory</h2>
-        <p>Use the <code>flat()</code> method to get all <strong>file handles</strong> in the directory and all its subdirectories (excluding directories):</p>
+        <h2>Flat directory</h2>
+        <p>Use the <code>flat()</code> method to get all <strong>file handles</strong> (excluding directories) in a directory and all its subdirectories:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">flat</span>();
 
 <span class="hljs-keyword">const</span> fileContents = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Promise</span>.<span class="hljs-title function_">all</span>(
@@ -151,14 +151,14 @@
 <span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-comment">// Returns: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]</span></code></pre>
         <h2>Delete Directory</h2>
-        <p>Use the <code>remove()</code> method to delete a directory (this will recursively delete all contents under the directory):</p>
+        <p>Use the <code>remove()</code> method to delete a directory (it will recursively delete all contents under the directory):</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subDir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"dir"</span> });
 <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"file2.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 
 <span class="hljs-keyword">await</span> subDir.<span class="hljs-title function_">remove</span>();
 <span class="hljs-keyword">const</span> subDirExists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/subDir"</span>);
 <span class="hljs-comment">// subDirExists === null indicates the directory has been deleted</span></code></pre>
-        <p>⚠️ Warning: The deletion will be executed immediately. Even if there are sub-files or sub-directories under the directory, they will be deleted together and cannot be recovered. Please proceed with caution.</p>
+        <p>⚠️ Warning: The delete operation will be executed immediately, even if there are sub-files or sub-directories under the directory, they will be deleted together, and cannot be recovered. Please proceed with caution.</p>
         <h2>Complete Example</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
@@ -174,18 +174,18 @@
 <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">length</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`Number of children: <span class="hljs-subst">${count}</span>`</span>); <span class="hljs-comment">// 2</span>
 
-<span class="hljs-comment">// Iterate root directory</span>
+<span class="hljs-comment">// Iterate over root directory</span>
 <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> [name, handle] <span class="hljs-keyword">of</span> rootDir.<span class="hljs-title function_">entries</span>()) {
   <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">${handle.kind}</span>: <span class="hljs-subst">${name}</span>`</span>);
 }
 <span class="hljs-comment">// Output: dir: docs, dir: images</span>
 
-<span class="hljs-comment">// Flatten to get all files</span>
+<span class="hljs-comment">// Get all files flattened</span>
 <span class="hljs-keyword">const</span> allFiles = <span class="hljs-keyword">await</span> rootDir.<span class="hljs-title function_">flat</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(allFiles.<span class="hljs-title function_">map</span>(<span class="hljs-function"><span class="hljs-params">f</span> =&gt;</span> f.<span class="hljs-property">path</span>));
 <span class="hljs-comment">// Output: ["docs/guide.md", "docs/api.md"]</span></code></pre>
         <h2>Next Chapter</h2>
-        <p>Learn <a href="./move-and-copy.html" olink="">File Moving and Copying</a> to understand how to move and copy files.</p>
+        <p>Learn about <a href="./move-and-copy.html" olink="">file move and copy</a>, understand how to move and copy files.</p>
       </article>
       <div class="footer"></div>
       <script>

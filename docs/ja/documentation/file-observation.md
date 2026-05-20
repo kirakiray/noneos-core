@@ -1,10 +1,10 @@
 # ファイル変更監視
 
-このドキュメントでは、`observe` メソッドを使用してファイルやディレクトリの変更イベントを監視する方法について説明します。
+このドキュメントでは、`observe` メソッドを使用してファイルまたはディレクトリの変更イベントを監視する方法について説明します。
 
-## 基本的な使い方
+## 基本的な使用方法
 
-`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します：
+`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します。
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -13,7 +13,7 @@ const dir = await get("my-app");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
-  console.log("ファイル変更イベントを受信しました:", event);
+  console.log("ファイル変更イベントを受信:", event);
   events.push(event);
 });
 
@@ -28,13 +28,13 @@ await file.remove();
 unobserve();
 ```
 
-ファイルとディレクトリの両方とも変化を監視できます。たとえば、単一のファイルを監視するには：
+ファイルとディレクトリの両方で変更を監視できます。例えば、単一ファイルを監視する場合：
 
 ```javascript
 const file = await get("my-app/test.txt", { create: "file" });
 
 const unobserve = await file.observe((event) => {
-  console.log("ファイルが変更されました:", event.type);
+  console.log("ファイルが修正されました:", event.type);
 });
 
 await file.write("new content");
@@ -44,32 +44,32 @@ unobserve();
 
 ## observe 戻り値
 
-`observe()` は Promise を返し、これは resolve すると監視を解除する関数となる。この関数を呼び出すとリスニングを停止できる：
+`observe()` は Promise を返し、監視を解除する関数に解決されます。その関数を呼び出すと監視を停止できます：
 
 ```javascript
 const unobserve = await dir.observe((event) => {
-  // イベントを処理
+  // イベントを処理する
 });
 
-// 後で監視を解除
+// 後で監視を解除する
 unobserve();
 ```
 
 ## イベントオブジェクト
 
-観測コールバックが受信するイベントオブジェクトには以下の属性が含まれます：
+オブザーバーコールバックで受け取るイベントオブジェクトには、次のプロパティが含まれています：
 
-| 属性 | 説明 |
+| プロパティ | 説明 |
 |------|------|
-| `type` | イベントタイプ。例: `"create"`, `"remove"`, `"write"` |
-| `path` | 変更が発生したファイルパス |## 完全な例
+| `type` | イベントの種類。例: `"create"`, `"remove"`, `"write"` |
+| `path` | 変更が発生したファイルのパス |## 完全な例
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
 const dir = await get("my-app");
 
-console.log("ファイル変更監視テストを開始します");
+console.log("ファイル変更監視テスト開始");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
@@ -89,11 +89,11 @@ await new Promise((resolve) => setTimeout(resolve, 100));
 
 unobserve();
 
-console.log(`合計 ${events.length} 個のイベントを受信しました`);
+console.log(`合計 ${events.length} 件のイベントを受信`);
 ```
 
 ## 注意事項
 
-1. オブザーバーは作成後に監視を開始し、それ以前のファイル操作はキャプチャされません
-2. 監視をキャンセルすると、新たに発生するファイル変更は記録されません
-3. ファイル変更イベントは非同期でトリガーされ、一定の遅延が発生する可能性があります
+1. オブザーバーが作成されてから監視が開始され、それ以前のファイル操作はキャプチャされません
+2. 監視を解除すると、その後に発生したファイルの変更は記録されません
+3. ファイル変更イベントは非同期で発生するため、ある程度の遅延が生じる可能性があります

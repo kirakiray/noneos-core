@@ -1,0 +1,3450 @@
+{
+  "exportTime": "2026-05-20T14:36:44.935Z",
+  "projectPath": "$mount-directory-1779284322755>docs",
+  "writingLang": "cn",
+  "language": "en",
+  "languageName": "English",
+  "articles": [
+    {
+      "name": "_config.yaml",
+      "path": "documentation/_config.yaml",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "2b6f9ea2b33e78ca44a92339b43db176d144bd8fe3140a587e89720fae46c185",
+          "raw": "- name: 安装\n  url: ./install.md\n- name: 基础操作\n  content:\n    - name: 概述\n      url: ./overview.md\n    - name: 文件操作\n      url: ./file-operations.md\n    - name: 目录操作\n      url: ./directory-operations.md\n    - name: 目录挂载\n      url: ./directory-mounting.md\n    - name: 文件移动与复制\n      url: ./move-and-copy.md\n    - name: 文件句柄比较\n      url: ./handle-comparison.md\n    - name: 文件变化观察\n      url: ./file-observation.md\n    - name: sw.js 配置技巧\n      url: ./sw-advanced.md\n- name: AI 操作\n  content:\n    - name: 添加模型\n      url: ./ai-add.md\n    - name: 调用模型\n      url: ./ai-call.md\n",
+          "text": "- name: Installation\n  url: ./install.md\n- name: Basic Operations\n  content:\n    - name: Overview\n      url: ./overview.md\n    - name: File Operations\n      url: ./file-operations.md\n    - name: Directory Operations\n      url: ./directory-operations.md\n    - name: Directory Mounting\n      url: ./directory-mounting.md\n    - name: Move and Copy\n      url: ./move-and-copy.md\n    - name: File Handle Comparison\n      url: ./handle-comparison.md\n    - name: File Change Observation\n      url: ./file-observation.md\n    - name: sw.js Configuration Tips\n      url: ./sw-advanced.md\n- name: AI Operations\n  content:\n    - name: Add Model\n      url: ./ai-add.md\n    - name: Call Model\n      url: ./ai-call.md",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "_config.yaml",
+      "path": "_config.yaml",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "b8f7f7fd1175632eb07eb65eea1e53a6af722bdc5a0a3c1415ce74f0cd3957b9",
+          "raw": "index: ./index.html\nheader:\n  - name: 文档\n    url: ./documentation/_config.yaml\n",
+          "text": "index: ./index.html\nheader:\n  - name: Documentation\n    url: ./documentation/_config.yaml",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "ai-add.md",
+      "path": "documentation/ai-add.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "10f390680c58cfa3f86385a5c81651d931e99daa5d8a98ec952d08ec7e117641",
+          "raw": "# 添加 AI 模型\n\n",
+          "type": "heading",
+          "text": "# Add AI Model",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "aff3069bde6e0215e621415b85ef5eaf4e5b310bef050004cca99d7ac90e07a4",
+          "raw": "## AI 模型管理入口\n\n",
+          "type": "heading",
+          "text": "## AI Model Management Portal",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "91424cfebd41244c1e8a48567d89d947d8c7d292c6b2a981ec0112dc3a58c190",
+          "raw": "在已部署的 NoneOS 系统中，基于该系统开发的应用可以通过 `o-page` 组件引入 AI 模型的密钥管理页面，让用户以图形化界面（GUI）的方式添加和管理 AI 模型。",
+          "type": "paragraph",
+          "text": "In a deployed NoneOS system, applications developed based on the system can introduce an AI model's key management page through the `o-page` component, allowing users to add and manage AI models through a graphical user interface (GUI).",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "30dd757ad62c1f7c672471c10d9efb5927b2ddf325edf4302bd1b993f4000f9a",
+          "raw": "### 使用相对路径\n\n",
+          "type": "heading",
+          "text": "### Using Relative Paths",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ea5100e917af094185c1d7e4311e19f65818584c7f249bb16add2c0523d89670",
+          "raw": "```html\n<o-page src=\"/nos-tool/ai/pages/key-manager.html\"></o-page>\n```",
+          "type": "code",
+          "text": "```html\n<o-page src=\"/nos-tool/ai/pages/key-manager.html\"></o-page>\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "534b5a940485937c93f8a64fca9cb15d7d47915adf216c7399c8956ab3bc3314",
+          "raw": "这样就可以在你的 ofa.js 应用中直接加入添加 AI 模型的入口了。",
+          "type": "paragraph",
+          "text": "This way, you can directly add an entry point for adding AI models in your ofa.js application.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c02882ba23c331f6a375c0464fc40591649479ea35d23cf2b53f12f71142d8a1",
+          "raw": "## js添加模型\n\n",
+          "type": "heading",
+          "text": "## Adding Models in js",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "30de4975756253eab87d5584b69cd5f886a4a70dc5073a3535ce8f10ed0b3cb1",
+          "raw": "你可以不使用 `o-page` 组件，通过 JavaScript 代码直接管理 AI 模型。",
+          "type": "paragraph",
+          "text": "You can manage AI models directly through JavaScript code without using the `o-page` component.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "40da2301fdbf687a41d0d4d5510abed04523a53c9e199217853b4e14e497f4d3",
+          "raw": "### 引入存储模块\n\n",
+          "type": "heading",
+          "text": "### Import Storage Module",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "56c8115af69836e9cd2af886772a921c8d3165d7ad43ff7b27969d5e4a5e936e",
+          "raw": "```javascript\nimport { storage } from \"/gh/kirakiray/ever-cache/src/main.js\";\n```",
+          "type": "code",
+          "text": "```javascript\nimport { storage } from \"/gh/kirakiray/ever-cache/src/main.js\";\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "38aed8730f0eea0a61659c3f4d8a0915ca440e05fc68835bb6207e68299641ad",
+          "raw": "### 保存 API Key\n\n",
+          "type": "heading",
+          "text": "### Save API Key",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "01035b6f19f35025948a97740cf7a3042dda54f95e365c8d89677e3e9f5787dc",
+          "raw": "```javascript\nconst newKey = {\n  id: `${Math.random().toString(36).slice(2, 11)}`,\n  provider: \"deepseek\",  // deepseek | kimi | minimax | glm\n  model: \"deepseek-chat\",\n  key: \"your-api-key-here\",\n  concurrency: 1,  // 并发数\n};\n\n// 获取现有 keys\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\n\n// 添加新 key\naiKeys.push(newKey);\n\n// 保存\nawait storage.setItem(\"ai-keys\", aiKeys);\n```",
+          "type": "code",
+          "text": "```javascript\nconst newKey = {\n  id: `${Math.random().toString(36).slice(2, 11)}`,\n  provider: \"deepseek\",  // deepseek | kimi | minimax | glm\n  model: \"deepseek-chat\",\n  key: \"your-api-key-here\",\n  concurrency: 1,  // Concurrency count\n};\n\n// Get existing keys\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\n\n// Add new key\naiKeys.push(newKey);\n\n// Save\nawait storage.setItem(\"ai-keys\", aiKeys);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a07b2abab606bad22be1e08730d4f355a8f1fda10c2084b06fbdda307661f283",
+          "raw": "### 各提供商的可用模型\n\n",
+          "type": "heading",
+          "text": "### Available Models by Provider",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e21253cc8ee4a5987fee6bc89e9a78367a3fad9f8d1db31fd0802126b6a3afd6",
+          "raw": "可用模型参考各提供商的文档。",
+          "type": "paragraph",
+          "text": "Refer to the documentation of each provider for available models.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "62aaa45770123967b5baa651775a3a53f4d509939ec3e2b8675cf50cdf54a73c",
+          "raw": "### 获取所有已保存的 Keys\n\n",
+          "type": "heading",
+          "text": "### Get all saved Keys",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8c2b0fba3d6bf3c112669ec2850d6a05cefd0a670d1564db5dd51f47b8b95dde",
+          "raw": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\n```",
+          "type": "code",
+          "text": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bb940ca5fba944b30d22c9d68bf2d8d141d2aca0eaa18b86698134027d1e1980",
+          "raw": "### 删除 API Key\n\n",
+          "type": "heading",
+          "text": "### Delete API Key",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4b469c2ce1c142979bb9cd4f01b5f442650ff7e0cc5b928417ce7be1da2f61e8",
+          "raw": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\nconst index = aiKeys.findIndex((k) => k.id === \"key-id\");\nif (index > -1) {\n  aiKeys.splice(index, 1);\n  await storage.setItem(\"ai-keys\", aiKeys);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\nconst index = aiKeys.findIndex((k) => k.id === \"key-id\");\nif (index > -1) {\n  aiKeys.splice(index, 1);\n  await storage.setItem(\"ai-keys\", aiKeys);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c64f4a5bbf6715d121162725e63a31b4f45cfbe0d39b99f4e0ae2d7763542287",
+          "raw": "### 更新 Key 的并发数\n\n",
+          "type": "heading",
+          "text": "### Concurrency of updating keys",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5293b2665993de7080994208b342a75b5395f752170264ab8c6087e6b5318e70",
+          "raw": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\nconst keyItem = aiKeys.find((k) => k.id === \"key-id\");\nif (keyItem) {\n  keyItem.concurrency = 3;  // 修改并发数\n  await storage.setItem(\"ai-keys\", aiKeys);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst aiKeys = (await storage.getItem(\"ai-keys\")) || [];\nconst keyItem = aiKeys.find((k) => k.id === \"key-id\");\nif (keyItem) {\n  keyItem.concurrency = 3;  // Modify concurrency\n  await storage.setItem(\"ai-keys\", aiKeys);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0cba78049545b3c69979a93dc6c82508247874a8c49f0607c435afe617625ca2",
+          "raw": "### Key 对象结构\n\n",
+          "type": "heading",
+          "text": "### Key Object Structure",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bafb571b80ca13d42bc555cf0be609fcf43f8c5baadb869ab1eb5626d3bd5e6d",
+          "raw": "| 属性          | 类型    | 说明                               |\n| ------------- | ------- | ---------------------------------- |\n| `id`          | string  | 唯一标识符                         |\n| `provider`    | string  | 提供商 (deepseek/kimi/minimax/glm) |\n| `model`       | string  | 模型名称                           |\n| `key`         | string  | API Key                            |\n| `concurrency` | number  | 最大并发数                         |\n| `disabled`    | boolean | 是否禁用                           |\n\n",
+          "type": "table",
+          "text": "| Property      | Type    | Description                         |\n| ------------- | ------- | ----------------------------------- |\n| `id`          | string  | Unique identifier                   |\n| `provider`    | string  | Provider (deepseek/kimi/minimax/glm)|\n| `model`       | string  | Model name                          |\n| `key`         | string  | API Key                             |\n| `concurrency` | number  | Max concurrency                      |\n| `disabled`    | boolean | Is disabled                         |",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "ai-call.md",
+      "path": "documentation/ai-call.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "661574c3b7f01c695e3b208bfb5d668c7d68e195102846cb02aac3f085cf746d",
+          "raw": "# 调用 AI 模型\n\n",
+          "type": "heading",
+          "text": "# Calling the AI Model",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2d8d97c86cb26854efbdbbc357be62a3fd07e515b60a967ccfb9d8f6eb3ebd28",
+          "raw": "## 引入 chat 模块\n\n",
+          "type": "heading",
+          "text": "## Introducing the chat module",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4e64f86d2d755b017f5b7fa719e6f47fec83d40e1058ec42f59154c95e065705",
+          "raw": "```javascript\nimport { chat, subscribe, getStatus, getAvailableProviders } from \"/nos/ai/chat.js\";\n```",
+          "type": "code",
+          "text": "```javascript\nimport { chat, subscribe, getStatus, getAvailableProviders } from \"/nos/ai/chat.js\";\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1a08c38e9c74f62f1a59c3f78bbfc1d2afc36d5cb14f57e2fc4d6bcb84e6013b",
+          "raw": "## 基本用法\n\n",
+          "type": "heading",
+          "text": "## Basic Usage",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "969bb009199076458e8720dc21e1caf0bc359d1d3f045d0664590b8dc342eff9",
+          "raw": "`chat` 函数接受消息数组和选项对象：",
+          "type": "paragraph",
+          "text": "The `chat` function accepts a message array and an options object:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "aea675b6bc57740292cf22281797ba8a141d7b3d11c51d858e4c21f4eacff526",
+          "raw": "```javascript\nconst messages = [\n  { role: \"user\", content: \"你好\" }\n];\n\nconst response = await chat(messages, {\n  provider: \"deepseek\",  // 可选，指定提供商\n  callback: (chunk) => {  // 可选，流式回调\n    console.log(chunk);\n  },\n  maxContextLength: 8192  // 可选，最大上下文长度\n});\n```",
+          "type": "code",
+          "text": "```javascript\nconst messages = [\n  { role: \"user\", content: \"你好\" }\n];\n\nconst response = await chat(messages, {\n  provider: \"deepseek\",  // Optional, specify provider\n  callback: (chunk) => {  // Optional, streaming callback\n    console.log(chunk);\n  },\n  maxContextLength: 8192  // Optional, maximum context length\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": "```javascript\nconst messages = [\n  { role: \"user\", content: \"Hello\" }\n];\n\nconst response = await chat(messages, {\n  provider: \"deepseek\",  // Optional, specify provider\n  callback: (chunk) => {  // Optional, streaming callback\n    console.log(chunk);\n  },\n  maxContextLength: 8192  // Optional, maximum context length\n});\n```"
+        },
+        {
+          "rawHash": "6c6f13977f71604586006e0a8f81b1823881f6b229039ec573ae883a001f90fb",
+          "raw": "## 支持的提供商\n\n",
+          "type": "heading",
+          "text": "## Supported Providers",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "30862da7b4181225a1c80a8533c464c60132b9bcb65f60fb009b33bee41a288a",
+          "raw": "- **deepseek** - DeepSeek\n- **kimi** - Kimi (Moonshot)\n- **minimax** - MiniMax\n- **glm** - 智谱 GLM",
+          "type": "list",
+          "text": "- **deepseek** - DeepSeek\n- **kimi** - Kimi (Moonshot)\n- **minimax** - MiniMax\n- **glm** - Zhipu GLM",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a4d28d62138f08a216713bb5c0b816656c2149c5d8739a9b50f9725b9b950f2c",
+          "raw": "如果不指定 `provider`，系统会自动选择一个可用的 API Key。",
+          "type": "paragraph",
+          "text": "If no `provider` is specified, the system will automatically select an available API Key.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "54eaeb3e15ee5310da5760d2a820a87a71b82d5140d6006a944008c14735d86c",
+          "raw": "## 消息格式\n\n",
+          "type": "heading",
+          "text": "## Message Format",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "356dfff91fb337a626e18a74b899a2fc274311ea9c8c247208514b6220126cac",
+          "raw": "```javascript\nconst messages = [\n  { role: \"system\", content: \"你是一个有用的助手\" },\n  { role: \"user\", content: \"你好\" },\n  { role: \"assistant\", content: \"你好，有什么可以帮助你的吗？\" },\n  { role: \"user\", content: \"解释一下什么是 AI\" }\n];\n```",
+          "type": "code",
+          "text": "```javascript\nconst messages = [\n  { role: \"system\", content: \"You are a helpful assistant\" },\n  { role: \"user\", content: \"Hello\" },\n  { role: \"assistant\", content: \"Hello, how can I help you?\" },\n  { role: \"user\", content: \"Explain what AI is\" }\n];\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2d959b3156f43e4ce6a95045b25527fff43e65d216c7dda4cdd3161979152658",
+          "raw": "## 并发控制\n\n",
+          "type": "heading",
+          "text": "## Concurrency Control",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b7b87a1fcfa3d5fc25a0290984aa2f884b8b85d2eec05e0428806b5974b7e098",
+          "raw": "NoneOS AI 模块支持并发控制，可以避免同一个 API Key 被过度使用。",
+          "type": "paragraph",
+          "text": "NoneOS AI module supports concurrency control, which can prevent the same API Key from being overused.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "920e10d6b82279dec5b2ad753a0ebf76be9ad67701a3dc6baf3886d058d11da6",
+          "raw": "### 获取当前状态\n\n",
+          "type": "heading",
+          "text": "### Get Current Status",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ba67b7170e4db40a630d31e09e95b0eb2eba44e57d8d5a79936af926d8516021",
+          "raw": "```javascript\nconst status = getStatus();\n// 返回各 Key 的并发使用情况\n```",
+          "type": "code",
+          "text": "```javascript\nconst status = getStatus();\n// Return the concurrent usage of each Key\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4ec02b43a01c202ef26c8a1096b31161d55fc344c69517cf1998ddf9f91025e1",
+          "raw": "### 订阅状态变化\n\n",
+          "type": "heading",
+          "text": "### Subscription Status Change",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c547dbac215c334bc225005990f6d1cb844c66756854008b74b1aaf672c54d70",
+          "raw": "```javascript\nsubscribe((newStatus) => {\n  console.log(\"状态更新:\", newStatus);\n});\n```",
+          "type": "code",
+          "text": "```javascript\nsubscribe((newStatus) => {\n  console.log(\"Status update:\", newStatus);\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1b47aa595162ccfa4b7cb9c1faeefb368ab7f1b74db6234e670eb248c2daa556",
+          "raw": "## 获取可用提供商\n\n",
+          "type": "heading",
+          "text": "## Get Available Providers",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b3f2ba4fa7e040926d4008eedea58aa5f8115985b60dd6341c99cfacf88ccab5",
+          "raw": "```javascript\nconst providers = await getAvailableProviders();\nconsole.log(providers); // [\"deepseek\", \"kimi\", \"glm\", \"minimax\"]\n```",
+          "type": "code",
+          "text": "```javascript\nconst providers = await getAvailableProviders();\nconsole.log(providers); // [\"deepseek\", \"kimi\", \"glm\", \"minimax\"]\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "841cd9e4c0c1234bb69cd57983f83291b4f19a1f394d5a724d675f0f85277fd4",
+          "raw": "## 错误处理\n\n",
+          "type": "heading",
+          "text": "## Error Handling",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1b137d842ea8cfd28a6f85cfe74ed0c5af668592fe21d29225bcf2c46e60b2da",
+          "raw": "```javascript\ntry {\n  const response = await chat(messages);\n} catch (error) {\n  console.error(error.message);\n}\n```",
+          "type": "code",
+          "text": "```javascript\ntry {\n  const response = await chat(messages);\n} catch (error) {\n  console.error(error.message);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5f4c331d072fd01aff640ca028eb641af158f71e0b75eba9370d8faf7d13fd98",
+          "raw": "常见错误：\n",
+          "type": "paragraph",
+          "text": "Common Mistakes:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3438bb3e417806a68738d09d6f0f26e6ef6b262b70e78693f6fbb613d3657aa8",
+          "raw": "- `no_key` - 没有配置任何 API Key\n- `no_provider_key` - 没有指定提供商的 API Key\n- `concurrency_full` - 该 Key 的并发数已满\n- `Unsupported provider` - 不支持的提供商\n",
+          "type": "list",
+          "text": "- `no_key` - No API Key configured\n- `no_provider_key` - No provider API Key specified\n- `concurrency_full` - The Key's concurrency is full\n- `Unsupported provider` - Unsupported provider",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "directory-mounting.md",
+      "path": "documentation/directory-mounting.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "232996322bba6bacebd9f6ba142b6296ff9276afe40a49305ce57de30a551b15",
+          "raw": "# 目录挂载\n\n",
+          "type": "heading",
+          "text": "# Directory Mounting",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8301974b0c0f13daf744bc119278b7cb5f298f7c9aefd5e50210fdbdea464925",
+          "raw": "目录挂载功能允许你访问用户本地文件系统中的**真实目录**，并将其持久化存储，以便在后续会话中继续使用。",
+          "type": "paragraph",
+          "text": "The directory mounting feature allows you to access **real directories** in the user's local file system and persistently store them for continued use in subsequent sessions.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7734fc4bc0c23f2c4db010cf229f86baefedc79267d19694083f1bd3f0780d5",
+          "raw": "> **真实目录**：指您 **Windows** / **macOS** / **Linux** 系统上的实际文件夹，区别于虚拟文件系统中的目录。",
+          "type": "blockquote",
+          "text": "> **Real directory**：refers to the actual folder on your **Windows** / **macOS** / **Linux** system, as opposed to a directory in the virtual file system.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "77cbc042361d20cb3f11d882c8af4d028eb20dffe0af2bcc82ba4969dbab9666",
+          "raw": "## 重要说明\n\n",
+          "type": "heading",
+          "text": "## Important Notice",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f605330f065f7b406349ddad7813ba3f98678fe2c9d675a7a26433d3f8747a6f",
+          "raw": "### 浏览器支持\n\n",
+          "type": "heading",
+          "text": "### Browser Support",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f3aa093c76700538c0ac48b4fcfc3a413d3c1f1b85ecf5690aa2f6a10a158d7c",
+          "raw": "`open()` 方法依赖于浏览器的 `showDirectoryPicker` API，目前**仅 Chrome 浏览器完整支持**此功能。",
+          "type": "paragraph",
+          "text": "The `open()` method depends on the browser's `showDirectoryPicker` API, and currently **only Chrome fully supports** this functionality.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9d290eead599e57c6b36d4404412f9d504a276d59873db8fc5e53da425acb2d3",
+          "raw": "```javascript\n// 检测浏览器是否支持\nif (!window.showDirectoryPicker) {\n  console.error(\"当前浏览器不支持目录选择功能\");\n  console.log(\"请使用 Chrome 浏览器以获得完整功能\");\n  return;\n}\n```",
+          "type": "code",
+          "text": "```javascript\n// Detect browser support\nif (!window.showDirectoryPicker) {\n  console.error(\"Current browser does not support directory selection\");\n  console.log(\"Please use Chrome browser for full functionality\");\n  return;\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7989b19f172f70f95b7553f2b9deca8980ab325e5b3c87449ef7dc70324fd207",
+          "raw": "### 核心用途\n\n",
+          "type": "heading",
+          "text": "### Core Uses",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d33dbb01e33220def49e49c4a57f03f751a8bbf8e801b66a6a6d91f6d0110b35",
+          "raw": "目录挂载的主要用途是配合 `open()` 访问用户本地文件系统：",
+          "type": "paragraph",
+          "text": "The main purpose of directory mounting is to work with `open()` to access the user's local file system:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "fa4beb86b1a00b177b724195bb58a874919c800c27276ecad4bd2bbc686e6123",
+          "raw": "1. **本地文件访问**：让用户选择本地目录，通过浏览器直接访问文件内容\n2. **静态服务器功能**：挂载后的本地目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能\n3. **持久化访问**：通过 `mount()` 挂载后，可以在后续会话中继续访问同一本地目录，无需重复选择",
+          "type": "list",
+          "text": "1. **Local File Access**: Let users select a local directory and directly access file content through the browser\n2. **Static Server Functionality**: After mounting, the local directory can be accessed via HTTP requests, implementing functionality similar to a local static server\n3. **Persistent Access**: After mounting via `mount()`, the same local directory can be accessed in subsequent sessions without re-selection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bc81d106d17e363d52f3ba339bf1fc41bcdad2df9617882709ad727facc667ad",
+          "raw": "**注意**：对于通过 `init()` 创建的虚拟文件系统目录，已经自动支持 HTTP 访问，无需使用 `mount()`。",
+          "type": "paragraph",
+          "text": "**Note**: For virtual file system directories created via `init()`, HTTP access is already automatically supported, no need to use `mount()`.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a308d1eb69e564a642dac9770f9ea25e9644a98164e479ad28cebd9bcf797644",
+          "raw": "### 典型应用场景\n\n",
+          "type": "heading",
+          "text": "### Typical Application Scenarios",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "21b4cc221d5d85614139865149c19e47f7abfb7207d243d82d33f90e6357242a",
+          "raw": "- 本地项目开发：直接在浏览器中访问和编辑本地项目文件\n- 静态资源服务：将本地目录挂载为可访问的静态资源路径\n- 文件管理工具：构建基于浏览器的文件管理应用",
+          "type": "list",
+          "text": "- Local project development: Access and edit local project files directly in the browser\n- Static resource service: Mount local directories as accessible static resource paths\n- File management tool: Build a browser-based file management application",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "67da07c14a4e719d83431f3cca8a14bbaa3465d22ab036833238a79885514660",
+          "raw": "## 基本概念\n\n",
+          "type": "heading",
+          "text": "## Basic Concepts",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0446966a13ad8f80aefcd43d179e5127539f22124e5ba4f9821154a3ef0d4aa5",
+          "raw": "### open() - 打开目录选择器\n\n",
+          "type": "heading",
+          "text": "### open() - Open directory selector",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "72e87c65b567dc2d6d628b02a7ad685a79e8d67017ca21d4075fb7c085252480",
+          "raw": "`open()` 方法会弹出系统的目录选择器，让用户选择一个本地目录：",
+          "type": "paragraph",
+          "text": "The `open()` method will pop up the system directory picker, allowing the user to select a local directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4e3a99bcc58618e81b35e0988ecc5f5ea9545171610fb6dc00724103e46079ce",
+          "raw": "```javascript\nimport { open } from \"/nos/fs/main.js\";\n\nconst handle = await open();\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open } from \"/nos/fs/main.js\";\n\nconst handle = await open();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0baffd821595ee606be8d0fc5b87de26d76854ed0e733c917a45b74e5d65042f",
+          "raw": "用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 `DirHandle` 对象。",
+          "type": "paragraph",
+          "text": "After the user selects a directory, the system will request read and write permissions. If the user grants permission, a `DirHandle` object will be returned.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f3236aa9c3607252685ab1c277f9ef2e921c75eee7a97fb48921fcadceab61ea",
+          "raw": "**注意**：`open()` 仅用于访问用户本地文件系统。对于虚拟文件系统目录，请使用 `init()` 创建。",
+          "type": "paragraph",
+          "text": "**Note**: `open()` is only used to access the user's local file system. For virtual file system directories, use `init()` to create them.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "6aca1315d30495f904a26559fef61f66beecf915d5f2ec2098b069741af8c899",
+          "raw": "### mount() - 挂载目录\n\n",
+          "type": "heading",
+          "text": "### mount() - Mount Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2ea9e2fea52d4fe973d49a3e554ad4964629e7f1b1419bcaf34a3c05ebe4efbb",
+          "raw": "`mount()` 方法将本地目录句柄保存起来，以便后续会话可以重新访问：",
+          "type": "paragraph",
+          "text": "The `mount()` method saves the local directory handle so that subsequent sessions can access it again:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a7ed77213daa7c2160bccab91a5b0d92da2c65b127879e9698ad95f24ea5f152",
+          "raw": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\nconst handle = await open(); // 打开目录选择器，此时 path 为虚拟路径\nawait mount(handle); // 挂载后，path 变为 $mount-{id}>目录名\n\nconsole.log(handle.path); // 输出: $mount-123>目录名\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\nconst handle = await open(); // Open directory picker, at this point path is a virtual path\nawait mount(handle); // After mounting, path becomes $mount-{id}>directory name\n\nconsole.log(handle.path); // Output: $mount-123>directory name\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b57b35138f3244d11376eb1fb5d203730864bac4d2de337974ce5ec2f110b796",
+          "raw": "挂载后的路径格式为：`$mount-{id}>目录名`",
+          "type": "paragraph",
+          "text": "The path format after mounting is: `$mount-{id}>directory name`",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ec600780f95060a754ad44bc7e96369b23d036eaa1e12e7000fc332adea5554b",
+          "raw": "#### 两步流程的优势\n\n",
+          "type": "heading",
+          "text": "#### Advantages of the Two-Step Process",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a0aaabdc52c01f0d4dc1c01f4c0680f5532af49c68f6fb46248b2602d9671ed9",
+          "raw": "推荐使用两步流程（先 `open()` 后 `mount()`），而不是一次性挂载：",
+          "type": "paragraph",
+          "text": "It is recommended to use a two-step process (first `open()` then `mount()`) instead of mounting all at once:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2d703ecca4ebcc5b3b415eab34ba72c6a4cafeaa9e8a7aaf9267702a13389a84",
+          "raw": "1. **验证目录内容**：在挂载前可以先浏览目录内容，确认是否为所需目录\n2. **避免错误挂载**：防止用户选错目录后，错误地挂载到系统中\n3. **灵活决策**：可以根据目录内容决定是否挂载",
+          "type": "list",
+          "text": "1. **Verify directory contents**: Before mounting, you can browse the directory contents to confirm it is the desired directory\n2. **Avoid incorrect mounting**: Prevents users from mistakenly mounting the wrong directory into the system\n3. **Flexible decision-making**: Allows deciding whether to mount based on the directory contents",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "05c63626ef7b2c4eafd98dea78ec9b536eb44e9b85ef06bcb97c1e9f0e629b2b",
+          "raw": "```javascript\nconst handle = await open();\n\n// 先验证目录内容\nconst packageJson = await handle.get(\"package.json\");\nconst data = await packageJson.json();\nif (data.somedata) {\n  // 确认是符合条件的目录，再挂载\n  await mount(handle);\n  console.log(\"符合条件的目录已挂载:\", handle.path);\n} else {\n  console.log(\"这是不符合条件的目录，取消挂载\");\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst handle = await open();\n\n// First verify the directory contents\nconst packageJson = await handle.get(\"package.json\");\nconst data = await packageJson.json();\nif (data.somedata) {\n  // Confirm it's a matching directory, then mount\n  await mount(handle);\n  console.log(\"Matching directory mounted:\", handle.path);\n} else {\n  console.log(\"This is a non-matching directory, mount canceled\");\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "19430244931a89cdc2fa9d0ccea293af7cca072fd673745cfafa7085c8eb83aa",
+          "raw": "**重要**：",
+          "type": "paragraph",
+          "text": "**Important**：",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e1f8943f86e77699cc156096bf4b10b30d5778c198f323aa662bc2d5dac4a0bb",
+          "raw": "- `mount()` 主要用于持久化 `open()` 打开的本地目录\n- 对于 `init()` 创建的虚拟文件系统目录，无需使用 `mount()`",
+          "type": "list",
+          "text": "- `mount()` is primarily used to persist local directories opened by `open()`\n- For virtual file system directories created by `init()`, `mount()` is not needed",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7dadc32cfa1d3e61251688ceea65247f4a3a1b9e350957409a59d1a5824f6ba3",
+          "raw": "### 一次性打开并挂载\n\n",
+          "type": "heading",
+          "text": "### Open and mount in one go",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d82a2947c401f38a5559d60bb8ee07603245f33fa12fd6f75178f872bf3079dc",
+          "raw": "你可以使用 `open()` 的 `mount` 参数，在选择目录后自动挂载：",
+          "type": "paragraph",
+          "text": "You can use the `mount` parameter of `open()` to automatically mount after selecting a directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3eda907284ac0c47ae4b61a75b51ce24c30ed2886e119904a12271f065d6b97b",
+          "raw": "```javascript\nimport { open } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n// 等价于：\n// const handle = await open();\n// await mount(handle);\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n// Equivalent to:\n// const handle = await open();\n// await mount(handle);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "82f5d9a5e44b18dd50142c403dc6e8cbc7f1e6873bb7c4e8f08eeba2f7626f8e",
+          "raw": "## mount() 的主要用途\n\n",
+          "type": "heading",
+          "text": "## Main Purpose of mount()",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8fcabc86e1d1ebb39172ac8efacabb092758298964059206e1b74bc041acb72a",
+          "raw": "`mount()` 方法主要用于配合 `open()` 使用，将用户选择的本地目录持久化存储。**对于通过 `init()` 创建的虚拟文件系统目录，不需要使用 `mount()`**。",
+          "type": "paragraph",
+          "text": "`mount()` method is mainly used in conjunction with `open()` to persist the user-selected local directory. **For the virtual file system directory created via `init()`, `mount()` is not required**.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "502378be65ac04b9cce5487f6af2b5f6b1ef86cc3887099dc36e9ee75daa7f87",
+          "raw": "### 虚拟文件系统目录（不需要 mount）\n\n",
+          "type": "heading",
+          "text": "### Virtual File System Directory (No mount required)",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1a7bd612b51283f9b44629bcc86f6571401a32fac9b9e15bf6959f0536236b63",
+          "raw": "通过 `init()` 创建的目录已经可以直接通过 HTTP 访问：",
+          "type": "paragraph",
+          "text": "Directories created via `init()` can already be accessed directly via HTTP:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f1391cd8ee411335fb9c42e26baf6c46e8ae27e149e665359fefc1f8acdd384f",
+          "raw": "```javascript\nimport { init } from \"/nos/fs/main.js\";\n\n// 创建虚拟文件系统目录\nconst dir = await init(\"my-app\");\nawait dir.get(\"test.txt\", { create: \"file\" });\n\n// 直接通过 $rootdirName 方式访问\nconst response = await fetch(\"/$my-app/test.txt\");\nconst content = await response.text();\n```",
+          "type": "code",
+          "text": "```javascript\nimport { init } from \"/nos/fs/main.js\";\n\n// Create virtual file system directory\nconst dir = await init(\"my-app\");\nawait dir.get(\"test.txt\", { create: \"file\" });\n\n// Access directly via $rootdirName\nconst response = await fetch(\"/$my-app/test.txt\");\nconst content = await response.text();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "154a24968cae0fedbc1caf5a39e86f69ff9c7e84020d2aaeff59d508f8046948",
+          "raw": "这些目录路径格式为：`$目录名`，无需挂载即可通过 HTTP 访问。",
+          "type": "paragraph",
+          "text": "These directory path formats are: `$directory name`, accessible via HTTP without mounting.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0e4813c4ab55dae15ccb40e23bf8e0a678e544308fb5feaa4a3edc92df0d0f56",
+          "raw": "### 本地目录（需要 mount）\n\n",
+          "type": "heading",
+          "text": "### Local directory (requires mount)",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a165c611e3a94cbbd6bbf90ead933083bbe620a14b3c986dd658cac3a38d978a",
+          "raw": "通过 `open()` 打开的本地目录需要挂载才能持久化访问：",
+          "type": "paragraph",
+          "text": "Local directories opened via `open()` need to be mounted for persistent access:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "24bdcc1d935834441691c85af78912583dd5630fa2a5d807be6c8f5f076a6082",
+          "raw": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\n// 打开用户本地目录\nconst handle = await open();\n\n// 需要挂载才能在后续会话中继续访问\nawait mount(handle);\n\n// 挂载后可通过 $mount-{id}>目录名 方式访问\nconst response = await fetch(`/${handle.path}/file.txt`);\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\n// Open the user's local directory\nconst handle = await open();\n\n// Need to mount to continue accessing in subsequent sessions\nawait mount(handle);\n\n// After mounting, it can be accessed via $mount-{id}>directory name\nconst response = await fetch(`/${handle.path}/file.txt`);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5beafff87a150beb6c4003c2e1450bfd44dfccda111fd5956a5276334765d134",
+          "raw": "### 两种目录对比\n\n",
+          "type": "heading",
+          "text": "### Comparison of Two Directory Types",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8d4d6c836d817a13f63dc842626c5cc537cf85ff72e2a7053f2ffbc70873b258",
+          "raw": "| 特性           | 虚拟文件系统目录   | 本地目录（mount）      |\n| -------------- | ------------------ | ---------------------- |\n| 创建方式       | `init(\"dir-name\")` | `open()` + `mount()`   |\n| 路径格式       | `$dir-name`        | `$mount-{id}>dir-name` |\n| HTTP 访问      | ✅ 直接支持        | ✅ 需要挂载后支持      |\n| 持久化         | ✅ 自动持久化      | ✅ 需要 mount 持久化   |\n| 数据位置       | 浏览器存储         | 用户本地文件系统       |\n| 是否需要 mount | ❌ 不需要          | ✅ 需要                |\n| 浏览器支持     | 所有现代浏览器     | 仅 Chrome              |\n\n",
+          "type": "table",
+          "text": "| Feature                | Virtual File System Directory | Local Directory (mount)          |\n| ---------------------- | ----------------------------- | --------------------------------- |\n| Creation method        | `init(\"dir-name\")`            | `open()` + `mount()`              |\n| Path format            | `$dir-name`                   | `$mount-{id}>dir-name`            |\n| HTTP access            | ✅ Directly supported        | ✅ Supported after mounting       |\n| Persistence            | ✅ Automatic persistence     | ✅ Requires mount persistence    |\n| Data location          | Browser storage               | User's local file system          |\n| Mount required         | ❌ Not required               | ✅ Required                       |\n| Browser support        | All modern browsers           | Chrome only                       |",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0f926dcced7f0642fd447a773e2397b0e678a9aaba2e75c64e654f8b87d23007",
+          "raw": "## 管理已挂载的目录\n\n",
+          "type": "heading",
+          "text": "## Managing Mounted Directories",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "67b0a20bd1b0179d206fcce52fdbf509c6794b02f81d09197c4491f45524d555",
+          "raw": "### 获取已挂载目录列表\n\n",
+          "type": "heading",
+          "text": "### Get list of mounted directories",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f8f628f6ccea6cfdb94340022fb8e9b89ac73ca01e9b557a9188f31040537e9f",
+          "raw": "使用 `getMounted()` 获取所有已挂载的目录：",
+          "type": "paragraph",
+          "text": "Use `getMounted()` to get all mounted directories:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0dddf764665f1cab7f7d3a0780c179082bc5e9d398d84f34778201415f280033",
+          "raw": "```javascript\nimport { getMounted } from \"/nos/fs/main.js\";\n\nconst mountedDirs = await getMounted();\n\nmountedDirs.forEach((item) => {\n  console.log(item.id); // 挂载ID\n  console.log(item.name); // 目录名称\n  console.log(item.path); // 挂载路径\n  console.log(item.handle); // DirHandle 对象\n});\n```",
+          "type": "code",
+          "text": "```javascript\nimport { getMounted } from \"/nos/fs/main.js\";\n\nconst mountedDirs = await getMounted();\n\nmountedDirs.forEach((item) => {\n  console.log(item.id); // Mount ID\n  console.log(item.name); // Directory name\n  console.log(item.path); // Mount path\n  console.log(item.handle); // DirHandle object\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4225f259eb2b1090ec2be3fdbe4ad1709fed5389dc41a519544de9b19276cb3a",
+          "raw": "### 卸载目录\n\n",
+          "type": "heading",
+          "text": "### Uninstall directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "eb0065a27850661fd5998e1475d57954672c7787de7fd7244be3b66f783a6774",
+          "raw": "使用 `unmount()` 移除已挂载的目录。该方法支持两种参数类型：",
+          "type": "paragraph",
+          "text": "Use `unmount()` to remove a mounted directory. This method supports two parameter types:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "16fb1b2030319566d1cd077cdf59ffe78cbd6fd85b5168114d8ef1c5e4d35478",
+          "raw": "#### 方式 1：通过 ID 卸载\n\n",
+          "type": "heading",
+          "text": "#### Method 1: Uninstall by ID",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "24ce1f51ce1fe4515916bacc1d1850ef71b801a034c2e56f3fe27c29e3395da4",
+          "raw": "```javascript\nimport { unmount } from \"/nos/fs/main.js\";\n\nawait unmount(mountId);\n```",
+          "type": "code",
+          "text": "```javascript\nimport { unmount } from \"/nos/fs/main.js\";\n\nawait unmount(mountId);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e5699c2c87b685e869ef43b32cc5b7aa71df44eb9522132007f7e116cc8abee1",
+          "raw": "#### 方式 2：通过 Handle 对象卸载（推荐）\n\n",
+          "type": "heading",
+          "text": "#### Method 2: Uninstall via Handle Object (Recommended)",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0267e3f68740358c357f54bfaf9c6cc7eeec27104017ed2f67386b2ca972964e",
+          "raw": "```javascript\nimport { open, mount, unmount } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n// 使用 handle...\n\n// 直接使用 handle 对象卸载\nawait unmount(handle);\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount, unmount } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n// Use handle...\n\n// Unmount using the handle object directly\nawait unmount(handle);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bff466d3d6e660d3f0d04cedb7eae1c4af8b94fa45a40c78a962c4b05fedcc95",
+          "raw": "#### 从挂载列表中卸载\n\n",
+          "type": "heading",
+          "text": "#### Unmount from the mount list",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bd09a8f8cb61576ecb617d7454d0e99de76aab14cfad188b1fe9131b647d6ce8",
+          "raw": "```javascript\nimport { getMounted, unmount } from \"/nos/fs/main.js\";\n\nconst mounted = await getMounted();\nfor (const item of mounted) {\n  // 使用 handle 对象卸载\n  await unmount(item.handle);\n\n  // 或者使用 ID 卸载\n  // await unmount(item.id);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nimport { getMounted, unmount } from \"/nos/fs/main.js\";\n\nconst mounted = await getMounted();\nfor (const item of mounted) {\n  // Unmount using handle object\n  await unmount(item.handle);\n\n  // Or unmount using ID\n  // await unmount(item.id);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4cb46c7f495222e745b2a8512d73c3458f9741cec012b3e52921dadad9f3c6ef",
+          "raw": "卸载后，该目录将无法通过挂载路径访问。",
+          "type": "paragraph",
+          "text": "After uninstallation, this directory will no longer be accessible via the mount path.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8111a4abf19cff00fa7419780cfe62e76d44ecff05b7fb06b5c532bd5af40cfa",
+          "raw": "**注意**：只能卸载已挂载的 handle（路径以 `$mount-` 开头）。尝试卸载未挂载的 handle 会抛出错误。",
+          "type": "paragraph",
+          "text": "**Note**: Only mounted handles (with a path starting with `$mount-`) can be unmounted. Attempting to unmount an unmounted handle will throw an error.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "86113b73c224cf1c6d790f29d35e868ad3154b0e01f380fd2e3003d6813380af",
+          "raw": "## 通过挂载路径访问文件\n\n",
+          "type": "heading",
+          "text": "## Access Files via Mount Path",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c450bc2360b2666835eb0c3fe65a60c3d4db16c868e19fe36281d1f42742740e",
+          "raw": "### 使用 get() 方法\n\n",
+          "type": "heading",
+          "text": "### Using the get() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7e6a67ec9b56256e8e6335f3082c1c677d019bd50816d1555f638a86572cbb1f",
+          "raw": "挂载后的目录可以通过挂载路径访问：",
+          "type": "paragraph",
+          "text": "The mounted directory can be accessed via the mount path:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ae7dff11841e2c437cfebf1cdef3f8a8f803bd3af698f08ccf7bec63b43b00ce",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\n// 假设已挂载的路径是 $mount-123>my-project\nconst file = await get(\"$mount-123>my-project/src/index.js\");\nconst content = await file.text();\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\n// Assuming the mounted path is $mount-123>my-project\nconst file = await get(\"$mount-123>my-project/src/index.js\");\nconst content = await file.text();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9995a6f64217bf83421af56b1f561ae24f5d8914ce8cefa2b83fcd657cd719c8",
+          "raw": "### 访问子目录\n\n",
+          "type": "heading",
+          "text": "### Accessing Subdirectories",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "666a6b57118fc2316be5b027616851af3118bff3d2d4b7094f61aa2577582f9a",
+          "raw": "```javascript\nconst subdir = await get(\"$mount-123>my-project/src\");\nconst files = await subdir.values();\n\nfor await (const file of files) {\n  console.log(file.name);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst subdir = await get(\"$mount-123>my-project/src\");\nconst files = await subdir.values();\n\nfor await (const file of files) {\n  console.log(file.name);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b70c08901c33297f60b17f7ecba3304b6064faf8b01e4c7480dedf20711bd16d",
+          "raw": "## 通过 HTTP 访问挂载文件（静态服务器功能）\n\n",
+          "type": "heading",
+          "text": "## Access mounted files via HTTP (static server functionality)",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "02465b8911aefcdc3c2aa9c9f59e87b34227dca45bccdf412fe1f0fa6a26418a",
+          "raw": "挂载后的目录可以通过 HTTP 请求访问文件，实现类似本地静态服务器的功能。这是目录挂载的核心特性之一。",
+          "type": "paragraph",
+          "text": "The mounted directory can access files through HTTP requests, implementing functionality similar to a local static server. This is one of the core features of directory mounting.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3bd36351cf0bd776d4dad9cbfbeb1c7be3b0769d76b7d5cf9829581b697e19f8",
+          "raw": "### 基本用法\n\n",
+          "type": "heading",
+          "text": "### Basic Usage",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4b6d025389a1798a8b39674af86c030b39553dde000295582cff0e4d7e2095bf",
+          "raw": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n\n// 创建测试文件\nconst testFile = await handle.get(\"test.txt\", { create: \"file\" });\nawait testFile.write(\"Hello, World!\");\n\n// 通过 HTTP 访问（类似静态服务器）\nconst response = await fetch(`/${handle.path}/test.txt`);\nconst content = await response.text();\nconsole.log(content); // 输出: Hello, World!\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\nconst handle = await open({ mount: true });\n\n// Create a test file\nconst testFile = await handle.get(\"test.txt\", { create: \"file\" });\nawait testFile.write(\"Hello, World!\");\n\n// Access via HTTP (like a static server)\nconst response = await fetch(`/${handle.path}/test.txt`);\nconst content = await response.text();\nconsole.log(content); // Output: Hello, World!\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "75f70d90767882058173b375bf734f8451638f2096d3843393012f01d683d432",
+          "raw": "### 实际应用示例\n\n",
+          "type": "heading",
+          "text": "### Practical Application Examples",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ec73e78cce1cebbb883a0ec01a41d02404e928177c46e821b6a6bd30f031d09b",
+          "raw": "```javascript\n// 挂载本地项目目录\nconst projectHandle = await open({ mount: true });\n\n// 现在可以通过 HTTP 访问项目中的任何文件\nconst htmlResponse = await fetch(`/${projectHandle.path}/index.html`);\nconst htmlContent = await htmlResponse.text();\n\nconst jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);\nconst jsContent = await jsResponse.text();\n\nconst cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);\nconst cssContent = await cssResponse.text();\n\n// 就像访问本地静态服务器一样\n```",
+          "type": "code",
+          "text": "```javascript\n// Mount local project directory\nconst projectHandle = await open({ mount: true });\n\n// Now any file in the project can be accessed via HTTP\nconst htmlResponse = await fetch(`/${projectHandle.path}/index.html`);\nconst htmlContent = await htmlResponse.text();\n\nconst jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);\nconst jsContent = await jsResponse.text();\n\nconst cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);\nconst cssContent = await cssResponse.text();\n\n// Just like accessing a local static server\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "77b4831e2233df51e26e54bb0b4faf544a33bc62e182d7e87b5e2bab15fc57ae",
+          "raw": "### 应用场景\n\n",
+          "type": "heading",
+          "text": "### Application Scenarios",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "75ddf92b7bceb89ce6a2999a9f7124ebfb3a90a9b100e8c5c937429bd45b68b4",
+          "raw": "- **本地开发服务器**：无需启动 Node.js 服务器，直接在浏览器中访问本地文件\n- **项目预览**：实时预览本地 HTML/CSS/JS 项目\n- **资源加载**：在 Web 应用中加载本地图片、字体等资源",
+          "type": "list",
+          "text": "- **Local Development Server**: Access local files directly in the browser without starting a Node.js server\n- **Project Preview**: Real-time preview of local HTML/CSS/JS projects\n- **Resource Loading**: Load local images, fonts, and other resources in web applications",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a60d05fb5a0861b8b7f8e5eeea962ebb50897b472d4c8a166a0744fbf249fef4",
+          "raw": "### 创建项目并挂载\n\n",
+          "type": "heading",
+          "text": "### Create and Mount the Project",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9cb73bd51df75f4a7d309dfd31ac3302f7ab9bf979ecbfb81863bb54bd7b0ce0",
+          "raw": "```javascript\nimport { open, mount, getMounted, unmount } from \"/nos/fs/main.js\";\n\n// 打开目录选择器\nconst handle = await open();\n\n// 检查是否已挂载\nconst mounted = await getMounted();\nconst existing = mounted.find((item) => item.name === handle.name);\n\nif (existing) {\n  console.log(\"目录已挂载:\", existing.path);\n} else {\n  // 挂载目录\n  await mount(handle);\n  console.log(\"目录已挂载:\", handle.path);\n}\n\n// 使用挂载的目录\nconst packageJson = await handle.get(\"package.json\");\nif (packageJson) {\n  const config = await packageJson.json();\n  console.log(\"项目名称:\", config.name);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount, getMounted, unmount } from \"/nos/fs/main.js\";\n\n// Open directory picker\nconst handle = await open();\n\n// Check if already mounted\nconst mounted = await getMounted();\nconst existing = mounted.find((item) => item.name === handle.name);\n\nif (existing) {\n  console.log(\"Directory mounted:\", existing.path);\n} else {\n  // Mount directory\n  await mount(handle);\n  console.log(\"Directory mounted:\", handle.path);\n}\n\n// Use mounted directory\nconst packageJson = await handle.get(\"package.json\");\nif (packageJson) {\n  const config = await packageJson.json();\n  console.log(\"Project name:\", config.name);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "edbb0fa4bf0373f8301f7ab77b619f5d5d9ae45f3da422d493cfa9007712fa1c",
+          "raw": "### 管理多个挂载目录\n\n",
+          "type": "heading",
+          "text": "### Managing Multiple Mount Directories",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1a740787366d3cd291874f16092248327f2add8a73b496cee6567d60197ac378",
+          "raw": "```javascript\nimport { getMounted, unmount } from \"/nos/fs/main.js\";\n\n// 获取所有挂载\nconst allMounts = await getMounted();\n\n// 过滤特定项目\nconst projects = allMounts.filter((item) => item.name.includes(\"project\"));\n\n// 卸载旧项目\nfor (const project of projects) {\n  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {\n    await unmount(project.handle);\n    console.log(\"已卸载:\", project.name);\n  }\n}\n```",
+          "type": "code",
+          "text": "```javascript\nimport { getMounted, unmount } from \"/nos/fs/main.js\";\n\n// Get all mounts\nconst allMounts = await getMounted();\n\n// Filter specific projects\nconst projects = allMounts.filter((item) => item.name.includes(\"project\"));\n\n// Unmount old projects\nfor (const project of projects) {\n  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {\n    await unmount(project.handle);\n    console.log(\"Unmounted:\", project.name);\n  }\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "93c9145240e7860f0f57ca6ebd1558cc0c102de32396c629208f8cb9aff906af",
+          "raw": "## 权限管理\n\n",
+          "type": "heading",
+          "text": "## Permission Management",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d89f263fb121b77ce0f20435183e9781af7459f42faaf974f4d273eddccd3639",
+          "raw": "### 检查和请求权限\n\n",
+          "type": "heading",
+          "text": "### Check and Request Permissions",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "21373ede6d76637430d88a4ec3306fe7c3b72603556dc9eb3fdad626f0f0bc72",
+          "raw": "浏览器会在首次访问时请求权限。如果权限被拒绝或过期，需要重新请求：",
+          "type": "paragraph",
+          "text": "The browser will request permission on first access. If denied or expired, you need to request it again:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "38b4392e525e84cbd681a1edb29e7ddd09fe5cd96912383852bc3c46d0a1ba47",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\ntry {\n  const handle = await get(\"$mount-123>my-project\");\n  // 使用 handle\n} catch (error) {\n  if (error.message.includes(\"Permission denied\")) {\n    console.log(\"需要重新授权\");\n    // 提示用户重新选择目录\n  }\n}\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\ntry {\n  const handle = await get(\"$mount-123>my-project\");\n  // Use handle\n} catch (error) {\n  if (error.message.includes(\"Permission denied\")) {\n    console.log(\"Re-authorization required\");\n    // Prompt user to re-select directory\n  }\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3b5277c56c679dc57aaaddd64cc32dfb42c577280573b7f50a3b6082c326e53a",
+          "raw": "## 浏览器兼容性\n\n",
+          "type": "heading",
+          "text": "## Browser Compatibility",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9bf76df6b011f5c802396cf452359b4c30bdf67000ecb566558f82834f69d687",
+          "raw": "### 支持情况\n\n",
+          "type": "heading",
+          "text": "### Support Status",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ce61f8e1d8c11ea8af0e09b7cf8dbf0350f45ff33834eb1c0aad2664218b9498",
+          "raw": "- ✅ Chrome 86+ / Edge 86+  - **完整支持**（推荐使用）\n- ⚠️ Firefox 111+ - **不支持** `showDirectoryPicker`，但可挂载虚拟目录\n- ❌ Safari - **不支持** `showDirectoryPicker`，也不支持挂载虚拟目录",
+          "type": "list",
+          "text": "- ✅ Chrome 86+ / Edge 86+  - **Full Support** (Recommended)\n- ⚠️ Firefox 111+ - **Does not support** `showDirectoryPicker`, but can mount virtual directories\n- ❌ Safari - **Does not support** `showDirectoryPicker`, and also does not support mounting virtual directories",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "04180e345719773832e343c6b69afb27b7d4bfc4c607c8e20fa4e33c5efb721c",
+          "raw": "### 核心功能说明\n\n",
+          "type": "heading",
+          "text": "### Core Functionality Description",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "de112902561ef5019b154968d22ec89393e8b0e3deaa60f680f02c25fff7ebc4",
+          "raw": "**`open()` 方法**依赖于 `showDirectoryPicker` API，暂时是 Chrome 独有的功能：",
+          "type": "paragraph",
+          "text": "**`open()` method** relies on the `showDirectoryPicker` API, which is currently a Chrome-only feature:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "51bb5a9ac84a38884851331572499ced17c73fef9ee4f507520615a6d920868b",
+          "raw": "- **Chrome**：完整支持，可以弹出目录选择器，并持久化存储句柄\n- **其他浏览器**：不支持目录选择功能，无法使用 `open()` 方法",
+          "type": "list",
+          "text": "- **Chrome**: Full support, can pop up a directory picker, and persistently store the handle\n- **Other browsers**: Do not support the directory selection feature, cannot use the `open()` method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7f0f751b810270bf972541b438508c5b576add324203fb3ff21261b4d7e5dd23",
+          "raw": "### 推荐使用方式\n\n",
+          "type": "heading",
+          "text": "### Recommended Usage",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c03d44b924817591cda251c1fa0ec802804ac5b5af6a91f18f61be74e96dc501",
+          "raw": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\n// 检测浏览器支持\nif (!window.showDirectoryPicker) {\n  alert(\"此功能需要 Chrome 浏览器支持\");\n  return;\n}\n\n// Chrome 中使用\nconst handle = await open({ mount: true });\nconsole.log(\"已挂载本地目录:\", handle.path);\n\n// 通过 HTTP 访问本地文件\nconst response = await fetch(`/${handle.path}/index.html`);\nconst content = await response.text();\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount } from \"/nos/fs/main.js\";\n\n// Check browser support\nif (!window.showDirectoryPicker) {\n  alert(\"This feature requires Chrome browser support\");\n  return;\n}\n\n// Usage in Chrome\nconst handle = await open({ mount: true });\nconsole.log(\"Local directory mounted:\", handle.path);\n\n// Access local files via HTTP\nconst response = await fetch(`/${handle.path}/index.html`);\nconst content = await response.text();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b61a76eccfa844825519a233770b297c80096175dc9e6ef68793827b39dc1925",
+          "raw": "### Safari 完全不支持\n\n",
+          "type": "heading",
+          "text": "### Safari Does Not Support Completely",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c999a24a3b3227daa28652bd56638393eb1102df8d9acacbe150dafbca069d1e",
+          "raw": "Safari 既不支持 `showDirectoryPicker` API，也不支持将 `FileSystemHandle` 存储到 IndexedDB：",
+          "type": "paragraph",
+          "text": "Safari neither supports the `showDirectoryPicker` API nor supports storing `FileSystemHandle` in IndexedDB:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3e28f87b7d5d89d813cc85b95d15fbc7efe335d694e91061d573dc9580138f3d",
+          "raw": "```javascript\n// Safari 中无法使用\nconst handle = await open(); // ❌ 报错: showDirectoryPicker is not supported\n```",
+          "type": "code",
+          "text": "```javascript\n// Not supported in Safari\nconst handle = await open(); // ❌ Error: showDirectoryPicker is not supported\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "944189a0dbf40ef0f286805897fcf8b57bb0816e9a2d61b3edb0cfcf2312bd2b",
+          "raw": "### 检测浏览器支持\n\n",
+          "type": "heading",
+          "text": "### Detect Browser Support",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a0b15e4734356ef7dcbce8009b718b906f92a5747af6266f83239ce0f7bf699c",
+          "raw": "```javascript\nconst isFileSystemSupported = !!window.showDirectoryPicker;\n\nif (!isFileSystemSupported) {\n  console.log(\"当前浏览器不支持目录选择功能\");\n  console.log(\"请使用 Chrome 浏览器以获得完整功能\");\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst isFileSystemSupported = !!window.showDirectoryPicker;\n\nif (!isFileSystemSupported) {\n  console.log(\"The current browser does not support directory selection.\");\n  console.log(\"Please use Chrome browser to get full functionality.\");\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3a5ec174c57f30f088f777eeb8bd46faff5b9774773952f7e01c4b65a92e107e",
+          "raw": "## 最佳实践\n\n",
+          "type": "heading",
+          "text": "## Best Practices",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "cc586ccc3a919b685e47e963d7d92db51dd189993d385038a3f91e5373cf7a67",
+          "raw": "1. **浏览器检测**：在使用前检测浏览器是否支持 `showDirectoryPicker`\n2. **用户提示**：明确告知用户此功能需要 Chrome 浏览器\n3. **错误处理**：处理权限拒绝和目录不存在的情况\n4. **清理旧挂载**：定期清理不再需要的挂载目录\n5. **静态服务器功能**：充分利用 HTTP 访问特性，实现本地文件服务",
+          "type": "list",
+          "text": "1. **Browser Detection**: Detect whether the browser supports `showDirectoryPicker` before use\n2. **User Prompt**: Clearly inform users that this feature requires Chrome browser\n3. **Error Handling**: Handle cases of permission denial and non-existent directories\n4. **Clean Up Old Mounts**: Periodically clean up mount directories that are no longer needed\n5. **Static Server Functionality**: Fully utilize HTTP access features to implement a local file server",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "80065bb720673f09d51d7a9989017a7564c3f6687ad6a241c82f41292bc21d32",
+          "raw": "### 推荐的完整实现\n\n",
+          "type": "heading",
+          "text": "### Recommended Full Implementation",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "53c9670d3acdac4aa23d14b41b67059c6ca9e472bc4db52e3188f74939b4be0a",
+          "raw": "```javascript\nimport { open, mount, getMounted, unmount } from \"/nos/fs/main.js\";\n\nasync function setupLocalProject() {\n  // 1. 检测浏览器支持\n  if (!window.showDirectoryPicker) {\n    alert(\n      \"此功能需要 Chrome 浏览器支持。\\n\\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。\",\n    );\n    return null;\n  }\n\n  try {\n    // 2. 打开并挂载目录\n    const handle = await open({ mount: true });\n\n    // 3. 验证是否为有效项目\n    const packageJson = await handle.get(\"package.json\");\n    if (!packageJson) {\n      console.warn(\"选择的目录不是一个有效的项目\");\n    }\n\n    console.log(\"本地项目已挂载:\", handle.path);\n    console.log(\"可通过 HTTP 访问:\", `/${handle.path}/`);\n\n    return handle;\n  } catch (error) {\n    if (error.message.includes(\"Permission denied\")) {\n      alert(\"需要授予目录访问权限才能使用此功能\");\n    } else {\n      console.error(\"挂载失败:\", error);\n    }\n    return null;\n  }\n}\n\n// 使用示例\nconst projectHandle = await setupLocalProject();\nif (projectHandle) {\n  // 通过 HTTP 访问本地文件\n  const response = await fetch(`/${projectHandle.path}/README.md`);\n  const readme = await response.text();\n  console.log(readme);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nimport { open, mount, getMounted, unmount } from \"/nos/fs/main.js\";\n\nasync function setupLocalProject() {\n  // 1. Check browser support\n  if (!window.showDirectoryPicker) {\n    alert(\n      \"This function requires Chrome browser support.\\n\\nPlease use Chrome browser to get full local file access capabilities.\",\n    );\n    return null;\n  }\n\n  try {\n    // 2. Open and mount the directory\n    const handle = await open({ mount: true });\n\n    // 3. Verify if it's a valid project\n    const packageJson = await handle.get(\"package.json\");\n    if (!packageJson) {\n      console.warn(\"The selected directory is not a valid project\");\n    }\n\n    console.log(\"Local project mounted:\", handle.path);\n    console.log(\"Accessible via HTTP:\", `/${handle.path}/`);\n\n    return handle;\n  } catch (error) {\n    if (error.message.includes(\"Permission denied\")) {\n      alert(\"Directory access permission is required to use this feature\");\n    } else {\n      console.error(\"Mount failed:\", error);\n    }\n    return null;\n  }\n}\n\n// Usage example\nconst projectHandle = await setupLocalProject();\nif (projectHandle) {\n  // Access local files via HTTP\n  const response = await fetch(`/${projectHandle.path}/README.md`);\n  const readme = await response.text();\n  console.log(readme);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9db2cb5ef6d1869d097a17c7b4f577819abd878dcf86ec5c4dbda0ac8c3fd6ab",
+          "raw": "学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。\n",
+          "type": "paragraph",
+          "text": "Learn about [file operations](./file-operations.md), including how to read, write, and delete files.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "directory-operations.md",
+      "path": "documentation/directory-operations.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "c0cec6a601e369ded13ab08d6f9f8dd602835491505e6d69aea2073a427a8d70",
+          "raw": "# 目录操作\n\n",
+          "type": "heading",
+          "text": "# Directory Operations",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5671022f2e90d399871dea60f0119035779b6bafc0b2d2c0bb6bebae6d4d0efc",
+          "raw": "本文档介绍文件系统中的目录操作，包括创建目录、遍历、查找、扁平化和删除。",
+          "type": "paragraph",
+          "text": "This document introduces directory operations in the file system, including creating directories, traversing, searching, flattening, and deleting.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "df22e97ae3002fe4d085e8be3b83592f1055148ce92684fd62c1c05e49752d5c",
+          "raw": "## 创建目录\n\n",
+          "type": "heading",
+          "text": "## Create Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a7aca6572e2200803dc533b49b1c543311f757b6699a511a1cec1d84264e4c34",
+          "raw": "使用 `get` 方法并指定 `create: \"dir\"` 来创建目录：",
+          "type": "paragraph",
+          "text": "Use the `get` method and specify `create: \"dir\"` to create the directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "76ffd76aab9d85923e19a5483b6e476457eda3ec144f75e70d77dd641f0dd884",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app/path/to/dir\", { create: \"dir\" });\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app/path/to/dir\", { create: \"dir\" });\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "53ede1bbf66e5d942165c25781b4dd2a11ca08b4b03ab949fe5f377235aad3ec",
+          "raw": "## 获取子项数量\n\n",
+          "type": "heading",
+          "text": "## Get Number of Sub-items",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "dfa1ddb138c37272f7281a33e878d7f2fc5d556d0422554e4e08db8eb5133a86",
+          "raw": "使用 `length()` 方法获取目录中子文件/目录的总数量：",
+          "type": "paragraph",
+          "text": "Use the `length()` method to get the total number of subfiles/subdirectories in the directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "48e93c53daf7756aaa89ac78451eb5e7be2fbc99eec73471ba16a410fe3ef159",
+          "raw": "```javascript\nconst dir = await get(\"my-app/subDir\", { create: \"dir\" });\nawait dir.get(\"file1.txt\", { create: \"file\" });\nawait dir.get(\"file2.txt\", { create: \"file\" });\n\nconst count = await dir.length();\nconsole.log(count); // 2\n```",
+          "type": "code",
+          "text": "```javascript\nconst dir = await get(\"my-app/subDir\", { create: \"dir\" });\nawait dir.get(\"file1.txt\", { create: \"file\" });\nawait dir.get(\"file2.txt\", { create: \"file\" });\n\nconst count = await dir.length();\nconsole.log(count); // 2\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "834855a0420d49b4368645f4ee4313596ed2f85a82c2301bec667b39dbdadce4",
+          "raw": "## 遍历目录\n\n",
+          "type": "heading",
+          "text": "## Traverse Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "04806ad000f813021b9464fd11eb5d2a62f603281709af2e39b709ca7baaf4ed",
+          "raw": "### keys() 方法\n\n",
+          "type": "heading",
+          "text": "### keys() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "fff6027ea6d8775d1addb396f7eb5a6ddf69e3ab661502476100d1458a15a3db",
+          "raw": "使用 `keys()` 方法遍历目录中所有项的名称：",
+          "type": "paragraph",
+          "text": "Use the `keys()` method to iterate over the names of all items in the directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "228d4e4bd168cf72fe04a3bf64fe23214867c0ccfaf8af7d1d68c16903f5a88f",
+          "raw": "```javascript\nfor await (const key of dir.keys()) {\n  console.log(key);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nfor await (const key of dir.keys()) {\n  console.log(key);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3166abb541bc0d9388b4f0a3f80a7c7a1718690ae3cd84b4806e9a4cc407fc46",
+          "raw": "### values() 方法\n\n",
+          "type": "heading",
+          "text": "### values() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ba2cb0b15dc5a9ebf1d75c8f38e0045224f1b83e43a9539bfb733811cd61667e",
+          "raw": "使用 `values()` 方法遍历目录中的所有文件和子目录：",
+          "type": "paragraph",
+          "text": "Use the `values()` method to traverse all files and subdirectories in a directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3e380eeb88815afb9227cad426f9825ef985b8b1124d852e255679e3f9a08ec5",
+          "raw": "```javascript\nconst handles = [];\nfor await (const handle of dir.values()) {\n  handles.push({\n    kind: handle.kind,\n    name: handle.name,\n  });\n}\n```",
+          "type": "code",
+          "text": "```javascript\nconst handles = [];\nfor await (const handle of dir.values()) {\n  handles.push({\n    kind: handle.kind,\n    name: handle.name,\n  });\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "76a163378a5d4ddcf8112edfa45225c061797ef0c849eecf8a00a9bdd985a080",
+          "raw": "### entries() 方法\n\n",
+          "type": "heading",
+          "text": "### entries() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "de0b8c396e207201711781125a3efc52fcb2c5bf6e75396ad82109d89915f7d7",
+          "raw": "使用 `entries()` 方法遍历目录中的所有项，返回 [名称, 句柄] 对：",
+          "type": "paragraph",
+          "text": "Use the `entries()` method to iterate over all items in a directory, returning [name, handle] pairs:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "13c5d53cd1ce26f73f6397142cbc48e3ac2455dd3144a8f3040af294bafa20b7",
+          "raw": "```javascript\nfor await (const [name, handle] of dir.entries()) {\n  console.log(`${handle.kind}: ${name}`);\n}\n```",
+          "type": "code",
+          "text": "```javascript\nfor await (const [name, handle] of dir.entries()) {\n  console.log(`${handle.kind}: ${name}`);\n}\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "759bd968659b365f40168d653a0a9f62464b2c583e672f2d1db263bb77422920",
+          "raw": "### forEach() 方法\n\n",
+          "type": "heading",
+          "text": "### forEach() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "cd01a203123c891f1f6e4cfb65c4be050d7acc63171876a761814f493d6db765",
+          "raw": "使用 `forEach()` 方法遍历目录：",
+          "type": "paragraph",
+          "text": "Use the `forEach()` method to iterate over a directory：",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8341fe9be2ad9eaa48e3992fb6f5f82ed83c15e5d309ef02e1b3404ef61c08b8",
+          "raw": "```javascript\nawait dir.forEach(async (handle, name) => {\n  console.log(`${handle.kind}: ${name}`);\n});\n```",
+          "type": "code",
+          "text": "```javascript\nawait dir.forEach(async (handle, name) => {\n  console.log(`${handle.kind}: ${name}`);\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf2eb2764cdb1d4f95bcb0ee686afc2626065352f13b45cd63fa3e9394cfeb0d",
+          "raw": "### some() 方法\n\n",
+          "type": "heading",
+          "text": "### The some() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5ee8851a567a2e1a3a5b1ecd39437a09fd08bb3aa6dc5a28a68dd5b62ad28603",
+          "raw": "使用 `some()` 方法查找满足条件的第一个文件或目录，找到后自动停止遍历：",
+          "type": "paragraph",
+          "text": "Use the `some()` method to find the first file or directory that meets the condition, stopping the traversal automatically once found:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "68d5d597d38932fc23e2ab7c6a7555474f9a7a2955f76f1cc3d08fcebfa05124",
+          "raw": "```javascript\nlet foundTarget = false;\nlet count = 0;\n\nawait dir.some(async (handle, name) => {\n  count++;\n  if (handle.kind === \"file\") {\n    if (count === 2) {\n      foundTarget = true;\n      return true; // 返回 true 停止遍历\n    }\n  }\n  return false;\n});\n```",
+          "type": "code",
+          "text": "```javascript\nlet foundTarget = false;\nlet count = 0;\n\nawait dir.some(async (handle, name) => {\n  count++;\n  if (handle.kind === \"file\") {\n    if (count === 2) {\n      foundTarget = true;\n      return true; // Return true to stop iteration\n    }\n  }\n  return false;\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "78045ac9ff7d2ab897a7beb49d44c187f8872ac12634ff06669b9e9cf0754eb5",
+          "raw": "## 扁平化目录\n\n",
+          "type": "heading",
+          "text": "## Flat directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e60879650dd9332f07491be367bc457d984dcdf60ff29f3bdd82c5af50caffb3",
+          "raw": "使用 `flat()` 方法获取目录及其所有子目录中的所有**文件句柄**（不包括目录）：",
+          "type": "paragraph",
+          "text": "Use the `flat()` method to get all **file handles** (excluding directories) in a directory and all its subdirectories:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "459abd310de499253219e7e45349dd99874a48be2eeef33df2e1599f58756ef3",
+          "raw": "```javascript\nconst allFiles = await dir.flat();\n\nconst fileContents = await Promise.all(\n  allFiles.map(async (file) => ({\n    path: file.path,\n    content: await file.read(),\n  }))\n);\n```",
+          "type": "code",
+          "text": "```javascript\nconst allFiles = await dir.flat();\n\nconst fileContents = await Promise.all(\n  allFiles.map(async (file) => ({\n    path: file.path,\n    content: await file.read(),\n  }))\n);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "245443c3f11fe4818ce14794b222a5f322d39757a7a456018d90b238e181c213",
+          "raw": "示例：",
+          "type": "paragraph",
+          "text": "Example:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8411913262971b5e429211ea4115d467b071d4c5911d031840de95431b16306d",
+          "raw": "```javascript\nconst rootDir = await get(\"my-app\");\nawait rootDir.get(\"file1.txt\", { create: \"file\" });\nawait rootDir.get(\"subDir1\", { create: \"dir\" });\nawait rootDir.get(\"subDir1/file2.txt\", { create: \"file\" });\nawait rootDir.get(\"subDir1/subDir2\", { create: \"dir\" });\nawait rootDir.get(\"subDir1/subDir2/file3.txt\", { create: \"file\" });\n\nawait (await rootDir.get(\"file1.txt\")).write(\"root file\");\nawait (await rootDir.get(\"subDir1/file2.txt\")).write(\"level 1 file\");\nawait (await rootDir.get(\"subDir1/subDir2/file3.txt\")).write(\"level 2 file\");\n\nconst allFiles = await rootDir.flat();\n// 返回: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]\n```",
+          "type": "code",
+          "text": "```javascript\nconst rootDir = await get(\"my-app\");\nawait rootDir.get(\"file1.txt\", { create: \"file\" });\nawait rootDir.get(\"subDir1\", { create: \"dir\" });\nawait rootDir.get(\"subDir1/file2.txt\", { create: \"file\" });\nawait rootDir.get(\"subDir1/subDir2\", { create: \"dir\" });\nawait rootDir.get(\"subDir1/subDir2/file3.txt\", { create: \"file\" });\n\nawait (await rootDir.get(\"file1.txt\")).write(\"root file\");\nawait (await rootDir.get(\"subDir1/file2.txt\")).write(\"level 1 file\");\nawait (await rootDir.get(\"subDir1/subDir2/file3.txt\")).write(\"level 2 file\");\n\nconst allFiles = await rootDir.flat();\n// Returns: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "300512a4793969e23ab65178f5797b800243a71c4ac9db0596966738800336ed",
+          "raw": "## 删除目录\n\n",
+          "type": "heading",
+          "text": "## Delete Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "16d12cee0d99979146523ae03209aeaa94142c57928e8bcba540924fef3928cc",
+          "raw": "使用 `remove()` 方法删除目录（会递归删除目录下所有内容）：",
+          "type": "paragraph",
+          "text": "Use the `remove()` method to delete a directory (it will recursively delete all contents under the directory):",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "390a65d48bc6b76c4dc994db89c00af00b47e8f1917f59253610e87495535094",
+          "raw": "```javascript\nconst subDir = await get(\"my-app/subDir\", { create: \"dir\" });\nawait subDir.get(\"file2.txt\", { create: \"file\" });\n\nawait subDir.remove();\nconst subDirExists = await get(\"my-app/subDir\");\n// subDirExists === null 表示目录已被删除\n```",
+          "type": "code",
+          "text": "```javascript\nconst subDir = await get(\"my-app/subDir\", { create: \"dir\" });\nawait subDir.get(\"file2.txt\", { create: \"file\" });\n\nawait subDir.remove();\nconst subDirExists = await get(\"my-app/subDir\");\n// subDirExists === null indicates the directory has been deleted\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "69818c96502f9f2aea8b91a2c101e3f0f16e9b9564881ab116313e37147da792",
+          "raw": "⚠️ 警告：删除操作会立即执行，即使目录下有子文件或子目录也会被一并删除，且无法恢复。请谨慎操作。",
+          "type": "paragraph",
+          "text": "⚠️ Warning: The delete operation will be executed immediately, even if there are sub-files or sub-directories under the directory, they will be deleted together, and cannot be recovered. Please proceed with caution.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "80ae7293ec0939e1bc836d83c76b6534bc7de53d44eb6f2e297552e85f4399ad",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst rootDir = await get(\"my-app\");\n\n// 创建目录结构\nawait rootDir.get(\"docs\", { create: \"dir\" });\nawait rootDir.get(\"docs/guide.md\", { create: \"file\" });\nawait rootDir.get(\"docs/api.md\", { create: \"file\" });\nawait rootDir.get(\"images\", { create: \"dir\" });\n\n// 获取子项数量\nconst count = await rootDir.length();\nconsole.log(`子项数量: ${count}`); // 2\n\n// 遍历根目录\nfor await (const [name, handle] of rootDir.entries()) {\n  console.log(`${handle.kind}: ${name}`);\n}\n// 输出: dir: docs, dir: images\n\n// 扁平化获取所有文件\nconst allFiles = await rootDir.flat();\nconsole.log(allFiles.map(f => f.path));\n// 输出: [\"docs/guide.md\", \"docs/api.md\"]\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst rootDir = await get(\"my-app\");\n\n// Create directory structure\nawait rootDir.get(\"docs\", { create: \"dir\" });\nawait rootDir.get(\"docs/guide.md\", { create: \"file\" });\nawait rootDir.get(\"docs/api.md\", { create: \"file\" });\nawait rootDir.get(\"images\", { create: \"dir\" });\n\n// Get number of children\nconst count = await rootDir.length();\nconsole.log(`Number of children: ${count}`); // 2\n\n// Iterate over root directory\nfor await (const [name, handle] of rootDir.entries()) {\n  console.log(`${handle.kind}: ${name}`);\n}\n// Output: dir: docs, dir: images\n\n// Get all files flattened\nconst allFiles = await rootDir.flat();\nconsole.log(allFiles.map(f => f.path));\n// Output: [\"docs/guide.md\", \"docs/api.md\"]\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ff66a9ea902b0bee647e2550c2deccaee7f47c9a69a566503740c4d11a888332",
+          "raw": "学习 [文件移动与复制](./move-and-copy.md)，了解如何移动和复制文件。",
+          "type": "paragraph",
+          "text": "Learn about [file move and copy](./move-and-copy.md), understand how to move and copy files.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "file-observation.md",
+      "path": "documentation/file-observation.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "3e22d1422c082c44afebeec46b1363622c41c3e23d24fb1b2879fde93437afc1",
+          "raw": "# 文件变化观察\n\n",
+          "type": "heading",
+          "text": "# File Change Observation",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "cee43d59aa9a51ebd2e3eb9b96745c1f76b0aed719fb6bfabe9718c6c972adcd",
+          "raw": "本文档介绍如何使用 `observe` 方法监听文件或目录的变化事件。",
+          "type": "paragraph",
+          "text": "This document describes how to use the `observe` method to monitor file or directory change events.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1a08c38e9c74f62f1a59c3f78bbfc1d2afc36d5cb14f57e2fc4d6bcb84e6013b",
+          "raw": "## 基本用法\n\n",
+          "type": "heading",
+          "text": "## Basic Usage",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "93beeba13c2276700109694240e7737ad36650bee2d5bf8ff10fc50c486a0402",
+          "raw": "使用 `observe()` 方法监听文件或目录中的变化：",
+          "type": "paragraph",
+          "text": "Use the `observe()` method to monitor changes in files or directories:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3699b5e05e3714c6d4b0c580402f2d737530a853739f9c9a10c38a3722d01bdb",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app\");\n\nconst events = [];\nconst unobserve = await dir.observe((event) => {\n  console.log(\"收到文件变化事件:\", event);\n  events.push(event);\n});\n\n// 创建文件\nconst file = await dir.get(\"test.txt\", { create: \"file\" });\nawait file.write(\"Hello\");\n\n// 删除文件\nawait file.remove();\n\n// 取消观察\nunobserve();\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app\");\n\nconst events = [];\nconst unobserve = await dir.observe((event) => {\n  console.log(\"File change event received:\", event);\n  events.push(event);\n});\n\n// Create file\nconst file = await dir.get(\"test.txt\", { create: \"file\" });\nawait file.write(\"Hello\");\n\n// Delete file\nawait file.remove();\n\n// Stop observing\nunobserve();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2dc24c6dab5ac48d026b4f8e549651e19a57b285cb97d0ddf2b5a96ff5dba059",
+          "raw": "文件和目录都可以监听变化，例如监听单个文件：",
+          "type": "paragraph",
+          "text": "Both files and directories can be monitored for changes, for example, monitoring a single file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e1ed48587844864d9284a78edba88a60db696e9019cadd4923666b23c2e647fa",
+          "raw": "```javascript\nconst file = await get(\"my-app/test.txt\", { create: \"file\" });\n\nconst unobserve = await file.observe((event) => {\n  console.log(\"文件被修改:\", event.type);\n});\n\nawait file.write(\"new content\");\n\nunobserve();\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/test.txt\", { create: \"file\" });\n\nconst unobserve = await file.observe((event) => {\n  console.log(\"File modified:\", event.type);\n});\n\nawait file.write(\"new content\");\n\nunobserve();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "95a0fba13f51fcf19d7f10886b0e614ffc0128267b03a5affbae7f84d2089d6a",
+          "raw": "## observe 返回值\n\n",
+          "type": "heading",
+          "text": "## observe return value",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "02d9f2dc34fe764c07fd0385ea9eaeeb71a6a3214a901b6afd2b8b450fafc46a",
+          "raw": "`observe()` 返回一个 Promise，解析为取消观察的函数。调用该函数可以停止监听：",
+          "type": "paragraph",
+          "text": "`observe()` returns a Promise that resolves to a function to cancel the observation. Calling that function can stop the listening:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8cdfeb1566f2275a7df66ac3fda765e9980dc2f9f82176d8fea432ead4cb2f1e",
+          "raw": "```javascript\nconst unobserve = await dir.observe((event) => {\n  // 处理事件\n});\n\n// 稍后取消观察\nunobserve();\n```",
+          "type": "code",
+          "text": "```javascript\nconst unobserve = await dir.observe((event) => {\n  // Handle event\n});\n\n// Unobserve later\nunobserve();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7626febd76efc515e1b2bbc5efcf35d2821d8fe054c407aa91209f096a579eff",
+          "raw": "## 事件对象\n\n",
+          "type": "heading",
+          "text": "## Event Object",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "585b706f3223e57cde7c4038c0f0826bbbd6a510d19e3abface0ab271b21b049",
+          "raw": "观察回调接收到的事件对象包含以下属性：",
+          "type": "paragraph",
+          "text": "Observed event object received by the callback contains the following attributes:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7002d3728dee1b2bef13458fa4c34be3a76f89fb0ab1f88e8671f778f9d7f986",
+          "raw": "| 属性 | 描述 |\n|------|------|\n| `type` | 事件类型，如 `\"create\"`, `\"remove\"`, `\"write\"` |\n| `path` | 发生变化的文件路径 |\n\n",
+          "type": "table",
+          "text": "| Property | Description |\n|------|------|\n| `type` | Event type, e.g. `\"create\"`, `\"remove\"`, `\"write\"` |\n| `path` | Path of the file that changed |",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "35317d39de10a94b1633c5938124a956944a64a2478fe366e667076032201876",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app\");\n\nconsole.log(\"开始文件变化观察测试\");\n\nconst events = [];\nconst unobserve = await dir.observe((event) => {\n  console.log(\"文件变化:\", event.type, event.path);\n  events.push(event);\n});\n\n// 执行一些文件操作\nawait dir.get(\"file1.txt\", { create: \"file\" });\nawait (await dir.get(\"file1.txt\")).write(\"content\");\n\nawait new Promise((resolve) => setTimeout(resolve, 100));\n\nawait (await dir.get(\"file1.txt\")).remove();\n\nawait new Promise((resolve) => setTimeout(resolve, 100));\n\nunobserve();\n\nconsole.log(`共收到 ${events.length} 个事件`);\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst dir = await get(\"my-app\");\n\nconsole.log(\"Start file change observation test\");\n\nconst events = [];\nconst unobserve = await dir.observe((event) => {\n  console.log(\"File change:\", event.type, event.path);\n  events.push(event);\n});\n\n// Perform some file operations\nawait dir.get(\"file1.txt\", { create: \"file\" });\nawait (await dir.get(\"file1.txt\")).write(\"content\");\n\nawait new Promise((resolve) => setTimeout(resolve, 100));\n\nawait (await dir.get(\"file1.txt\")).remove();\n\nawait new Promise((resolve) => setTimeout(resolve, 100));\n\nunobserve();\n\nconsole.log(`Received ${events.length} events in total`);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "dff84e532ab438e2941844ca6beb191012e98f9a863e088a50af09f9ed3e1d8e",
+          "raw": "## 注意事项\n\n",
+          "type": "heading",
+          "text": "## Notes",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2670f83abb2c8dc5896e8f8546e54549681060832f36c7dc92fef8a8e29d595a",
+          "raw": "1. 观察者创建后才会开始监听，之前的文件操作不会被捕获\n2. 取消观察后，新发生的文件变化不会被记录\n3. 文件变化事件是异步触发的，可能存在一定延迟",
+          "type": "list",
+          "text": "1. The observer will only start monitoring after it is created, and previous file operations will not be captured\n2. After canceling the observation, newly occurring file changes will not be recorded\n3. File change events are triggered asynchronously and may have a certain delay",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "file-operations.md",
+      "path": "documentation/file-operations.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "42db3c5897f1ff994bb5aedd56ff6d69bb1f16cf902b6e8753052b61abee7834",
+          "raw": "# 文件操作\n\n",
+          "type": "heading",
+          "text": "# File Operations",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf6e2ca7a80cb10cc2e5ab6039e2912c30d313cfae7956edae9ce1c1ded181a4",
+          "raw": "本文档介绍文件系统中的文件操作，包括创建、写入、读取和删除文件。",
+          "type": "paragraph",
+          "text": "This document describes file operations in the file system, including creating, writing, reading, and deleting files.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "60f5d4b5a87b83e57151021743b63e04a265ad9f0d28b34ab3f5155b4eda1b80",
+          "raw": "## 创建文件\n\n",
+          "type": "heading",
+          "text": "## Create a file",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "da65bfff3173503d9a112ba65071ed30efb6cd0b7f0f4666cc04a9eb42f44f9c",
+          "raw": "使用 `get` 方法并指定 `create: \"file\"` 来创建文件：",
+          "type": "paragraph",
+          "text": "Use the `get` method and specify `create: \"file\"` to create the file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7eb102f24f3130524e7fb7295e243a3272aee097decc798e45a37a99418c39f",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst file = await get(\"my-app/path/to/file.txt\", { create: \"file\" });\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst file = await get(\"my-app/path/to/file.txt\", { create: \"file\" });\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1bd69f0c006c4808b6183da08ffb7f29144fcc0e1064c49010c8fc77d72fee82",
+          "raw": "## 写入文件\n\n",
+          "type": "heading",
+          "text": "## Write to File",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "65ba4eb12f1ae2c1c67e4d929e6c1aa3690fa37e0e465047d9eff2a7849425b6",
+          "raw": "使用 `write` 方法向文件写入内容：",
+          "type": "paragraph",
+          "text": "Use the `write` method to write content to a file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf2cf17383f3ba999877f6a68fd9e38ac1ab63c66db4ba686a78db59b96e7d66",
+          "raw": "```javascript\nconst file = await get(\"my-app/hello.txt\", { create: \"file\" });\nawait file.write(\"Hello, World!\");\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/hello.txt\", { create: \"file\" });\nawait file.write(\"Hello, World!\");\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "893b36ccea223f2d313a3d2f99c2fa69a41da884f211cad646aba15122886171",
+          "raw": "`write` 方法支持写入字符串或 Blob 数据。",
+          "type": "paragraph",
+          "text": "`write` method supports writing strings or Blob data.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "dc8470b02e61247c12eb006d328618d8e2bbefe905717fc33fc3871682006580",
+          "raw": "## 读取文件\n\n",
+          "type": "heading",
+          "text": "## Read File",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c0f62caaeba71d3dde61d0c080c5888e6b1d167d1b0aa8475d1d1198cf3b262e",
+          "raw": "### text() 方法\n\n",
+          "type": "heading",
+          "text": "### text() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "cadd8f4e33205c2818749869b665b90a7876bee6c09d2f27c90b26e6548e6ecb",
+          "raw": "使用 `text()` 方法读取文件的文本内容：",
+          "type": "paragraph",
+          "text": "Use the `text()` method to read the text content of the file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "95b4fabd4fe6bc8ae839e7f658fdb8d57f65fc954f684b27473fa2be8660e2af",
+          "raw": "```javascript\nconst content = await file.text();\nconsole.log(content); // \"Hello, World!\"\n```",
+          "type": "code",
+          "text": "```javascript\nconst content = await file.text();\nconsole.log(content); // \"Hello, World!\"\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "215da5e779a58d3e8809b3e69d36737ed37931147f1f7db4649f964261ff3b7a",
+          "raw": "### file() 方法\n\n",
+          "type": "heading",
+          "text": "### file() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "00ed3e4c302df3b88c1eadd7e69235dffa4ab80a605bcc009862c58c6e06fe5c",
+          "raw": "使用 `file()` 方法读取原始 [File 对象](https://developer.mozilla.org/zh-CN/docs/Web/API/File)：",
+          "type": "paragraph",
+          "text": "Use the `file()` method to read the raw [File object](https://developer.mozilla.org/zh-CN/docs/Web/API/File):",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b88b2acc3392dd45b12301b4b278fd4536d53f4d34bf19cca997cbb07c191cb2",
+          "raw": "```javascript\nconst fileObj = await file.file();\nconsole.log(fileObj.name); // 文件名\nconsole.log(fileObj.size); // 文件大小\nconsole.log(fileObj.lastModified); // 最后修改时间\n```",
+          "type": "code",
+          "text": "```javascript\nconst fileObj = await file.file();\nconsole.log(fileObj.name); // file name\nconsole.log(fileObj.size); // file size\nconsole.log(fileObj.lastModified); // last modified time\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "25dff21d61e6662715e618ef41a089c8f676aad5fd06622a9a6745dfbbc28a15",
+          "raw": "### buffer() 方法\n\n",
+          "type": "heading",
+          "text": "### buffer() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1ecbe1f0740493e7def2e75691af744331bdbe763b01109f2275f0271ea4a557",
+          "raw": "使用 `buffer()` 方法读取文件的 [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) 数据：",
+          "type": "paragraph",
+          "text": "Use the `buffer()` method to read the file's [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) data:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6a2d1ee6a5ec6629a0b1f9205531bfdfdc8b9075a9c8263976793218ddfbd32",
+          "raw": "```javascript\nconst arrayBuffer = await file.buffer();\n```",
+          "type": "code",
+          "text": "```javascript\nconst arrayBuffer = await file.buffer();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c571da219c0f306291a68315a1bc6ca18f9f98a71b9a5080c2252f87b4c7e715",
+          "raw": "### read() 方法\n\n",
+          "type": "heading",
+          "text": "### read() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "192585e40619e8208b619e7e9a98cd917fc90f4a57d2e7bcbd452edde0dfa573",
+          "raw": "`read()` 方法是底层读取方法，支持更多选项：",
+          "type": "paragraph",
+          "text": "`read()` method is a low-level reading method that supports more options:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d55761cb16ce0a5c51ea9907b4c56e082fbcc882f63367faf4e7f54ac1d59122",
+          "raw": "```javascript\nconst content = await file.read({\n  type: \"text\",    // 返回类型: \"text\" | \"file\" | \"buffer\"\n  start: 0,        // 起始字节\n  end: 100,        // 结束字节\n});\n```",
+          "type": "code",
+          "text": "```javascript\nconst content = await file.read({\n  type: \"text\",    // Return type: \"text\" | \"file\" | \"buffer\"\n  start: 0,        // start byte\n  end: 100,        // end byte\n});\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d9b77b908452d00c07fbb6a87c38858de32a802b722aae69a9d716ae8b4bed9f",
+          "raw": "## JSON 操作\n\n",
+          "type": "heading",
+          "text": "## JSON Operations",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8f827c5e53ef6fd9b8ce52ec709ac6976766a560c8ce7b110dbce11953d772f0",
+          "raw": "### json() 方法\n\n",
+          "type": "heading",
+          "text": "### The json() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf7ba331b6a367bfd9bf384cd60e57f891a8f7596b29c9e54804b538e918b14f",
+          "raw": "使用 `json()` 方法直接读取并解析 JSON 文件：",
+          "type": "paragraph",
+          "text": "Use the `json()` method to directly read and parse JSON files:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8f4b4aebd43d845bfce14b5eb32394f76178ad7fa2eb31b09bb30047f04a31e3",
+          "raw": "```javascript\nconst data = await file.json();\n```",
+          "type": "code",
+          "text": "```javascript\nconst data = await file.json();\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c20ead0512ae472c1a1ac94080dff083a1866655705d083514fea70f72e61c65",
+          "raw": "### base64() 方法\n\n",
+          "type": "heading",
+          "text": "### base64() Method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "06b586a65434467ca9b819da86c8f03c8b42e9daadae5344ea1a440106e7327c",
+          "raw": "使用 `base64()` 方法将文件内容转为 [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) 编码)：",
+          "type": "paragraph",
+          "text": "Use the `base64()` method to convert the file content to [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) encoding):",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c06b5b04d1f069c1e178b6b46303f5cebc9bc26dac3549b519f88c83773eaeea",
+          "raw": "```javascript\nconst base64String = await file.base64();\nconsole.log(base64String); // \"data:application/octet-stream;base64,...\"\n```",
+          "type": "code",
+          "text": "```javascript\nconst base64String = await file.base64();\nconsole.log(base64String); // \"data:application/octet-stream;base64,...\"\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d19ca96fffbd73b59a77c6a3bd244e4b05f3633e8d7d0fde0053ca8c387c4a4c",
+          "raw": "## 获取文件信息\n\n",
+          "type": "heading",
+          "text": "## Get File Information",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d88963963b87d4e2994ba6cd174b6aa5a9d7e5b0b7f248a319b41f7d22229657",
+          "raw": "### lastModified() 方法\n\n",
+          "type": "heading",
+          "text": "### lastModified() method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "10ccd2f676d75d8db44c6870f3038efd8f7d4929210adae626fb7193aa5257cd",
+          "raw": "使用 `lastModified()` 获取文件的最后修改时间：",
+          "type": "paragraph",
+          "text": "Use `lastModified()` to get the last modified time of a file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf0fa8485e9100a843c2bcc77531c8be590b3a15036b15f309f4c76c2555c7d1",
+          "raw": "```javascript\nconst timestamp = await file.lastModified();\nconsole.log(new Date(timestamp)); // Date 对象\n```",
+          "type": "code",
+          "text": "```javascript\nconst timestamp = await file.lastModified();\nconsole.log(new Date(timestamp)); // Date object\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a84c513e7df47655b5071e09b9c6614baff2bd345c4d307b6618347b77d826d1",
+          "raw": "### size 属性\n\n",
+          "type": "heading",
+          "text": "### size attribute",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "626021fd60cb8f21b4a1aa5da0f29041c61c928500582ffaa1c7718f4afe6aed",
+          "raw": "通过 `file()` 方法获取文件大小：",
+          "type": "paragraph",
+          "text": "Get file size via `file()` method:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d4d05f34b37bfa5211db180837b239f582f3d27f531e725c3f423963cb1acbcf",
+          "raw": "```javascript\nconst fileObj = await file.file();\nconsole.log(fileObj.size); // 文件大小（字节）\n```",
+          "type": "code",
+          "text": "```javascript\nconst fileObj = await file.file();\nconsole.log(fileObj.size); // File size in bytes\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "91660576939ddf4520a3e0a80dbe6f8c415d02ecf8337c562bedd35aff7c1cce",
+          "raw": "## 通过 fetch 获取文件\n\n",
+          "type": "heading",
+          "text": "## Get a file via fetch",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a929fb77ba02527904538e64caa4516cdf119812691b94c1bd409ddf4497191b",
+          "raw": "除了使用句柄，写入文件后，还可以使用浏览器的 `fetch` API 通过 URL 获取文件内容：",
+          "type": "paragraph",
+          "text": "Besides using handles, after writing the file, you can also use the browser's `fetch` API to get the file content via URL:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e27a1f1f01e9520a98c68f730ebefb8bc58fa38564edc37e18105d6d6fe22ddc",
+          "raw": "```javascript\nconst file = await get(\"my-app/file1.txt\", { create: \"file\" });\nconst someText = \"Write some text \" + Math.random();\nawait file.write(someText);\n\nawait new Promise((resolve) => setTimeout(resolve, 300));\n\nconst content = await fetch(\"/$my-app/file1.txt\").then((e) => e.text());\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/file1.txt\", { create: \"file\" });\nconst someText = \"Write some text \" + Math.random();\nawait file.write(someText);\n\nawait new Promise((resolve) => setTimeout(resolve, 300));\n\nconst content = await fetch(\"/$my-app/file1.txt\").then((e) => e.text());\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f23cf2326df0dcd178baf68870ab84438588ea7046e5a53bfe788f191b5f433d",
+          "raw": "### 预览 HTML 文件\n\n",
+          "type": "heading",
+          "text": "### Preview HTML file",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b126e37efdae8d397e6d7bf7bd5b04aab77062effe0d5dcfb440850313e6e077",
+          "raw": "如果写入的是 HTML 文件，可以直接在浏览器中预览：",
+          "type": "paragraph",
+          "text": "If it's an HTML file, you can preview it directly in the browser:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "53f1ff608bd0c2b8a5cae070bae7156bb7156228424f8f12f7eb2d8d8da2d5f7",
+          "raw": "```javascript\nconst htmlFile = await get(\"my-app/index.html\", { create: \"file\" });\nawait htmlFile.write(\"<html><body><h1>Hello World</h1></body></html>\");\n\n// 在浏览器中打开 /$my-app/index.html 即可预览（记得带上 $ 前缀）\n```",
+          "type": "code",
+          "text": "```javascript\nconst htmlFile = await get(\"my-app/index.html\", { create: \"file\" });\nawait htmlFile.write(\"<html><body><h1>Hello World</h1></body></html>\");\n\n// Open /$my-app/index.html in your browser to preview (remember to include the $ prefix)\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d1bb51218a2ae550a915ac30b9be3fa49d2f20af23543a131c7849875ee56926",
+          "raw": "## 删除文件\n\n",
+          "type": "heading",
+          "text": "## Delete File",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "207bdb8876af2f10d0400c0a061e61ec4e90062f9e51c3d2cc47cbc9194165f4",
+          "raw": "使用 `remove()` 方法删除文件：",
+          "type": "paragraph",
+          "text": "Use the `remove()` method to delete a file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7401979d03d1c930be6e5c7aa093fa3d44b50ab3ba45cffad3eb1e6abecfae1e",
+          "raw": "```javascript\nconst file = await get(\"my-app/file1.txt\", { create: \"file\" });\nawait file.remove();\n\nconst fileExists = await get(\"my-app/file1.txt\");\n// fileExists === null 表示文件已被删除\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/file1.txt\", { create: \"file\" });\nawait file.remove();\n\nconst fileExists = await get(\"my-app/file1.txt\");\n// fileExists === null indicates the file has been deleted\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "de60a9bc1b30329c368596e3c5e864c50537c6b3d290730062580c13b3b7860f",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\n// 创建并写入文件\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nawait file.write(\"This is a test file.\");\n\n// 读取文件\nconst content = await file.text();\nconsole.log(content); // \"This is a test file.\"\n\n// 获取文件信息\nconst fileInfo = await file.file();\nconsole.log(`文件名: ${fileInfo.name}, 大小: ${fileInfo.size}`);\n\n// 获取最后修改时间\nconst modified = await file.lastModified();\nconsole.log(`最后修改: ${new Date(modified)}`);\n\n// 删除文件\nawait file.remove();\nconst exists = await get(\"my-app/example.txt\");\nconsole.log(exists); // null\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\n// Create and write to a file\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nawait file.write(\"This is a test file.\");\n\n// Read the file\nconst content = await file.text();\nconsole.log(content); // \"This is a test file.\"\n\n// Get file info\nconst fileInfo = await file.file();\nconsole.log(`File name: ${fileInfo.name}, Size: ${fileInfo.size}`);\n\n// Get last modified time\nconst modified = await file.lastModified();\nconsole.log(`Last modified: ${new Date(modified)}`);\n\n// Delete the file\nawait file.remove();\nconst exists = await get(\"my-app/example.txt\");\nconsole.log(exists); // null\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a0e57b1b1a057fafc59df3886fc7bafeb6d4872e360b40faf6074ee9bbfb2066",
+          "raw": "学习 [目录操作](./directory-operations.md)，了解如何遍历和管理目录。",
+          "type": "paragraph",
+          "text": "Learn [directory operations](./directory-operations.md) to understand how to traverse and manage directories.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "footer.html",
+      "path": "footer.html",
+      "isTemp": true,
+      "blocks": [
+        {
+          "rawHash": "9b386d1c4a0082d4b881f7de8d4de1c9748292d26daa9ce57d46d131be82dfc9",
+          "raw": "<template page>\n  <style>\n    :host {\n      display: flex;\n      justify-content: center;\n      align-items: center;\n      height: 60px;\n      max-width: var(--max-container-width, 1200px);\n      margin: 0 auto;\n      text-align: center;\n    }\n  </style>\n  <p>版权所有 © 2026 noneos-core. 保留所有权利.</p>\n</template>",
+          "text": "<template page>\n  <style>\n    :host {\n      display: flex;\n      justify-content: center;\n      align-items: center;\n      height: 60px;\n      max-width: var(--max-container-width, 1200px);\n      margin: 0 auto;\n      text-align: center;\n    }\n  </style>\n  <p>Copyright © 2026 noneos-core. All rights reserved.</p>\n</template>",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "handle-comparison.md",
+      "path": "documentation/handle-comparison.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "0efd7972c4e74298ffe36cd1696fcad2fbcb1b229d36a0391a9a26b9fd263f91",
+          "raw": "# 文件句柄比较\n\n",
+          "type": "heading",
+          "text": "# File Handle Comparison",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d4c6bb2a26183594d8ed91e7bef414a4c7914f188d9c216441ea6ca956426bed",
+          "raw": "本文档介绍如何比较文件句柄，获取父目录、根目录、文件大小和唯一标识符。",
+          "type": "paragraph",
+          "text": "This document describes how to compare file handles and obtain the parent directory, root directory, file size, and unique identifier.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b6683b002ddf93fd9da8ad2ebe7adab1fc09d2d9c3a5cd32974f0dc947c4c78f",
+          "raw": "## 获取父目录\n\n",
+          "type": "heading",
+          "text": "## Get Parent Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b5127fac8c0946ae164fb8082fdf6c56df383f7d4317a56ce66a191c2359e574",
+          "raw": "使用 `parent` 属性获取文件的父目录：",
+          "type": "paragraph",
+          "text": "Use the `parent` attribute to get the parent directory of the file:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c45e4b600022a6507c035ddbd80a7049580a2e35398c0dca5c45ad880f41e24d",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst testDir = await get(\"my-app/a/b/c/d\");\nconst testFile = await testDir.get(\"test.txt\", { create: \"file\" });\nconst fileParentDir = await testFile.parent;\n\nconst isSame = await fileParentDir.isSame(testDir);\n// isSame === true\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst testDir = await get(\"my-app/a/b/c/d\");\nconst testFile = await testDir.get(\"test.txt\", { create: \"file\" });\nconst fileParentDir = await testFile.parent;\n\nconst isSame = await fileParentDir.isSame(testDir);\n// isSame === true\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c2d540de6527268d0b9b02d702be42cc9154cc1157424e4aa043de279a9e6fca",
+          "raw": "## 获取根目录\n\n",
+          "type": "heading",
+          "text": "## Get Root Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9c456a64030c75dbb837d150960dc848ec427b6633da6176ba531caf5844cbfc",
+          "raw": "使用 `root` 属性获取文件或目录所属的根目录：",
+          "type": "paragraph",
+          "text": "Use the `root` attribute to get the root directory of a file or directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2accbba446e84e0e8401a040af02527911aab1325116bf0c99507dd8eab435f6",
+          "raw": "```javascript\nconst testDir = await get(\"my-app/a/b/c/d\");\nconst testFile = await testDir.get(\"test.txt\", { create: \"file\" });\nconst root = testFile.root;\n\nconst isSame = await root.isSame(await get(\"my-app\"));\n// isSame === true\n```",
+          "type": "code",
+          "text": "```javascript\nconst testDir = await get(\"my-app/a/b/c/d\");\nconst testFile = await testDir.get(\"test.txt\", { create: \"file\" });\nconst root = testFile.root;\n\nconst isSame = await root.isSame(await get(\"my-app\"));\n// isSame === true\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f0ee41664e350e266a5868b6e7c7174ac4d2dd6c25209718aa28d55e71c3672a",
+          "raw": "## 判断句柄是否相同\n\n",
+          "type": "heading",
+          "text": "## Determine if handles are the same",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "32488a0f5a6c364077e8d42ea28b613e65178a37e63bf3550d0fba4646678b4a",
+          "raw": "使用 `isSame()` 方法判断两个句柄是否指向同一个文件或目录：",
+          "type": "paragraph",
+          "text": "Use the `isSame()` method to determine whether two handles point to the same file or directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "03672b2101ea0d82b0ca30bdcd2eb6a241f1fd6524f53447840bbd4de3951ba1",
+          "raw": "```javascript\nconst dir = await get(\"my-app/path/to\");\nawait dir.get(\"file.txt\", { create: \"file\" });\nawait dir.get(\"other.txt\", { create: \"file\" });\n\nconst file1 = await dir.get(\"file.txt\");\nconst file2 = await dir.get(\"file.txt\");\nconst file3 = await dir.get(\"other.txt\");\n\nconst result1 = await file1.isSame(file2);\n// result1 === true\n\nconst result2 = await file1.isSame(file3);\n// result2 === false\n```",
+          "type": "code",
+          "text": "```javascript\nconst dir = await get(\"my-app/path/to\");\nawait dir.get(\"file.txt\", { create: \"file\" });\nawait dir.get(\"other.txt\", { create: \"file\" });\n\nconst file1 = await dir.get(\"file.txt\");\nconst file2 = await dir.get(\"file.txt\");\nconst file3 = await dir.get(\"other.txt\");\n\nconst result1 = await file1.isSame(file2);\n// result1 === true\n\nconst result2 = await file1.isSame(file3);\n// result2 === false\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "afba1bc2a6be65c81261053b5e7f624236ada9be7a92ede5dc003e2ff6d0b594",
+          "raw": "## 获取文件大小\n\n",
+          "type": "heading",
+          "text": "## Get File Size",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "2b6d246f660ce42264adf5f662723145b628f0f252ba633236a0135d3e433abc",
+          "raw": "使用 `size()` 方法获取文件的大小：",
+          "type": "paragraph",
+          "text": "Use the `size()` method to get the file size:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "580160360c24603ba0897d1d1b104d9446edc9d01230c03b7b3be944cdce245d",
+          "raw": "```javascript\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nawait file.write(\"Hello, World!\");\n\nconst fileSize = await file.size();\nconsole.log(fileSize); // 13 (字节)\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nawait file.write(\"Hello, World!\");\n\nconst fileSize = await file.size();\nconsole.log(fileSize); // 13 (bytes)\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "25a2e76c7a62b0913dfd8d360ddf1c6fcc0b45cf9209f64885244b6b03869085",
+          "raw": "对于目录，`size()` 返回 `null`。",
+          "type": "paragraph",
+          "text": "For directories, `size()` returns `null`.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "44e36e7bdcc568e95a98d409e03ac5d3f4ca01c4a236d8dd879dcbf1c1dc737f",
+          "raw": "## 获取唯一标识符\n\n",
+          "type": "heading",
+          "text": "## Get Unique Identifier",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "de02c145858100b30ac73dc947acecc7b7e3aa5b918195746e2e85e2a947ee01",
+          "raw": "使用 `id()` 方法获取文件或目录的唯一标识符：",
+          "type": "paragraph",
+          "text": "Use the `id()` method to get the unique identifier of a file or directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "0970b9b44a730d2356c7f0a725733f3801e4e249c1a248c9d6c6ea65594cc6da",
+          "raw": "```javascript\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nconst id = await file.id();\nconsole.log(id); // 唯一的哈希值字符串\n```",
+          "type": "code",
+          "text": "```javascript\nconst file = await get(\"my-app/example.txt\", { create: \"file\" });\nconst id = await file.id();\nconsole.log(id); // unique hash string\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "3773fe4607914672b9f992aada340e6d4ce190b21b7752e58ef8573d3920f4c0",
+          "raw": "## 句柄属性\n\n",
+          "type": "heading",
+          "text": "## Handle Attributes",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bc310cb7a6c392796b6b42c58c7d0fd2e27199f0d8ed8bf152e53da9c6646556",
+          "raw": "| 属性 | 描述 | 返回值 |\n|------|------|--------|\n| `kind` | 句柄类型 | `\"file\"` 或 `\"dir\"` |\n| `name` | 文件或目录名称 | 字符串 |\n| `path` | 完整路径 | 字符串 |\n| `parent` | 父目录 | DirHandle |\n| `root` | 根目录 | DirHandle |\n\n",
+          "type": "table",
+          "text": "| Property | Description | Return Value |\n|------|------|--------|\n| `kind` | Handle type | `\"file\"` or `\"dir\"` |\n| `name` | Name of the file or directory | string |\n| `path` | Full path | string |\n| `parent` | Parent directory | DirHandle |\n| `root` | Root directory | DirHandle |",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "95e057b68f005eefc59db723d7606f6df38e2e39daa6fdaca4d6c08ea3f7824e",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst deepDir = await get(\"my-app/a/b/c\");\nconst deepFile = await deepDir.get(\"deep.txt\", { create: \"file\" });\nawait deepFile.write(\"Hello!\");\n\n// 获取父目录\nconst parent = await deepFile.parent;\nconsole.log(parent.name); // \"c\"\n\n// 获取根目录\nconst root = deepFile.root;\nconsole.log(root.path); // \"my-app\"\n\n// 获取文件大小\nconst size = await deepFile.size();\nconsole.log(size); // 6\n\n// 获取唯一标识符\nconst id = await deepFile.id();\nconsole.log(id); // \"abc123...\"\n\n// 通过不同路径获取同一文件\nconst file2 = await deepDir.get(\"deep.txt\");\nconsole.log(await deepFile.isSame(file2)); // true\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst deepDir = await get(\"my-app/a/b/c\");\nconst deepFile = await deepDir.get(\"deep.txt\", { create: \"file\" });\nawait deepFile.write(\"Hello!\");\n\n// Get parent directory\nconst parent = await deepFile.parent;\nconsole.log(parent.name); // \"c\"\n\n// Get root directory\nconst root = deepFile.root;\nconsole.log(root.path); // \"my-app\"\n\n// Get file size\nconst size = await deepFile.size();\nconsole.log(size); // 6\n\n// Get unique identifier\nconst id = await deepFile.id();\nconsole.log(id); // \"abc123...\"\n\n// Get the same file through different paths\nconst file2 = await deepDir.get(\"deep.txt\");\nconsole.log(await deepFile.isSame(file2)); // true\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e342f5724b7885c71a28fcb66ae36f32454c03eeef39193e8992d637efc90aab",
+          "raw": "学习 [文件变化观察](./file-observation.md)，了解如何监听文件变化事件。",
+          "type": "paragraph",
+          "text": "Learn [File Observation](./file-observation.md) to understand how to listen for file change events.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "index.html",
+      "path": "index.html",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "4c767cffa5f37f16a742c1e5b41df1f2bf5a744e33066a699f8e1de97e246dff",
+          "raw": "<center-block>\n  <h2>NoneOS Core</h2>\n  <p>一款基于浏览器的微虚拟系统，让上层应用随处运行、轻松开发、极速启动。</p>\n  <p>你的下一个操作系统，何必是操作系统。</p>\n  <div style=\"padding: 16px\">\n    <p-button size=\"large\">\n      <a href=\"./documentation/install.md\">开始使用</a>\n    </p-button>\n  </div>\n</center-block>",
+          "text": "<center-block>\n  <h2>NoneOS Core</h2>\n  <p>A browser-based micro virtual system that allows upper-layer applications to run anywhere, develop easily, and launch at lightning speed.</p>\n  <p>Your next operating system, why must it be an operating system?</p>\n  <div style=\"padding: 16px\">\n    <p-button size=\"large\">\n      <a href=\"./documentation/install.md\">Get Started</a>\n    </p-button>\n  </div>\n</center-block>",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "install.md",
+      "path": "documentation/install.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "74502b0ebe92f4645658f18ec8b79f62c5e1fe3afe7d71dda324dba20ecfa863",
+          "raw": "# 安装\n\n",
+          "type": "heading",
+          "text": "# Installation",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "87e21f0a65219b5543d574b794c6bd2eac3402a536b33365d314252c5ffc8a5d",
+          "raw": "NoneOS Core 是一个基于浏览器的文件系统，需要通过 Service Worker 实现本地存储。项目本身是纯静态的，不需要动态服务器。",
+          "type": "paragraph",
+          "text": "NoneOS Core is a browser-based file system that needs to implement local storage through a Service Worker. The project itself is purely static and does not require a dynamic server.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "52333f75b2dfea79e9fb6c2aed48c4282d96f361dfe3b84aad93c35a99baaa7b",
+          "raw": "## 前提条件\n\n",
+          "type": "heading",
+          "text": "## Prerequisites",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "7e79691f7de3c32328ea89ef3ab66bd26a431f425d20a77da519ad6acfc9dd6e",
+          "raw": "- 一个静态服务器（如 http-server、live-server、nginx 等）\n- 浏览器支持 Service Worker\n- 如果是外网访问，必须使用 HTTPS（因为 API 需求）",
+          "type": "list",
+          "text": "- A static server (such as http-server, live-server, nginx, etc.)\n- Browser supports Service Worker\n- If accessed from an external network, HTTPS must be used (due to API requirements)",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "6cfa09824c0d3b553216504929fd6587e9bdeca2c4bf9c0ef6bd66feab35e307",
+          "raw": "## 步骤\n\n",
+          "type": "heading",
+          "text": "## Steps",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "89323be9ff6edac2807c0a5de0a72b50fd2cce3847e8a251e0112954026884e8",
+          "raw": "### 1. 创建 Service Worker 文件\n\n",
+          "type": "heading",
+          "text": "### 1. Create a Service Worker file",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9d00cb9f12d0438382dd32434f24efcb80296dd64f809cc5a3b421707d81b05c",
+          "raw": "在项目根目录下创建 `sw.js` 文件，填入以下内容：",
+          "type": "paragraph",
+          "text": "Create a `sw.js` file in the root directory of the project and fill in the following content:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f6a42a056d41db7c67264ffbae31123b160950a0b7b55829f71c79e0d6153b5a",
+          "raw": "```javascript\nimportScripts(\"https://core.noneos.com/sw/dist.js\");\n```",
+          "type": "code",
+          "text": "```javascript\nimportScripts(\"https://core.noneos.com/sw/dist.js\");\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "65a083e25af586735d5ed44c0a1b37dc5e2246c9a5e7e67a0fe15cc3456409ac",
+          "raw": "### 2. 创建入口 HTML\n\n",
+          "type": "heading",
+          "text": "### 2. Create Entry HTML",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8593067a5feb83ba7be23af0ea312f731db22678f3a308015909bd95326f4034",
+          "raw": "在入口 HTML 文件中引入 `ofa.js` 和 `nos-version` 组件。使用 `nos-version` 组件后，会自动注册 `sw.js` 文件：",
+          "type": "paragraph",
+          "text": "In the entry HTML file, import `ofa.js` and the `nos-version` component. After using the `nos-version` component, the `sw.js` file will be automatically registered:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4b4042076f08a6584a11cf62c55bd6dca976699d5bf5b127ae492fdcceed7e06",
+          "raw": "```html\n<!DOCTYPE html>\n<html lang=\"zh\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>My App</title>\n    <script src=\"https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js\"></script>\n  </head>\n  <body>\n    <!-- 加载 nos-version 组件 -->\n    <l-m src=\"https://core.noneos.com/nos-tool/comps/nos-version.html\"></l-m>\n    <!-- 使用 nos-version 组件 -->\n    <nos-version auto-install></nos-version>\n\n    <script type=\"module\">\n      // 等待安装完成\n      $(\"nos-version\").on(\"installed\", () => {\n        console.log(\"NoneOS Core 安装完成，可以开始使用了\");\n        // 这里可以使用 noneos-core\n      });\n    </script>\n  </body>\n</html>\n```",
+          "type": "code",
+          "text": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>My App</title>\n    <script src=\"https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js\"></script>\n  </head>\n  <body>\n    <!-- Load nos-version component -->\n    <l-m src=\"https://core.noneos.com/nos-tool/comps/nos-version.html\"></l-m>\n    <!-- Use nos-version component -->\n    <nos-version auto-install></nos-version>\n\n    <script type=\"module\">\n      // Wait for installation to complete\n      $(\"nos-version\").on(\"installed\", () => {\n        console.log(\"NoneOS Core installation complete, ready to use\");\n        // Now you can use noneos-core\n      });\n    </script>\n  </body>\n</html>\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "562412bf6946fc4e2b62a59485c1eb92571a098094441cb8e8758451233d27cf",
+          "raw": "## 安装状态\n\n",
+          "type": "heading",
+          "text": "## Installation Status",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a506603bc238fb78df2ba128368eb06f338843c07face3b6d5638451c79b2c00",
+          "raw": "`nos-version` 组件会自动检测 NoneOS Core 的安装状态：",
+          "type": "paragraph",
+          "text": "`nos-version` component will automatically detect the installation status of NoneOS Core:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c144f99c1b5eb7290633bad515fc485d03274f9aeb25f4d63fd51e9af45b5ba5",
+          "raw": "- **未安装**：显示 \"Install NoneOS Core\" 按钮\n- **安装中**：显示安装进度条\n- **已安装**：显示当前版本号\n- **可升级**：显示升级按钮",
+          "type": "list",
+          "text": "- **Not Installed**: Display \"Install NoneOS Core\" button\n- **Installing**: Display installation progress bar\n- **Installed**: Display current version number\n- **Upgradable**: Display upgrade button",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "498e5c1ea7f300af24b971b737d92fffeaef117a7b0ca6d591b3f4cbe169012a",
+          "raw": "当系统安装完成、或已安装过、或升级成功时，会触发 `installed` 事件，之后就可以正常使用 NoneOS Core 的所有功能了。",
+          "type": "paragraph",
+          "text": "When the system installation is complete, or has already been installed, or upgraded successfully, the `installed` event will be triggered, and then all functions of NoneOS Core can be used normally.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "move-and-copy.md",
+      "path": "documentation/move-and-copy.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "d7a081f912fd0f7750f1e443c8d1c874965151308483424b5f02df5860ffd005",
+          "raw": "# 文件移动与复制\n\n",
+          "type": "heading",
+          "text": "# File Moving and Copying",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5628595215758951132ec08a1b79c87f5dc032f15e15fe34d29387ba73b693cc",
+          "raw": "本文档介绍如何移动和复制文件及目录。",
+          "type": "paragraph",
+          "text": "This document describes how to move and copy files and directories.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "16d6becb02ef77e284717ddbb39bd43d2837b599440dfd1e0175e0dee2b31c43",
+          "raw": "## 移动文件\n\n",
+          "type": "heading",
+          "text": "## Move Files",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "fe1e44c39c8f12536daf872dd5d774153d801095cf7ad388b090f079f6284c30",
+          "raw": "使用 `moveTo()` 方法将文件移动到目标目录：",
+          "type": "paragraph",
+          "text": "Use the `moveTo()` method to move the file to the target directory：",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b5072bc4d3e216020c3502c188a062303889bec2a5c11ee357e6b4a66279fec4",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst sourceFile = await get(\"my-app/source.txt\", { create: \"file\" });\nawait sourceFile.write(\"Hello, World!\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\n\n// 第二个参数为目标文件名，不传则沿用原文件名\nconst movedFile = await sourceFile.moveTo(targetDir);\n// 等同于 sourceFile.moveTo(targetDir, \"source.txt\")\n\nconst content = await movedFile.text();\n// content === \"Hello, World!\"\n\nconst oldFile = await get(\"my-app/source.txt\");\n// oldFile === null 表示原文件已被移动\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst sourceFile = await get(\"my-app/source.txt\", { create: \"file\" });\nawait sourceFile.write(\"Hello, World!\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\n\n// The second parameter is the target file name; if omitted, the original file name is used\nconst movedFile = await sourceFile.moveTo(targetDir);\n// Equivalent to sourceFile.moveTo(targetDir, \"source.txt\")\n\nconst content = await movedFile.text();\n// content === \"Hello, World!\"\n\nconst oldFile = await get(\"my-app/source.txt\");\n// oldFile === null indicates the original file has been moved\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "1e6d43c02c0d61ab8f495515a958f95694789b3cac0784ce2a89b18a342fffb4",
+          "raw": "## 移动目录\n\n",
+          "type": "heading",
+          "text": "## Move Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "c2a190ae142bfa1006f72fb0f40a4880bc4004e2721eb12e6095d1a67f3838f4",
+          "raw": "`moveTo()` 方法同样适用于目录，会递归移动目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：",
+          "type": "paragraph",
+          "text": "`moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name will be used:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5fcba54c28eb630e1d6541603ac1c20abed53384a88f15dbef0df09a735c31ff",
+          "raw": "```javascript\nconst sourceDir = await get(\"my-app/sourceDir\", { create: \"dir\" });\nawait sourceDir.get(\"file1.txt\", { create: \"file\" });\nawait sourceDir.get(\"subDir/file2.txt\", { create: \"file\" });\n\nawait (await sourceDir.get(\"file1.txt\")).write(\"Content 1\");\nawait (await sourceDir.get(\"subDir/file2.txt\")).write(\"Content 2\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\nconst movedDir = await sourceDir.moveTo(targetDir);\n// 等同于 sourceDir.moveTo(targetDir, \"sourceDir\")\n\n// movedDir 包含 file1.txt 和 subDir/file2.txt\n```",
+          "type": "code",
+          "text": "```javascript\nconst sourceDir = await get(\"my-app/sourceDir\", { create: \"dir\" });\nawait sourceDir.get(\"file1.txt\", { create: \"file\" });\nawait sourceDir.get(\"subDir/file2.txt\", { create: \"file\" });\n\nawait (await sourceDir.get(\"file1.txt\")).write(\"Content 1\");\nawait (await sourceDir.get(\"subDir/file2.txt\")).write(\"Content 2\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\nconst movedDir = await sourceDir.moveTo(targetDir);\n// Equivalent to sourceDir.moveTo(targetDir, \"sourceDir\")\n\n// movedDir contains file1.txt and subDir/file2.txt\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a48646d54f5b4be6bca3e27fed9e0d0ffd926c4afb4e66886db06c1c52e50f29",
+          "raw": "## 复制文件\n\n",
+          "type": "heading",
+          "text": "## Copy Files",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ab4461c7099b06f221eb4fed2d51a40f9cabceb6ef7b4836040bb3212723cab1",
+          "raw": "使用 `copyTo()` 方法将文件复制到目标目录：",
+          "type": "paragraph",
+          "text": "Use the `copyTo()` method to copy the file to the target directory:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "be7c8d1b4b423b9391ab6d08e7cba243c3da171471a17b52467f3347ba5c38d6",
+          "raw": "```javascript\nconst sourceFile = await get(\"my-app/source.txt\", { create: \"file\" });\nawait sourceFile.write(\"Hello, World!\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\n\n// 第二个参数为目标文件名，不传则沿用原文件名\nconst copiedFile = await sourceFile.copyTo(targetDir);\n// 等同于 sourceFile.copyTo(targetDir, \"source.txt\")\n\nconst content = await copiedFile.text();\n// content === \"Hello, World!\"\n\n// 原文件仍然存在\nconst originalFile = await get(\"my-app/source.txt\");\n// originalFile !== null\n```",
+          "type": "code",
+          "text": "```javascript\nconst sourceFile = await get(\"my-app/source.txt\", { create: \"file\" });\nawait sourceFile.write(\"Hello, World!\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\n\n// The second parameter is the target filename; if omitted, the original filename is used\nconst copiedFile = await sourceFile.copyTo(targetDir);\n// Equivalent to sourceFile.copyTo(targetDir, \"source.txt\")\n\nconst content = await copiedFile.text();\n// content === \"Hello, World!\"\n\n// The original file still exists\nconst originalFile = await get(\"my-app/source.txt\");\n// originalFile !== null\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9a92d92d9f8dce25ae0f6ef7d36f6b4541fce79ee37723d9f7a177313000deb5",
+          "raw": "## 复制目录\n\n",
+          "type": "heading",
+          "text": "## Copy Directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4fb3d2ca7bd39673821cd7b130df37a3c81b5fb874a7d9d190ade8400917a7d7",
+          "raw": "`copyTo()` 方法同样适用于目录，会递归复制目录及其所有内容。第二个参数为目标目录名，不传则沿用原目录名：",
+          "type": "paragraph",
+          "text": "The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name, if not provided, the original directory name is retained:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "785dba83424b739b7f47637f8ecad7de87714777bcba112120336e2c391165d4",
+          "raw": "```javascript\nconst sourceDir = await get(\"my-app/sourceDir\", { create: \"dir\" });\nawait sourceDir.get(\"file1.txt\", { create: \"file\" });\nawait sourceDir.get(\"subDir/file2.txt\", { create: \"file\" });\n\nawait (await sourceDir.get(\"file1.txt\")).write(\"Content 1\");\nawait (await sourceDir.get(\"subDir/file2.txt\")).write(\"Content 2\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\nconst copiedDir = await sourceDir.copyTo(targetDir);\n// 等同于 sourceDir.copyTo(targetDir, \"sourceDir\")\n\n// copiedDir 包含 file1.txt 和 subDir/file2.txt\n```",
+          "type": "code",
+          "text": "```javascript\nconst sourceDir = await get(\"my-app/sourceDir\", { create: \"dir\" });\nawait sourceDir.get(\"file1.txt\", { create: \"file\" });\nawait sourceDir.get(\"subDir/file2.txt\", { create: \"file\" });\n\nawait (await sourceDir.get(\"file1.txt\")).write(\"Content 1\");\nawait (await sourceDir.get(\"subDir/file2.txt\")).write(\"Content 2\");\n\nconst targetDir = await get(\"my-app/target\", { create: \"dir\" });\nconst copiedDir = await sourceDir.copyTo(targetDir);\n// Equivalent to sourceDir.copyTo(targetDir, \"sourceDir\")\n\n// copiedDir contains file1.txt and subDir/file2.txt\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "d6ed66591dc22b9f665b07a4a1d3abe82b58d61169020a70c927dcc17cc79080",
+          "raw": "## 完整示例\n\n",
+          "type": "heading",
+          "text": "## Complete Example",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "6411a325b15bca22ca6dc2ee5639bbb7b6f55edde4d9a833e88668bb4a4faf27",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst sourceFile = await get(\"my-app/document.txt\", { create: \"file\" });\nawait sourceFile.write(\"Important content\");\n\nconst backupDir = await get(\"my-app/backup\", { create: \"dir\" });\nconst archiveDir = await get(\"my-app/archive\", { create: \"dir\" });\n\n// 复制文件\nconst backup = await sourceFile.copyTo(backupDir, \"document_backup.txt\");\nconsole.log(await backup.text()); // \"Important content\"\n\n// 移动文件\nawait sourceFile.moveTo(archiveDir, \"document_archived.txt\");\n\n// 验证移动结果\nconst original = await get(\"my-app/document.txt\");\nconsole.log(original); // null\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst sourceFile = await get(\"my-app/document.txt\", { create: \"file\" });\nawait sourceFile.write(\"Important content\");\n\nconst backupDir = await get(\"my-app/backup\", { create: \"dir\" });\nconst archiveDir = await get(\"my-app/archive\", { create: \"dir\" });\n\n// Copy file\nconst backup = await sourceFile.copyTo(backupDir, \"document_backup.txt\");\nconsole.log(await backup.text()); // \"Important content\"\n\n// Move file\nawait sourceFile.moveTo(archiveDir, \"document_archived.txt\");\n\n// Verify move result\nconst original = await get(\"my-app/document.txt\");\nconsole.log(original); // null\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "f9072deb039eebae5000100345954331b72071650c9cb0dc8e156bb9e13e67d0",
+          "raw": "学习 [文件句柄比较](./handle-comparison.md)，了解如何比较文件句柄。",
+          "type": "paragraph",
+          "text": "Learn about [file handle comparison](./handle-comparison.md)，and how to compare file handles。",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "overview.md",
+      "path": "documentation/overview.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "c8cb87594c5625cb477ce46a50937f2403f7f1916d3314b63817272fbf2e6bde",
+          "raw": "# 概述\n\n",
+          "type": "heading",
+          "text": "# Overview",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "966628dd6790b14b9c57bc93a66f217e63e1c1bcc5b2b1a17e640b6cafeca7da",
+          "raw": "文件系统（FileSystem）是一个基于浏览器的虚拟文件系统，提供了一套完整的文件和目录操作 API。",
+          "type": "paragraph",
+          "text": "FileSystem (FileSystem) is a browser-based virtual file system that provides a complete set of file and directory operation APIs.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "85062a950475e6c6a79f662091fa28b7a6ed9020fab9a48faf92e4254cb411c2",
+          "raw": "## 初始化\n\n",
+          "type": "heading",
+          "text": "## Initialization",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "22f39aba0c6498cfff6203b4ded878f2fcb3ca00387d650d02e859d8973d6d08",
+          "raw": "使用文件系统前，需要先初始化一个根目录：",
+          "type": "paragraph",
+          "text": "Before using the file system, you need to initialize a root directory：",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "26577fd3dca4e1d17eed399eef280353cd1f5e757b5ac561aaf901bd9ad5fcd9",
+          "raw": "```javascript\nimport { init } from \"/nos/fs/main.js\";\n\nawait init(\"my-app\");\n```",
+          "type": "code",
+          "text": "```javascript\nimport { init } from \"/nos/fs/main.js\";\n\nawait init(\"my-app\");\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "97f71e37b9f03c6b1d98e39219ca42ce97f59d9ef85189aab469f7fa4e7ac860",
+          "raw": "后续教程均假设已完成 `my-app` 的初始化。",
+          "type": "paragraph",
+          "text": "Subsequent tutorials assume that the initialization of `my-app` has been completed.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9c3b576c32883b47c5acedcd64dda5d4f064999e6f931ed80678b42e8b35b3c9",
+          "raw": "## 全局 get 方法\n\n",
+          "type": "heading",
+          "text": "## Global get method",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5056ca474c7b683859aab318e334388e6c15e5e7e48aea7e92c9d829f2d97cc0",
+          "raw": "使用全局 `get` 方法获取或创建文件/目录句柄：",
+          "type": "paragraph",
+          "text": "Use the global `get` method to get or create a file/directory handle:",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "6c6a9746ded1d29724505a584bf391abdb90c25d30975a79bc11518701824138",
+          "raw": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst file = await get(\"my-app/hello.txt\", { create: \"file\" });\nconst dir = await get(\"my-app/path/to/dir\", { create: \"dir\" });\n```",
+          "type": "code",
+          "text": "```javascript\nimport { get } from \"/nos/fs/main.js\";\n\nconst file = await get(\"my-app/hello.txt\", { create: \"file\" });\nconst dir = await get(\"my-app/path/to/dir\", { create: \"dir\" });\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "ea01f091f988b155dbf8211d7b11ff331cf27a0eac6b1bbab39ea8446e8d7515",
+          "raw": "路径格式：`根目录名/文件路径`，不使用 `/` 开头。",
+          "type": "paragraph",
+          "text": "Path format: `Root directory name/file path`, do not start with `/`.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "5137cbaacdbd3bc348d6ea4e0094a44c76c002870ac993a91048a35d67dbc92e",
+          "raw": "## 核心概念\n\n",
+          "type": "heading",
+          "text": "## Core Concepts",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "a4d6ea758e7c49ea94b5985a894d9f59784414061e96a9dead3a1c666fb5ad34",
+          "raw": "### FileHandle 和 DirHandle\n\n",
+          "type": "heading",
+          "text": "### FileHandle and DirHandle",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "dbe883c8853a8d226c2108f0e01d8ea1e14aa9be440fb87d8c7978591256a3d8",
+          "raw": "- **FileHandle**：代表一个文件，提供文件读写操作\n- **DirHandle**：代表一个目录，提供目录遍历和子项操作",
+          "type": "list",
+          "text": "- **FileHandle**：Represents a file, providing file read and write operations\n- **DirHandle**：Represents a directory, providing directory traversal and sub-item operations",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8d24efebe0410caa5ebabebe4a2920275609bc74b7c9ff07c970a27a5bf0f00d",
+          "raw": "### 基本属性\n\n",
+          "type": "heading",
+          "text": "### Basic Attributes",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bf12793e951ed4d6043ce26b5c5e8ca910a80f5b426922e0b4134780276e3a4c",
+          "raw": "- `kind`：返回 `\"file\"` 或 `\"dir\"`，表示句柄类型\n- `name`：返回文件或目录的名称\n- `path`：返回文件或目录的完整路径",
+          "type": "list",
+          "text": "- `kind`: Returns `\"file\"` or `\"dir\"`, indicating the handle type\n- `name`: Returns the name of the file or directory\n- `path`: Returns the full path of the file or directory",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "e7f7eea4e190374192810ed09945c510c13f94172719cab75191ded099a6a2d2",
+          "raw": "## 下一章\n\n",
+          "type": "heading",
+          "text": "## Next Chapter",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "8f421d07a009b0129b3e4b21ff5b3babc38022c61bcdb9a12aaa0b15e47074d8",
+          "raw": "学习 [文件操作](./file-operations.md)，了解如何读写文件和删除文件。",
+          "type": "paragraph",
+          "text": "Learn [File Operations](./file-operations.md) to understand how to read/write and delete files.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    },
+    {
+      "name": "sw-advanced.md",
+      "path": "documentation/sw-advanced.md",
+      "isTemp": false,
+      "blocks": [
+        {
+          "rawHash": "013bcf193c5875012eaa2637b9c5c5f0156e3e5d28efb9401dbaf02f91a31354",
+          "raw": "# sw.js 配置技巧\n\n",
+          "type": "heading",
+          "text": "# sw.js configuration tips",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "32830c8020e952f2dfcf37d03c884e24de48921dc0394348f7bf5267476a0cb5",
+          "raw": "## 版本号控制与缓存更新\n\n",
+          "type": "heading",
+          "text": "## Version Number Control and Cache Update",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9da82dde4da5cdfc7228095ac305e93c865df5d20f1fe1ae3ec334e9963553af",
+          "raw": "在发布新版本时，如果服务器配置了 `max-age=0` 响应头，浏览器仍可能缓存旧版本的 `sw.js` 文件，导致更新无法及时生效。通过在 URL 中添加版本参数，可以强制浏览器请求最新的文件，从而解决这一问题。",
+          "type": "paragraph",
+          "text": "When releasing a new version, if the server is configured with a `max-age=0` response header, the browser may still cache the old version of the `sw.js` file, causing the update to not take effect in a timely manner. By adding a version parameter to the URL, you can force the browser to request the latest file, thus solving this problem.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "b70e6d7e8af4168914c79ecfe4df0f71fc7fee7cdf8e7cce58785c33209604a6",
+          "raw": "```javascript\nlet version = \"\";\nif (globalThis.serviceWorker) {\n  const urlParams = new URLSearchParams(\n    new URL(serviceWorker.scriptURL).search,\n  );\n  version = urlParams.get(\"v\") || \"\";\n} else {\n  const urlParams = new URLSearchParams(new URL(location.href).search);\n  version = urlParams.get(\"v\") || \"\";\n}\n\nimportScripts(\"https://core.noneos.com/sw/dist.js?v=\" + version);\n```",
+          "type": "code",
+          "text": "```javascript\nlet version = \"\";\nif (globalThis.serviceWorker) {\n  const urlParams = new URLSearchParams(\n    new URL(serviceWorker.scriptURL).search,\n  );\n  version = urlParams.get(\"v\") || \"\";\n} else {\n  const urlParams = new URLSearchParams(new URL(location.href).search);\n  version = urlParams.get(\"v\") || \"\";\n}\n\nimportScripts(\"https://core.noneos.com/sw/dist.js?v=\" + version);\n```",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "9bae1f62c3fcef9d6cba3372d7ca30faaf55ee8e199fe23ae993d62fc811de29",
+          "raw": "在引用 dist.js 时加上 `?v=` 参数，每次发布新版本时更新版本号，浏览器便会请求新的文件而非使用缓存。",
+          "type": "paragraph",
+          "text": "When referencing dist.js, add the `?v=` parameter and update the version number each time a new version is released, so that the browser will request the new file instead of using the cache.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "02c8fd7d38b46a424ad4c66ec232a53f9de516b0baecf3eb4d13895a415d2755",
+          "raw": "## 官方工具\n\n",
+          "type": "heading",
+          "text": "## Official Tools",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4fce9158f0a727cffe92975eecf346a51e5ab9db07ef112ed7b7c7684a6a5263",
+          "raw": "使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。",
+          "type": "paragraph",
+          "text": "Using `nos-tool` directorytools,caneasilymanage NoneOS system.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "4dc8d3e3909d831caef6d9649d6381e46e5b9ad9becb25875bb8ab0c933d69f2",
+          "raw": "- **ai** - AI 模型管理，包括聊天、配置、密钥管理\n- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全\n- **file-explore** - 文件浏览器\n- **file-list** - 文件列表视图和句柄管理\n- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能",
+          "type": "list",
+          "text": "- **ai** - AI model management, including chat, configuration, and key management\n- **editor** - Monaco editor integration, supporting code highlighting, formatting, and AI completion\n- **file-explore** - File explorer\n- **file-list** - File list view and handle management\n- **studio** - Development studio, providing file management, color tools, theme editing, and other features",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        },
+        {
+          "rawHash": "bc952eb6819546484b1d6d4b93ba2f9ceeae192b0ea2878da51b390c5495b6f4",
+          "raw": "这些工具位于 `nos-tool` 目录下，可按需引入和使用。\n",
+          "type": "paragraph",
+          "text": "These tools are located in the `nos-tool` directory and can be imported and used as needed.",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "id": "jenncv3sv",
+          "editedText": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Call AI Model
+# Calling the AI Model
 
 ## Introducing the chat module
 
@@ -16,11 +16,11 @@ const messages = [
 ];
 
 const response = await chat(messages, {
-  provider: "deepseek",  // optional, specify provider
-  callback: (chunk) => {  // optional, streaming callback
+  provider: "deepseek",  // Optional, specify provider
+  callback: (chunk) => {  // Optional, streaming callback
     console.log(chunk);
   },
-  maxContextLength: 8192  // optional, maximum context length
+  maxContextLength: 8192  // Optional, maximum context length
 });
 ```
 
@@ -31,7 +31,7 @@ const response = await chat(messages, {
 - **minimax** - MiniMax
 - **glm** - Zhipu GLM
 
-If `provider` is not specified, the system will automatically select an available API Key.
+If no `provider` is specified, the system will automatically select an available API Key.
 
 ## Message Format
 
@@ -46,20 +46,20 @@ const messages = [
 
 ## Concurrency Control
 
-The NoneOS AI module supports concurrency control, which can prevent the same API key from being overused.
+NoneOS AI module supports concurrency control, which can prevent the same API Key from being overused.
 
 ### Get Current Status
 
 ```javascript
 const status = getStatus();
-// Returns the concurrent usage of each key
+// Return the concurrent usage of each Key
 ```
 
-### Subscription Status Changes
+### Subscription Status Change
 
 ```javascript
 subscribe((newStatus) => {
-  console.log("Status updated:", newStatus);
+  console.log("Status update:", newStatus);
 });
 ```
 
@@ -81,6 +81,6 @@ try {
 ```
 
 Common Mistakes:- `no_key` - No API Key configured
-- `no_provider_key` - No provider's API Key specified
-- `concurrency_full` - The concurrency limit for this Key has been reached
+- `no_provider_key` - No provider API Key specified
+- `concurrency_full` - The Key's concurrency is full
 - `Unsupported provider` - Unsupported provider

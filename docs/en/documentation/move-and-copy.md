@@ -2,9 +2,9 @@
 
 This document describes how to move and copy files and directories.
 
-## Moving Files
+## Move Files
 
-Use the `moveTo()` method to move the file to the target directory:
+Use the `moveTo()` method to move the file to the target directory：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -14,7 +14,7 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// The second parameter is the target file name; omit it to keep the original name
+// The second parameter is the target file name; if omitted, the original file name is used
 const movedFile = await sourceFile.moveTo(targetDir);
 // Equivalent to sourceFile.moveTo(targetDir, "source.txt")
 
@@ -22,12 +22,12 @@ const content = await movedFile.text();
 // content === "Hello, World!"
 
 const oldFile = await get("my-app/source.txt");
-// oldFile === null means the original file has been moved
+// oldFile === null indicates the original file has been moved
 ```
 
 ## Move Directory
 
-The `moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+`moveTo()` method also applies to directories, recursively moving the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name will be used:
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -44,7 +44,7 @@ const movedDir = await sourceDir.moveTo(targetDir);
 // movedDir contains file1.txt and subDir/file2.txt
 ```
 
-## Copy File
+## Copy Files
 
 Use the `copyTo()` method to copy the file to the target directory:
 
@@ -54,7 +54,7 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// The second parameter is the target file name; if not provided, the original file name is used.
+// The second parameter is the target filename; if omitted, the original filename is used
 const copiedFile = await sourceFile.copyTo(targetDir);
 // Equivalent to sourceFile.copyTo(targetDir, "source.txt")
 
@@ -68,7 +68,7 @@ const originalFile = await get("my-app/source.txt");
 
 ## Copy Directory
 
-The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name; if not provided, the original directory name is used:
+The `copyTo()` method is also applicable to directories, recursively copying the directory and all its contents. The second parameter is the target directory name, if not provided, the original directory name is retained:
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -80,7 +80,7 @@ await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const copiedDir = await sourceDir.copyTo(targetDir);
-// Same as sourceDir.copyTo(targetDir, "sourceDir")
+// Equivalent to sourceDir.copyTo(targetDir, "sourceDir")
 
 // copiedDir contains file1.txt and subDir/file2.txt
 ```
@@ -110,4 +110,4 @@ console.log(original); // null
 
 ## Next Chapter
 
-Study [File Handle Comparison](./handle-comparison.md) to learn how to compare file handles.
+Learn about [file handle comparison](./handle-comparison.md)，and how to compare file handles。

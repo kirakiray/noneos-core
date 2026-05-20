@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ディレクトリのマウント</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>ディレクトリのマウント</h1>
+        <p>ディレクトリマウント機能により、ユーザーのローカルファイルシステム上の<strong>実際のディレクトリ</strong>にアクセスし、それを永続化ストレージに保存して、後続のセッションでも継続して使用できるようになります。</p>
+        <blockquote>
+          <p><strong>実際のディレクトリ</strong>：あなたの <strong>Windows</strong> / <strong>macOS</strong> / <strong>Linux</strong> システム上の実際のフォルダーを指し，仮想ファイルシステム内のディレクトリとは区別されます。</p>
+        </blockquote>
+        <h2>重要なお知らせ</h2>
+        <h3>ブラウザ対応状況</h3>
+        <p><code>open()</code> メソッドはブラウザの <code>showDirectoryPicker</code> API に依存しており、現在のところ<strong>Chrome ブラウザのみがこの機能を完全にサポート</strong>しています。</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// ブラウザのサポートを確認する</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"現在のブラウザはディレクトリ選択機能をサポートしていません"</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"完全な機能を得るには Chrome ブラウザを使用してください"</span>);
+  <span class="hljs-keyword">return</span>;
+}</code></pre>
+        <h3>核心用途</h3>
+        <p>ディレクトリマウントの主な用途は、<code>open()</code> と連携してユーザーのローカルファイルシステムにアクセスすることです：</p>
+        <ol>
+          <li><strong>ローカルファイルアクセス</strong>：ユーザーがローカルディレクトリを選択し、ブラウザを通じてファイル内容に直接アクセスできる</li>
+          <li><strong>静的サーバー機能</strong>：マウントされたローカルディレクトリはHTTPリクエスト経由でアクセス可能となり、ローカル静的サーバーと同様の機能を実現</li>
+          <li><strong>永続的なアクセス</strong>：<code>mount()</code> でマウントすると、後続のセッションでも同じローカルディレクトリにアクセスし続けることができ、再選択が不要</li>
+        </ol>
+        <p><strong>注意</strong>：<code>init()</code> で作成された仮想ファイルシステムディレクトリは、自動的に HTTP アクセスがサポートされるため、<code>mount()</code> を使用する必要はありません。</p>
+        <h3>典型的な応用シーン</h3>
+        <ul>
+          <li>ローカルプロジェクト開発：ブラウザ上で直接ローカルプロジェクトファイルにアクセスし編集する</li>
+          <li>静的リソースサービス：ローカルディレクトリをアクセス可能な静的リソースパスとしてマウントする</li>
+          <li>ファイル管理ツール：ブラウザベースのファイル管理アプリケーションを構築する</li>
+        </ul>
+        <h2>基本概念</h2>
+        <h3>open() - ディレクトリセレクタを開く</h3>
+        <p><code>open()</code> メソッドはシステムのディレクトリ選択ダイアログを表示し、ユーザーにローカルディレクトリを選択させます：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();</code></pre>
+        <p>ユーザーがディレクトリを選択すると、システムは読み取り/書き込み権限を要求します。ユーザーが権限を付与すると、<code>DirHandle</code> オブジェクトが返されます。</p>
+        <p><strong>注意</strong>：<code>open()</code> はユーザーのローカルファイルシステムへのアクセスにのみ使用されます。仮想ファイルシステムのディレクトリには、<code>init()</code> を使用して作成してください。</p>
+        <h3>mount() - ディレクトリをマウント</h3>
+        <p><code>mount()</code> メソッドはローカルディレクトリハンドルを保存し、後続のセッションで再アクセスできるようにします：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// ディレクトリ選択を開き、この時点での path は仮想パスです</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle); <span class="hljs-comment">// マウント後、path は $mount-{id}&gt;ディレクトリ名 になります</span>
+
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(handle.<span class="hljs-property">path</span>); <span class="hljs-comment">// 出力: $mount-123&gt;ディレクトリ名</span></code></pre>
+        <p>マウント後のパスの形式：<code>$mount-{id}&gt;ディレクトリ名</code></p>
+        <h4>二段階プロセスの利点</h4>
+        <p>二段階の流れ（最初に <code>open()</code> してから <code>mount()</code> する）を推奨します。一度にマウントする方法は避けてください：</p>
+        <ol>
+          <li><strong>ディレクトリ内容の確認</strong>：マウント前にディレクトリ内容を閲覧し、必要なディレクトリかどうか確認できます。</li>
+          <li><strong>誤ったマウントの防止</strong>：ユーザーが誤ったディレクトリを選択して、誤ってシステムにマウントするのを防ぎます。</li>
+          <li><strong>柔軟な判断</strong>：ディレクトリ内容に基づいて、マウントするかどうかを判断できます。</li>
+        </ol>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// まずディレクトリの内容を検証する</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+<span class="hljs-keyword">if</span> (data.<span class="hljs-property">somedata</span>) {
+  <span class="hljs-comment">// 条件に一致するディレクトリであることを確認してから、マウントする</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"条件に一致するディレクトリがマウントされました:"</span>, handle.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"これは条件に一致しないディレクトリです。マウントをキャンセルします"</span>);
+}</code></pre>
+        <p><strong>重要</strong>：</p>
+        <ul>
+          <li><code>mount()</code> は主に <code>open()</code> で開いたローカルディレクトリを永続化するために使用されます</li>
+          <li><code>init()</code> で作成された仮想ファイルシステムディレクトリには、<code>mount()</code> を使用する必要はありません</li>
+        </ul>
+        <h3>一括で開いてマウント</h3>
+        <p><code>open()</code> の <code>mount</code> パラメータを使用すると、ディレクトリを選択した後に自動的にマウントできます：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// 同等の意味：</span>
+<span class="hljs-comment">// const handle = await open();</span>
+<span class="hljs-comment">// await mount(handle);</span></code></pre>
+        <h2>mount() の主な用途</h2>
+        <p><code>mount()</code> メソッドは主に <code>open()</code> と組み合わせて使用し、ユーザーが選択したローカルディレクトリを永続的に保存します。<strong><code>init()</code> によって作成された仮想ファイルシステムディレクトリについては、<code>mount()</code> を使用する必要はありません</strong>。</p>
+        <h3>仮想ファイルシステムディレクトリ（マウント不要）</h3>
+        <p><code>init()</code> によって作成されたディレクトリは、すでに HTTP 経由で直接アクセス可能です：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { init } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 仮想ファイルシステムのディレクトリを作成</span>
+<span class="hljs-keyword">const</span> dir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">init</span>(<span class="hljs-string">"my-app"</span>);
+<span class="hljs-keyword">await</span> dir.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+
+<span class="hljs-comment">// $rootdirName を通じて直接アクセス</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$my-app/test.txt"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <p>これらのディレクトリパスの形式は <code>$ディレクトリ名</code> で、マウントせずに HTTP 経由でアクセスできます。</p>
+        <h3>ローカルディレクトリ（マウントが必要）</h3>
+        <p><code>open()</code> で開いたローカルディレクトリは、永続的にアクセスするためにマウントする必要があります。</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// ユーザーのローカルディレクトリを開く</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// 後続のセッションで引き続きアクセスするにはマウントが必要です</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+
+<span class="hljs-comment">// マウント後、$mount-{id}&gt;ディレクトリ名 でアクセスできます</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/file.txt`</span>);</code></pre>
+        <h3>2つのディレクトリの比較</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>機能</th>
+              <th>バーチャルファイルシステムディレクトリ</th>
+              <th>ローカルディレクトリ（マウント）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>作成方法</td>
+              <td><code>init("dir-name")</code></td>
+              <td><code>open()</code> + <code>mount()</code></td>
+            </tr>
+            <tr>
+              <td>パス形式</td>
+              <td><code>$dir-name</code></td>
+              <td><code>$mount-{id}&gt;dir-name</code></td>
+            </tr>
+            <tr>
+              <td>HTTP アクセス</td>
+              <td>✅ 直接サポート</td>
+              <td>✅ マウント後にサポート</td>
+            </tr>
+            <tr>
+              <td>永続化</td>
+              <td>✅ 自動永続化</td>
+              <td>✅ マウントによる永続化が必要</td>
+            </tr>
+            <tr>
+              <td>データの保存場所</td>
+              <td>ブラウザストレージ</td>
+              <td>ユーザーのローカルファイルシステム</td>
+            </tr>
+            <tr>
+              <td>マウントの要否</td>
+              <td>❌ 不要</td>
+              <td>✅ 必要</td>
+            </tr>
+            <tr>
+              <td>ブラウザサポート</td>
+              <td>すべてのモダンブラウザ</td>
+              <td>Chromeのみ</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>マウント済みディレクトリ一覧の取得</h3>
+        <p><code>getMounted()</code>を使用して、マウントされているすべてのディレクトリを取得します：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mountedDirs = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">id</span>); <span class="hljs-comment">// マウントID</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">name</span>); <span class="hljs-comment">// ディレクトリ名</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">path</span>); <span class="hljs-comment">// マウントパス</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>); <span class="hljs-comment">// DirHandle オブジェクト</span>
+});</code></pre>
+        <h3>アンインストールディレクトリ</h3>
+        <p><code>unmount()</code> を使用して、マウント済みのディレクトリを削除します。このメソッドは、2 種類のパラメータ型をサポートしています。</p>
+        <h4>方法1：IDによるアンインストール</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(mountId);</code></pre>
+        <h4>方法 2：ハンドルオブジェクトによるアンロード（推奨）</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// handleを使用...</span>
+
+<span class="hljs-comment">// handleオブジェクトを直接使用してアンマウント</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(handle);</code></pre>
+        <h4>マウントリストからアンマウントする</h4>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> item <span class="hljs-keyword">of</span> mounted) {
+  <span class="hljs-comment">// ハンドルオブジェクトを使用してアンマウント</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(item.<span class="hljs-property">handle</span>);
+
+  <span class="hljs-comment">// またはIDを使用してアンマウント</span>
+  <span class="hljs-comment">// await unmount(item.id);</span>
+}</code></pre>
+        <p>アンインストール後、このディレクトリにはマウントパスからアクセスできなくなります。</p>
+        <p><strong>注意</strong>：アンマウントできるのは、マウント済みの handle（パスが <code>$mount-</code> で始まるもの）のみです。マウントされていない handle をアンマウントしようとするとエラーが発生します。</p>
+        <h2>マウントパスを介したファイルアクセス</h2>
+        <h3>get() メソッドの使用</h3>
+        <p>マウント後のディレクトリはマウントパスを通じてアクセスできます：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// マウントされたパスが $mount-123&gt;my-project であると仮定します</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src/index.js"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>サブディレクトリにアクセスする</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subdir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src"</span>);
+<span class="hljs-keyword">const</span> files = <span class="hljs-keyword">await</span> subdir.<span class="hljs-title function_">values</span>();
+
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> file <span class="hljs-keyword">of</span> files) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(file.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h2>HTTPでマウントファイルにアクセス（静的サーバー機能）</h2>
+        <p>マウント後のディレクトリはHTTPリクエストを通じてファイルにアクセスでき、ローカル静的サーバーのような機能を実現します。これはディレクトリマウントの核心機能の一つです。</p>
+        <h3>基本的な使い方</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// テストファイルを作成</span>
+<span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> testFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-comment">// HTTP 経由でアクセス (静的サーバーのように)</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/test.txt`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// 出力: Hello, World!</span></code></pre>
+        <h3>実践的な応用例</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// ローカルプロジェクトディレクトリをマウント</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// これでHTTP経由でプロジェクト内の任意のファイルにアクセス可能</span>
+<span class="hljs-keyword">const</span> htmlResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> htmlContent = <span class="hljs-keyword">await</span> htmlResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> jsResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/src/app.js`</span>);
+<span class="hljs-keyword">const</span> jsContent = <span class="hljs-keyword">await</span> jsResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> cssResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/styles/main.css`</span>);
+<span class="hljs-keyword">const</span> cssContent = <span class="hljs-keyword">await</span> cssResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-comment">// まるでローカルの静的サーバーにアクセスしているかのように</span></code></pre>
+        <h3>応用シーン</h3>
+        <ul>
+          <li><strong>ローカル開発サーバー</strong>：Node.jsサーバーを起動せずに、ブラウザで直接ローカルファイルにアクセス</li>
+          <li><strong>プロジェクトプレビュー</strong>：ローカルのHTML/CSS/JSプロジェクトをリアルタイムでプレビュー</li>
+          <li><strong>リソースの読み込み</strong>：Webアプリでローカルの画像、フォントなどのリソースを読み込む</li>
+        </ul>
+        <h2>完全な例</h2>
+        <h3>プロジェクトを作成してマウントする</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// ディレクトリ選択ダイアログを開く</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// マウント済みかどうかを確認</span>
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">const</span> existing = mounted.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span> === handle.<span class="hljs-property">name</span>);
+
+<span class="hljs-keyword">if</span> (existing) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"ディレクトリは既にマウントされています:"</span>, existing.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-comment">// ディレクトリをマウント</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"ディレクトリは既にマウントされています:"</span>, handle.<span class="hljs-property">path</span>);
+}
+
+<span class="hljs-comment">// マウントされたディレクトリを使用</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">if</span> (packageJson) {
+  <span class="hljs-keyword">const</span> config = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"プロジェクト名:"</span>, config.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h3>複数のマウントディレクトリの管理</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// すべてのマウントを取得</span>
+<span class="hljs-keyword">const</span> allMounts = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+<span class="hljs-comment">// 特定のプロジェクトをフィルタリング</span>
+<span class="hljs-keyword">const</span> projects = allMounts.<span class="hljs-title function_">filter</span>(<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.<span class="hljs-property">name</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"project"</span>));
+
+<span class="hljs-comment">// 古いプロジェクトをアンマウント</span>
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> project <span class="hljs-keyword">of</span> projects) {
+  <span class="hljs-keyword">if</span> (project.<span class="hljs-property">time</span> &lt; <span class="hljs-title class_">Date</span>.<span class="hljs-title function_">now</span>() - <span class="hljs-number">30</span> * <span class="hljs-number">24</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">1000</span>) {
+    <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(project.<span class="hljs-property">handle</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"アンマウントしました:"</span>, project.<span class="hljs-property">name</span>);
+  }
+}</code></pre>
+        <h2>権限管理</h2>
+        <h3>権限の確認とリクエスト</h3>
+        <p>ブラウザは初回アクセス時に権限をリクエストします。権限が拒否されたか期限切れになった場合、再度リクエストする必要があります：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project"</span>);
+  <span class="hljs-comment">// handle を使用</span>
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"再認証が必要です"</span>);
+    <span class="hljs-comment">// ユーザーにディレクトリの再選択を促す</span>
+  }
+}</code></pre>
+        <h2>ブラウザ互換性</h2>
+        <h3>対応状況</h3>
+        <ul>
+          <li>✅ Chrome 86+ / Edge 86+ - <strong>完全サポート</strong>（推奨）</li>
+          <li>⚠️ Firefox 111+ - <strong>非サポート</strong> <code>showDirectoryPicker</code>、ただし仮想ディレクトリのマウントは可能</li>
+          <li>❌ Safari - <strong>非サポート</strong> <code>showDirectoryPicker</code>、仮想ディレクトリのマウントも不可</li>
+        </ul>
+        <h3>コア機能の説明</h3>
+        <p><strong><code>open()</code> メソッド</strong>は <code>showDirectoryPicker</code> API に依存しており、今のところ Chrome のみの機能です：</p>
+        <ul>
+          <li><strong>Chrome</strong>：完全サポート、ディレクトリ選択ダイアログを表示し、ハンドルを永続的に保存可能</li>
+          <li><strong>その他のブラウザ</strong>：ディレクトリ選択機能はサポートされておらず、<code>open()</code> メソッドを使用できません</li>
+        </ul>
+        <h3>推奨使用方法</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// ブラウザのサポートを検出する</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-title function_">alert</span>(<span class="hljs-string">"この機能は Chrome ブラウザのサポートが必要です"</span>);
+  <span class="hljs-keyword">return</span>;
+}
+
+<span class="hljs-comment">// Chrome で使用する</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"ローカルディレクトリをマウントしました:"</span>, handle.<span class="hljs-property">path</span>);
+
+<span class="hljs-comment">// HTTP 経由でローカルファイルにアクセスする</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>Safariは完全に非対応</h3>
+        <p>Safari は <code>showDirectoryPicker</code> API をサポートしておらず、<code>FileSystemHandle</code> を IndexedDB に保存することもサポートしていない：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// Safari では使用できません</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// ❌ エラー: showDirectoryPicker はサポートされていません</span></code></pre>
+        <h3>ブラウザのサポートを検出する</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> isFileSystemSupported = !!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>;
+
+<span class="hljs-keyword">if</span> (!isFileSystemSupported) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"現在のブラウザはディレクトリ選択機能をサポートしていません"</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"完全な機能を利用するには Chrome ブラウザを使用してください"</span>);
+}</code></pre>
+        <h2>ベストプラクティス</h2>
+        <ol>
+          <li><strong>ブラウザ検出</strong>：使用前にブラウザが <code>showDirectoryPicker</code> をサポートしているかを検出する</li>
+          <li><strong>ユーザーへの通知</strong>：この機能にはChromeブラウザが必要であることを明示的にユーザーに伝える</li>
+          <li><strong>エラーハンドリング</strong>：権限拒否やディレクトリが存在しないケースの処理</li>
+          <li><strong>古いマウントのクリーンアップ</strong>：不要になったマウントディレクトリを定期的にクリーンアップする</li>
+          <li><strong>静的サーバー機能</strong>：HTTPアクセス機能を活用し、ローカルファイルサービスを実現する</li>
+        </ol>
+        <h3>推奨される完全な実装</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">setupLocalProject</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-comment">// 1. ブラウザのサポートを検出</span>
+  <span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+    <span class="hljs-title function_">alert</span>(
+      <span class="hljs-string">"この機能にはChromeブラウザが必要です。\n\n完全なローカルファイルアクセス機能を利用するにはChromeブラウザを使用してください。"</span>,
+    );
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-comment">// 2. ディレクトリを開いてマウント</span>
+    <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+    <span class="hljs-comment">// 3. 有効なプロジェクトかどうかを検証</span>
+    <span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+    <span class="hljs-keyword">if</span> (!packageJson) {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">warn</span>(<span class="hljs-string">"選択したディレクトリは有効なプロジェクトではありません"</span>);
+    }
+
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"ローカルプロジェクトがマウントされました："</span>, handle.<span class="hljs-property">path</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"HTTPでアクセス可能："</span>, <span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/`</span>);
+
+    <span class="hljs-keyword">return</span> handle;
+  } <span class="hljs-keyword">catch</span> (error) {
+    <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+      <span class="hljs-title function_">alert</span>(<span class="hljs-string">"この機能を使用するにはディレクトリアクセス許可が必要です"</span>);
+    } <span class="hljs-keyword">else</span> {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"マウント失敗："</span>, error);
+    }
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+}
+
+<span class="hljs-comment">// 使用例</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">setupLocalProject</span>();
+<span class="hljs-keyword">if</span> (projectHandle) {
+  <span class="hljs-comment">// HTTP経由でローカルファイルにアクセス</span>
+  <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/README.md`</span>);
+  <span class="hljs-keyword">const</span> readme = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(readme);
+}</code></pre>
+        <h2>次の章</h2>
+        <p><a href="./file-operations.html" olink="">ファイル操作</a>を学習し，ファイルの読み書きと削除の方法を理解する</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>

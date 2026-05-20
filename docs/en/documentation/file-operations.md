@@ -1,10 +1,10 @@
 # File Operations
 
-This document introduces file operations in the file system, including creating, writing, reading, and deleting files.
+This document describes file operations in the file system, including creating, writing, reading, and deleting files.
 
-## Create File
+## Create a file
 
-Use the `get` method and specify `create: "file"` to create a file:
+Use the `get` method and specify `create: "file"` to create the file:
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -12,42 +12,42 @@ import { get } from "/nos/fs/main.js";
 const file = await get("my-app/path/to/file.txt", { create: "file" });
 ```
 
-## Writing Files
+## Write to File
 
-Using the `write` method to write content to a file:
+Use the `write` method to write content to a file:
 
 ```javascript
 const file = await get("my-app/hello.txt", { create: "file" });
 await file.write("Hello, World!");
 ```
 
-The `write` method supports writing string or Blob data.
+`write` method supports writing strings or Blob data.
 
-## Reading Files
+## Read File
 
 ### text() method
 
-Read the text content of a file using the `text()` method:
+Use the `text()` method to read the text content of the file:
 
 ```javascript
 const content = await file.text();
 console.log(content); // "Hello, World!"
 ```
 
-### file() method
+### file() Method
 
-Using the `file()` method to read the original [File object](https://developer.mozilla.org/zh-CN/docs/Web/API/File):
+Use the `file()` method to read the raw [File object](https://developer.mozilla.org/zh-CN/docs/Web/API/File):
 
 ```javascript
 const fileObj = await file.file();
-console.log(fileObj.name); // filename
+console.log(fileObj.name); // file name
 console.log(fileObj.size); // file size
 console.log(fileObj.lastModified); // last modified time
 ```
 
-### buffer() method
+### buffer() Method
 
-Use the `buffer()` method to read the file's [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) data:
+Use the `buffer()` method to read the file's [ArrayBuffer](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) data:
 
 ```javascript
 const arrayBuffer = await file.buffer();
@@ -55,21 +55,21 @@ const arrayBuffer = await file.buffer();
 
 ### read() Method
 
-The `read()` method is the underlying reading method that supports more options:
+`read()` method is a low-level reading method that supports more options:
 
 ```javascript
 const content = await file.read({
   type: "text",    // Return type: "text" | "file" | "buffer"
-  start: 0,        // Start byte
-  end: 100,        // End byte
+  start: 0,        // start byte
+  end: 100,        // end byte
 });
 ```
 
 ## JSON Operations
 
-### json() method
+### The json() method
 
-Use the `json()` method to directly read and parse a JSON file:
+Use the `json()` method to directly read and parse JSON files:
 
 ```javascript
 const data = await file.json();
@@ -77,7 +77,7 @@ const data = await file.json();
 
 ### base64() Method
 
-Use the `base64()` method to convert the file content to [base64](https://developer.mozilla.org/en-US/docs/Glossary/Base64) encoding):
+Use the `base64()` method to convert the file content to [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) encoding):
 
 ```javascript
 const base64String = await file.base64();
@@ -97,16 +97,16 @@ console.log(new Date(timestamp)); // Date object
 
 ### size attribute
 
-Get the file size through the `file()` method:
+Get file size via `file()` method:
 
 ```javascript
 const fileObj = await file.file();
-console.log(fileObj.size); // file size (bytes)
+console.log(fileObj.size); // File size in bytes
 ```
 
-## Fetching files via fetch
+## Get a file via fetch
 
-In addition to using a handle, after writing to a file you can also use the browser’s `fetch` API to retrieve the file’s contents via its URL:
+Besides using handles, after writing the file, you can also use the browser's `fetch` API to get the file content via URL:
 
 ```javascript
 const file = await get("my-app/file1.txt", { create: "file" });
@@ -118,9 +118,9 @@ await new Promise((resolve) => setTimeout(resolve, 300));
 const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
 ```
 
-### Preview HTML Files
+### Preview HTML file
 
-If the file written is an HTML file, it can be previewed directly in the browser:
+If it's an HTML file, you can preview it directly in the browser:
 
 ```javascript
 const htmlFile = await get("my-app/index.html", { create: "file" });
@@ -129,9 +129,9 @@ await htmlFile.write("<html><body><h1>Hello World</h1></body></html>");
 // Open /$my-app/index.html in your browser to preview (remember to include the $ prefix)
 ```
 
-## Delete Files
+## Delete File
 
-Using the `remove()` method to delete a file:
+Use the `remove()` method to delete a file:
 
 ```javascript
 const file = await get("my-app/file1.txt", { create: "file" });
@@ -146,11 +146,11 @@ const fileExists = await get("my-app/file1.txt");
 ```javascript
 import { get } from "/nos/fs/main.js";
 
-// Create and write file
+// Create and write to a file
 const file = await get("my-app/example.txt", { create: "file" });
 await file.write("This is a test file.");
 
-// Read file
+// Read the file
 const content = await file.text();
 console.log(content); // "This is a test file."
 
@@ -162,7 +162,7 @@ console.log(`File name: ${fileInfo.name}, Size: ${fileInfo.size}`);
 const modified = await file.lastModified();
 console.log(`Last modified: ${new Date(modified)}`);
 
-// Delete file
+// Delete the file
 await file.remove();
 const exists = await get("my-app/example.txt");
 console.log(exists); // null
@@ -170,4 +170,4 @@ console.log(exists); // null
 
 ## Next Chapter
 
-Study [Directory Operations](./directory-operations.md) to learn how to traverse and manage directories.
+Learn [directory operations](./directory-operations.md) to understand how to traverse and manage directories.

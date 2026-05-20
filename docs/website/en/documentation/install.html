@@ -72,16 +72,16 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>Installation</h1>
-        <p>NoneOS Core is a browser-based file system that relies on Service Worker for local storage. The project itself is purely static and does not require a dynamic server.</p>
+        <p>NoneOS Core is a browser-based file system that needs to implement local storage through a Service Worker. The project itself is purely static and does not require a dynamic server.</p>
         <h2>Prerequisites</h2>
         <ul>
-          <li>A static server (e.g. http-server, live-server, nginx, etc.)</li>
-          <li>Browser support for Service Worker</li>
-          <li>For external access, HTTPS must be used (due to API requirements)</li>
+          <li>A static server (such as http-server, live-server, nginx, etc.)</li>
+          <li>Browser supports Service Worker</li>
+          <li>If accessed from an external network, HTTPS must be used (due to API requirements)</li>
         </ul>
         <h2>Steps</h2>
-        <h3>1. Create Service Worker File</h3>
-        <p>Create a <code>sw.js</code> file in the project root directory and fill in the following content:</p>
+        <h3>1. Create a Service Worker file</h3>
+        <p>Create a <code>sw.js</code> file in the root directory of the project and fill in the following content:</p>
         <pre><code class="hljs language-javascript">importScripts(<span class="hljs-string">&quot;https://core.noneos.com/sw/dist.js&quot;</span>);</code></pre>
         <h3>2. Create Entry HTML</h3>
         <p>In the entry HTML file, import <code>ofa.js</code> and the <code>nos-version</code> component. After using the <code>nos-version</code> component, the <code>sw.js</code> file will be automatically registered:</p>
@@ -102,21 +102,21 @@
     <span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">&quot;module&quot;</span>&gt;</span><span class="language-javascript">
       <span class="hljs-comment">// Wait for installation to complete</span>
       $(<span class="hljs-string">&quot;nos-version&quot;</span>).<span class="hljs-title function_">on</span>(<span class="hljs-string">&quot;installed&quot;</span>, <span class="hljs-function">() =&gt;</span> {
-        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;NoneOS Core installation completed, ready to use&quot;</span>);
-        <span class="hljs-comment">// noneos-core can be used here</span>
+        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">&quot;NoneOS Core installation complete, ready to use&quot;</span>);
+        <span class="hljs-comment">// Now you can use noneos-core</span>
       });
     </span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
   <span class="hljs-tag">&lt;/<span class="hljs-name">body</span>&gt;</span>
 <span class="hljs-tag">&lt;/<span class="hljs-name">html</span>&gt;</span></code></pre>
         <h2>Installation Status</h2>
-        <p>The <code>nos-version</code> component automatically detects the installation status of NoneOS Core:</p>
+        <p><code>nos-version</code> component will automatically detect the installation status of NoneOS Core:</p>
         <ul>
-          <li><strong>Not installed</strong>: Display &quot;Install NoneOS Core&quot; button</li>
+          <li><strong>Not Installed</strong>: Display &quot;Install NoneOS Core&quot; button</li>
           <li><strong>Installing</strong>: Display installation progress bar</li>
           <li><strong>Installed</strong>: Display current version number</li>
-          <li><strong>Upgrade available</strong>: Display upgrade button</li>
+          <li><strong>Upgradable</strong>: Display upgrade button</li>
         </ul>
-        <p>When the system installation is completed, or has already been installed, or the upgrade is successful, the <code>installed</code> event will be triggered, after which all functions of NoneOS Core can be used normally.</p>
+        <p>When the system installation is complete, or has already been installed, or upgraded successfully, the <code>installed</code> event will be triggered, and then all functions of NoneOS Core can be used normally.</p>
       </article>
       <div class="footer"></div>
       <script>

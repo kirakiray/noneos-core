@@ -2,11 +2,11 @@
 
 # ファイル変更監視
 
-このドキュメントでは、`observe` メソッドを使用してファイルやディレクトリの変更イベントを監視する方法について説明します。
+このドキュメントでは、`observe` メソッドを使用してファイルまたはディレクトリの変更イベントを監視する方法について説明します。
 
-## 基本的な使い方
+## 基本的な使用方法
 
-`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します：
+`observe()` メソッドを使用してファイルまたはディレクトリの変更を監視します。
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -15,7 +15,7 @@ const dir = await get("my-app");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
-  console.log("ファイル変更イベントを受信しました:", event);
+  console.log("ファイル変更イベントを受信:", event);
   events.push(event);
 });
 
@@ -30,13 +30,13 @@ await file.remove();
 unobserve();
 ```
 
-ファイルとディレクトリの両方とも変化を監視できます。たとえば、単一のファイルを監視するには：
+ファイルとディレクトリの両方で変更を監視できます。例えば、単一ファイルを監視する場合：
 
 ```javascript
 const file = await get("my-app/test.txt", { create: "file" });
 
 const unobserve = await file.observe((event) => {
-  console.log("ファイルが変更されました:", event.type);
+  console.log("ファイルが修正されました:", event.type);
 });
 
 await file.write("new content");
@@ -46,32 +46,32 @@ unobserve();
 
 ## observe 戻り値
 
-`observe()` は Promise を返し、これは resolve すると監視を解除する関数となる。この関数を呼び出すとリスニングを停止できる：
+`observe()` は Promise を返し、監視を解除する関数に解決されます。その関数を呼び出すと監視を停止できます：
 
 ```javascript
 const unobserve = await dir.observe((event) => {
-  // イベントを処理
+  // イベントを処理する
 });
 
-// 後で監視を解除
+// 後で監視を解除する
 unobserve();
 ```
 
 ## イベントオブジェクト
 
-観測コールバックが受信するイベントオブジェクトには以下の属性が含まれます：
+オブザーバーコールバックで受け取るイベントオブジェクトには、次のプロパティが含まれています：
 
-| 属性 | 説明 |
+| プロパティ | 説明 |
 |------|------|
-| `type` | イベントタイプ。例: `"create"`, `"remove"`, `"write"` |
-| `path` | 変更が発生したファイルパス |## 完全な例
+| `type` | イベントの種類。例: `"create"`, `"remove"`, `"write"` |
+| `path` | 変更が発生したファイルのパス |## 完全な例
 
 ```javascript
 import { get } from "/nos/fs/main.js";
 
 const dir = await get("my-app");
 
-console.log("ファイル変更監視テストを開始します");
+console.log("ファイル変更監視テスト開始");
 
 const events = [];
 const unobserve = await dir.observe((event) => {
@@ -91,14 +91,14 @@ await new Promise((resolve) => setTimeout(resolve, 100));
 
 unobserve();
 
-console.log(`合計 ${events.length} 個のイベントを受信しました`);
+console.log(`合計 ${events.length} 件のイベントを受信`);
 ```
 
 ## 注意事項
 
-1. オブザーバーは作成後に監視を開始し、それ以前のファイル操作はキャプチャされません
-2. 監視をキャンセルすると、新たに発生するファイル変更は記録されません
-3. ファイル変更イベントは非同期でトリガーされ、一定の遅延が発生する可能性があります
+1. オブザーバーが作成されてから監視が開始され、それ以前のファイル操作はキャプチャされません
+2. 監視を解除すると、その後に発生したファイルの変更は記録されません
+3. ファイル変更イベントは非同期で発生するため、ある程度の遅延が生じる可能性があります
 
 ---
 
@@ -106,11 +106,11 @@ console.log(`合計 ${events.length} 個のイベントを受信しました`);
 
 # 概要
 
-ファイルシステム（FileSystem）は、ブラウザベースの仮想ファイルシステムであり、完全なファイルおよびディレクトリ操作APIを提供します。
+ファイルシステム（FileSystem）はブラウザベースの仮想ファイルシステムであり、完全なファイルとディレクトリ操作 API のセットを提供します。
 
 ## 初期化
 
-ファイルシステムを使用する前に、まずルートディレクトリを初期化する必要があります：
+ファイルシステムを使用する前に、ルートディレクトリを初期化する必要があります：
 
 ```javascript
 import { init } from "/nos/fs/main.js";
@@ -118,11 +118,11 @@ import { init } from "/nos/fs/main.js";
 await init("my-app");
 ```
 
-以降のチュートリアルは、`my-app` の初期化が完了していることを前提としています。
+以降のチュートリアルでは、`my-app` の初期化が完了していることを前提としています。
 
 ## グローバル get メソッド
 
-グローバルな `get` メソッドを使用して、ファイル/ディレクトリハンドルを取得または作成します：
+グローバル `get` メソッドを使用してファイル/ディレクトリハンドルを取得または作成します：
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -137,8 +137,8 @@ const dir = await get("my-app/path/to/dir", { create: "dir" });
 
 ### FileHandle と DirHandle
 
-- **FileHandle**：ファイルを表し、ファイルの読み書き操作を提供する
-- **DirHandle**：ディレクトリを表し、ディレクトリの走査と子項目の操作を提供する
+- **FileHandle**：ファイルを表し、ファイルの読み書き操作を提供します
+- **DirHandle**：ディレクトリを表し、ディレクトリの走査とサブアイテムの操作を提供します
 
 ### 基本属性
 
@@ -146,309 +146,9 @@ const dir = await get("my-app/path/to/dir", { create: "dir" });
 - `name`：ファイルまたはディレクトリの名前を返します
 - `path`：ファイルまたはディレクトリの完全なパスを返します
 
-## 次章
+## 次の章
 
-[ファイル操作](./file-operations.md)を学び、ファイルの読み書きや削除の方法を理解します。
-
----
-
-<!-- handle-comparison.html -->
-
-# ファイルハンドルの比較
-
-このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、および一意識別子の取得方法について説明します。
-
-## 親ディレクトリの取得
-
-`parent` 属性を使用してファイルの親ディレクトリを取得します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const fileParentDir = await testFile.parent;
-
-const isSame = await fileParentDir.isSame(testDir);
-// isSame === true
-```
-
-## ルートディレクトリの取得
-
-`root` 属性を使用してファイルまたはディレクトリが属するルートディレクトリを取得する：
-
-```javascript
-const testDir = await get("my-app/a/b/c/d");
-const testFile = await testDir.get("test.txt", { create: "file" });
-const root = testFile.root;
-
-const isSame = await root.isSame(await get("my-app"));
-// isSame === true
-```
-
-## ハンドルが同一かどうかを判定する
-
-`isSame()` メソッドを使用して、2つのハンドルが同じファイルまたはディレクトリを指しているかどうかを判断します：
-
-```javascript
-const dir = await get("my-app/path/to");
-await dir.get("file.txt", { create: "file" });
-await dir.get("other.txt", { create: "file" });
-
-const file1 = await dir.get("file.txt");
-const file2 = await dir.get("file.txt");
-const file3 = await dir.get("other.txt");
-
-const result1 = await file1.isSame(file2);
-// result1 === true
-
-const result2 = await file1.isSame(file3);
-// result2 === false
-```
-
-## ファイルサイズを取得する
-
-`size()` メソッドを使用してファイルのサイズを取得します：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-await file.write("Hello, World!");
-
-const fileSize = await file.size();
-console.log(fileSize); // 13 (バイト)
-```
-
-ディレクトリの場合、`size()` は `null` を返します。
-
-## 一意の識別子を取得する
-
-`id()` メソッドを使用してファイルまたはディレクトリの一意識別子を取得します：
-
-```javascript
-const file = await get("my-app/example.txt", { create: "file" });
-const id = await file.id();
-console.log(id); // 一意のハッシュ値文字列
-```
-
-## ハンドル属性
-
-| 属性 | 説明 | 戻り値 |
-|------|------|--------|
-| `kind` | ハンドルタイプ | `"file"` または `"dir"` |
-| `name` | ファイルまたはディレクトリ名 | 文字列 |
-| `path` | フルパス | 文字列 |
-| `parent` | 親ディレクトリ | DirHandle |
-| `root` | ルートディレクトリ | DirHandle |## 完全な例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const deepDir = await get("my-app/a/b/c");
-const deepFile = await deepDir.get("deep.txt", { create: "file" });
-await deepFile.write("Hello!");
-
-// 親ディレクトリを取得
-const parent = await deepFile.parent;
-console.log(parent.name); // "c"
-
-// ルートディレクトリを取得
-const root = deepFile.root;
-console.log(root.path); // "my-app"
-
-// ファイルサイズを取得
-const size = await deepFile.size();
-console.log(size); // 6
-
-// 一意識別子を取得
-const id = await deepFile.id();
-console.log(id); // "abc123..."
-
-// 異なるパスで同じファイルを取得
-const file2 = await deepDir.get("deep.txt");
-console.log(await deepFile.isSame(file2)); // true
-```
-
-## 次章
-
-[ファイル変更の監視](./file-observation.md) を学習し、ファイル変更イベントの監視方法を理解します。
-
----
-
-<!-- directory-operations.html -->
-
-# ディレクトリ操作
-
-このドキュメントでは、ファイルシステムにおけるディレクトリ操作について説明します。ディレクトリの作成、走査、検索、フラット化、削除が含まれます。
-
-## ディレクトリの作成
-
-`get` メソッドを使用して `create: "dir"` を指定してディレクトリを作成します：
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const dir = await get("my-app/path/to/dir", { create: "dir" });
-```
-
-## サブアイテム数の取得
-
-`length()` メソッドを使用して、ディレクトリ内のサブファイル/サブディレクトリの総数を取得する：
-
-```javascript
-const dir = await get("my-app/subDir", { create: "dir" });
-await dir.get("file1.txt", { create: "file" });
-await dir.get("file2.txt", { create: "file" });
-
-const count = await dir.length();
-console.log(count); // 2
-```
-
-## ディレクトリのトラバース
-
-### keys() メソッド
-
-`keys()` メソッドを使用してディレクトリ内のすべての項目の名前を走査します：
-
-```javascript
-for await (const key of dir.keys()) {
-  console.log(key);
-}
-```
-
-### values() メソッド
-
-`values()` メソッドを使ってディレクトリ内のすべてのファイルとサブディレクトリを走査する：
-
-```javascript
-const handles = [];
-for await (const handle of dir.values()) {
-  handles.push({
-    kind: handle.kind,
-    name: handle.name,
-  });
-}
-```
-
-### entries() メソッド
-
-`entries()` メソッドを使用してディレクトリ内のすべての項目を走査し、[名称, ハンドル] のペアを返します：
-
-```javascript
-for await (const [name, handle] of dir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-```
-
-### forEach() メソッド
-
-`forEach()` メソッドを使用してディレクトリを走査する：
-
-```javascript
-await dir.forEach(async (handle, name) => {
-  console.log(`${handle.kind}: ${name}`);
-});
-```
-
-### some() メソッド
-
-`some()` メソッドを使用して条件を満たす最初のファイルまたはディレクトリを検索し、見つかった時点で自動的に走査を停止します：
-
-```javascript
-let foundTarget = false;
-let count = 0;
-
-await dir.some(async (handle, name) => {
-  count++;
-  if (handle.kind === "file") {
-    if (count === 2) {
-      foundTarget = true;
-      return true; // trueを返して走査を停止
-    }
-  }
-  return false;
-});
-```
-
-## ディレクトリのフラット化
-
-`flat()` メソッドを使用して、ディレクトリとそのすべてのサブディレクトリ内の**ファイルハンドル**を取得します（ディレクトリは含まれません）：
-
-```javascript
-const allFiles = await dir.flat();
-
-const fileContents = await Promise.all(
-  allFiles.map(async (file) => ({
-    path: file.path,
-    content: await file.read(),
-  }))
-);
-```
-
-例：
-
-```javascript
-const rootDir = await get("my-app");
-await rootDir.get("file1.txt", { create: "file" });
-await rootDir.get("subDir1", { create: "dir" });
-await rootDir.get("subDir1/file2.txt", { create: "file" });
-await rootDir.get("subDir1/subDir2", { create: "dir" });
-await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
-
-await (await rootDir.get("file1.txt")).write("root file");
-await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
-await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
-
-const allFiles = await rootDir.flat();
-// 戻り値: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
-```
-
-## ディレクトリの削除
-
-`remove()` メソッドを使用してディレクトリを削除する（ディレクトリ内のすべてのコンテンツを再帰的に削除します）：
-
-```javascript
-const subDir = await get("my-app/subDir", { create: "dir" });
-await subDir.get("file2.txt", { create: "file" });
-
-await subDir.remove();
-const subDirExists = await get("my-app/subDir");
-// subDirExists === null はディレクトリが削除されたことを示します
-```
-
-⚠️ 警告：削除操作は即座に実行され、ディレクトリ内にサブファイルやサブディレクトリが存在する場合もそれらをすべて削除し、復元できません。十分に注意して操作してください。
-
-## 完全な例
-
-```javascript
-import { get } from "/nos/fs/main.js";
-
-const rootDir = await get("my-app");
-
-// ディレクトリ構造を作成
-await rootDir.get("docs", { create: "dir" });
-await rootDir.get("docs/guide.md", { create: "file" });
-await rootDir.get("docs/api.md", { create: "file" });
-await rootDir.get("images", { create: "dir" });
-
-// 子項目数を取得
-const count = await rootDir.length();
-console.log(`子項目数: ${count}`); // 2
-
-// ルートディレクトリを走査
-for await (const [name, handle] of rootDir.entries()) {
-  console.log(`${handle.kind}: ${name}`);
-}
-// 出力: dir: docs, dir: images
-
-// すべてのファイルをフラットに取得
-const allFiles = await rootDir.flat();
-console.log(allFiles.map(f => f.path));
-// 出力: ["docs/guide.md", "docs/api.md"]
-```
-
-## 次章
-
-[ファイルの移動とコピー](./move-and-copy.md)を学習し、ファイルの移動とコピーの方法を理解します。
+[ファイル操作](./file-operations.md)を学習し、ファイルの読み書きや削除の方法を理解します。
 
 ---
 
@@ -456,9 +156,9 @@ console.log(allFiles.map(f => f.path));
 
 # ファイル操作
 
-このドキュメントでは、ファイルシステムにおけるファイル操作について説明します。これには、ファイルの作成、書き込み、読み取り、削除が含まれます。
+本ドキュメントでは、ファイルシステムにおけるファイル操作（作成、書き込み、読み取り、削除を含む）について説明します。
 
-## ファイルを作成する
+## ファイルを作成
 
 `get` メソッドを使用し、`create: "file"` を指定してファイルを作成します：
 
@@ -468,22 +168,22 @@ import { get } from "/nos/fs/main.js";
 const file = await get("my-app/path/to/file.txt", { create: "file" });
 ```
 
-## ファイルへの書き込み
+## ファイルに書き込む
 
-`write` メソッドを使用してファイルに内容を書き込む：
+`write`メソッドを使用してファイルに内容を書き込む：
 
 ```javascript
 const file = await get("my-app/hello.txt", { create: "file" });
-await file.write("こんにちは、世界！");
+await file.write("Hello, World!");
 ```
 
 `write` メソッドは、文字列または Blob データの書き込みをサポートします。
 
-## ファイルを読み込む
+## ファイル読み込み
 
 ### text() メソッド
 
-`text()` メソッドを使用してファイルのテキスト内容を読み取る：
+`text()` メソッドを使用してファイルのテキスト内容を読み取る:
 
 ```javascript
 const content = await file.text();
@@ -492,7 +192,7 @@ console.log(content); // "Hello, World!"
 
 ### file() メソッド
 
-`file()` メソッドを使用して元の [File オブジェクト](https://developer.mozilla.org/zh-CN/docs/Web/API/File) を読み取ります：
+`file()` メソッドを使用して、生の [File オブジェクト](https://developer.mozilla.org/ja/docs/Web/API/File) を読み取ります。
 
 ```javascript
 const fileObj = await file.file();
@@ -511,11 +211,11 @@ const arrayBuffer = await file.buffer();
 
 ### read() メソッド
 
-`read()` メソッドは低レベルの読み取りメソッドであり、より多くのオプションをサポートしています：
+`read()` メソッドは低レベルの読み取りメソッドで、より多くのオプションをサポートしています：
 
 ```javascript
 const content = await file.read({
-  type: "text",    // 戻り値の種類: "text" | "file" | "buffer"
+  type: "text",    // 戻り値の型: "text" | "file" | "buffer"
   start: 0,        // 開始バイト
   end: 100,        // 終了バイト
 });
@@ -525,7 +225,7 @@ const content = await file.read({
 
 ### json() メソッド
 
-`json()` メソッドを使用して直接 JSON ファイルを読み取り、解析します：
+`json()` メソッドを使用して JSON ファイルを直接読み取り、解析する：
 
 ```javascript
 const data = await file.json();
@@ -533,36 +233,36 @@ const data = await file.json();
 
 ### base64() メソッド
 
-`base64()` メソッドを使用してファイルの内容を [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) エンコードに変換します)：
+`base64()` メソッドを使用してファイルの内容を [base64](https://developer.mozilla.org/zh-CN/docs/Glossary/Base64) エンコーディングに変換します)：
 
 ```javascript
 const base64String = await file.base64();
 console.log(base64String); // "data:application/octet-stream;base64,..."
 ```
 
-## ファイル情報を取得する
+## ファイル情報の取得
 
 ### lastModified() メソッド
 
-`lastModified()` を使用してファイルの最終更新時間を取得します：
+`lastModified()` を使用してファイルの最終更新日時を取得する：
 
 ```javascript
 const timestamp = await file.lastModified();
 console.log(new Date(timestamp)); // Date オブジェクト
 ```
 
-### size 属性
+### size プロパティ
 
-`file()` メソッドでファイルサイズを取得：
+`file()` メソッドでファイルサイズを取得する：
 
 ```javascript
 const fileObj = await file.file();
 console.log(fileObj.size); // ファイルサイズ（バイト）
 ```
 
-## fetch を使ってファイルを取得する
+## fetch を使用してファイルを取得する
 
-ハンドルを使用する以外にも、ファイルを書き込んだ後、ブラウザの `fetch` API を使って URL 経由でファイルの内容を取得できます：
+ハンドルを使用する以外に、ファイルに書き込んだ後、ブラウザの `fetch` API を使用して URL 経由でファイルの内容を取得することもできます：
 
 ```javascript
 const file = await get("my-app/file1.txt", { create: "file" });
@@ -574,9 +274,9 @@ await new Promise((resolve) => setTimeout(resolve, 300));
 const content = await fetch("/$my-app/file1.txt").then((e) => e.text());
 ```
 
-### HTMLファイルをプレビュー
+### HTML ファイルのプレビュー
 
-HTMLファイルに書き込んだ場合、ブラウザで直接プレビューできます：
+HTMLファイルに書き込む場合、ブラウザで直接プレビューできます：
 
 ```javascript
 const htmlFile = await get("my-app/index.html", { create: "file" });
@@ -610,115 +310,23 @@ await file.write("This is a test file.");
 const content = await file.text();
 console.log(content); // "This is a test file."
 
-// ファイル情報を取得
+// ファイル情報を取得する
 const fileInfo = await file.file();
 console.log(`ファイル名: ${fileInfo.name}, サイズ: ${fileInfo.size}`);
 
-// 最終更新日時を取得
+// 最終更新日時を取得する
 const modified = await file.lastModified();
 console.log(`最終更新: ${new Date(modified)}`);
 
-// ファイルを削除
+// ファイルを削除する
 await file.remove();
 const exists = await get("my-app/example.txt");
 console.log(exists); // null
 ```
 
-## 次章
+## 次の章
 
-[ディレクトリ操作](./directory-operations.md)を学び、ディレクトリを走査・管理する方法を理解します。
-
----
-
-<!-- ai-add.html -->
-
-# AIモデルの追加
-
-## AIモデル管理エントリー
-
-デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、`o-page`コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。
-
-### 相対パスを使用する
-
-```html
-<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
-```
-
-これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。
-
-## jsでモデルを追加
-
-あなたは `o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。
-
-### ストレージモジュールの導入
-
-```javascript
-import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
-```
-
-### API Key を保存する
-
-```javascript
-const newKey = {
-  id: `${Math.random().toString(36).slice(2, 11)}`,
-  provider: "deepseek",  // deepseek | kimi | minimax | glm
-  model: "deepseek-chat",
-  key: "your-api-key-here",
-  concurrency: 1,  // 同時実行数
-};
-
-// 既存のキーを取得
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-
-// 新しいキーを追加
-aiKeys.push(newKey);
-
-// 保存
-await storage.setItem("ai-keys", aiKeys);
-```
-
-### 各プロバイダーの利用可能なモデル
-
-利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。
-
-### 保存済みのすべてのキーを取得する
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-```
-
-### APIキーの削除
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const index = aiKeys.findIndex((k) => k.id === "key-id");
-if (index > -1) {
-  aiKeys.splice(index, 1);
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key の同時実行数を更新する
-
-```javascript
-const aiKeys = (await storage.getItem("ai-keys")) || [];
-const keyItem = aiKeys.find((k) => k.id === "key-id");
-if (keyItem) {
-  keyItem.concurrency = 3;  // 同時実行数を変更
-  await storage.setItem("ai-keys", aiKeys);
-}
-```
-
-### Key オブジェクト構造
-
-| 属性          | 类型    | 説明                               |
-| ------------- | ------- | ---------------------------------- |
-| `id`          | string  | 一意の識別子                         |
-| `provider`    | string  | プロバイダー (deepseek/kimi/minimax/glm) |
-| `model`       | string  | モデル名                           |
-| `key`         | string  | API Key                            |
-| `concurrency` | number  | 最大同時実行数                         |
-| `disabled`    | boolean | 無効化されているかどうか                           |
+[ディレクトリ操作](./directory-operations.md)を学習し、ディレクトリの走査と管理方法を理解しましょう。
 
 ---
 
@@ -726,11 +334,11 @@ if (keyItem) {
 
 # ファイルの移動とコピー
 
-この文書では、ファイルやディレクトリの移動とコピーについて説明します。
+このドキュメントでは、ファイルとディレクトリの移動とコピーの方法を説明します。
 
 ## ファイルの移動
 
-`moveTo()` メソッドを使用してファイルをターゲットディレクトリに移動します：
+`moveTo()` メソッドを使用してファイルをターゲットディレクトリに移動します。
 
 ```javascript
 import { get } from "/nos/fs/main.js";
@@ -740,7 +348,7 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// 第二引数はターゲットファイル名、指定しない場合は元のファイル名を使用
+// 第2引数はターゲットファイル名です。指定しない場合は元のファイル名が使用されます
 const movedFile = await sourceFile.moveTo(targetDir);
 // sourceFile.moveTo(targetDir, "source.txt") と同等
 
@@ -748,12 +356,12 @@ const content = await movedFile.text();
 // content === "Hello, World!"
 
 const oldFile = await get("my-app/source.txt");
-// oldFile === null は元のファイルが移動されたことを示す
+// oldFile === null は元のファイルが移動されたことを示します
 ```
 
 ## ディレクトリの移動
 
-`moveTo()` メソッドはディレクトリにも適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータはターゲットディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：
+`moveTo()` メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的に移動します。2番目のパラメータは移動先のディレクトリ名で、指定しない場合は元のディレクトリ名が使用されます：
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -765,14 +373,14 @@ await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const movedDir = await sourceDir.moveTo(targetDir);
-// 等同于 sourceDir.moveTo(targetDir, "sourceDir")
+// sourceDir.moveTo(targetDir, "sourceDir") と同等
 
-// movedDir 包含 file1.txt 和 subDir/file2.txt
+// movedDir には file1.txt と subDir/file2.txt が含まれている
 ```
 
-## ファイルをコピーする
+## ファイルのコピー
 
-`copyTo()` メソッドを使用してファイルを対象ディレクトリにコピーする：
+`copyTo()` メソッドを使用してファイルをターゲットディレクトリにコピーします：
 
 ```javascript
 const sourceFile = await get("my-app/source.txt", { create: "file" });
@@ -780,21 +388,21 @@ await sourceFile.write("Hello, World!");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 
-// 第二引数はターゲットファイル名、省略時は元のファイル名を継続使用
+// 2番目の引数はターゲットファイル名で、省略した場合は元のファイル名が使われる
 const copiedFile = await sourceFile.copyTo(targetDir);
 // sourceFile.copyTo(targetDir, "source.txt") と同等
 
 const content = await copiedFile.text();
 // content === "Hello, World!"
 
-// 元ファイルは依然として存在
+// 元のファイルは依然として存在する
 const originalFile = await get("my-app/source.txt");
 // originalFile !== null
 ```
 
-## ディレクトリをコピーする
+## ディレクトリをコピー
 
-`copyTo()` メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。2番目の引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名が使われます：
+`copyTo()` メソッドはディレクトリにも同様に適用され、ディレクトリとそのすべての内容を再帰的にコピーします。第二引数はコピー先のディレクトリ名で、指定しない場合は元のディレクトリ名がそのまま使用されます：
 
 ```javascript
 const sourceDir = await get("my-app/sourceDir", { create: "dir" });
@@ -806,9 +414,9 @@ await (await sourceDir.get("subDir/file2.txt")).write("Content 2");
 
 const targetDir = await get("my-app/target", { create: "dir" });
 const copiedDir = await sourceDir.copyTo(targetDir);
-// sourceDir.copyTo(targetDir, "sourceDir") と同等
+// sourceDir.copyTo(targetDir, "sourceDir") と同等です
 
-// copiedDir は file1.txt と subDir/file2.txt を含む
+// copiedDir には file1.txt と subDir/file2.txt が含まれます
 ```
 
 ## 完全な例
@@ -822,150 +430,346 @@ await sourceFile.write("Important content");
 const backupDir = await get("my-app/backup", { create: "dir" });
 const archiveDir = await get("my-app/archive", { create: "dir" });
 
-// ファイルのコピー
+// ファイルをコピーする
 const backup = await sourceFile.copyTo(backupDir, "document_backup.txt");
 console.log(await backup.text()); // "Important content"
 
-// ファイルの移動
+// ファイルを移動する
 await sourceFile.moveTo(archiveDir, "document_archived.txt");
 
-// 移動結果の検証
+// 移動の結果を確認する
 const original = await get("my-app/document.txt");
 console.log(original); // null
 ```
 
-## 次章
+## 次の章
 
-[ファイルハンドルの比較](./handle-comparison.md)を学び、ファイルハンドルを比較する方法を理解します。
+[ファイルハンドルの比較](./handle-comparison.md)を学習して、ファイルハンドルの比較方法を理解しましょう。
 
 ---
 
-<!-- sw-advanced.html -->
+<!-- directory-operations.html -->
 
-# sw.js 設定のコツ
+# ディレクトリ操作
 
-## バージョン番号管理とキャッシュ更新
+本書では、ファイルシステムにおけるディレクトリ操作（作成、走査、検索、フラット化、削除を含む）について説明します。
 
-新しいバージョンをリリースする際、サーバーが `max-age=0` レスポンスヘッダーを設定していたとしても、ブラウザは古いバージョンの `sw.js` ファイルをキャッシュすることがあり、アップデートがすぐに反映されない場合があります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。
+## ディレクトリの作成
+
+`get` メソッドを使用し、`create: "dir"` を指定してディレクトリを作成します：
 
 ```javascript
-let version = "";
-if (globalThis.serviceWorker) {
-  const urlParams = new URLSearchParams(
-    new URL(serviceWorker.scriptURL).search,
-  );
-  version = urlParams.get("v") || "";
-} else {
-  const urlParams = new URLSearchParams(new URL(location.href).search);
-  version = urlParams.get("v") || "";
+import { get } from "/nos/fs/main.js";
+
+const dir = await get("my-app/path/to/dir", { create: "dir" });
+```
+
+## 子項目の数を取得
+
+`length()` メソッドを使用して、ディレクトリ内の子ファイル/ディレクトリの総数を取得します：
+
+```javascript
+const dir = await get("my-app/subDir", { create: "dir" });
+await dir.get("file1.txt", { create: "file" });
+await dir.get("file2.txt", { create: "file" });
+
+const count = await dir.length();
+console.log(count); // 2
+```
+
+## ディレクトリ走査
+
+### keys() メソッド
+
+`keys()` メソッドを使用してディレクトリ内のすべての項目の名前を反復処理します。
+
+```javascript
+for await (const key of dir.keys()) {
+  console.log(key);
 }
-
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 ```
 
-dist.js を引用する際に `?v=` パラメータを付け、新しいバージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使わずに新しいファイルをリクエストします。
+### values() メソッド
 
-## 公式ツール
+`values()` メソッドを使用して、ディレクトリ内のすべてのファイルとサブディレクトリを走査します：
 
-`nos-tool` ディレクトリ内のツールを使用すると、NoneOS システムを簡単に管理できます。
+```javascript
+const handles = [];
+for await (const handle of dir.values()) {
+  handles.push({
+    kind: handle.kind,
+    name: handle.name,
+  });
+}
+```
 
-- **ai** - AI モデル管理、チャット、設定、キー管理を含む
-- **editor** - Monaco エディター統合、コードハイライト、フォーマット、AI 補完をサポート
-- **file-explore** - ファイルエクスプローラー
-- **file-list** - ファイルリストビューとハンドル管理
-- **studio** - 開発スタジオ、ファイル管理、カラーツール、テーマ編集などの機能を提供
+### entries() メソッド
 
-これらのツールは `nos-tool` ディレクトリにあり、必要に応じてインポートして使用できます。
+`entries()` メソッドを使用してディレクトリ内のすべてのエントリを反復処理し、[名前, ハンドル] のペアを返します：
+
+```javascript
+for await (const [name, handle] of dir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+```
+
+### forEach() メソッド
+
+`forEach()` メソッドを使用してディレクトリを走査する：
+
+```javascript
+await dir.forEach(async (handle, name) => {
+  console.log(`${handle.kind}: ${name}`);
+});
+```
+
+### some() メソッド
+
+`some()` メソッドを使用して、条件を満たす最初のファイルまたはディレクトリを検索し、見つかったら自動的に走査を停止します：
+
+```javascript
+let foundTarget = false;
+let count = 0;
+
+await dir.some(async (handle, name) => {
+  count++;
+  if (handle.kind === "file") {
+    if (count === 2) {
+      foundTarget = true;
+      return true; // trueを返して繰り返し処理を停止する
+    }
+  }
+  return false;
+});
+```
+
+## フラット化ディレクトリ
+
+`flat()` メソッドを使用して、ディレクトリとそのすべてのサブディレクトリから**ファイルハンドル**（ディレクトリを除く）を取得します。
+
+```javascript
+const allFiles = await dir.flat();
+
+const fileContents = await Promise.all(
+  allFiles.map(async (file) => ({
+    path: file.path,
+    content: await file.read(),
+  }))
+);
+```
+
+示例：
+
+```javascript
+const rootDir = await get("my-app");
+await rootDir.get("file1.txt", { create: "file" });
+await rootDir.get("subDir1", { create: "dir" });
+await rootDir.get("subDir1/file2.txt", { create: "file" });
+await rootDir.get("subDir1/subDir2", { create: "dir" });
+await rootDir.get("subDir1/subDir2/file3.txt", { create: "file" });
+
+await (await rootDir.get("file1.txt")).write("root file");
+await (await rootDir.get("subDir1/file2.txt")).write("level 1 file");
+await (await rootDir.get("subDir1/subDir2/file3.txt")).write("level 2 file");
+
+const allFiles = await rootDir.flat();
+// 戻り値: [file1.txt, subDir1/file2.txt, subDir1/subDir2/file3.txt]
+```
+
+## ディレクトリの削除
+
+`remove()` メソッドを使用してディレクトリを削除します（ディレクトリ内のすべての内容を再帰的に削除します）：
+
+```javascript
+const subDir = await get("my-app/subDir", { create: "dir" });
+await subDir.get("file2.txt", { create: "file" });
+
+await subDir.remove();
+const subDirExists = await get("my-app/subDir");
+// subDirExists === null はディレクトリが削除されたことを示します
+```
+
+⚠️ 警告：削除操作は即座に実行され、ディレクトリ下にサブファイルやサブディレクトリがあってもすべて削除され、復元できません。慎重に操作してください。
+
+## 完全な例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const rootDir = await get("my-app");
+
+// ディレクトリ構造を作成
+await rootDir.get("docs", { create: "dir" });
+await rootDir.get("docs/guide.md", { create: "file" });
+await rootDir.get("docs/api.md", { create: "file" });
+await rootDir.get("images", { create: "dir" });
+
+// エントリ数を取得
+const count = await rootDir.length();
+console.log(`エントリ数: ${count}`); // 2
+
+// ルートディレクトリを反復
+for await (const [name, handle] of rootDir.entries()) {
+  console.log(`${handle.kind}: ${name}`);
+}
+// 出力: dir: docs, dir: images
+
+// フラット化して全ファイルを取得
+const allFiles = await rootDir.flat();
+console.log(allFiles.map(f => f.path));
+// 出力: ["docs/guide.md", "docs/api.md"]
+```
+
+## 次の章
+
+[ファイルの移動とコピー](./move-and-copy.md) を学び、ファイルの移動とコピーの方法を理解します。
 
 ---
 
-<!-- install.html -->
+<!-- handle-comparison.html -->
 
-# インストール
+# ファイルハンドル比較
 
-NoneOS Core はブラウザベースのファイルシステムで、Service Worker を介してローカルストレージを実現する必要があります。プロジェクト自体は純粋に静的であり、動的サーバーは必要ありません。
+このドキュメントでは、ファイルハンドルの比較方法、親ディレクトリ、ルートディレクトリ、ファイルサイズ、一意識別子の取得方法について説明します。
 
-## 前提条件
+## 親ディレクトリを取得
 
-- 静的サーバー（http-server、live-server、nginxなど）
-- ブラウザがService Workerをサポートしていること
-- 外部アクセスする場合は、HTTPSの使用が必須です（APIの要件により）
-
-## 手順
-
-### 1. Service Worker ファイルの作成
-
-プロジェクトのルートディレクトリに `sw.js` ファイルを作成し、以下の内容を入力します：
+`parent`属性を使用してファイルの親ディレクトリを取得する：
 
 ```javascript
-importScripts("https://core.noneos.com/sw/dist.js");
+import { get } from "/nos/fs/main.js";
+
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const fileParentDir = await testFile.parent;
+
+const isSame = await fileParentDir.isSame(testDir);
+// isSame === true
 ```
 
-### 2. エントリHTMLの作成
+## ルートディレクトリを取得する
 
-エントリー HTML ファイルに `ofa.js` と `nos-version` コンポーネントを導入します。`nos-version` コンポーネントを使用すると、`sw.js` ファイルが自動的に登録されます：
+`root` 属性を使用して、ファイルまたはディレクトリが属するルートディレクトリを取得します。
 
-```html
-<!DOCTYPE html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My App</title>
-    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
-  </head>
-  <body>
-    <!-- nos-version コンポーネントをロード -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
-    <!-- nos-version コンポーネントを使用 -->
-    <nos-version auto-install></nos-version>
+```javascript
+const testDir = await get("my-app/a/b/c/d");
+const testFile = await testDir.get("test.txt", { create: "file" });
+const root = testFile.root;
 
-    <script type="module">
-      // インストール完了を待機
-      $("nos-version").on("installed", () => {
-        console.log("NoneOS Core のインストールが完了しました。使用を開始できます。");
-        // ここで noneos-core を使用可能
-      });
-    </script>
-  </body>
-</html>
+const isSame = await root.isSame(await get("my-app"));
+// isSame === true
 ```
 
-## インストールステータス
+## ハンドルが同一かどうかの判定
 
-`nos-version`コンポーネントはNoneOS Coreのインストール状態を自動的に検出します：
+`isSame()` メソッドを使用して、2つのハンドルが同じファイルまたはディレクトリを指しているかどうかを判断します：
 
-- **未インストール**：「Install NoneOS Core」ボタンを表示
-- **インストール中**：インストール進捗バーを表示
-- **インストール済み**：現在のバージョン番号を表示
-- **アップグレード可能**：アップグレードボタンを表示
+```javascript
+const dir = await get("my-app/path/to");
+await dir.get("file.txt", { create: "file" });
+await dir.get("other.txt", { create: "file" });
 
-システムのインストールが完了したとき、または既にインストールされている場合、またはアップグレードが成功したときに、`installed` イベントがトリガーされ、その後、NoneOS Core のすべての機能を正常に使用できるようになります。
+const file1 = await dir.get("file.txt");
+const file2 = await dir.get("file.txt");
+const file3 = await dir.get("other.txt");
+
+const result1 = await file1.isSame(file2);
+// result1 === true
+
+const result2 = await file1.isSame(file3);
+// result2 === false
+```
+
+## ファイルサイズの取得
+
+`size()` メソッドを使用してファイルのサイズを取得します：
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+await file.write("Hello, World!");
+
+const fileSize = await file.size();
+console.log(fileSize); // 13 (バイト)
+```
+
+ディレクトリの場合、`size()` は `null` を返します。
+
+## 一意の識別子を取得する
+
+`id()` メソッドを使用してファイルまたはディレクトリの一意識別子を取得します。
+
+```javascript
+const file = await get("my-app/example.txt", { create: "file" });
+const id = await file.id();
+console.log(id); // 一意のハッシュ値文字列
+```
+
+## ハンドル属性
+
+| 属性 | 説明 | 戻り値 |
+|------|------|--------|
+| `kind` | ハンドルの種類 | `"file"` または `"dir"` |
+| `name` | ファイルまたはディレクトリの名前 | 文字列 |
+| `path` | 完全パス | 文字列 |
+| `parent` | 親ディレクトリ | DirHandle |
+| `root` | ルートディレクトリ | DirHandle |## 完全な例
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+const deepDir = await get("my-app/a/b/c");
+const deepFile = await deepDir.get("deep.txt", { create: "file" });
+await deepFile.write("Hello!");
+
+// 親ディレクトリを取得
+const parent = await deepFile.parent;
+console.log(parent.name); // "c"
+
+// ルートディレクトリを取得
+const root = deepFile.root;
+console.log(root.path); // "my-app"
+
+// ファイルサイズを取得
+const size = await deepFile.size();
+console.log(size); // 6
+
+// 一意の識別子を取得
+const id = await deepFile.id();
+console.log(id); // "abc123..."
+
+// 異なるパスで同じファイルを取得
+const file2 = await deepDir.get("deep.txt");
+console.log(await deepFile.isSame(file2)); // true
+```
+
+## 次の章
+
+[ファイル変更監視](./file-observation.md) を学習し、ファイル変更イベントの監視方法を理解します。
 
 ---
 
 <!-- ai-call.html -->
 
-# AIモデルを呼び出す
+# AIモデルの呼び出し
 
-## chat モジュールの導入
+## chatモジュールの導入
 
 ```javascript
 import { chat, subscribe, getStatus, getAvailableProviders } from "/nos/ai/chat.js";
 ```
 
-## 基本的な使い方
+## 基本的な使用方法
 
 `chat` 関数はメッセージ配列とオプションオブジェクトを受け取ります：
 
 ```javascript
 const messages = [
-  { role: "user", content: "こんにちは" }
+  { role: "user", content: "你好" }
 ];
 
 const response = await chat(messages, {
-  provider: "deepseek",  // オプション、プロバイダを指定
-  callback: (chunk) => {  // オプション、ストリーミングコールバック
+  provider: "deepseek",  // オプション、プロバイダーを指定
+  callback: (chunk) => {  // オプション、ストリーム形式のコールバック
     console.log(chunk);
   },
   maxContextLength: 8192  // オプション、最大コンテキスト長
@@ -979,22 +783,22 @@ const response = await chat(messages, {
 - **minimax** - MiniMax
 - **glm** - 智譜 GLM
 
-`provider`を指定しない場合、システムは利用可能なAPI Keyを自動的に選択します。
+`provider` を指定しない場合、システムは自動的に利用可能な API キーを選択します。
 
 ## メッセージ形式
 
 ```javascript
 const messages = [
-  { role: "system", content: "あなたは役立つアシスタントです" },
+  { role: "system", content: "あなたは役に立つアシスタントです" },
   { role: "user", content: "こんにちは" },
-  { role: "assistant", content: "こんにちは、何かお手伝いできますか？" },
-  { role: "user", content: "AIとは何かを説明してください" }
+  { role: "assistant", content: "こんにちは、何かお手伝いできることはありますか？" },
+  { role: "user", content: "AIとは何か説明してください" }
 ];
 ```
 
 ## 並行制御
 
-NoneOS AIモジュールは並行制御をサポートし、同じAPIキーが過度に使用されることを防げます。
+NoneOS AI モジュールは並行制御をサポートしており、同一の API キーが過度に使用されるのを防ぐことができます。
 
 ### 現在の状態を取得
 
@@ -1003,7 +807,7 @@ const status = getStatus();
 // 各キーの同時使用状況を返す
 ```
 
-### 購読ステータスの変化
+### サブスクリプション状態の変化
 
 ```javascript
 subscribe((newStatus) => {
@@ -1028,7 +832,683 @@ try {
 }
 ```
 
-よくあるエラー：- `no_key` - APIキーが設定されていません
-- `no_provider_key` - プロバイダーのAPIキーが指定されていません
-- `concurrency_full` - このキーの同時実行数が満杯です
-- `Unsupported provider` - サポートされていないプロバイダー
+よくある間違い：- `no_key` - API キーが設定されていません
+- `no_provider_key` - プロバイダーの API キーが指定されていません
+- `concurrency_full` - このキーの同時実行数が上限に達しました
+- `Unsupported provider` - サポートされていないプロバイダーです
+
+---
+
+<!-- directory-mounting.html -->
+
+# ディレクトリのマウント
+
+ディレクトリマウント機能により、ユーザーのローカルファイルシステム上の**実際のディレクトリ**にアクセスし、それを永続化ストレージに保存して、後続のセッションでも継続して使用できるようになります。
+
+> **実際のディレクトリ**：あなたの **Windows** / **macOS** / **Linux** システム上の実際のフォルダーを指し，仮想ファイルシステム内のディレクトリとは区別されます。
+
+## 重要なお知らせ
+
+### ブラウザ対応状況
+
+`open()` メソッドはブラウザの `showDirectoryPicker` API に依存しており、現在のところ**Chrome ブラウザのみがこの機能を完全にサポート**しています。
+
+```javascript
+// ブラウザのサポートを確認する
+if (!window.showDirectoryPicker) {
+  console.error("現在のブラウザはディレクトリ選択機能をサポートしていません");
+  console.log("完全な機能を得るには Chrome ブラウザを使用してください");
+  return;
+}
+```
+
+### 核心用途
+
+ディレクトリマウントの主な用途は、`open()` と連携してユーザーのローカルファイルシステムにアクセスすることです：
+
+1. **ローカルファイルアクセス**：ユーザーがローカルディレクトリを選択し、ブラウザを通じてファイル内容に直接アクセスできる
+2. **静的サーバー機能**：マウントされたローカルディレクトリはHTTPリクエスト経由でアクセス可能となり、ローカル静的サーバーと同様の機能を実現
+3. **永続的なアクセス**：`mount()` でマウントすると、後続のセッションでも同じローカルディレクトリにアクセスし続けることができ、再選択が不要
+
+**注意**：`init()` で作成された仮想ファイルシステムディレクトリは、自動的に HTTP アクセスがサポートされるため、`mount()` を使用する必要はありません。
+
+### 典型的な応用シーン
+
+- ローカルプロジェクト開発：ブラウザ上で直接ローカルプロジェクトファイルにアクセスし編集する
+- 静的リソースサービス：ローカルディレクトリをアクセス可能な静的リソースパスとしてマウントする
+- ファイル管理ツール：ブラウザベースのファイル管理アプリケーションを構築する
+
+## 基本概念
+
+### open() - ディレクトリセレクタを開く
+
+`open()` メソッドはシステムのディレクトリ選択ダイアログを表示し、ユーザーにローカルディレクトリを選択させます：
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open();
+```
+
+ユーザーがディレクトリを選択すると、システムは読み取り/書き込み権限を要求します。ユーザーが権限を付与すると、`DirHandle` オブジェクトが返されます。
+
+**注意**：`open()` はユーザーのローカルファイルシステムへのアクセスにのみ使用されます。仮想ファイルシステムのディレクトリには、`init()` を使用して作成してください。
+
+### mount() - ディレクトリをマウント
+
+`mount()` メソッドはローカルディレクトリハンドルを保存し、後続のセッションで再アクセスできるようにします：
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open(); // ディレクトリ選択を開き、この時点での path は仮想パスです
+await mount(handle); // マウント後、path は $mount-{id}>ディレクトリ名 になります
+
+console.log(handle.path); // 出力: $mount-123>ディレクトリ名
+```
+
+マウント後のパスの形式：`$mount-{id}>ディレクトリ名`
+
+#### 二段階プロセスの利点
+
+二段階の流れ（最初に `open()` してから `mount()` する）を推奨します。一度にマウントする方法は避けてください：
+
+1. **ディレクトリ内容の確認**：マウント前にディレクトリ内容を閲覧し、必要なディレクトリかどうか確認できます。
+2. **誤ったマウントの防止**：ユーザーが誤ったディレクトリを選択して、誤ってシステムにマウントするのを防ぎます。
+3. **柔軟な判断**：ディレクトリ内容に基づいて、マウントするかどうかを判断できます。
+
+```javascript
+const handle = await open();
+
+// まずディレクトリの内容を検証する
+const packageJson = await handle.get("package.json");
+const data = await packageJson.json();
+if (data.somedata) {
+  // 条件に一致するディレクトリであることを確認してから、マウントする
+  await mount(handle);
+  console.log("条件に一致するディレクトリがマウントされました:", handle.path);
+} else {
+  console.log("これは条件に一致しないディレクトリです。マウントをキャンセルします");
+}
+```
+
+**重要**：
+
+- `mount()` は主に `open()` で開いたローカルディレクトリを永続化するために使用されます
+- `init()` で作成された仮想ファイルシステムディレクトリには、`mount()` を使用する必要はありません
+
+### 一括で開いてマウント
+
+`open()` の `mount` パラメータを使用すると、ディレクトリを選択した後に自動的にマウントできます：
+
+```javascript
+import { open } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// 同等の意味：
+// const handle = await open();
+// await mount(handle);
+```
+
+## mount() の主な用途
+
+`mount()` メソッドは主に `open()` と組み合わせて使用し、ユーザーが選択したローカルディレクトリを永続的に保存します。**`init()` によって作成された仮想ファイルシステムディレクトリについては、`mount()` を使用する必要はありません**。
+
+### 仮想ファイルシステムディレクトリ（マウント不要）
+
+`init()` によって作成されたディレクトリは、すでに HTTP 経由で直接アクセス可能です：
+
+```javascript
+import { init } from "/nos/fs/main.js";
+
+// 仮想ファイルシステムのディレクトリを作成
+const dir = await init("my-app");
+await dir.get("test.txt", { create: "file" });
+
+// $rootdirName を通じて直接アクセス
+const response = await fetch("/$my-app/test.txt");
+const content = await response.text();
+```
+
+これらのディレクトリパスの形式は `$ディレクトリ名` で、マウントせずに HTTP 経由でアクセスできます。
+
+### ローカルディレクトリ（マウントが必要）
+
+`open()` で開いたローカルディレクトリは、永続的にアクセスするためにマウントする必要があります。
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// ユーザーのローカルディレクトリを開く
+const handle = await open();
+
+// 後続のセッションで引き続きアクセスするにはマウントが必要です
+await mount(handle);
+
+// マウント後、$mount-{id}>ディレクトリ名 でアクセスできます
+const response = await fetch(`/${handle.path}/file.txt`);
+```
+
+### 2つのディレクトリの比較
+
+| 機能           | バーチャルファイルシステムディレクトリ   | ローカルディレクトリ（マウント）      |
+| -------------- | ---------------------------------------- | -------------------------------------- |
+| 作成方法       | `init("dir-name")`                       | `open()` + `mount()`                   |
+| パス形式       | `$dir-name`                              | `$mount-{id}>dir-name`                 |
+| HTTP アクセス  | ✅ 直接サポート                         | ✅ マウント後にサポート               |
+| 永続化         | ✅ 自動永続化                           | ✅ マウントによる永続化が必要         |
+| データの保存場所 | ブラウザストレージ                      | ユーザーのローカルファイルシステム    |
+| マウントの要否 | ❌ 不要                                 | ✅ 必要                               |
+| ブラウザサポート | すべてのモダンブラウザ                 | Chromeのみ                             |## マウント済みディレクトリの管理
+
+### マウント済みディレクトリ一覧の取得
+
+`getMounted()`を使用して、マウントされているすべてのディレクトリを取得します：
+
+```javascript
+import { getMounted } from "/nos/fs/main.js";
+
+const mountedDirs = await getMounted();
+
+mountedDirs.forEach((item) => {
+  console.log(item.id); // マウントID
+  console.log(item.name); // ディレクトリ名
+  console.log(item.path); // マウントパス
+  console.log(item.handle); // DirHandle オブジェクト
+});
+```
+
+### アンインストールディレクトリ
+
+`unmount()` を使用して、マウント済みのディレクトリを削除します。このメソッドは、2 種類のパラメータ型をサポートしています。
+
+#### 方法1：IDによるアンインストール
+
+```javascript
+import { unmount } from "/nos/fs/main.js";
+
+await unmount(mountId);
+```
+
+#### 方法 2：ハンドルオブジェクトによるアンロード（推奨）
+
+```javascript
+import { open, mount, unmount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+// handleを使用...
+
+// handleオブジェクトを直接使用してアンマウント
+await unmount(handle);
+```
+
+#### マウントリストからアンマウントする
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+const mounted = await getMounted();
+for (const item of mounted) {
+  // ハンドルオブジェクトを使用してアンマウント
+  await unmount(item.handle);
+
+  // またはIDを使用してアンマウント
+  // await unmount(item.id);
+}
+```
+
+アンインストール後、このディレクトリにはマウントパスからアクセスできなくなります。
+
+**注意**：アンマウントできるのは、マウント済みの handle（パスが `$mount-` で始まるもの）のみです。マウントされていない handle をアンマウントしようとするとエラーが発生します。
+
+## マウントパスを介したファイルアクセス
+
+### get() メソッドの使用
+
+マウント後のディレクトリはマウントパスを通じてアクセスできます：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+// マウントされたパスが $mount-123>my-project であると仮定します
+const file = await get("$mount-123>my-project/src/index.js");
+const content = await file.text();
+```
+
+### サブディレクトリにアクセスする
+
+```javascript
+const subdir = await get("$mount-123>my-project/src");
+const files = await subdir.values();
+
+for await (const file of files) {
+  console.log(file.name);
+}
+```
+
+## HTTPでマウントファイルにアクセス（静的サーバー機能）
+
+マウント後のディレクトリはHTTPリクエストを通じてファイルにアクセスでき、ローカル静的サーバーのような機能を実現します。これはディレクトリマウントの核心機能の一つです。
+
+### 基本的な使い方
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+const handle = await open({ mount: true });
+
+// テストファイルを作成
+const testFile = await handle.get("test.txt", { create: "file" });
+await testFile.write("Hello, World!");
+
+// HTTP 経由でアクセス (静的サーバーのように)
+const response = await fetch(`/${handle.path}/test.txt`);
+const content = await response.text();
+console.log(content); // 出力: Hello, World!
+```
+
+### 実践的な応用例
+
+```javascript
+// ローカルプロジェクトディレクトリをマウント
+const projectHandle = await open({ mount: true });
+
+// これでHTTP経由でプロジェクト内の任意のファイルにアクセス可能
+const htmlResponse = await fetch(`/${projectHandle.path}/index.html`);
+const htmlContent = await htmlResponse.text();
+
+const jsResponse = await fetch(`/${projectHandle.path}/src/app.js`);
+const jsContent = await jsResponse.text();
+
+const cssResponse = await fetch(`/${projectHandle.path}/styles/main.css`);
+const cssContent = await cssResponse.text();
+
+// まるでローカルの静的サーバーにアクセスしているかのように
+```
+
+### 応用シーン
+
+- **ローカル開発サーバー**：Node.jsサーバーを起動せずに、ブラウザで直接ローカルファイルにアクセス
+- **プロジェクトプレビュー**：ローカルのHTML/CSS/JSプロジェクトをリアルタイムでプレビュー
+- **リソースの読み込み**：Webアプリでローカルの画像、フォントなどのリソースを読み込む
+
+## 完全な例
+
+### プロジェクトを作成してマウントする
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+// ディレクトリ選択ダイアログを開く
+const handle = await open();
+
+// マウント済みかどうかを確認
+const mounted = await getMounted();
+const existing = mounted.find((item) => item.name === handle.name);
+
+if (existing) {
+  console.log("ディレクトリは既にマウントされています:", existing.path);
+} else {
+  // ディレクトリをマウント
+  await mount(handle);
+  console.log("ディレクトリは既にマウントされています:", handle.path);
+}
+
+// マウントされたディレクトリを使用
+const packageJson = await handle.get("package.json");
+if (packageJson) {
+  const config = await packageJson.json();
+  console.log("プロジェクト名:", config.name);
+}
+```
+
+### 複数のマウントディレクトリの管理
+
+```javascript
+import { getMounted, unmount } from "/nos/fs/main.js";
+
+// すべてのマウントを取得
+const allMounts = await getMounted();
+
+// 特定のプロジェクトをフィルタリング
+const projects = allMounts.filter((item) => item.name.includes("project"));
+
+// 古いプロジェクトをアンマウント
+for (const project of projects) {
+  if (project.time < Date.now() - 30 * 24 * 60 * 60 * 1000) {
+    await unmount(project.handle);
+    console.log("アンマウントしました:", project.name);
+  }
+}
+```
+
+## 権限管理
+
+### 権限の確認とリクエスト
+
+ブラウザは初回アクセス時に権限をリクエストします。権限が拒否されたか期限切れになった場合、再度リクエストする必要があります：
+
+```javascript
+import { get } from "/nos/fs/main.js";
+
+try {
+  const handle = await get("$mount-123>my-project");
+  // handle を使用
+} catch (error) {
+  if (error.message.includes("Permission denied")) {
+    console.log("再認証が必要です");
+    // ユーザーにディレクトリの再選択を促す
+  }
+}
+```
+
+## ブラウザ互換性
+
+### 対応状況
+
+- ✅ Chrome 86+ / Edge 86+  - **完全サポート**（推奨）
+- ⚠️ Firefox 111+ - **非サポート** `showDirectoryPicker`、ただし仮想ディレクトリのマウントは可能
+- ❌ Safari - **非サポート** `showDirectoryPicker`、仮想ディレクトリのマウントも不可
+
+### コア機能の説明
+
+**`open()` メソッド**は `showDirectoryPicker` API に依存しており、今のところ Chrome のみの機能です：
+
+- **Chrome**：完全サポート、ディレクトリ選択ダイアログを表示し、ハンドルを永続的に保存可能
+- **その他のブラウザ**：ディレクトリ選択機能はサポートされておらず、`open()` メソッドを使用できません
+
+### 推奨使用方法
+
+```javascript
+import { open, mount } from "/nos/fs/main.js";
+
+// ブラウザのサポートを検出する
+if (!window.showDirectoryPicker) {
+  alert("この機能は Chrome ブラウザのサポートが必要です");
+  return;
+}
+
+// Chrome で使用する
+const handle = await open({ mount: true });
+console.log("ローカルディレクトリをマウントしました:", handle.path);
+
+// HTTP 経由でローカルファイルにアクセスする
+const response = await fetch(`/${handle.path}/index.html`);
+const content = await response.text();
+```
+
+### Safariは完全に非対応
+
+Safari は `showDirectoryPicker` API をサポートしておらず、`FileSystemHandle` を IndexedDB に保存することもサポートしていない：
+
+```javascript
+// Safari では使用できません
+const handle = await open(); // ❌ エラー: showDirectoryPicker はサポートされていません
+```
+
+### ブラウザのサポートを検出する
+
+```javascript
+const isFileSystemSupported = !!window.showDirectoryPicker;
+
+if (!isFileSystemSupported) {
+  console.log("現在のブラウザはディレクトリ選択機能をサポートしていません");
+  console.log("完全な機能を利用するには Chrome ブラウザを使用してください");
+}
+```
+
+## ベストプラクティス
+
+1. **ブラウザ検出**：使用前にブラウザが `showDirectoryPicker` をサポートしているかを検出する
+2. **ユーザーへの通知**：この機能にはChromeブラウザが必要であることを明示的にユーザーに伝える
+3. **エラーハンドリング**：権限拒否やディレクトリが存在しないケースの処理
+4. **古いマウントのクリーンアップ**：不要になったマウントディレクトリを定期的にクリーンアップする
+5. **静的サーバー機能**：HTTPアクセス機能を活用し、ローカルファイルサービスを実現する
+
+### 推奨される完全な実装
+
+```javascript
+import { open, mount, getMounted, unmount } from "/nos/fs/main.js";
+
+async function setupLocalProject() {
+  // 1. ブラウザのサポートを検出
+  if (!window.showDirectoryPicker) {
+    alert(
+      "この機能にはChromeブラウザが必要です。\n\n完全なローカルファイルアクセス機能を利用するにはChromeブラウザを使用してください。",
+    );
+    return null;
+  }
+
+  try {
+    // 2. ディレクトリを開いてマウント
+    const handle = await open({ mount: true });
+
+    // 3. 有効なプロジェクトかどうかを検証
+    const packageJson = await handle.get("package.json");
+    if (!packageJson) {
+      console.warn("選択したディレクトリは有効なプロジェクトではありません");
+    }
+
+    console.log("ローカルプロジェクトがマウントされました：", handle.path);
+    console.log("HTTPでアクセス可能：", `/${handle.path}/`);
+
+    return handle;
+  } catch (error) {
+    if (error.message.includes("Permission denied")) {
+      alert("この機能を使用するにはディレクトリアクセス許可が必要です");
+    } else {
+      console.error("マウント失敗：", error);
+    }
+    return null;
+  }
+}
+
+// 使用例
+const projectHandle = await setupLocalProject();
+if (projectHandle) {
+  // HTTP経由でローカルファイルにアクセス
+  const response = await fetch(`/${projectHandle.path}/README.md`);
+  const readme = await response.text();
+  console.log(readme);
+}
+```
+
+## 次の章
+
+[ファイル操作](./file-operations.md)を学習し，ファイルの読み書きと削除の方法を理解する
+
+---
+
+<!-- ai-add.html -->
+
+# AIモデルを追加
+
+## AIモデル管理エントリ
+
+既にデプロイされた NoneOS システムにおいて、当該システムをベースに開発されたアプリケーションは、`o-page` コンポーネントを通じて AI モデルのキー管理ページを取り込むことができ、ユーザーがグラフィカルユーザーインターフェース（GUI）を用いて AI モデルを追加・管理できるようにします。
+
+### 相対パスの使用
+
+```html
+<o-page src="/nos-tool/ai/pages/key-manager.html"></o-page>
+```
+
+これで、あなたの ofa.js アプリに AI モデルを追加する入り口を直接組み込むことができます。
+
+## JSモデルの追加
+
+`o-page` コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することもできます。
+
+### ストレージモジュールの導入
+
+```javascript
+import { storage } from "/gh/kirakiray/ever-cache/src/main.js";
+```
+
+### API キーを保存
+
+```javascript
+const newKey = {
+  id: `${Math.random().toString(36).slice(2, 11)}`,
+  provider: "deepseek",  // deepseek | kimi | minimax | glm
+  model: "deepseek-chat",
+  key: "your-api-key-here",
+  concurrency: 1,  // 同時実行数
+};
+
+// 既存のキーを取得
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+
+// 新しいキーを追加
+aiKeys.push(newKey);
+
+// 保存
+await storage.setItem("ai-keys", aiKeys);
+```
+
+### 各プロバイダーで利用可能なモデル
+
+利用可能なモデルについては各プロバイダーのドキュメントを参照してください。
+
+### 保存されたすべてのキーを取得
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+```
+
+### APIキーを削除
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const index = aiKeys.findIndex((k) => k.id === "key-id");
+if (index > -1) {
+  aiKeys.splice(index, 1);
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### キーの同時更新数
+
+```javascript
+const aiKeys = (await storage.getItem("ai-keys")) || [];
+const keyItem = aiKeys.find((k) => k.id === "key-id");
+if (keyItem) {
+  keyItem.concurrency = 3;  // 並行数を変更
+  await storage.setItem("ai-keys", aiKeys);
+}
+```
+
+### Key オブジェクト構造
+
+| 属性          | タイプ    | 説明                               |
+| ------------- | ------- | ---------------------------------- |
+| `id`          | string  | 一意識別子                         |
+| `provider`    | string  | プロバイダー (deepseek/kimi/minimax/glm) |
+| `model`       | string  | モデル名                           |
+| `key`         | string  | APIキー                            |
+| `concurrency` | number  | 最大同時実行数                     |
+| `disabled`    | boolean | 無効にするかどうか                 |
+
+---
+
+<!-- sw-advanced.html -->
+
+# sw.js 設定のテクニック
+
+## バージョン番号制御とキャッシュ更新
+
+新しいバージョンをリリースする際、サーバーが `max-age=0` レスポンスヘッダーを設定していても、ブラウザは古いバージョンの `sw.js` ファイルをキャッシュする可能性があり、更新がすぐに反映されないことがあります。URL にバージョンパラメータを追加することで、ブラウザに最新のファイルを強制的にリクエストさせ、この問題を解決できます。
+
+```javascript
+let version = "";
+if (globalThis.serviceWorker) {
+  const urlParams = new URLSearchParams(
+    new URL(serviceWorker.scriptURL).search,
+  );
+  version = urlParams.get("v") || "";
+} else {
+  const urlParams = new URLSearchParams(new URL(location.href).search);
+  version = urlParams.get("v") || "";
+}
+
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+dist.js を参照する際に `?v=` パラメータを追加し、新バージョンをリリースするたびにバージョン番号を更新すると、ブラウザはキャッシュを使用せずに新しいファイルをリクエストするようになります。
+
+## 公式ツール
+
+`nos-tool` ディレクトリにあるツールを使用することで、NoneOS システムを簡単に管理できます。
+
+- **ai** - AIモデル管理、チャット、設定、キー管理を含む
+- **editor** - Monacoエディター統合、コードハイライト、フォーマット、AI補完をサポート
+- **file-explore** - ファイルブラウザ
+- **file-list** - ファイルリストビューとハンドル管理
+- **studio** - 開発スタジオ、ファイル管理、カラーツール、テーマ編集などの機能を提供
+
+これらのツールは `nos-tool` ディレクトリにあり、必要に応じて導入して使用できます。
+
+---
+
+<!-- install.html -->
+
+# インストール
+
+NoneOS Core はブラウザベースのファイルシステムで、Service Worker を通じてローカルストレージを実現する必要があります。プロジェクト自体は完全に静的であり、動的サーバーは不要です。
+
+## 前提条件
+
+- 静的サーバー（例: http-server、live-server、nginx など）
+- ブラウザが Service Worker をサポートしていること
+- 外部ネットワークからアクセスする場合は、HTTPS を使用する必要があります（API 要件のため）
+
+## ステップ
+
+### 1. Service Workerファイルの作成
+
+プロジェクトのルートディレクトリに `sw.js` ファイルを作成し、以下の内容を記述してください:
+
+```javascript
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+### 2. エントリー HTML の作成
+
+エントリHTMLファイルに `ofa.js` と `nos-version` コンポーネントを導入します。`nos-version` コンポーネントを使用すると、自動的に `sw.js` ファイルが登録されます。
+
+```html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My App</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js"></script>
+  </head>
+  <body>
+    <!-- nos-version コンポーネントを読み込む -->
+    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <!-- nos-version コンポーネントを使用する -->
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      // インストール完了を待つ
+      $("nos-version").on("installed", () => {
+        console.log("NoneOS Core のインストールが完了しました。使用を開始できます");
+        // ここで noneos-core を使用できます
+      });
+    </script>
+  </body>
+</html>
+```
+
+## インストール状態
+
+`nos-version` コンポーネントは、NoneOS Core のインストール状態を自動的に検出します：
+
+- **未インストール**：「Install NoneOS Core」ボタンを表示
+- **インストール中**：インストール進捗バーを表示
+- **インストール済み**：現在のバージョン番号を表示
+- **アップグレード可能**：アップグレードボタンを表示
+
+システムのインストールが完了したとき、または既にインストールされているとき、またはアップグレードが成功したときに、`installed`イベントがトリガーされ、その後でNoneOS Coreのすべての機能を正常に使用できます。

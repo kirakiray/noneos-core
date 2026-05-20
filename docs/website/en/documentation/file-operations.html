@@ -72,44 +72,44 @@
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
         <h1>File Operations</h1>
-        <p>This document introduces file operations in the file system, including creating, writing, reading, and deleting files.</p>
-        <h2>Create File</h2>
-        <p>Use the <code>get</code> method and specify <code>create: "file"</code> to create a file:</p>
+        <p>This document describes file operations in the file system, including creating, writing, reading, and deleting files.</p>
+        <h2>Create a file</h2>
+        <p>Use the <code>get</code> method and specify <code>create: "file"</code> to create the file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
 <span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/path/to/file.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });</code></pre>
-        <h2>Writing Files</h2>
-        <p>Using the <code>write</code> method to write content to a file:</p>
+        <h2>Write to File</h2>
+        <p>Use the <code>write</code> method to write content to a file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/hello.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);</code></pre>
-        <p>The <code>write</code> method supports writing string or Blob data.</p>
-        <h2>Reading Files</h2>
+        <p><code>write</code> method supports writing strings or Blob data.</p>
+        <h2>Read File</h2>
         <h3>text() method</h3>
-        <p>Read the text content of a file using the <code>text()</code> method:</p>
+        <p>Use the <code>text()</code> method to read the text content of the file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "Hello, World!"</span></code></pre>
-        <h3>file() method</h3>
-        <p>Using the <code>file()</code> method to read the original <a href="https://developer.mozilla.org/zh-CN/docs/Web/API/File" target="_blank">File object</a>:</p>
+        <h3>file() Method</h3>
+        <p>Use the <code>file()</code> method to read the raw <a href="https://developer.mozilla.org/zh-CN/docs/Web/API/File" target="_blank">File object</a>:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">name</span>); <span class="hljs-comment">// filename</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">name</span>); <span class="hljs-comment">// file name</span>
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// file size</span>
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">lastModified</span>); <span class="hljs-comment">// last modified time</span></code></pre>
-        <h3>buffer() method</h3>
-        <p>Use the <code>buffer()</code> method to read the file's <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer" target="_blank">ArrayBuffer</a> data:</p>
+        <h3>buffer() Method</h3>
+        <p>Use the <code>buffer()</code> method to read the file's <a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer" target="_blank">ArrayBuffer</a> data:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> arrayBuffer = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">buffer</span>();</code></pre>
         <h3>read() Method</h3>
-        <p>The <code>read()</code> method is the underlying reading method that supports more options:</p>
+        <p><code>read()</code> method is a low-level reading method that supports more options:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">read</span>({
   <span class="hljs-attr">type</span>: <span class="hljs-string">"text"</span>,    <span class="hljs-comment">// Return type: "text" | "file" | "buffer"</span>
-  <span class="hljs-attr">start</span>: <span class="hljs-number">0</span>,        <span class="hljs-comment">// Start byte</span>
-  <span class="hljs-attr">end</span>: <span class="hljs-number">100</span>,        <span class="hljs-comment">// End byte</span>
+  <span class="hljs-attr">start</span>: <span class="hljs-number">0</span>,        <span class="hljs-comment">// start byte</span>
+  <span class="hljs-attr">end</span>: <span class="hljs-number">100</span>,        <span class="hljs-comment">// end byte</span>
 });</code></pre>
         <h2>JSON Operations</h2>
-        <h3>json() method</h3>
-        <p>Use the <code>json()</code> method to directly read and parse a JSON file:</p>
+        <h3>The json() method</h3>
+        <p>Use the <code>json()</code> method to directly read and parse JSON files:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">json</span>();</code></pre>
         <h3>base64() Method</h3>
-        <p>Use the <code>base64()</code> method to convert the file content to <a href="https://developer.mozilla.org/en-US/docs/Glossary/Base64" target="_blank">base64</a> encoding):</p>
+        <p>Use the <code>base64()</code> method to convert the file content to <a href="https://developer.mozilla.org/zh-CN/docs/Glossary/Base64" target="_blank">base64</a> encoding):</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> base64String = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">base64</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(base64String); <span class="hljs-comment">// "data:application/octet-stream;base64,..."</span></code></pre>
         <h2>Get File Information</h2>
@@ -118,11 +118,11 @@
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> timestamp = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">Date</span>(timestamp)); <span class="hljs-comment">// Date object</span></code></pre>
         <h3>size attribute</h3>
-        <p>Get the file size through the <code>file()</code> method:</p>
+        <p>Get file size via <code>file()</code> method:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> fileObj = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">file</span>();
-<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// file size (bytes)</span></code></pre>
-        <h2>Fetching files via fetch</h2>
-        <p>In addition to using a handle, after writing to a file you can also use the browser’s <code>fetch</code> API to retrieve the file’s contents via its URL:</p>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(fileObj.<span class="hljs-property">size</span>); <span class="hljs-comment">// File size in bytes</span></code></pre>
+        <h2>Get a file via fetch</h2>
+        <p>Besides using handles, after writing the file, you can also use the browser's <code>fetch</code> API to get the file content via URL:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">const</span> someText = <span class="hljs-string">"Write some text "</span> + <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">random</span>();
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(someText);
@@ -130,14 +130,14 @@
 <span class="hljs-keyword">await</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve</span>) =&gt;</span> <span class="hljs-built_in">setTimeout</span>(resolve, <span class="hljs-number">300</span>));
 
 <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">"/$my-app/file1.txt"</span>).<span class="hljs-title function_">then</span>(<span class="hljs-function">(<span class="hljs-params">e</span>) =&gt;</span> e.<span class="hljs-title function_">text</span>());</code></pre>
-        <h3>Preview HTML Files</h3>
-        <p>If the file written is an HTML file, it can be previewed directly in the browser:</p>
+        <h3>Preview HTML file</h3>
+        <p>If it's an HTML file, you can preview it directly in the browser:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> htmlFile = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/index.html"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> htmlFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"&lt;html&gt;&lt;body&gt;&lt;h1&gt;Hello World&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;"</span>);
 
 <span class="hljs-comment">// Open /$my-app/index.html in your browser to preview (remember to include the $ prefix)</span></code></pre>
-        <h2>Delete Files</h2>
-        <p>Using the <code>remove()</code> method to delete a file:</p>
+        <h2>Delete File</h2>
+        <p>Use the <code>remove()</code> method to delete a file:</p>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/file1.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
 
@@ -146,11 +146,11 @@
         <h2>Complete Example</h2>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
 
-<span class="hljs-comment">// Create and write file</span>
+<span class="hljs-comment">// Create and write to a file</span>
 <span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">write</span>(<span class="hljs-string">"This is a test file."</span>);
 
-<span class="hljs-comment">// Read file</span>
+<span class="hljs-comment">// Read the file</span>
 <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// "This is a test file."</span>
 
@@ -162,12 +162,12 @@
 <span class="hljs-keyword">const</span> modified = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">lastModified</span>();
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`Last modified: <span class="hljs-subst">${<span class="hljs-keyword">new</span> <span class="hljs-built_in">Date</span>(modified)}</span>`</span>);
 
-<span class="hljs-comment">// Delete file</span>
+<span class="hljs-comment">// Delete the file</span>
 <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">remove</span>();
 <span class="hljs-keyword">const</span> exists = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"my-app/example.txt"</span>);
 <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(exists); <span class="hljs-comment">// null</span></code></pre>
         <h2>Next Chapter</h2>
-        <p>Study <a href="./directory-operations.html" olink="">Directory Operations</a> to learn how to traverse and manage directories.</p>
+        <p>Learn <a href="./directory-operations.html" olink="">directory operations</a> to understand how to traverse and manage directories.</p>
       </article>
       <div class="footer"></div>
       <script>

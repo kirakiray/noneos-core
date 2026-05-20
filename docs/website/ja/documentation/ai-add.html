@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIモデルの追加</title>
+  <title>AIモデルを追加</title>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
   <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
   <link rel="icon" href="../../img/logo.png" />
@@ -71,17 +71,17 @@
       </style>
       <link rel="stylesheet" href="../../css/page.css" />
       <article class="markdown-body">
-        <h1>AIモデルの追加</h1>
-        <h2>AIモデル管理エントリー</h2>
-        <p>デプロイ済みのNoneOSシステムでは、このシステムに基づいて開発されたアプリケーションは、<code>o-page</code>コンポーネントを通じてAIモデルのキー管理ページを導入することができ、ユーザーがグラフィカルユーザーインターフェース（GUI）でAIモデルを追加および管理できるようにします。</p>
-        <h3>相対パスを使用する</h3>
+        <h1>AIモデルを追加</h1>
+        <h2>AIモデル管理エントリ</h2>
+        <p>既にデプロイされた NoneOS システムにおいて、当該システムをベースに開発されたアプリケーションは、<code>o-page</code> コンポーネントを通じて AI モデルのキー管理ページを取り込むことができ、ユーザーがグラフィカルユーザーインターフェース（GUI）を用いて AI モデルを追加・管理できるようにします。</p>
+        <h3>相対パスの使用</h3>
         <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
-        <p>これであなたのofa.jsアプリケーションにAIモデルを追加するためのエントリーを直接組み込むことができます。</p>
-        <h2>jsでモデルを追加</h2>
-        <p>あなたは <code>o-page</code> コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することができます。</p>
+        <p>これで、あなたの ofa.js アプリに AI モデルを追加する入り口を直接組み込むことができます。</p>
+        <h2>JSモデルの追加</h2>
+        <p><code>o-page</code> コンポーネントを使用せず、JavaScript コードで直接 AI モデルを管理することもできます。</p>
         <h3>ストレージモジュールの導入</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { storage } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/gh/kirakiray/ever-cache/src/main.js&quot;</span>;</code></pre>
-        <h3>API Key を保存する</h3>
+        <h3>API キーを保存</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> newKey = {
   <span class="hljs-attr">id</span>: <span class="hljs-string">`<span class="hljs-subst">${<span class="hljs-built_in">Math</span>.random().toString(<span class="hljs-number">36</span>).slice(<span class="hljs-number">2</span>, <span class="hljs-number">11</span>)}</span>`</span>,
   <span class="hljs-attr">provider</span>: <span class="hljs-string">&quot;deepseek&quot;</span>,  <span class="hljs-comment">// deepseek | kimi | minimax | glm</span>
@@ -98,22 +98,22 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
 
 <span class="hljs-comment">// 保存</span>
 <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);</code></pre>
-        <h3>各プロバイダーの利用可能なモデル</h3>
-        <p>利用可能なモデルについては、各プロバイダーのドキュメントを参照してください。</p>
-        <h3>保存済みのすべてのキーを取得する</h3>
+        <h3>各プロバイダーで利用可能なモデル</h3>
+        <p>利用可能なモデルについては各プロバイダーのドキュメントを参照してください。</p>
+        <h3>保存されたすべてのキーを取得</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];</code></pre>
-        <h3>APIキーの削除</h3>
+        <h3>APIキーを削除</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
 <span class="hljs-keyword">const</span> index = aiKeys.<span class="hljs-title function_">findIndex</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
 <span class="hljs-keyword">if</span> (index &gt; -<span class="hljs-number">1</span>) {
   aiKeys.<span class="hljs-title function_">splice</span>(index, <span class="hljs-number">1</span>);
   <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
 }</code></pre>
-        <h3>Key の同時実行数を更新する</h3>
+        <h3>キーの同時更新数</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
 <span class="hljs-keyword">const</span> keyItem = aiKeys.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
 <span class="hljs-keyword">if</span> (keyItem) {
-  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// 同時実行数を変更</span>
+  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// 並行数を変更</span>
   <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
 }</code></pre>
         <h3>Key オブジェクト構造</h3>
@@ -121,7 +121,7 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
           <thead>
             <tr>
               <th>属性</th>
-              <th>类型</th>
+              <th>タイプ</th>
               <th>説明</th>
             </tr>
           </thead>
@@ -129,7 +129,7 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
             <tr>
               <td><code>id</code></td>
               <td>string</td>
-              <td>一意の識別子</td>
+              <td>一意識別子</td>
             </tr>
             <tr>
               <td><code>provider</code></td>
@@ -144,7 +144,7 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
             <tr>
               <td><code>key</code></td>
               <td>string</td>
-              <td>API Key</td>
+              <td>APIキー</td>
             </tr>
             <tr>
               <td><code>concurrency</code></td>
@@ -154,7 +154,7 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
             <tr>
               <td><code>disabled</code></td>
               <td>boolean</td>
-              <td>無効化されているかどうか</td>
+              <td>無効にするかどうか</td>
             </tr>
           </tbody>
         </table>

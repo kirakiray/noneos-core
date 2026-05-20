@@ -73,13 +73,13 @@
       <article class="markdown-body">
         <h1>Add AI Model</h1>
         <h2>AI Model Management Portal</h2>
-        <p>In the deployed NoneOS system, applications developed based on this system can introduce the AI model key management page through the <code>o-page</code> component, allowing users to add and manage AI models via a graphical user interface (GUI).</p>
+        <p>In a deployed NoneOS system, applications developed based on the system can introduce an AI model&#39;s key management page through the <code>o-page</code> component, allowing users to add and manage AI models through a graphical user interface (GUI).</p>
         <h3>Using Relative Paths</h3>
         <pre><code class="hljs language-html"><span class="hljs-tag">&lt;<span class="hljs-name">o-page</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;/nos-tool/ai/pages/key-manager.html&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">o-page</span>&gt;</span></code></pre>
-        <p>This way you can directly add an entry for AI models in your ofa.js application.</p>
-        <h2>js Add Model</h2>
-        <p>You can directly manage AI models through JavaScript code without using the <code>o-page</code> component.</p>
-        <h3>Introducing the Storage Module</h3>
+        <p>This way, you can directly add an entry point for adding AI models in your ofa.js application.</p>
+        <h2>Adding Models in js</h2>
+        <p>You can manage AI models directly through JavaScript code without using the <code>o-page</code> component.</p>
+        <h3>Import Storage Module</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { storage } <span class="hljs-keyword">from</span> <span class="hljs-string">&quot;/gh/kirakiray/ever-cache/src/main.js&quot;</span>;</code></pre>
         <h3>Save API Key</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> newKey = {
@@ -99,8 +99,8 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
 <span class="hljs-comment">// Save</span>
 <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);</code></pre>
         <h3>Available Models by Provider</h3>
-        <p>Available models refer to the documentation of each provider.</p>
-        <h3>Retrieve All Saved Keys</h3>
+        <p>Refer to the documentation of each provider for available models.</p>
+        <h3>Get all saved Keys</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];</code></pre>
         <h3>Delete API Key</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
@@ -109,18 +109,18 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
   aiKeys.<span class="hljs-title function_">splice</span>(index, <span class="hljs-number">1</span>);
   <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
 }</code></pre>
-        <h3>Update the concurrency limit of the Key</h3>
+        <h3>Concurrency of updating keys</h3>
         <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> aiKeys = (<span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>)) || [];
 <span class="hljs-keyword">const</span> keyItem = aiKeys.<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">k</span>) =&gt;</span> k.<span class="hljs-property">id</span> === <span class="hljs-string">&quot;key-id&quot;</span>);
 <span class="hljs-keyword">if</span> (keyItem) {
-  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// Modify the concurrency</span>
+  keyItem.<span class="hljs-property">concurrency</span> = <span class="hljs-number">3</span>;  <span class="hljs-comment">// Modify concurrency</span>
   <span class="hljs-keyword">await</span> storage.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">&quot;ai-keys&quot;</span>, aiKeys);
 }</code></pre>
         <h3>Key Object Structure</h3>
         <table>
           <thead>
             <tr>
-              <th>Attribute</th>
+              <th>Property</th>
               <th>Type</th>
               <th>Description</th>
             </tr>
@@ -149,12 +149,12 @@ aiKeys.<span class="hljs-title function_">push</span>(newKey);
             <tr>
               <td><code>concurrency</code></td>
               <td>number</td>
-              <td>Maximum concurrency</td>
+              <td>Max concurrency</td>
             </tr>
             <tr>
               <td><code>disabled</code></td>
               <td>boolean</td>
-              <td>Whether disabled</td>
+              <td>Is disabled</td>
             </tr>
           </tbody>
         </table>
