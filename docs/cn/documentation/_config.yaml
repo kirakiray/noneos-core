@@ -8,6 +8,8 @@
       url: ./file-operations.md
     - name: 目录操作
       url: ./directory-operations.md
+    - name: 目录挂载
+      url: ./directory-mounting.md
     - name: 文件移动与复制
       url: ./move-and-copy.md
     - name: 文件句柄比较

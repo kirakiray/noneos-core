@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>目录挂载</title>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/dist/ofa.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.6.20/libs/scsr/dist/scsr.min.mjs" type="module"></script>
+  <link rel="icon" href="../../img/logo.png" />
+  <link rel="stylesheet" href="../../css/palette.css" pui-colors />
+  <link rel="stylesheet" href="../../css/theme.css" />
+  <link rel="stylesheet" href="../../css/github-markdown.css" />
+  <link rel="stylesheet" href="../../css/hljs.css" />
+  <style>
+    html,
+    body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        Segoe UI,
+        Microsoft Yahei,
+        Helvetica,
+        Arial,
+        sans-serif,
+        Apple Color Emoji,
+        Segoe UI Emoji;
+    }
+
+    o-app {
+      height: 100%;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    o-app {
+      animation: fadein 0.1s ease-in-out;
+    }
+  </style>
+  <script type="module" src="../../js/util.js"></script>
+  <!--google analytics-->
+</head>
+
+<body>
+  <o-app src="../../js/app-config.js">
+    <template page>
+      <link rel="stylesheet" href="../../css/github-markdown.css" />
+      <link rel="stylesheet" href="../../css/hljs.css" />
+      <l-m src="../../comps/center-block.html"></l-m>
+      <l-m src="../../comps/article-code.html"></l-m>
+      <l-m src="https://playground.ofajs.com/comps/o-playground/o-playground.html"></l-m>
+      <style>
+        :host {
+          display: block;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+      </style>
+      <link rel="stylesheet" href="../../css/page.css" />
+      <article class="markdown-body">
+        <h1>目录挂载</h1>
+        <p>目录挂载功能允许你访问用户本地文件系统中的目录，并将其持久化存储，以便在后续会话中继续使用。</p>
+        <h2>重要说明</h2>
+        <h3>浏览器支持</h3>
+        <p><code>open()</code> 方法依赖于浏览器的 <code>showDirectoryPicker</code> API，目前<strong>仅 Chrome 浏览器完整支持</strong>此功能。</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// 检测浏览器是否支持</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"当前浏览器不支持目录选择功能"</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"请使用 Chrome 浏览器以获得完整功能"</span>);
+  <span class="hljs-keyword">return</span>;
+}</code></pre>
+        <h3>核心用途</h3>
+        <p>目录挂载的主要用途是：</p>
+        <ol>
+          <li><strong>本地文件访问</strong>：让用户选择本地目录，通过浏览器直接访问文件内容</li>
+          <li><strong>静态服务器功能</strong>：挂载后的目录可以通过 HTTP 请求访问，实现类似本地静态服务器的功能</li>
+          <li><strong>持久化访问</strong>：通过 <code>mount()</code> 挂载后，可以在后续会话中继续访问同一目录，无需重复选择</li>
+        </ol>
+        <h3>典型应用场景</h3>
+        <ul>
+          <li>本地项目开发：直接在浏览器中访问和编辑本地项目文件</li>
+          <li>静态资源服务：将本地目录挂载为可访问的静态资源路径</li>
+          <li>文件管理工具：构建基于浏览器的文件管理应用</li>
+        </ul>
+        <h2>基本概念</h2>
+        <h3>open() - 打开目录选择器</h3>
+        <p><code>open()</code> 方法会弹出系统的目录选择器，让用户选择一个目录：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();</code></pre>
+        <p>用户选择目录后，系统会请求读写权限。如果用户授予权限，将返回一个 <code>DirHandle</code> 对象。</p>
+        <h3>mount() - 挂载目录</h3>
+        <p><code>mount()</code> 方法将目录句柄保存到 IndexedDB 中，以便后续会话可以重新访问：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(handle.<span class="hljs-property">path</span>); <span class="hljs-comment">// 输出: $mount-123&gt;目录名</span></code></pre>
+        <p>挂载后的路径格式为：<code>$mount-{id}&gt;目录名</code></p>
+        <h3>一次性打开并挂载</h3>
+        <p>你可以使用 <code>open()</code> 的 <code>mount</code> 参数，在选择目录后自动挂载：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-comment">// 等价于：</span>
+<span class="hljs-comment">// const handle = await open();</span>
+<span class="hljs-comment">// await mount(handle);</span></code></pre>
+        <h2>管理已挂载的目录</h2>
+        <h3>获取已挂载目录列表</h3>
+        <p>使用 <code>getMounted()</code> 获取所有已挂载的目录：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> mountedDirs = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+mountedDirs.<span class="hljs-title function_">forEach</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">id</span>);        <span class="hljs-comment">// 挂载ID</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">name</span>);      <span class="hljs-comment">// 目录名称</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">path</span>);      <span class="hljs-comment">// 挂载路径</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(item.<span class="hljs-property">handle</span>);    <span class="hljs-comment">// DirHandle 对象</span>
+});</code></pre>
+        <h3>卸载目录</h3>
+        <p>使用 <code>unmount()</code> 移除已挂载的目录：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(mountId);</code></pre>
+        <p>卸载后，该目录将无法通过挂载路径访问。</p>
+        <h2>通过挂载路径访问文件</h2>
+        <h3>使用 get() 方法</h3>
+        <p>挂载后的目录可以通过挂载路径访问：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 假设已挂载的路径是 $mount-123&gt;my-project</span>
+<span class="hljs-keyword">const</span> file = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src/index.js"</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> file.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>访问子目录</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> subdir = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project/src"</span>);
+<span class="hljs-keyword">const</span> files = <span class="hljs-keyword">await</span> subdir.<span class="hljs-title function_">values</span>();
+
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> file <span class="hljs-keyword">of</span> files) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(file.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h2>通过 HTTP 访问挂载文件（静态服务器功能）</h2>
+        <p>挂载后的目录可以通过 HTTP 请求访问文件，实现类似本地静态服务器的功能。这是目录挂载的核心特性之一。</p>
+        <h3>基本用法</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// 创建测试文件</span>
+<span class="hljs-keyword">const</span> testFile = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"test.txt"</span>, { <span class="hljs-attr">create</span>: <span class="hljs-string">"file"</span> });
+<span class="hljs-keyword">await</span> testFile.<span class="hljs-title function_">write</span>(<span class="hljs-string">"Hello, World!"</span>);
+
+<span class="hljs-comment">// 通过 HTTP 访问（类似静态服务器）</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/test.txt`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(content); <span class="hljs-comment">// 输出: Hello, World!</span></code></pre>
+        <h3>实际应用示例</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// 挂载本地项目目录</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+
+<span class="hljs-comment">// 现在可以通过 HTTP 访问项目中的任何文件</span>
+<span class="hljs-keyword">const</span> htmlResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> htmlContent = <span class="hljs-keyword">await</span> htmlResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> jsResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/src/app.js`</span>);
+<span class="hljs-keyword">const</span> jsContent = <span class="hljs-keyword">await</span> jsResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-keyword">const</span> cssResponse = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/styles/main.css`</span>);
+<span class="hljs-keyword">const</span> cssContent = <span class="hljs-keyword">await</span> cssResponse.<span class="hljs-title function_">text</span>();
+
+<span class="hljs-comment">// 就像访问本地静态服务器一样</span></code></pre>
+        <h3>应用场景</h3>
+        <ul>
+          <li><strong>本地开发服务器</strong>：无需启动 Node.js 服务器，直接在浏览器中访问本地文件</li>
+          <li><strong>项目预览</strong>：实时预览本地 HTML/CSS/JS 项目</li>
+          <li><strong>资源加载</strong>：在 Web 应用中加载本地图片、字体等资源</li>
+        </ul>
+        <h2>完整示例</h2>
+        <h3>创建项目并挂载</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 打开目录选择器</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>();
+
+<span class="hljs-comment">// 检查是否已挂载</span>
+<span class="hljs-keyword">const</span> mounted = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+<span class="hljs-keyword">const</span> existing = mounted.<span class="hljs-title function_">find</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> item.<span class="hljs-property">name</span> === handle.<span class="hljs-property">name</span>);
+
+<span class="hljs-keyword">if</span> (existing) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"目录已挂载:"</span>, existing.<span class="hljs-property">path</span>);
+} <span class="hljs-keyword">else</span> {
+  <span class="hljs-comment">// 挂载目录</span>
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mount</span>(handle);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"目录已挂载:"</span>, handle.<span class="hljs-property">path</span>);
+}
+
+<span class="hljs-comment">// 使用挂载的目录</span>
+<span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+<span class="hljs-keyword">if</span> (packageJson) {
+  <span class="hljs-keyword">const</span> config = <span class="hljs-keyword">await</span> packageJson.<span class="hljs-title function_">json</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"项目名称:"</span>, config.<span class="hljs-property">name</span>);
+}</code></pre>
+        <h3>管理多个挂载目录</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 获取所有挂载</span>
+<span class="hljs-keyword">const</span> allMounts = <span class="hljs-keyword">await</span> <span class="hljs-title function_">getMounted</span>();
+
+<span class="hljs-comment">// 过滤特定项目</span>
+<span class="hljs-keyword">const</span> projects = allMounts.<span class="hljs-title function_">filter</span>(<span class="hljs-function"><span class="hljs-params">item</span> =&gt;</span> 
+  item.<span class="hljs-property">name</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"project"</span>)
+);
+
+<span class="hljs-comment">// 卸载旧项目</span>
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> project <span class="hljs-keyword">of</span> projects) {
+  <span class="hljs-keyword">if</span> (project.<span class="hljs-property">time</span> &lt; <span class="hljs-title class_">Date</span>.<span class="hljs-title function_">now</span>() - <span class="hljs-number">30</span> * <span class="hljs-number">24</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">1000</span>) {
+    <span class="hljs-keyword">await</span> <span class="hljs-title function_">unmount</span>(project.<span class="hljs-property">id</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"已卸载:"</span>, project.<span class="hljs-property">name</span>);
+  }
+}</code></pre>
+        <h2>权限管理</h2>
+        <h3>检查和请求权限</h3>
+        <p>浏览器会在首次访问时请求权限。如果权限被拒绝或过期，需要重新请求：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { get } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">get</span>(<span class="hljs-string">"$mount-123&gt;my-project"</span>);
+  <span class="hljs-comment">// 使用 handle</span>
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"需要重新授权"</span>);
+    <span class="hljs-comment">// 提示用户重新选择目录</span>
+  }
+}</code></pre>
+        <h2>浏览器兼容性</h2>
+        <h3>支持情况</h3>
+        <ul>
+          <li>✅ Chrome 86+ - <strong>完整支持</strong>（推荐使用）</li>
+          <li>⚠️ Edge 86+ - 支持 <code>showDirectoryPicker</code>，但持久化存储可能有限制</li>
+          <li>⚠️ Firefox 111+ - 支持 <code>showDirectoryPicker</code>，但持久化存储可能有限制</li>
+          <li>❌ Safari - <strong>不支持 <code>showDirectoryPicker</code> API</strong></li>
+        </ul>
+        <h3>核心功能说明</h3>
+        <p><strong><code>open()</code> 方法</strong>依赖于 <code>showDirectoryPicker</code> API，这是 Chrome 独有的功能：</p>
+        <ul>
+          <li><strong>Chrome</strong>：完整支持，可以弹出目录选择器，并持久化存储句柄</li>
+          <li><strong>其他浏览器</strong>：不支持目录选择功能，无法使用 <code>open()</code> 方法</li>
+        </ul>
+        <h3>推荐使用方式</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-comment">// 检测浏览器支持</span>
+<span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+  <span class="hljs-title function_">alert</span>(<span class="hljs-string">"此功能需要 Chrome 浏览器支持"</span>);
+  <span class="hljs-keyword">return</span>;
+}
+
+<span class="hljs-comment">// Chrome 中使用</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"已挂载本地目录:"</span>, handle.<span class="hljs-property">path</span>);
+
+<span class="hljs-comment">// 通过 HTTP 访问本地文件</span>
+<span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/index.html`</span>);
+<span class="hljs-keyword">const</span> content = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();</code></pre>
+        <h3>Safari 完全不支持</h3>
+        <p>Safari 既不支持 <code>showDirectoryPicker</code> API，也不支持将 <code>FileSystemHandle</code> 存储到 IndexedDB：</p>
+        <pre><code class="hljs language-javascript"><span class="hljs-comment">// Safari 中无法使用</span>
+<span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>(); <span class="hljs-comment">// ❌ 报错: showDirectoryPicker is not supported</span></code></pre>
+        <h3>检测浏览器支持</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">const</span> isFileSystemSupported = !!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>;
+
+<span class="hljs-keyword">if</span> (!isFileSystemSupported) {
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"当前浏览器不支持目录选择功能"</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"请使用 Chrome 浏览器以获得完整功能"</span>);
+}</code></pre>
+        <h2>最佳实践</h2>
+        <ol>
+          <li><strong>浏览器检测</strong>：在使用前检测浏览器是否支持 <code>showDirectoryPicker</code></li>
+          <li><strong>用户提示</strong>：明确告知用户此功能需要 Chrome 浏览器</li>
+          <li><strong>错误处理</strong>：处理权限拒绝和目录不存在的情况</li>
+          <li><strong>清理旧挂载</strong>：定期清理不再需要的挂载目录</li>
+          <li><strong>静态服务器功能</strong>：充分利用 HTTP 访问特性，实现本地文件服务</li>
+        </ol>
+        <h3>推荐的完整实现</h3>
+        <pre><code class="hljs language-javascript"><span class="hljs-keyword">import</span> { open, mount, getMounted, unmount } <span class="hljs-keyword">from</span> <span class="hljs-string">"/nos/fs/main.js"</span>;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">setupLocalProject</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-comment">// 1. 检测浏览器支持</span>
+  <span class="hljs-keyword">if</span> (!<span class="hljs-variable language_">window</span>.<span class="hljs-property">showDirectoryPicker</span>) {
+    <span class="hljs-title function_">alert</span>(<span class="hljs-string">"此功能需要 Chrome 浏览器支持。\n\n请使用 Chrome 浏览器以获得完整的本地文件访问功能。"</span>);
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-comment">// 2. 打开并挂载目录</span>
+    <span class="hljs-keyword">const</span> handle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">open</span>({ <span class="hljs-attr">mount</span>: <span class="hljs-literal">true</span> });
+    
+    <span class="hljs-comment">// 3. 验证是否为有效项目</span>
+    <span class="hljs-keyword">const</span> packageJson = <span class="hljs-keyword">await</span> handle.<span class="hljs-title function_">get</span>(<span class="hljs-string">"package.json"</span>);
+    <span class="hljs-keyword">if</span> (!packageJson) {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">warn</span>(<span class="hljs-string">"选择的目录不是一个有效的项目"</span>);
+    }
+
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"本地项目已挂载:"</span>, handle.<span class="hljs-property">path</span>);
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"可通过 HTTP 访问:"</span>, <span class="hljs-string">`/<span class="hljs-subst">${handle.path}</span>/`</span>);
+
+    <span class="hljs-keyword">return</span> handle;
+  } <span class="hljs-keyword">catch</span> (error) {
+    <span class="hljs-keyword">if</span> (error.<span class="hljs-property">message</span>.<span class="hljs-title function_">includes</span>(<span class="hljs-string">"Permission denied"</span>)) {
+      <span class="hljs-title function_">alert</span>(<span class="hljs-string">"需要授予目录访问权限才能使用此功能"</span>);
+    } <span class="hljs-keyword">else</span> {
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"挂载失败:"</span>, error);
+    }
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;
+  }
+}
+
+<span class="hljs-comment">// 使用示例</span>
+<span class="hljs-keyword">const</span> projectHandle = <span class="hljs-keyword">await</span> <span class="hljs-title function_">setupLocalProject</span>();
+<span class="hljs-keyword">if</span> (projectHandle) {
+  <span class="hljs-comment">// 通过 HTTP 访问本地文件</span>
+  <span class="hljs-keyword">const</span> response = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/<span class="hljs-subst">${projectHandle.path}</span>/README.md`</span>);
+  <span class="hljs-keyword">const</span> readme = <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(readme);
+}</code></pre>
+        <h2>下一章</h2>
+        <p>学习 <a href="./file-operations.html" olink="">文件操作</a>，了解如何读写文件和删除文件。</p>
+      </article>
+      <div class="footer"></div>
+      <script>
+        export const parent = "../../layout.html";
+        export default async ({
+          load,
+          query
+        }) => {
+          const {
+            init,
+            revoke
+          } = await load("../../js/init.js");
+          return {
+            data: {},
+            attached() {
+              init(this, query);
+              setTimeout(() => {
+                this.style.transform = "";
+              }, 300);
+            },
+            detached() {
+              revoke(this);
+            },
+          };
+        };
+      </script>
+    </template>
+  </o-app>
+  <o-root-provider name="pui" theme="dark"></o-root-provider>
+</body>
+
+</html>
