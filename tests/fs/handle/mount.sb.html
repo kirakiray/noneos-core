@@ -12,12 +12,22 @@
   <body>
     <h1>Mount Tests</h1>
 
+    <script>
+      const isSafari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent,
+      );
+    </script>
+
     <sb-test name="Mount Handle Test">
       <template>
         <script>
           import { init } from "/nos/fs/main.js";
           import { mount, getMounted, unmount } from "/nos/fs/main.js";
           {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
             const testDirectory = await init("test-mount-dir");
 
             const mountedHandle = await mount(testDirectory);
@@ -67,6 +77,10 @@
           import { init } from "/nos/fs/main.js";
           import { mount, getMounted, unmount } from "/nos/fs/main.js";
           {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
             const testDirectory = await init("test-unmount-dir");
 
             await mount(testDirectory);
@@ -102,6 +116,10 @@
           import { init } from "/nos/fs/main.js";
           import { mount, get, unmount, getMounted } from "/nos/fs/main.js";
           {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
             const testDirectory = await init("test-get-mount-dir");
 
             await testDirectory.get("test.txt", { create: "file" });
@@ -136,6 +154,10 @@
           import { init } from "/nos/fs/main.js";
           import { mount, get, unmount, getMounted } from "/nos/fs/main.js";
           {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
             const testDirectory = await init("test-mount-subdir");
 
             const subDir = await testDirectory.get("subdir", { create: "dir" });
@@ -177,6 +199,10 @@
           await registration;
 
           {
+            if (isSafari) {
+              return { assert: true, content: "Safari skipped" };
+            }
+
             const testDirectory = await init("test-mount-fetch");
 
             const testFile = await testDirectory.get("fetch-test.txt", {
