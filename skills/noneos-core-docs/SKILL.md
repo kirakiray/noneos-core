@@ -214,7 +214,9 @@ await dir.remove();
 
 ## 目录挂载
 
-目录挂载功能允许访问用户本地文件系统中的目录，并将其持久化存储。
+目录挂载功能允许访问用户本地文件系统中的**真实目录**，并将其持久化存储。
+
+> **真实目录**：指您 Windows / macOS / Linux 系统上的实际文件夹，区别于虚拟文件系统中的目录。
 
 ### 重要说明
 
@@ -237,13 +239,36 @@ const handle = await open();
 ```javascript
 import { open, mount } from "/nos/fs/main.js";
 
-const handle = await open();
-await mount(handle);
+const handle = await open(); // 打开目录选择器，此时 path 为虚拟路径
+await mount(handle); // 挂载后，path 变为 $mount-{id}>目录名
 
 console.log(handle.path); // 输出: $mount-123>目录名
 ```
 
 挂载后的路径格式为：`$mount-{id}>目录名`
+
+#### 两步流程的优势
+
+推荐使用两步流程（先 `open()` 后 `mount()`），而不是一次性挂载：
+
+1. **验证目录内容**：在挂载前可以先浏览目录内容，确认是否为所需目录
+2. **避免错误挂载**：防止用户选错目录后，错误地挂载到系统中
+3. **灵活决策**：可以根据目录内容决定是否挂载
+
+```javascript
+const handle = await open();
+
+// 先验证目录内容
+const packageJson = await handle.get("package.json");
+const data = await packageJson.json();
+if (data.somedata) {
+  // 确认是符合条件的目录，再挂载
+  await mount(handle);
+  console.log("符合条件的目录已挂载:", handle.path);
+} else {
+  console.log("这是不符合条件的目录，取消挂载");
+}
+```
 
 ### 一次性打开并挂载
 
@@ -312,6 +337,12 @@ const content = await response.text();
 | 数据位置 | 浏览器存储 | 用户本地文件系统 |
 | 是否需要 mount | ❌ 不需要 | ✅ 需要 |
 | 浏览器支持 | 所有现代浏览器 | 仅 Chrome |
+
+### 浏览器兼容性
+
+- ✅ **Chrome 86+ / Edge 86+** - 完整支持（推荐使用）
+- ⚠️ **Firefox 111+** - 不支持 `showDirectoryPicker`，但可挂载虚拟目录
+- ❌ **Safari** - 不支持 `showDirectoryPicker`，也不支持挂载虚拟目录
 
 ---
 
