@@ -1,226 +1,24 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebSocket 客户端示例</title>
+    <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@latest/dist/ofa.min.js#debug"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-        .status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .status.connected {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status.disconnected {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        #connectBtn {
-            background-color: #28a745;
-            color: white;
-        }
-        #disconnectBtn {
-            background-color: #dc3545;
-            color: white;
-        }
-        #sendBtn {
-            background-color: #007bff;
-            color: white;
-        }
-        #clearBtn {
-            background-color: #6c757d;
-            color: white;
-        }
-        .message-input {
-            display: flex;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        #messageInput {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-        #messages {
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            background-color: #fafafa;
-            border-radius: 5px;
-            font-family: monospace;
-        }
-        .message {
-            margin: 5px 0;
-            padding: 5px;
-            border-radius: 3px;
-        }
-        .message.sent {
-            background-color: #e3f2fd;
-            color: #1976d2;
-        }
-        .message.received {
-            background-color: #e8f5e9;
-            color: #388e3c;
-        }
-        .message.system {
-            background-color: #fff3e0;
-            color: #f57c00;
-        }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      o-page {
+        width: 100%;
+        height: 100%;
+      }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h1>WebSocket 客户端示例</h1>
-
-        <div id="status" class="status disconnected">未连接</div>
-
-        <div class="controls">
-            <button id="connectBtn">连接</button>
-            <button id="disconnectBtn" disabled>断开</button>
-            <button id="clearBtn">清空消息</button>
-        </div>
-
-        <div class="message-input">
-            <input type="text" id="messageInput" placeholder="输入消息..." disabled>
-            <button id="sendBtn" disabled>发送</button>
-        </div>
-
-        <div id="messages"></div>
-    </div>
-
-    <script>
-        let ws = null;
-        const statusDiv = document.getElementById('status');
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const sendBtn = document.getElementById('sendBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const messageInput = document.getElementById('messageInput');
-        const messagesDiv = document.getElementById('messages');
-
-        function addMessage(text, type) {
-            const message = document.createElement('div');
-            message.className = `message ${type}`;
-            message.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-            messagesDiv.appendChild(message);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function updateStatus(connected) {
-            if (connected) {
-                statusDiv.textContent = '已连接';
-                statusDiv.className = 'status connected';
-                connectBtn.disabled = true;
-                disconnectBtn.disabled = false;
-                sendBtn.disabled = false;
-                messageInput.disabled = false;
-            } else {
-                statusDiv.textContent = '未连接';
-                statusDiv.className = 'status disconnected';
-                connectBtn.disabled = false;
-                disconnectBtn.disabled = true;
-                sendBtn.disabled = true;
-                messageInput.disabled = true;
-            }
-        }
-
-        connectBtn.addEventListener('click', () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                return;
-            }
-
-            ws = new WebSocket('ws://127.0.0.1:8081');
-
-            ws.onopen = () => {
-                addMessage('已连接到服务器', 'system');
-                updateStatus(true);
-            };
-
-            ws.onmessage = (event) => {
-                addMessage(event.data, 'received');
-            };
-
-            ws.onerror = (error) => {
-                addMessage('连接错误', 'system');
-                console.error('WebSocket error:', error);
-            };
-
-            ws.onclose = () => {
-                addMessage('连接已关闭', 'system');
-                updateStatus(false);
-            };
-        });
-
-        disconnectBtn.addEventListener('click', () => {
-            if (ws) {
-                ws.close();
-                ws = null;
-            }
-        });
-
-        sendBtn.addEventListener('click', () => {
-            const message = messageInput.value.trim();
-            if (message && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(message);
-                addMessage(message, 'sent');
-                messageInput.value = '';
-            }
-        });
-
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendBtn.click();
-            }
-        });
-
-        clearBtn.addEventListener('click', () => {
-            messagesDiv.innerHTML = '';
-        });
-
-        // 页面加载时添加提示
-        addMessage('点击"连接"按钮开始', 'system');
-    </script>
-</body>
+  </head>
+  <body>
+    <o-page src="./page.html"></o-page>
+  </body>
 </html>
