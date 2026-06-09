@@ -240,10 +240,10 @@
             });
 
             // 自动滚动到底部
-            const messagesDiv = this.shadow.getElementById("messages");
+            const messagesDiv = this.shadow.$("#messages");
             if (messagesDiv) {
               setTimeout(() => {
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                messagesDiv.ele.scrollTop = messagesDiv.ele.scrollHeight;
               }, 0);
             }
           },
