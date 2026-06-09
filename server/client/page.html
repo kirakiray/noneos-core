@@ -105,17 +105,17 @@
       border-radius: 3px;
     }
 
-    .message.sent {
+    .message[type="sent"] {
       background-color: #e3f2fd;
       color: #1976d2;
     }
 
-    .message.received {
+    .message[type="received"] {
       background-color: #e8f5e9;
       color: #388e3c;
     }
 
-    .message.system {
+    .message[type="system"] {
       background-color: #fff3e0;
       color: #f57c00;
     }
@@ -159,109 +159,107 @@
 
     <div id="messages">
       <o-fill :value="messages">
-        <template>
-          <div class="message" :class="item.type">
-            [{{item.time}}] {{item.text}}
-          </div>
-        </template>
+        <div class="message" attr:type="$data.type">
+          [{{$data.time}}] {{$data.text}}
+        </div>
       </o-fill>
     </div>
   </div>
-</template>
 
-<script>
-  export default async () => ({
-    data: {
-      connected: false,
-      messageInput: "",
-      messages: [
-        {
-          type: "system",
-          text: '点击"连接"按钮开始',
-          time: new Date().toLocaleTimeString(),
+  <script>
+    export default async ({ query }) => {
+      return {
+        data: {
+          connected: false,
+          messageInput: "",
+          messages: [
+            {
+              type: "system",
+              text: '点击"连接"按钮开始',
+              time: new Date().toLocaleTimeString(),
+            },
+          ],
+          _ws: null,
         },
-      ],
-      ws: null,
-    },
+        proto: {
+          connect() {
+            if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+              return;
+            }
 
-    proto: {
-      connect() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          return;
-        }
+            this._ws = new WebSocket("ws://127.0.0.1:8081");
 
-        this.ws = new WebSocket("ws://127.0.0.1:8081");
+            this._ws.onopen = () => {
+              this.addMessage("已连接到服务器", "system");
+              this.connected = true;
+            };
 
-        this.ws.onopen = () => {
-          this.addMessage("已连接到服务器", "system");
-          this.connected = true;
-        };
+            this._ws.onmessage = (event) => {
+              this.addMessage(event.data, "received");
+            };
 
-        this.ws.onmessage = (event) => {
-          this.addMessage(event.data, "received");
-        };
+            this._ws.onerror = (error) => {
+              this.addMessage("连接错误", "system");
+              console.error("WebSocket error:", error);
+            };
 
-        this.ws.onerror = (error) => {
-          this.addMessage("连接错误", "system");
-          console.error("WebSocket error:", error);
-        };
+            this._ws.onclose = () => {
+              this.addMessage("连接已关闭", "system");
+              this.connected = false;
+              this._ws = null;
+            };
+          },
 
-        this.ws.onclose = () => {
-          this.addMessage("连接已关闭", "system");
-          this.connected = false;
-          this.ws = null;
-        };
-      },
+          disconnect() {
+            if (this._ws) {
+              this._ws.close();
+              this._ws = null;
+            }
+          },
 
-      disconnect() {
-        if (this.ws) {
-          this.ws.close();
-          this.ws = null;
-        }
-      },
+          sendMessage() {
+            const message = this.messageInput.trim();
+            if (message && this._ws && this._ws.readyState === WebSocket.OPEN) {
+              this._ws.send(message);
+              this.addMessage(message, "sent");
+              this.messageInput = "";
+            }
+          },
 
-      sendMessage() {
-        const message = this.messageInput.trim();
-        if (message && this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(message);
-          this.addMessage(message, "sent");
-          this.messageInput = "";
-        }
-      },
+          handleKeyPress(e) {
+            if (e.key === "Enter") {
+              this.sendMessage();
+            }
+          },
 
-      handleKeyPress(e) {
-        if (e.key === "Enter") {
-          this.sendMessage();
-        }
-      },
+          addMessage(text, type) {
+            this.messages.push({
+              type: type,
+              text: text,
+              time: new Date().toLocaleTimeString(),
+            });
 
-      addMessage(text, type) {
-        this.messages.push({
-          type: type,
-          text: text,
-          time: new Date().toLocaleTimeString(),
-        });
+            // 自动滚动到底部
+            const messagesDiv = this.shadow.getElementById("messages");
+            if (messagesDiv) {
+              setTimeout(() => {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+              }, 0);
+            }
+          },
 
-        // 自动滚动到底部
-        const messagesDiv = this.shadow.getElementById("messages");
-        if (messagesDiv) {
-          setTimeout(() => {
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-          }, 0);
-        }
-      },
-
-      clearMessages() {
-        this.messages = [];
-      },
-    },
-
-    detached() {
-      // 页面卸载时关闭连接
-      if (this.ws) {
-        this.ws.close();
-        this.ws = null;
-      }
-    },
-  });
-</script>
+          clearMessages() {
+            this.messages = [];
+          },
+        },
+        detached() {
+          // 页面卸载时关闭连接
+          if (this._ws) {
+            this._ws.close();
+            this._ws = null;
+          }
+        },
+      };
+    };
+  </script>
+</template>
