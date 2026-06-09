@@ -146,3 +146,9 @@ tests/cases/others
 rootkeys
 
 **/user-data
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
