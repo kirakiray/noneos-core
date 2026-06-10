@@ -6,10 +6,7 @@ import {
   getCertsFromDb,
   deleteCertFromDb,
 } from "../db.js";
-import {
-  generateKeyPair,
-  createVerifier,
-} from "../../crypto/crypto-ecdsa.js";
+import { generateKeyPair, createVerifier } from "../../crypto/crypto-ecdsa.js";
 import { getHash } from "../../util/hash/get-hash.js";
 
 /**
@@ -39,7 +36,7 @@ export class LocalUser extends BaseUser {
     return this.#namespace;
   }
 
-  /** 
+  /**
    * 重写初始化方法，从数据库获取密钥对，如果不存在则生成并保存
    * @returns {Promise}
    */
@@ -118,7 +115,7 @@ export class LocalUser extends BaseUser {
 
     try {
       const signatureBuffer = new Uint8Array(
-        [...atob(signature)].map((c) => c.charCodeAt(0))
+        [...atob(signature)].map((c) => c.charCodeAt(0)),
       ).buffer;
       const isValid = await verifier(msg, signatureBuffer);
       if (!isValid) throw new Error("证书签名验证失败");
@@ -130,6 +127,27 @@ export class LocalUser extends BaseUser {
     // 生成唯一ID
     const id = `${pureCertData.role}-${pureCertData.issuedBy}-${pureCertData.issuedTo}`;
     const certToSave = { id, ...pureCertData };
+
+    // 检查是否已存在相同 ID 的证书
+    const existingCerts = await getCertsFromDb(this.#namespace, {
+      role: pureCertData.role,
+      issuedBy: pureCertData.issuedBy,
+      issuedTo: pureCertData.issuedTo,
+    });
+    if (existingCerts.length > 0) {
+      const existingCert = existingCerts[0];
+      const now = Date.now();
+      const newSignTime = pureCertData.signTime;
+      const existingSignTime = existingCert.signTime;
+
+      // 如果新证书时间更新且不超过当前时间，才保存新证书
+      if (newSignTime > existingSignTime && newSignTime <= now) {
+        await saveCertToDb(this.#namespace, certToSave);
+        return certToSave;
+      }
+      // 否则保留旧证书
+      return existingCert;
+    }
 
     await saveCertToDb(this.#namespace, certToSave);
     return certToSave;
