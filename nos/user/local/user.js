@@ -9,6 +9,9 @@ import {
 import { generateKeyPair, createVerifier } from "../../crypto/crypto-ecdsa.js";
 import { getHash } from "../../util/hash/get-hash.js";
 
+// 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
+const initPromises = new Map();
+
 /**
  * 本地用户类，继承自 BaseUser
  * 根据传入的命名空间在 IndexedDB 中管理公钥和私钥
@@ -38,6 +41,7 @@ export class LocalUser extends BaseUser {
 
   /**
    * 重写初始化方法，从数据库获取密钥对，如果不存在则生成并保存
+   * 使用 Promise 缓存防止并发初始化导致密钥不一致
    * @returns {Promise}
    */
   async init() {
@@ -45,12 +49,31 @@ export class LocalUser extends BaseUser {
       return this;
     }
 
-    let keys = await getUserKeys(this.#namespace);
-    if (!keys) {
-      // 数据库中没有密钥，生成新的密钥对
-      keys = await generateKeyPair();
-      await saveUserKeys(this.#namespace, keys);
+    // 检查是否已有该 namespace 的初始化 Promise
+    let initPromise = initPromises.get(this.#namespace);
+
+    if (!initPromise) {
+      // 创建新的初始化 Promise
+      initPromise = (async () => {
+        let keys = await getUserKeys(this.#namespace);
+        if (!keys) {
+          // 数据库中没有密钥，生成新的密钥对
+          keys = await generateKeyPair();
+          await saveUserKeys(this.#namespace, keys);
+        }
+        return keys;
+      })();
+
+      initPromises.set(this.#namespace, initPromise);
+
+      // 初始化完成后清理缓存，允许后续重新初始化
+      initPromise.finally(() => {
+        initPromises.delete(this.#namespace);
+      });
     }
+
+    // 等待初始化完成并获取密钥
+    const keys = await initPromise;
 
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
     await super.init(keys);
