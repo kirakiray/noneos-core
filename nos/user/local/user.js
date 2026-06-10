@@ -83,20 +83,20 @@ export class LocalUser extends BaseUser {
   /**
    * 签发证书
    * @param {Object} options
-   * @param {string} options.issuedTo - 被签发人的用户ID
+   * @param {string} options.subject - 被签发人的用户ID
    * @param {string} options.role - 赋予的角色
    * @param {Object} [options.data] - 附加数据
    * @returns {Promise<Object>} 返回保存后的证书数据
    */
-  async issueCert({ issuedTo, role, ...data }) {
+  async issueCert({ subject, role, ...data }) {
     if (!role) throw new Error("role is required");
-    if (!issuedTo) throw new Error("issuedTo is required");
+    if (!subject) throw new Error("subject is required");
 
     const signedData = await this._sign({
       ...data,
       role,
-      issuedBy: this.userId,
-      issuedTo,
+      issuer: this.userId,
+      subject,
     });
 
     return this.saveCert(signedData);
@@ -113,8 +113,8 @@ export class LocalUser extends BaseUser {
 
     const requiredKeys = [
       "role",
-      "issuedBy",
-      "issuedTo",
+      "issuer",
+      "subject",
       "publicKey",
       "signTime",
       "signature",
@@ -127,7 +127,7 @@ export class LocalUser extends BaseUser {
     }
 
     const keyUserId = await getHash(pureCertData.publicKey);
-    if (keyUserId !== pureCertData.issuedBy) {
+    if (keyUserId !== pureCertData.issuer) {
       throw new Error("用户ID与公钥不匹配");
     }
 
@@ -148,14 +148,14 @@ export class LocalUser extends BaseUser {
     }
 
     // 生成唯一ID
-    const id = `${pureCertData.role}-${pureCertData.issuedBy}-${pureCertData.issuedTo}`;
+    const id = `${pureCertData.role}-${pureCertData.issuer}-${pureCertData.subject}`;
     const certToSave = { id, ...pureCertData };
 
     // 检查是否已存在相同 ID 的证书
     const existingCerts = await getCertsFromDb(this.#namespace, {
       role: pureCertData.role,
-      issuedBy: pureCertData.issuedBy,
-      issuedTo: pureCertData.issuedTo,
+      issuer: pureCertData.issuer,
+      subject: pureCertData.subject,
     });
     if (existingCerts.length > 0) {
       const existingCert = existingCerts[0];
@@ -178,7 +178,7 @@ export class LocalUser extends BaseUser {
 
   /**
    * 查询证书
-   * @param {Object} query - { role, issuedBy, issuedTo }
+   * @param {Object} query - { role, issuer, subject }
    * @returns {Promise<Array>}
    */
   async queryCerts(query = {}) {
@@ -187,7 +187,7 @@ export class LocalUser extends BaseUser {
 
   /**
    * 检查是否拥有某证书
-   * @param {Object} query - { role, issuedBy, issuedTo }
+   * @param {Object} query - { role, issuer, subject }
    * @returns {Promise<boolean>}
    */
   async hasCert(query) {

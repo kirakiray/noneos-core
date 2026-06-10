@@ -26,14 +26,14 @@
         // 1. admin 给 normal 签发证书
         // issueCert 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
         const issuedCert = await adminUser.issueCert({
-          issuedTo: normalUser.userId,
+          subject: normalUser.userId,
           role: "admin",
           permission: "all"
         });
 
         const hasCertId = !!issuedCert.id;
-        const isIssuedByAdmin = issuedCert.issuedBy === adminUser.userId;
-        const isIssuedToNormal = issuedCert.issuedTo === normalUser.userId;
+        const isIssuerAdmin = issuedCert.issuer === adminUser.userId;
+        const isSubjectNormal = issuedCert.subject === normalUser.userId;
 
         // admin 自己可以通过查询查到发出的证书
         const adminQueryCerts = await adminUser.queryCerts({ role: "admin" });
@@ -41,18 +41,18 @@
 
 
         // 2. normal 收到证书并保存
-        // saveCert 会验证证书签名是否有效、issuedBy 和公钥是否匹配
+        // saveCert 会验证证书签名是否有效、issuer 和公钥是否匹配
         const savedCert = await normalUser.saveCert(issuedCert);
 
         // 3. 验证 normalUser 是否成功保存并能够查询到该证书
         const normalHasCert = await normalUser.hasCert({
           role: "admin",
-          issuedBy: adminUser.userId,
-          issuedTo: normalUser.userId
+          issuer: adminUser.userId,
+          subject: normalUser.userId
         });
 
         return {
-          assert: hasCertId && isIssuedByAdmin && isIssuedToNormal && adminHasIt && normalHasCert,
+          assert: hasCertId && isIssuerAdmin && isSubjectNormal && adminHasIt && normalHasCert,
           content: {
             message: "证书签发与保存验证通过",
             certId: issuedCert.id,
@@ -74,7 +74,7 @@
 
         // 给自己签发一个证书
         const cert = await user.issueCert({
-          issuedTo: user.userId,
+          subject: user.userId,
           role: "tester"
         });
 
@@ -109,12 +109,12 @@
 
         // hacker 给自己签发一个证书
         const fakeCert = await hacker.issueCert({
-          issuedTo: hacker.userId,
+          subject: hacker.userId,
           role: "admin"
         });
 
-        // 篡改 issuedBy 为 victim
-        fakeCert.issuedBy = victim.userId;
+        // 篡改 issuer 为 victim
+        fakeCert.issuer = victim.userId;
 
         let catchError = false;
         try {

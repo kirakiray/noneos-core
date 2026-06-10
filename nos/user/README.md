@@ -79,14 +79,14 @@ const normalUser = await getUser("normal-user");
 
 // 管理员签发证书
 const cert = await admin.issueCert({
-  issuedTo: normalUser.userId,  // 被签发人的用户ID
+  subject: normalUser.userId,  // 被签发人的用户ID
   role: "admin",                 // 角色
   permission: "all"              // 可选的附加数据
 });
 
 console.log(cert.id);         // 证书ID
-console.log(cert.issuedBy);   // 签发者ID（admin.userId）
-console.log(cert.issuedTo);   // 接收者ID（normalUser.userId）
+console.log(cert.issuer);     // 签发者ID（admin.userId）
+console.log(cert.subject);    // 接收者ID（normalUser.userId）
 console.log(cert.role);       // "admin"
 console.log(cert.signature);  // 签名
 ```
@@ -101,7 +101,7 @@ const savedCert = await normalUser.saveCert(cert);
 
 // 如果证书被篡改，会抛出错误
 try {
-  const fakeCert = { ...cert, issuedBy: "fake-user-id" };
+  const fakeCert = { ...cert, issuer: "fake-user-id" };
   await normalUser.saveCert(fakeCert);
 } catch (err) {
   console.error("证书验证失败:", err.message);
@@ -116,14 +116,14 @@ const adminCerts = await user.queryCerts({ role: "admin" });
 
 // 查询特定签发者的证书
 const certsFromAdmin = await user.queryCerts({
-  issuedBy: admin.userId
+  issuer: admin.userId
 });
 
 // 查询特定条件的证书
 const specificCert = await user.queryCerts({
   role: "admin",
-  issuedBy: admin.userId,
-  issuedTo: normalUser.userId
+  issuer: admin.userId,
+  subject: normalUser.userId
 });
 ```
 
@@ -133,8 +133,8 @@ const specificCert = await user.queryCerts({
 // 检查是否拥有某证书
 const hasAdminCert = await user.hasCert({
   role: "admin",
-  issuedBy: admin.userId,
-  issuedTo: user.userId
+  issuer: admin.userId,
+  subject: user.userId
 });
 
 console.log(hasAdminCert); // true 或 false
@@ -287,7 +287,7 @@ const isValid = await user.verify(signedData);
 
 **参数：**
 - `options` (Object)
-  - `issuedTo` (string) - 被签发人的用户ID（必填）
+  - `subject` (string) - 被签发人的用户ID（必填）
   - `role` (string) - 角色（必填）
   - `...data` (Object) - 其他附加数据（可选）
 
@@ -296,7 +296,7 @@ const isValid = await user.verify(signedData);
 **示例：**
 ```javascript
 const cert = await admin.issueCert({
-  issuedTo: user.userId,
+  subject: user.userId,
   role: "editor",
   permissions: ["read", "write"]
 });
@@ -306,7 +306,7 @@ const cert = await admin.issueCert({
 
 验证并保存证书。会自动验证：
 - 证书签名是否有效
-- `issuedBy` 是否与公钥匹配
+- `issuer` 是否与公钥匹配
 
 **参数：**
 - `certData` (Object) - 包含签名和公钥的证书数据
@@ -330,8 +330,8 @@ const savedCert = await user.saveCert(cert);
 **参数：**
 - `query` (Object) - 查询条件
   - `role` (string) - 角色（可选）
-  - `issuedBy` (string) - 签发者ID（可选）
-  - `issuedTo` (string) - 接收者ID（可选）
+  - `issuer` (string) - 签发者ID（可选）
+  - `subject` (string) - 接收者ID（可选）
 
 **返回值：** Promise\<Array\<Object\>\> - 证书数组
 
@@ -353,7 +353,7 @@ const certs = await user.queryCerts({ role: "admin" });
 ```javascript
 const hasCert = await user.hasCert({
   role: "admin",
-  issuedBy: admin.userId
+  issuer: admin.userId
 });
 ```
 
@@ -383,7 +383,7 @@ await user.deleteCert(cert.id);
 ### 证书验证
 
 保存证书时会自动验证：
-1. 必要字段完整性（role、issuedBy、issuedTo、publicKey、signTime、signature）
+1. 必要字段完整性（role、issuer、subject、publicKey、signTime、signature）
 2. 签发者ID与公钥匹配
 3. 签名有效性
 
@@ -391,7 +391,7 @@ await user.deleteCert(cert.id);
 
 ```javascript
 // 篡改证书会被检测
-const fakeCert = { ...originalCert, issuedBy: "hacker-id" };
+const fakeCert = { ...originalCert, issuer: "hacker-id" };
 await user.saveCert(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 ```
 
@@ -406,7 +406,7 @@ const user = await getUser("user-space");
 
 // 管理员签发证书
 const cert = await admin.issueCert({
-  issuedTo: user.userId,
+  subject: user.userId,
   role: "editor",
   permissions: ["read", "write"]
 });
@@ -417,7 +417,7 @@ await user.saveCert(cert);
 // 检查权限
 const hasEditorRole = await user.hasCert({
   role: "editor",
-  issuedBy: admin.userId
+  issuer: admin.userId
 });
 
 console.log("拥有编辑权限:", hasEditorRole);

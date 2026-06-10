@@ -1,6 +1,6 @@
 const STORE_NAME = "keys";
 const CERT_STORE_NAME = "certs";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 /**
  * 获取数据库实例
@@ -29,33 +29,13 @@ function getDb(namespace) {
         const certStore = db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
         // 单字段索引
         certStore.createIndex("role", "role", { unique: false });
-        certStore.createIndex("issuedBy", "issuedBy", { unique: false });
-        certStore.createIndex("issuedTo", "issuedTo", { unique: false });
+        certStore.createIndex("issuer", "issuer", { unique: false });
+        certStore.createIndex("subject", "subject", { unique: false });
         // 复合索引
-        certStore.createIndex("role_issuedBy", ["role", "issuedBy"], { unique: false });
-        certStore.createIndex("role_issuedTo", ["role", "issuedTo"], { unique: false });
-        certStore.createIndex("issuedBy_issuedTo", ["issuedBy", "issuedTo"], { unique: false });
-        certStore.createIndex("role_issuedBy_issuedTo", ["role", "issuedBy", "issuedTo"], { unique: false });
-      } else {
-        // 已存在的 store，添加索引
-        const transaction = event.target.transaction;
-        const certStore = transaction.objectStore(CERT_STORE_NAME);
-        
-        const indexes = [
-          { name: "role", keyPath: "role" },
-          { name: "issuedBy", keyPath: "issuedBy" },
-          { name: "issuedTo", keyPath: "issuedTo" },
-          { name: "role_issuedBy", keyPath: ["role", "issuedBy"] },
-          { name: "role_issuedTo", keyPath: ["role", "issuedTo"] },
-          { name: "issuedBy_issuedTo", keyPath: ["issuedBy", "issuedTo"] },
-          { name: "role_issuedBy_issuedTo", keyPath: ["role", "issuedBy", "issuedTo"] },
-        ];
-        
-        for (const { name, keyPath } of indexes) {
-          if (!certStore.indexNames.contains(name)) {
-            certStore.createIndex(name, keyPath, { unique: false });
-          }
-        }
+        certStore.createIndex("role_issuer", ["role", "issuer"], { unique: false });
+        certStore.createIndex("role_subject", ["role", "subject"], { unique: false });
+        certStore.createIndex("issuer_subject", ["issuer", "subject"], { unique: false });
+        certStore.createIndex("role_issuer_subject", ["role", "issuer", "subject"], { unique: false });
       }
     };
   });
@@ -124,43 +104,43 @@ export async function saveCertToDb(namespace, certData) {
 /**
  * 查询证书
  * @param {string} namespace
- * @param {Object} query - 查询条件 { role, issuedBy, issuedTo }
+ * @param {Object} query - 查询条件 { role, issuer, subject }
  * @returns {Promise<Array>}
  */
 export async function getCertsFromDb(namespace, query = {}) {
   if (!namespace) throw new Error("namespace is required");
   const db = await getDb(namespace);
   
-  const { role, issuedBy, issuedTo } = query;
+  const { role, issuer, subject } = query;
   const hasRole = role !== undefined;
-  const hasIssuedBy = issuedBy !== undefined;
-  const hasIssuedTo = issuedTo !== undefined;
+  const hasIssuer = issuer !== undefined;
+  const hasSubject = subject !== undefined;
   
   // 确定使用哪个索引
   let indexName = null;
   let indexKey = null;
   
-  if (hasRole && hasIssuedBy && hasIssuedTo) {
-    indexName = "role_issuedBy_issuedTo";
-    indexKey = [role, issuedBy, issuedTo];
-  } else if (hasRole && hasIssuedBy) {
-    indexName = "role_issuedBy";
-    indexKey = [role, issuedBy];
-  } else if (hasRole && hasIssuedTo) {
-    indexName = "role_issuedTo";
-    indexKey = [role, issuedTo];
-  } else if (hasIssuedBy && hasIssuedTo) {
-    indexName = "issuedBy_issuedTo";
-    indexKey = [issuedBy, issuedTo];
+  if (hasRole && hasIssuer && hasSubject) {
+    indexName = "role_issuer_subject";
+    indexKey = [role, issuer, subject];
+  } else if (hasRole && hasIssuer) {
+    indexName = "role_issuer";
+    indexKey = [role, issuer];
+  } else if (hasRole && hasSubject) {
+    indexName = "role_subject";
+    indexKey = [role, subject];
+  } else if (hasIssuer && hasSubject) {
+    indexName = "issuer_subject";
+    indexKey = [issuer, subject];
   } else if (hasRole) {
     indexName = "role";
     indexKey = role;
-  } else if (hasIssuedBy) {
-    indexName = "issuedBy";
-    indexKey = issuedBy;
-  } else if (hasIssuedTo) {
-    indexName = "issuedTo";
-    indexKey = issuedTo;
+  } else if (hasIssuer) {
+    indexName = "issuer";
+    indexKey = issuer;
+  } else if (hasSubject) {
+    indexName = "subject";
+    indexKey = subject;
   }
   
   return new Promise((resolve, reject) => {
