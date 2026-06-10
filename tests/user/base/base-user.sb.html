@@ -100,9 +100,15 @@
         import { BaseUser } from "/nos/user/base-user.js";
         import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
 
-        const { publicKey: testPublicKey } = await generateKeyPair();
+        const { publicKey: testPublicKey, privateKey: testPrivateKey } = await generateKeyPair();
 
-        // 仅使用公钥创建用户
+        // 1. 先用完整用户签名数据
+        const signerUser = new BaseUser(testPublicKey, testPrivateKey);
+        await signerUser.init();
+        const testData = { message: "Verify this with only public key" };
+        const signedData = await signerUser.sign(testData);
+
+        // 2. 仅使用公钥创建用户并验证
         const user = new BaseUser(testPublicKey);
         await user.init();
 
@@ -111,14 +117,16 @@
         const noPrivateKey = user.privateKey === undefined;
         const cannotSign = user.sign === null;
 
+        // 验证功能
+        const isVerifyValid = await user.verify(signedData);
+
         return {
-          assert: hasUserId && isOnlyPublicKeyMatched && noPrivateKey && cannotSign,
+          assert: hasUserId && isOnlyPublicKeyMatched && noPrivateKey && cannotSign && isVerifyValid,
           content: {
-            message: "仅公钥初始化成功",
+            message: "仅公钥初始化及验证成功",
             userId: user.userId,
-            publicKey: user.publicKey,
-            hasPrivateKey: !noPrivateKey,
-            canSign: !cannotSign
+            canSign: !cannotSign,
+            verifySuccess: isVerifyValid
           },
         };
       </script>
