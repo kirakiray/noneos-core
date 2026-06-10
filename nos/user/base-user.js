@@ -15,15 +15,16 @@ export class BaseUser extends EventTarget {
   #userId; // 用户唯一标识 (公钥哈希)
   #_inited; // 初始化状态 Promise
   #privateKey; // 私钥
+  #publicKey; // 公钥
 
   /**
    * 构造函数
-   * @param {string} publicKey - 用户公钥
+   * @param {string} [publicKey] - 用户公钥（可选）
    * @param {string} [privateKey] - 用户私钥（可选）
    */
   constructor(publicKey, privateKey) {
     super();
-    this._publicKey = publicKey;
+    this.#publicKey = publicKey;
     this.#privateKey = privateKey;
   }
 
@@ -38,34 +39,39 @@ export class BaseUser extends EventTarget {
    * 获取用户公钥
    */
   get publicKey() {
-    return this._publicKey;
-  }
-
-  /**
-   * 内部设置私钥的方法，子类可以使用
-   * @param {string} key 
-   */
-  _setPrivateKey(key) {
-    this.#privateKey = key;
+    return this.#publicKey;
   }
 
   /**
    * 初始化用户钥匙对
    * 1. 如果已初始化，直接返回
    * 2. 如果只有公钥，则进入只读/验证模式
+   * @param {Object} [keys] - 初始化的密钥对（可选）
+   * @param {string} keys.publicKey - 公钥
+   * @param {string} [keys.privateKey] - 私钥
    * @returns {Promise}
    */
-  async init() {
+  async init(keys) {
     if (this.#_inited) {
       return this.#_inited;
     }
 
     return (this.#_inited = (async () => {
-      if (!this.publicKey) {
+      // 如果传入了 keys，且当前没有设置对应的 key，则进行设置
+      if (keys) {
+        if (!this.#publicKey && keys.publicKey) {
+          this.#publicKey = keys.publicKey;
+        }
+        if (!this.#privateKey && keys.privateKey) {
+          this.#privateKey = keys.privateKey;
+        }
+      }
+
+      if (!this.#publicKey) {
         throw new Error("publicKey is required for initialization");
       }
-      this.#userId = await getHash(this.publicKey);
-      this.#verifier = await createVerifier(this.publicKey);
+      this.#userId = await getHash(this.#publicKey);
+      this.#verifier = await createVerifier(this.#publicKey);
 
       // 如果存在私钥，创建签名器
       if (this.#privateKey) {
