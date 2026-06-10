@@ -1,5 +1,4 @@
 import {
-  generateKeyPair,
   createSigner,
   createVerifier,
 } from "../crypto/crypto-ecdsa.js";
@@ -20,11 +19,14 @@ export class BaseUser extends EventTarget {
 
   /**
    * 构造函数
-   * @param {string} [publicKey] - 用户公钥
+   * @param {string} publicKey - 用户公钥
    * @param {string} [privateKey] - 用户私钥（可选）
    */
   constructor(publicKey, privateKey) {
     super();
+    if (!publicKey) {
+      throw new Error("publicKey is required");
+    }
     this.#publicKey = publicKey;
     this.#privateKey = privateKey;
   }
@@ -54,7 +56,6 @@ export class BaseUser extends EventTarget {
    * 初始化用户钥匙对
    * 1. 如果已初始化，直接返回
    * 2. 如果只有公钥，则进入只读/验证模式
-   * 3. 如果都没有，生成新密钥对
    * @returns {Promise}
    */
   async init() {
@@ -63,13 +64,6 @@ export class BaseUser extends EventTarget {
     }
 
     return (this.#_inited = (async () => {
-      if (!this.#publicKey) {
-        // 如果没有公钥，生成新的 ECDSA 密钥对
-        const pair = await generateKeyPair();
-        this.#publicKey = pair.publicKey;
-        this.#privateKey = pair.privateKey;
-      }
-
       this.#userId = await getHash(this.#publicKey);
       this.#verifier = await createVerifier(this.#publicKey);
 

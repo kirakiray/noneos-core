@@ -1,199 +1,220 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BaseUser Test</title>
-    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
-  </head>
-  <body>
-    <h1>BaseUser Tests</h1>
 
-    <sb-test name="Create and Initialize User Test">
-      <template>
-        <script type="module">
-          import { BaseUser } from "/nos/user/base-user.js";
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BaseUser Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  <script type="module">
 
-          // 创建用户（不传参数将自动生成密钥对）
-          const initUser = new BaseUser();
+  </script>
+</head>
 
-          // 初始化用户
-          await initUser.init();
+<body>
+  <h1>BaseUser Tests</h1>
 
-          const hasInitUserId = !!initUser.userId;
-          const hasInitPublicKey = !!initUser.publicKey;
-          const hasInitPrivateKey = !!initUser.privateKey;
+  <sb-test name="Create and Initialize User Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
 
-          return {
-            assert: hasInitUserId && hasInitPublicKey && hasInitPrivateKey,
-            content: {
-              message: "用户创建和初始化成功",
-              userId: initUser.userId,
-              publicKeyLength: initUser.publicKey.length,
-            },
-          };
-        </script>
-      </template>
-    </sb-test>
+        const { publicKey: initPublicKey, privateKey: initPrivateKey } = await generateKeyPair();
 
-    <sb-test name="Sign and Verify Test">
-      <template>
-        <script type="module">
-          import { BaseUser } from "/nos/user/base-user.js";
+        // 创建用户
+        const initUser = new BaseUser(initPublicKey, initPrivateKey);
 
-          // 创建用户
-          const signingUser = new BaseUser();
-          await signingUser.init();
+        // 初始化用户
+        await initUser.init();
 
-          // 签名数据
-          const originalData = {
-            message: "Hello, NoneOS!",
-            timestamp: Date.now(),
-          };
+        const hasInitUserId = !!initUser.userId;
+        const hasInitPublicKey = !!initUser.publicKey;
+        const hasInitPrivateKey = !!initUser.privateKey;
 
-          const resultSignedData = await signingUser.sign(originalData);
+        return {
+          assert: hasInitUserId && hasInitPublicKey && hasInitPrivateKey,
+          content: {
+            message: "用户创建和初始化成功",
+            userId: initUser.userId,
+            publicKeyLength: initUser.publicKey.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 
-          const hasSignature = !!resultSignedData.signature;
-          const hasSignTime = !!resultSignedData.signTime;
-          const hasPublicKey = !!resultSignedData.publicKey;
+  <sb-test name="Sign and Verify Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
 
-          // 验证签名
-          const isSignatureValid = await signingUser.verify(resultSignedData);
+        const { publicKey: signingPublicKey, privateKey: signingPrivateKey } = await generateKeyPair();
 
-          // 篡改数据后验证
-          const tamperedMsgData = { ...resultSignedData, message: "Tampered!" };
-          const isTamperedValid = await signingUser.verify(tamperedMsgData);
+        // 创建用户
+        const signingUser = new BaseUser(signingPublicKey, signingPrivateKey);
+        await signingUser.init();
 
-          return {
-            assert:
-              hasSignature &&
-              hasSignTime &&
-              hasPublicKey &&
-              isSignatureValid &&
-              !isTamperedValid,
-            content: {
-              message: "签名和验证测试成功",
-              originalMessage: originalData.message,
-              signatureValid: isSignatureValid,
-              tamperedMessageValid: isTamperedValid,
-              signatureLength: resultSignedData.signature.length,
-            },
-          };
-        </script>
-      </template>
-    </sb-test>
+        // 签名数据
+        const originalData = {
+          message: "Hello, NoneOS!",
+          timestamp: Date.now(),
+        };
 
-    <sb-test name="Public Key Mode Test">
-      <template>
-        <script type="module">
-          import { BaseUser } from "/nos/user/base-user.js";
+        const resultSignedData = await signingUser.sign(originalData);
 
-          // 首先创建一个完整用户并获取公钥
-          const fullUser = new BaseUser();
-          await fullUser.init();
-          const publicKeyHex = fullUser.publicKey;
+        const hasSignature = !!resultSignedData.signature;
+        const hasSignTime = !!resultSignedData.signTime;
+        const hasPublicKey = !!resultSignedData.publicKey;
 
-          // 使用公钥创建用户（只读模式）
-          const publicKeyUser = new BaseUser(publicKeyHex);
-          await publicKeyUser.init();
+        // 验证签名
+        const isSignatureValid = await signingUser.verify(resultSignedData);
 
-          const hasPubUserUserId = !!publicKeyUser.userId;
-          const hasPubUserPublicKey = !!publicKeyUser.publicKey;
-          const isSignFunctionDisabled = publicKeyUser.sign === null;
+        // 篡改数据后验证
+        const tamperedMsgData = { ...resultSignedData, message: "Tampered!" };
+        const isTamperedValid = await signingUser.verify(tamperedMsgData);
 
-          // 使用公钥用户验证数据
-          const testDataForPubMode = { message: "Test message" };
-          const signedDataForPubMode = await fullUser.sign(testDataForPubMode);
-          const isPubModeVerifySuccess = await publicKeyUser.verify(signedDataForPubMode);
+        return {
+          assert:
+            hasSignature &&
+            hasSignTime &&
+            hasPublicKey &&
+            isSignatureValid &&
+            !isTamperedValid,
+          content: {
+            message: "签名和验证测试成功",
+            originalMessage: originalData.message,
+            signatureValid: isSignatureValid,
+            tamperedMessageValid: isTamperedValid,
+            signatureLength: resultSignedData.signature.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 
-          return {
-            assert: hasPubUserUserId && hasPubUserPublicKey && isSignFunctionDisabled && isPubModeVerifySuccess,
-            content: {
-              message: "公钥模式测试成功",
-              userId: publicKeyUser.userId,
-              publicKeyLength: publicKeyUser.publicKey.length,
-              canSign: publicKeyUser.sign !== null,
-              verifySuccess: isPubModeVerifySuccess,
-            },
-          };
-        </script>
-      </template>
-    </sb-test>
+  <sb-test name="Public Key Mode Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
 
-    <sb-test name="User Instantiation from Keys Test">
-      <template>
-        <script type="module">
-          import { BaseUser } from "/nos/user/base-user.js";
+        const { publicKey: pkModePublicKey, privateKey: pkModePrivateKey } = await generateKeyPair();
 
-          // 创建第一个用户实例并生成密钥
-          const originalUser = new BaseUser();
-          await originalUser.init();
-          const savedUserId = originalUser.userId;
-          const savedPublicKey = originalUser.publicKey;
-          const savedPrivateKey = originalUser.privateKey;
+        // 首先创建一个完整用户并获取公钥
+        const fullUser = new BaseUser(pkModePublicKey, pkModePrivateKey);
+        await fullUser.init();
+        const publicKeyHex = fullUser.publicKey;
 
-          // 创建第二个用户实例（使用导出的密钥）
-          const importedUser = new BaseUser(savedPublicKey, savedPrivateKey);
-          await importedUser.init();
-          const importedUserId = importedUser.userId;
-          const importedPublicKey = importedUser.publicKey;
+        // 使用公钥创建用户（只读模式）
+        const publicKeyUser = new BaseUser(publicKeyHex);
+        await publicKeyUser.init();
 
-          // 验证数据
-          const isUserIdMatched = savedUserId === importedUserId;
-          const isPublicKeyMatched = savedPublicKey === importedPublicKey;
+        const hasPubUserUserId = !!publicKeyUser.userId;
+        const hasPubUserPublicKey = !!publicKeyUser.publicKey;
+        const isSignFunctionDisabled = publicKeyUser.sign === null;
 
-          // 验证签名功能
-          const persistenceTestData = { message: "Keys import test" };
-          const persistenceSignedData = await importedUser.sign(persistenceTestData);
-          const isPersistenceVerifyValid = await importedUser.verify(persistenceSignedData);
+        // 使用公钥用户验证数据
+        const testDataForPubMode = { message: "Test message" };
+        const signedDataForPubMode = await fullUser.sign(testDataForPubMode);
+        const isPubModeVerifySuccess = await publicKeyUser.verify(signedDataForPubMode);
 
-          return {
-            assert: isUserIdMatched && isPublicKeyMatched && isPersistenceVerifyValid,
-            content: {
-              message: "使用密钥实例化用户测试成功",
-              userIdMatch: isUserIdMatched,
-              publicKeyMatch: isPublicKeyMatched,
-              signatureValid: isPersistenceVerifyValid,
-            },
-          };
-        </script>
-      </template>
-    </sb-test>
+        return {
+          assert: hasPubUserUserId && hasPubUserPublicKey && isSignFunctionDisabled && isPubModeVerifySuccess,
+          content: {
+            message: "公钥模式测试成功",
+            userId: publicKeyUser.userId,
+            publicKeyLength: publicKeyUser.publicKey.length,
+            canSign: publicKeyUser.sign !== null,
+            verifySuccess: isPubModeVerifySuccess,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 
-    <sb-test name="Event Binding Test">
-      <template>
-        <script type="module">
-          import { BaseUser } from "/nos/user/base-user.js";
+  <sb-test name="User Instantiation from Keys Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
 
-          const eventUser = new BaseUser();
-          await eventUser.init();
+        const { publicKey: origPublicKey, privateKey: origPrivateKey } = await generateKeyPair();
 
-          let isEventFired = false;
-          const testEventName = "test-event";
+        // 创建第一个用户实例并生成密钥
+        const originalUser = new BaseUser(origPublicKey, origPrivateKey);
+        await originalUser.init();
+        const savedUserId = originalUser.userId;
+        const savedPublicKey = originalUser.publicKey;
+        const savedPrivateKey = originalUser.privateKey;
 
-          // 绑定事件
-          const unbindEvent = eventUser.bind(testEventName, () => {
-            isEventFired = true;
-          });
+        // 创建第二个用户实例（使用导出的密钥）
+        const importedUser = new BaseUser(savedPublicKey, savedPrivateKey);
+        await importedUser.init();
+        const importedUserId = importedUser.userId;
+        const importedPublicKey = importedUser.publicKey;
 
-          // 触发事件
-          eventUser.dispatchEvent(new CustomEvent(testEventName));
+        // 验证数据
+        const isUserIdMatched = savedUserId === importedUserId;
+        const isPublicKeyMatched = savedPublicKey === importedPublicKey;
 
-          // 解绑事件
-          unbindEvent();
+        // 验证签名功能
+        const persistenceTestData = { message: "Keys import test" };
+        const persistenceSignedData = await importedUser.sign(persistenceTestData);
+        const isPersistenceVerifyValid = await importedUser.verify(persistenceSignedData);
 
-          // 再次触发事件（不应该执行）
-          eventUser.dispatchEvent(new CustomEvent(testEventName));
+        return {
+          assert: isUserIdMatched && isPublicKeyMatched && isPersistenceVerifyValid,
+          content: {
+            message: "使用密钥实例化用户测试成功",
+            userIdMatch: isUserIdMatched,
+            publicKeyMatch: isPublicKeyMatched,
+            signatureValid: isPersistenceVerifyValid,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 
-          return {
-            assert: isEventFired,
-            content: {
-              message: "事件绑定测试成功",
-              eventFired: isEventFired,
-            },
-          };
-        </script>
-      </template>
-    </sb-test>
-  </body>
+  <sb-test name="Event Binding Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
+
+        const { publicKey: eventPublicKey, privateKey: eventPrivateKey } = await generateKeyPair();
+
+        const eventUser = new BaseUser(eventPublicKey, eventPrivateKey);
+        await eventUser.init();
+
+        let isEventFired = false;
+        const testEventName = "test-event";
+
+        // 绑定事件
+        const unbindEvent = eventUser.bind(testEventName, () => {
+          isEventFired = true;
+        });
+
+        // 触发事件
+        eventUser.dispatchEvent(new CustomEvent(testEventName));
+
+        // 解绑事件
+        unbindEvent();
+
+        // 再次触发事件（不应该执行）
+        eventUser.dispatchEvent(new CustomEvent(testEventName));
+
+        return {
+          assert: isEventFired,
+          content: {
+            message: "事件绑定测试成功",
+            eventFired: isEventFired,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
 </html>
