@@ -25,7 +25,7 @@
 
         const hasInitUserId = !!localUser.userId;
         const hasInitPublicKey = !!localUser.publicKey;
-        const hasInitPrivateKey = !!localUser.privateKey;
+        const hasInitPrivateKey = !!localUser.sign;
         const isNamespaceMatched = localUser.namespace === ns1;
 
         return {

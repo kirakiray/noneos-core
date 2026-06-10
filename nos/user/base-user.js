@@ -14,6 +14,7 @@ export class BaseUser extends EventTarget {
   #verifier; // 验证函数
   #userId; // 用户唯一标识 (公钥哈希)
   #_inited; // 初始化状态 Promise
+  #privateKey; // 私钥
 
   /**
    * 构造函数
@@ -23,7 +24,7 @@ export class BaseUser extends EventTarget {
   constructor(publicKey, privateKey) {
     super();
     this._publicKey = publicKey;
-    this._privateKey = privateKey;
+    this.#privateKey = privateKey;
   }
 
   /**
@@ -41,10 +42,11 @@ export class BaseUser extends EventTarget {
   }
 
   /**
-   * 获取用户私钥
+   * 内部设置私钥的方法，子类可以使用
+   * @param {string} key 
    */
-  get privateKey() {
-    return this._privateKey;
+  _setPrivateKey(key) {
+    this.#privateKey = key;
   }
 
   /**
@@ -66,8 +68,8 @@ export class BaseUser extends EventTarget {
       this.#verifier = await createVerifier(this.publicKey);
 
       // 如果存在私钥，创建签名器
-      if (this.privateKey) {
-        this.#signer = await createSigner(this.privateKey);
+      if (this.#privateKey) {
+        this.#signer = await createSigner(this.#privateKey);
       }
     })());
   }

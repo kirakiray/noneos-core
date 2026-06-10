@@ -42,7 +42,7 @@ export class LocalUser extends BaseUser {
 
     // 设置到 BaseUser 的保护属性中
     this._publicKey = keys.publicKey;
-    this._privateKey = keys.privateKey;
+    this._setPrivateKey(keys.privateKey);
 
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
     return super.init();

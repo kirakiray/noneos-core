@@ -30,7 +30,7 @@
 
         const hasInitUserId = !!initUser.userId;
         const hasInitPublicKey = !!initUser.publicKey;
-        const hasInitPrivateKey = !!initUser.privateKey;
+        const hasInitPrivateKey = !!initUser.sign;
 
         return {
           assert: hasInitUserId && hasInitPublicKey && hasInitPrivateKey,
@@ -114,7 +114,7 @@
 
         const hasUserId = !!user.userId;
         const isOnlyPublicKeyMatched = user.publicKey === testPublicKey;
-        const noPrivateKey = user.privateKey === undefined;
+        const noPrivateKey = user.sign === null;
         const cannotSign = user.sign === null;
 
         // 验证功能
@@ -186,10 +186,10 @@
         await originalUser.init();
         const savedUserId = originalUser.userId;
         const savedPublicKey = originalUser.publicKey;
-        const savedPrivateKey = originalUser.privateKey;
+        // const savedPrivateKey = originalUser.privateKey; // privateKey 不能直接获取
 
         // 创建第二个用户实例（使用导出的密钥）
-        const importedUser = new BaseUser(savedPublicKey, savedPrivateKey);
+        const importedUser = new BaseUser(savedPublicKey, origPrivateKey);
         await importedUser.init();
         const importedUserId = importedUser.userId;
         const importedPublicKey = importedUser.publicKey;
