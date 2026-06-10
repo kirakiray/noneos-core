@@ -1,6 +1,6 @@
 const STORE_NAME = "keys";
 const CERT_STORE_NAME = "certs";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /**
  * 获取数据库实例
@@ -26,7 +26,36 @@ function getDb(namespace) {
         db.createObjectStore(STORE_NAME);
       }
       if (!db.objectStoreNames.contains(CERT_STORE_NAME)) {
-        db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
+        const certStore = db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
+        // 单字段索引
+        certStore.createIndex("role", "role", { unique: false });
+        certStore.createIndex("issuedBy", "issuedBy", { unique: false });
+        certStore.createIndex("issuedTo", "issuedTo", { unique: false });
+        // 复合索引
+        certStore.createIndex("role_issuedBy", ["role", "issuedBy"], { unique: false });
+        certStore.createIndex("role_issuedTo", ["role", "issuedTo"], { unique: false });
+        certStore.createIndex("issuedBy_issuedTo", ["issuedBy", "issuedTo"], { unique: false });
+        certStore.createIndex("role_issuedBy_issuedTo", ["role", "issuedBy", "issuedTo"], { unique: false });
+      } else {
+        // 已存在的 store，添加索引
+        const transaction = event.target.transaction;
+        const certStore = transaction.objectStore(CERT_STORE_NAME);
+        
+        const indexes = [
+          { name: "role", keyPath: "role" },
+          { name: "issuedBy", keyPath: "issuedBy" },
+          { name: "issuedTo", keyPath: "issuedTo" },
+          { name: "role_issuedBy", keyPath: ["role", "issuedBy"] },
+          { name: "role_issuedTo", keyPath: ["role", "issuedTo"] },
+          { name: "issuedBy_issuedTo", keyPath: ["issuedBy", "issuedTo"] },
+          { name: "role_issuedBy_issuedTo", keyPath: ["role", "issuedBy", "issuedTo"] },
+        ];
+        
+        for (const { name, keyPath } of indexes) {
+          if (!certStore.indexNames.contains(name)) {
+            certStore.createIndex(name, keyPath, { unique: false });
+          }
+        }
       }
     };
   });
@@ -101,18 +130,54 @@ export async function saveCertToDb(namespace, certData) {
 export async function getCertsFromDb(namespace, query = {}) {
   if (!namespace) throw new Error("namespace is required");
   const db = await getDb(namespace);
+  
+  const { role, issuedBy, issuedTo } = query;
+  const hasRole = role !== undefined;
+  const hasIssuedBy = issuedBy !== undefined;
+  const hasIssuedTo = issuedTo !== undefined;
+  
+  // 确定使用哪个索引
+  let indexName = null;
+  let indexKey = null;
+  
+  if (hasRole && hasIssuedBy && hasIssuedTo) {
+    indexName = "role_issuedBy_issuedTo";
+    indexKey = [role, issuedBy, issuedTo];
+  } else if (hasRole && hasIssuedBy) {
+    indexName = "role_issuedBy";
+    indexKey = [role, issuedBy];
+  } else if (hasRole && hasIssuedTo) {
+    indexName = "role_issuedTo";
+    indexKey = [role, issuedTo];
+  } else if (hasIssuedBy && hasIssuedTo) {
+    indexName = "issuedBy_issuedTo";
+    indexKey = [issuedBy, issuedTo];
+  } else if (hasRole) {
+    indexName = "role";
+    indexKey = role;
+  } else if (hasIssuedBy) {
+    indexName = "issuedBy";
+    indexKey = issuedBy;
+  } else if (hasIssuedTo) {
+    indexName = "issuedTo";
+    indexKey = issuedTo;
+  }
+  
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CERT_STORE_NAME], "readonly");
     const store = transaction.objectStore(CERT_STORE_NAME);
-    const request = store.getAll();
-
+    
+    let request;
+    if (indexName) {
+      const index = store.index(indexName);
+      request = index.getAll(indexKey);
+    } else {
+      // 无查询条件，返回全部
+      request = store.getAll();
+    }
+    
     request.onsuccess = (event) => {
-      let certs = event.target.result || [];
-      // 在内存中过滤
-      if (query.role !== undefined) certs = certs.filter((c) => c.role === query.role);
-      if (query.issuedBy !== undefined) certs = certs.filter((c) => c.issuedBy === query.issuedBy);
-      if (query.issuedTo !== undefined) certs = certs.filter((c) => c.issuedTo === query.issuedTo);
-      resolve(certs);
+      resolve(event.target.result || []);
     };
     request.onerror = () => reject(request.error);
   });
