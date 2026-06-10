@@ -6,14 +6,12 @@
     }
 
     .container {
-      background: white;
       padding: 30px;
       border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
     h1 {
-      color: #333;
+      color: var(--md-sys-color-on-surface);
       text-align: center;
     }
 
@@ -26,13 +24,13 @@
     }
 
     .status.connected {
-      background-color: #d4edda;
-      color: #155724;
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
     }
 
     .status.disconnected {
-      background-color: #f8d7da;
-      color: #721c24;
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
     }
 
     .controls {
@@ -56,23 +54,23 @@
     }
 
     #connectBtn {
-      background-color: #28a745;
-      color: white;
+      background-color: var(--md-sys-color-success);
+      color: var(--md-sys-color-on-success);
     }
 
     #disconnectBtn {
-      background-color: #dc3545;
-      color: white;
+      background-color: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
     }
 
     #sendBtn {
-      background-color: #007bff;
-      color: white;
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
     }
 
     #clearBtn {
-      background-color: #6c757d;
-      color: white;
+      background-color: var(--md-sys-color-neutral);
+      color: var(--md-sys-color-on-neutral);
     }
 
     .message-input {
@@ -84,7 +82,7 @@
     #messageInput {
       flex: 1;
       padding: 10px;
-      border: 1px solid #ddd;
+      border: 1px solid var(--md-sys-color-surface-variant);
       border-radius: 5px;
       font-size: 14px;
     }
@@ -92,9 +90,9 @@
     #messages {
       height: 300px;
       overflow-y: auto;
-      border: 1px solid #ddd;
+      border: 1px solid var(--md-sys-color-surface-variant);
       padding: 10px;
-      background-color: #fafafa;
+      background-color: var(--md-sys-color-surface-variant);
       border-radius: 5px;
       font-family: monospace;
     }
@@ -106,18 +104,18 @@
     }
 
     .message[type="sent"] {
-      background-color: #e3f2fd;
-      color: #1976d2;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
     }
 
     .message[type="received"] {
-      background-color: #e8f5e9;
-      color: #388e3c;
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
     }
 
     .message[type="system"] {
-      background-color: #fff3e0;
-      color: #f57c00;
+      background-color: var(--md-sys-color-neutral-container);
+      color: var(--md-sys-color-on-neutral-container);
     }
   </style>
 
