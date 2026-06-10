@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser Certificate Tests</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser Certificate Tests</h1>
+
+  <sb-test name="Certificate Issue, Save and Query">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        // 创建两个用户：一个作为签发者(admin)，一个作为接收者(normal)
+        const adminUser = new LocalUser("cert_test_admin");
+        const normalUser = new LocalUser("cert_test_normal");
+
+        await adminUser.init();
+        await normalUser.init();
+
+        // 1. admin 给 normal 签发证书
+        // issueCert 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
+        const issuedCert = await adminUser.issueCert({
+          issuedTo: normalUser.userId,
+          role: "admin",
+          permission: "all"
+        });
+
+        const hasCertId = !!issuedCert.id;
+        const isIssuedByAdmin = issuedCert.issuedBy === adminUser.userId;
+        const isIssuedToNormal = issuedCert.issuedTo === normalUser.userId;
+
+        // admin 自己可以通过查询查到发出的证书
+        const adminQueryCerts = await adminUser.queryCerts({ role: "admin" });
+        const adminHasIt = adminQueryCerts.some(c => c.id === issuedCert.id);
+
+
+        // 2. normal 收到证书并保存
+        // saveCert 会验证证书签名是否有效、issuedBy 和公钥是否匹配
+        const savedCert = await normalUser.saveCert(issuedCert);
+
+        // 3. 验证 normalUser 是否成功保存并能够查询到该证书
+        const normalHasCert = await normalUser.hasCert({
+          role: "admin",
+          issuedBy: adminUser.userId,
+          issuedTo: normalUser.userId
+        });
+
+        return {
+          assert: hasCertId && isIssuedByAdmin && isIssuedToNormal && adminHasIt && normalHasCert,
+          content: {
+            message: "证书签发与保存验证通过",
+            certId: issuedCert.id,
+            adminHasIt,
+            normalHasCert
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Delete">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const user = new LocalUser("cert_delete_test");
+        await user.init();
+
+        // 给自己签发一个证书
+        const cert = await user.issueCert({
+          issuedTo: user.userId,
+          role: "tester"
+        });
+
+        const hasBeforeDelete = await user.hasCert({ role: "tester" });
+
+        // 删除证书
+        await user.deleteCert(cert.id);
+
+        const hasAfterDelete = await user.hasCert({ role: "tester" });
+
+        return {
+          assert: hasBeforeDelete === true && hasAfterDelete === false,
+          content: {
+            message: "证书删除测试通过",
+            hasBeforeDelete,
+            hasAfterDelete
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Invalid Certificate Validation">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const hacker = new LocalUser("cert_hacker");
+        const victim = new LocalUser("cert_victim");
+        await hacker.init();
+        await victim.init();
+
+        // hacker 给自己签发一个证书
+        const fakeCert = await hacker.issueCert({
+          issuedTo: hacker.userId,
+          role: "admin"
+        });
+
+        // 篡改 issuedBy 为 victim
+        fakeCert.issuedBy = victim.userId;
+
+        let catchError = false;
+        try {
+          // victim 或者任何人尝试保存这个被篡改的证书，预期抛出错误
+          await victim.saveCert(fakeCert);
+        } catch (err) {
+          catchError = true;
+        }
+
+        return {
+          assert: catchError,
+          content: {
+            message: "篡改证书验证拦截成功",
+            catchError
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

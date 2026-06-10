@@ -88,6 +88,9 @@ export class LocalUser extends BaseUser {
    * @returns {Promise<Object>} 保存后的证书
    */
   async saveCert(certData) {
+    // 移除外部传入时可能带有的 id，确保验证的数据只包含原始签名字段
+    const { id: _certId, ...pureCertData } = certData;
+
     const requiredKeys = [
       "role",
       "issuedBy",
@@ -98,20 +101,20 @@ export class LocalUser extends BaseUser {
     ];
 
     for (const key of requiredKeys) {
-      if (!(key in certData)) {
+      if (!(key in pureCertData)) {
         throw new Error(`缺少必要字段: ${key}`);
       }
     }
 
-    const keyUserId = await getHash(certData.publicKey);
-    if (keyUserId !== certData.issuedBy) {
+    const keyUserId = await getHash(pureCertData.publicKey);
+    if (keyUserId !== pureCertData.issuedBy) {
       throw new Error("用户ID与公钥不匹配");
     }
 
     // 验证签名
-    const { signature, ...data } = certData;
+    const { signature, ...data } = pureCertData;
     const msg = JSON.stringify(data);
-    const verifier = await createVerifier(certData.publicKey);
+    const verifier = await createVerifier(pureCertData.publicKey);
 
     try {
       const signatureBuffer = new Uint8Array(
@@ -120,12 +123,13 @@ export class LocalUser extends BaseUser {
       const isValid = await verifier(msg, signatureBuffer);
       if (!isValid) throw new Error("证书签名验证失败");
     } catch (err) {
+      if (err.message === "证书签名验证失败") throw err;
       throw new Error("证书格式错误", { cause: err });
     }
 
     // 生成唯一ID
-    const id = `${certData.role}-${certData.issuedBy}-${certData.issuedTo}`;
-    const certToSave = { id, ...certData };
+    const id = `${pureCertData.role}-${pureCertData.issuedBy}-${pureCertData.issuedTo}`;
+    const certToSave = { id, ...pureCertData };
 
     await saveCertToDb(this.#namespace, certToSave);
     return certToSave;
