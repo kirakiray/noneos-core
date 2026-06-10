@@ -1,6 +1,16 @@
 import { BaseUser } from "../base-user.js";
-import { getUserKeys, saveUserKeys } from "../db.js";
-import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
+import {
+  getUserKeys,
+  saveUserKeys,
+  saveCertToDb,
+  getCertsFromDb,
+  deleteCertFromDb,
+} from "../db.js";
+import {
+  generateKeyPair,
+  createVerifier,
+} from "../../crypto/crypto-ecdsa.js";
+import { getHash } from "../../util/hash/get-hash.js";
 
 /**
  * 本地用户类，继承自 BaseUser
@@ -48,5 +58,103 @@ export class LocalUser extends BaseUser {
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
     await super.init(keys);
     return this;
+  }
+
+  /**
+   * 签发证书
+   * @param {Object} options
+   * @param {string} options.issuedTo - 被签发人的用户ID
+   * @param {string} options.role - 赋予的角色
+   * @param {Object} [options.data] - 附加数据
+   * @returns {Promise<Object>} 返回保存后的证书数据
+   */
+  async issueCert({ issuedTo, role, ...data }) {
+    if (!role) throw new Error("role is required");
+    if (!issuedTo) throw new Error("issuedTo is required");
+
+    const signedData = await this._sign({
+      ...data,
+      role,
+      issuedBy: this.userId,
+      issuedTo,
+    });
+
+    return this.saveCert(signedData);
+  }
+
+  /**
+   * 验证并保存证书
+   * @param {Object} certData - 包含签名和公钥的证书数据
+   * @returns {Promise<Object>} 保存后的证书
+   */
+  async saveCert(certData) {
+    const requiredKeys = [
+      "role",
+      "issuedBy",
+      "issuedTo",
+      "publicKey",
+      "signTime",
+      "signature",
+    ];
+
+    for (const key of requiredKeys) {
+      if (!(key in certData)) {
+        throw new Error(`缺少必要字段: ${key}`);
+      }
+    }
+
+    const keyUserId = await getHash(certData.publicKey);
+    if (keyUserId !== certData.issuedBy) {
+      throw new Error("用户ID与公钥不匹配");
+    }
+
+    // 验证签名
+    const { signature, ...data } = certData;
+    const msg = JSON.stringify(data);
+    const verifier = await createVerifier(certData.publicKey);
+
+    try {
+      const signatureBuffer = new Uint8Array(
+        [...atob(signature)].map((c) => c.charCodeAt(0))
+      ).buffer;
+      const isValid = await verifier(msg, signatureBuffer);
+      if (!isValid) throw new Error("证书签名验证失败");
+    } catch (err) {
+      throw new Error("证书格式错误", { cause: err });
+    }
+
+    // 生成唯一ID
+    const id = `${certData.role}-${certData.issuedBy}-${certData.issuedTo}`;
+    const certToSave = { id, ...certData };
+
+    await saveCertToDb(this.#namespace, certToSave);
+    return certToSave;
+  }
+
+  /**
+   * 查询证书
+   * @param {Object} query - { role, issuedBy, issuedTo }
+   * @returns {Promise<Array>}
+   */
+  async queryCerts(query = {}) {
+    return getCertsFromDb(this.#namespace, query);
+  }
+
+  /**
+   * 检查是否拥有某证书
+   * @param {Object} query - { role, issuedBy, issuedTo }
+   * @returns {Promise<boolean>}
+   */
+  async hasCert(query) {
+    const certs = await this.queryCerts(query);
+    return certs.length > 0;
+  }
+
+  /**
+   * 删除证书
+   * @param {string} id - 证书ID
+   */
+  async deleteCert(id) {
+    return deleteCertFromDb(this.#namespace, id);
   }
 }
