@@ -23,10 +23,10 @@
         const { publicKey: initPublicKey, privateKey: initPrivateKey } = await generateKeyPair();
 
         // 创建用户
-        const initUser = new BaseUser();
+        const initUser = new BaseUser(initPublicKey, initPrivateKey);
 
         // 初始化用户
-        await initUser.init({ publicKey: initPublicKey, privateKey: initPrivateKey });
+        await initUser.init();
 
         const hasInitUserId = !!initUser.userId;
         const hasInitPublicKey = !!initUser.publicKey;
@@ -53,8 +53,8 @@
         const { publicKey: signingPublicKey, privateKey: signingPrivateKey } = await generateKeyPair();
 
         // 创建用户
-        const signingUser = new BaseUser();
-        await signingUser.init({ publicKey: signingPublicKey, privateKey: signingPrivateKey });
+        const signingUser = new BaseUser(signingPublicKey, signingPrivateKey);
+        await signingUser.init();
 
         // 签名数据
         const originalData = {
@@ -103,14 +103,14 @@
         const { publicKey: testPublicKey, privateKey: testPrivateKey } = await generateKeyPair();
 
         // 1. 先用完整用户签名数据
-        const signerUser = new BaseUser();
-        await signerUser.init({ publicKey: testPublicKey, privateKey: testPrivateKey });
+        const signerUser = new BaseUser(testPublicKey, testPrivateKey);
+        await signerUser.init();
         const testData = { message: "Verify this with only public key" };
         const signedData = await signerUser.sign(testData);
 
         // 2. 仅使用公钥创建用户并验证
-        const user = new BaseUser();
-        await user.init({ publicKey: testPublicKey });
+        const user = new BaseUser(testPublicKey);
+        await user.init();
 
         const hasUserId = !!user.userId;
         const isOnlyPublicKeyMatched = user.publicKey === testPublicKey;
@@ -142,13 +142,13 @@
         const { publicKey: pkModePublicKey, privateKey: pkModePrivateKey } = await generateKeyPair();
 
         // 首先创建一个完整用户并获取公钥
-        const fullUser = new BaseUser();
-        await fullUser.init({ publicKey: pkModePublicKey, privateKey: pkModePrivateKey });
+        const fullUser = new BaseUser(pkModePublicKey, pkModePrivateKey);
+        await fullUser.init();
         const publicKeyHex = fullUser.publicKey;
 
         // 使用公钥创建用户（只读模式）
-        const publicKeyUser = new BaseUser();
-        await publicKeyUser.init({ publicKey: publicKeyHex });
+        const publicKeyUser = new BaseUser(publicKeyHex);
+        await publicKeyUser.init();
 
         const hasPubUserUserId = !!publicKeyUser.userId;
         const hasPubUserPublicKey = !!publicKeyUser.publicKey;
@@ -182,15 +182,15 @@
         const { publicKey: origPublicKey, privateKey: origPrivateKey } = await generateKeyPair();
 
         // 创建第一个用户实例并生成密钥
-        const originalUser = new BaseUser();
-        await originalUser.init({ publicKey: origPublicKey, privateKey: origPrivateKey });
+        const originalUser = new BaseUser(origPublicKey, origPrivateKey);
+        await originalUser.init();
         const savedUserId = originalUser.userId;
         const savedPublicKey = originalUser.publicKey;
         // const savedPrivateKey = originalUser.privateKey; // privateKey 不能直接获取
 
         // 创建第二个用户实例（使用导出的密钥）
-        const importedUser = new BaseUser();
-        await importedUser.init({ publicKey: savedPublicKey, privateKey: origPrivateKey });
+        const importedUser = new BaseUser(savedPublicKey, origPrivateKey);
+        await importedUser.init();
         const importedUserId = importedUser.userId;
         const importedPublicKey = importedUser.publicKey;
 
@@ -224,8 +224,8 @@
 
         const { publicKey: eventPublicKey, privateKey: eventPrivateKey } = await generateKeyPair();
 
-        const eventUser = new BaseUser();
-        await eventUser.init({ publicKey: eventPublicKey, privateKey: eventPrivateKey });
+        const eventUser = new BaseUser(eventPublicKey, eventPrivateKey);
+        await eventUser.init();
 
         let isEventFired = false;
         const testEventName = "test-event";
