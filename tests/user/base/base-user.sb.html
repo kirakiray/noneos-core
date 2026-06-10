@@ -11,24 +11,24 @@
 
     <sb-test name="Create and Initialize User Test">
       <template>
-        <script>
+        <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 创建用户
-          const user = new BaseUser("test-user-1");
+          const initUser = new BaseUser("test-user-1");
 
           // 初始化用户
-          await user.init();
+          await initUser.init();
 
-          const hasUserId = !!user.userId;
-          const hasPublicKey = !!user.publicKey;
+          const hasInitUserId = !!initUser.userId;
+          const hasInitPublicKey = !!initUser.publicKey;
 
           return {
-            assert: hasUserId && hasPublicKey,
+            assert: hasInitUserId && hasInitPublicKey,
             content: {
               message: "用户创建和初始化成功",
-              userId: user.userId,
-              publicKeyLength: user.publicKey.length,
+              userId: initUser.userId,
+              publicKeyLength: initUser.publicKey.length,
             },
           };
         </script>
@@ -37,45 +37,45 @@
 
     <sb-test name="Sign and Verify Test">
       <template>
-        <script>
+        <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 创建用户
-          const user = new BaseUser("test-user-2");
-          await user.init();
+          const signingUser = new BaseUser("test-user-2");
+          await signingUser.init();
 
           // 签名数据
-          const data = {
+          const originalData = {
             message: "Hello, NoneOS!",
             timestamp: Date.now(),
           };
 
-          const signedData = await user.sign(data);
+          const resultSignedData = await signingUser.sign(originalData);
 
-          const hasSignature = !!signedData.signature;
-          const hasSignTime = !!signedData.signTime;
-          const hasPublicKey = !!signedData.publicKey;
+          const hasSignature = !!resultSignedData.signature;
+          const hasSignTime = !!resultSignedData.signTime;
+          const hasPublicKey = !!resultSignedData.publicKey;
 
           // 验证签名
-          const isValid = await user.verify(signedData);
+          const isSignatureValid = await signingUser.verify(resultSignedData);
 
           // 篡改数据后验证
-          const tamperedData = { ...signedData, message: "Tampered!" };
-          const isTamperedValid = await user.verify(tamperedData);
+          const tamperedMsgData = { ...resultSignedData, message: "Tampered!" };
+          const isTamperedValid = await signingUser.verify(tamperedMsgData);
 
           return {
             assert:
               hasSignature &&
               hasSignTime &&
               hasPublicKey &&
-              isValid &&
+              isSignatureValid &&
               !isTamperedValid,
             content: {
               message: "签名和验证测试成功",
-              originalMessage: data.message,
-              signatureValid: isValid,
+              originalMessage: originalData.message,
+              signatureValid: isSignatureValid,
               tamperedMessageValid: isTamperedValid,
-              signatureLength: signedData.signature.length,
+              signatureLength: resultSignedData.signature.length,
             },
           };
         </script>
@@ -84,35 +84,35 @@
 
     <sb-test name="Public Key Mode Test">
       <template>
-        <script>
+        <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 首先创建一个完整用户并获取公钥
           const fullUser = new BaseUser("test-user-3");
           await fullUser.init();
-          const publicKey = fullUser.publicKey;
+          const publicKeyHex = fullUser.publicKey;
 
           // 使用公钥创建用户（只读模式）
-          const publicKeyUser = new BaseUser(publicKey);
+          const publicKeyUser = new BaseUser(publicKeyHex);
           await publicKeyUser.init();
 
-          const hasUserId = !!publicKeyUser.userId;
-          const hasPublicKey = !!publicKeyUser.publicKey;
-          const noSign = publicKeyUser.sign === null;
+          const hasPubUserUserId = !!publicKeyUser.userId;
+          const hasPubUserPublicKey = !!publicKeyUser.publicKey;
+          const isSignFunctionDisabled = publicKeyUser.sign === null;
 
           // 使用公钥用户验证数据
-          const data = { message: "Test message" };
-          const signedData = await fullUser.sign(data);
-          const isValid = await publicKeyUser.verify(signedData);
+          const testDataForPubMode = { message: "Test message" };
+          const signedDataForPubMode = await fullUser.sign(testDataForPubMode);
+          const isPubModeVerifySuccess = await publicKeyUser.verify(signedDataForPubMode);
 
           return {
-            assert: hasUserId && hasPublicKey && noSign && isValid,
+            assert: hasPubUserUserId && hasPubUserPublicKey && isSignFunctionDisabled && isPubModeVerifySuccess,
             content: {
               message: "公钥模式测试成功",
               userId: publicKeyUser.userId,
               publicKeyLength: publicKeyUser.publicKey.length,
               canSign: publicKeyUser.sign !== null,
-              verifySuccess: isValid,
+              verifySuccess: isPubModeVerifySuccess,
             },
           };
         </script>
@@ -121,40 +121,40 @@
 
     <sb-test name="User Persistence Test">
       <template>
-        <script>
+        <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 创建第一个用户实例
-          const user1 = new BaseUser("test-user-4");
-          await user1.init();
-          const userId1 = user1.userId;
-          const publicKey1 = user1.publicKey;
+          const persistenceUser1 = new BaseUser("test-user-4");
+          await persistenceUser1.init();
+          const savedUserId1 = persistenceUser1.userId;
+          const savedPublicKey1 = persistenceUser1.publicKey;
 
           // 关闭连接
-          user1.close();
+          persistenceUser1.close();
 
           // 创建第二个用户实例（相同ID）
-          const user2 = new BaseUser("test-user-4");
-          await user2.init();
-          const userId2 = user2.userId;
-          const publicKey2 = user2.publicKey;
+          const persistenceUser2 = new BaseUser("test-user-4");
+          await persistenceUser2.init();
+          const savedUserId2 = persistenceUser2.userId;
+          const savedPublicKey2 = persistenceUser2.publicKey;
 
           // 验证数据持久化
-          const sameUserId = userId1 === userId2;
-          const samePublicKey = publicKey1 === publicKey2;
+          const isUserIdMatched = savedUserId1 === savedUserId2;
+          const isPublicKeyMatched = savedPublicKey1 === savedPublicKey2;
 
           // 验证签名功能
-          const data = { message: "Persistence test" };
-          const signedData = await user2.sign(data);
-          const isValid = await user2.verify(signedData);
+          const persistenceTestData = { message: "Persistence test" };
+          const persistenceSignedData = await persistenceUser2.sign(persistenceTestData);
+          const isPersistenceVerifyValid = await persistenceUser2.verify(persistenceSignedData);
 
           return {
-            assert: sameUserId && samePublicKey && isValid,
+            assert: isUserIdMatched && isPublicKeyMatched && isPersistenceVerifyValid,
             content: {
               message: "用户数据持久化测试成功",
-              userIdMatch: sameUserId,
-              publicKeyMatch: samePublicKey,
-              signatureValid: isValid,
+              userIdMatch: isUserIdMatched,
+              publicKeyMatch: isPublicKeyMatched,
+              signatureValid: isPersistenceVerifyValid,
             },
           };
         </script>
@@ -163,34 +163,34 @@
 
     <sb-test name="Event Binding Test">
       <template>
-        <script>
+        <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
-          const user = new BaseUser("test-user-5");
-          await user.init();
+          const eventUser = new BaseUser("test-user-5");
+          await eventUser.init();
 
-          let eventFired = false;
-          const eventName = "test-event";
+          let isEventFired = false;
+          const testEventName = "test-event";
 
           // 绑定事件
-          const unbind = user.bind(eventName, () => {
-            eventFired = true;
+          const unbindEvent = eventUser.bind(testEventName, () => {
+            isEventFired = true;
           });
 
           // 触发事件
-          user.dispatchEvent(new CustomEvent(eventName));
+          eventUser.dispatchEvent(new CustomEvent(testEventName));
 
           // 解绑事件
-          unbind();
+          unbindEvent();
 
           // 再次触发事件（不应该执行）
-          user.dispatchEvent(new CustomEvent(eventName));
+          eventUser.dispatchEvent(new CustomEvent(testEventName));
 
           return {
-            assert: eventFired,
+            assert: isEventFired,
             content: {
               message: "事件绑定测试成功",
-              eventFired: eventFired,
+              eventFired: isEventFired,
             },
           };
         </script>
