@@ -66,7 +66,7 @@
 
         const hasSignature = !!resultSignedData.signature;
         const hasSignTime = !!resultSignedData.signTime;
-        const hasPublicKey = !!resultSignedData.publicKey;
+        const hasSignedPublicKey = !!resultSignedData.publicKey;
 
         // 验证签名
         const isSignatureValid = await signingUser.verify(resultSignedData);
@@ -79,7 +79,7 @@
           assert:
             hasSignature &&
             hasSignTime &&
-            hasPublicKey &&
+            hasSignedPublicKey &&
             isSignatureValid &&
             !isTamperedValid,
           content: {
@@ -88,6 +88,37 @@
             signatureValid: isSignatureValid,
             tamperedMessageValid: isTamperedValid,
             signatureLength: resultSignedData.signature.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Only Public Key Initialization Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
+
+        const { publicKey: testPublicKey } = await generateKeyPair();
+
+        // 仅使用公钥创建用户
+        const user = new BaseUser(testPublicKey);
+        await user.init();
+
+        const hasUserId = !!user.userId;
+        const isOnlyPublicKeyMatched = user.publicKey === testPublicKey;
+        const noPrivateKey = user.privateKey === undefined;
+        const cannotSign = user.sign === null;
+
+        return {
+          assert: hasUserId && isOnlyPublicKeyMatched && noPrivateKey && cannotSign,
+          content: {
+            message: "仅公钥初始化成功",
+            userId: user.userId,
+            publicKey: user.publicKey,
+            hasPrivateKey: !noPrivateKey,
+            canSign: !cannotSign
           },
         };
       </script>
