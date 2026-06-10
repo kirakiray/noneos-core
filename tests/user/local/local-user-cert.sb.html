@@ -20,8 +20,8 @@
         const adminUser = new LocalUser("cert_test_admin");
         const normalUser = new LocalUser("cert_test_normal");
 
-        await adminUser.init();
-        await normalUser.init();
+        await adminUser.ready();
+        await normalUser.ready();
 
         // 1. admin 给 normal 签发证书
         // issueCert 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
@@ -70,7 +70,7 @@
         import { LocalUser } from "/nos/user/local/user.js";
 
         const user = new LocalUser("cert_delete_test");
-        await user.init();
+        await user.ready();
 
         // 给自己签发一个证书
         const cert = await user.issueCert({
@@ -104,8 +104,8 @@
 
         const hacker = new LocalUser("cert_hacker");
         const victim = new LocalUser("cert_victim");
-        await hacker.init();
-        await victim.init();
+        await hacker.ready();
+        await victim.ready();
 
         // hacker 给自己签发一个证书
         const fakeCert = await hacker.issueCert({

@@ -40,11 +40,11 @@ export class LocalUser extends BaseUser {
   }
 
   /**
-   * 重写初始化方法，从数据库获取密钥对，如果不存在则生成并保存
+   * 准备用户实例，从数据库获取密钥对，如果不存在则生成并保存
    * 使用 Promise 缓存防止并发初始化导致密钥不一致
    * @returns {Promise}
    */
-  async init() {
+  async ready() {
     if (this.userId) {
       return this;
     }

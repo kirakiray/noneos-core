@@ -20,8 +20,8 @@
         const ns1 = "test_user_1";
         const localUser = new LocalUser(ns1);
 
-        // 初始化用户，这应该会生成并保存密钥
-        await localUser.init();
+        // 准备用户实例，这应该会生成并保存密钥
+        await localUser.ready();
 
         const hasInitUserId = !!localUser.userId;
         const hasInitPublicKey = !!localUser.publicKey;
@@ -50,14 +50,14 @@
         
         // 第一次创建用户
         const firstUser = new LocalUser(ns2);
-        await firstUser.init();
-        
+        await firstUser.ready();
+
         const firstUserId = firstUser.userId;
         const firstPublicKey = firstUser.publicKey;
 
         // 第二次使用相同命名空间创建用户
         const secondUser = new LocalUser(ns2);
-        await secondUser.init();
+        await secondUser.ready();
 
         const isUserIdMatched = secondUser.userId === firstUserId;
         const isPublicKeyMatched = secondUser.publicKey === firstPublicKey;
@@ -82,7 +82,7 @@
 
         const ns3 = "sign_test_user_1";
         const signingUser = new LocalUser(ns3);
-        await signingUser.init();
+        await signingUser.ready();
 
         // 签名数据
         const originalData = {

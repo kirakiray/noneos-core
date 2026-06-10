@@ -18,7 +18,7 @@ import { LocalUser } from "/nos/user/local/user.js";
 
 ```javascript
 const user = new LocalUser("my-namespace");
-await user.init();
+await user.ready();
 
 console.log(user.userId);     // 用户唯一标识（公钥哈希）
 console.log(user.publicKey);  // 用户公钥
@@ -32,12 +32,12 @@ console.log(user.namespace);  // "my-namespace"
 ```javascript
 // 第一次创建
 const user1 = new LocalUser("app-user");
-await user1.init();
+await user1.ready();
 console.log(user1.userId); // 例如: "abc123..."
 
 // 第二次使用相同命名空间
 const user2 = new LocalUser("app-user");
-await user2.init();
+await user2.ready();
 console.log(user2.userId); // 相同的 "abc123..."
 ```
 
@@ -45,7 +45,7 @@ console.log(user2.userId); // 相同的 "abc123..."
 
 ```javascript
 const user = new LocalUser("signer");
-await user.init();
+await user.ready();
 
 // 签名数据
 const data = { message: "Hello, World!", timestamp: Date.now() };
@@ -75,8 +75,8 @@ console.log(isTamperedValid); // false
 const admin = new LocalUser("admin-user");
 const normalUser = new LocalUser("normal-user");
 
-await admin.init();
-await normalUser.init();
+await admin.ready();
+await normalUser.ready();
 
 // 管理员签发证书
 const cert = await admin.issueCert({
@@ -212,16 +212,16 @@ console.log(user.publicKey); // "-----BEGIN PUBLIC KEY..."
 
 ### 方法
 
-#### `init()`
+#### `ready()`
 
-初始化用户，从数据库加载密钥对，如果不存在则生成新的密钥对并保存。
+准备用户实例，从数据库加载密钥对，如果不存在则生成新的密钥对并保存。
 
 **返回值：** Promise\<LocalUser\>
 
 **示例：**
 ```javascript
 const user = new LocalUser("my-user");
-await user.init();
+await user.ready();
 ```
 
 #### `sign(data)`
@@ -376,8 +376,8 @@ import { LocalUser } from "/nos/user/local/user.js";
 const admin = new LocalUser("admin-space");
 const user = new LocalUser("user-space");
 
-await admin.init();
-await user.init();
+await admin.ready();
+await user.ready();
 
 // 管理员签发证书
 const cert = await admin.issueCert({
