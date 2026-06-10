@@ -91,18 +91,18 @@ console.log(cert.role);       // "admin"
 console.log(cert.signature);  // 签名
 ```
 
-### 保存证书
+### 导入证书
 
-接收者可以保存证书，系统会自动验证签名有效性：
+接收者可以导入证书，系统会自动验证签名有效性：
 
 ```javascript
-// 接收者保存证书
-const savedCert = await normalUser.saveCert(cert);
+// 接收者导入证书
+const importedCert = await normalUser.importCert(cert);
 
 // 如果证书被篡改，会抛出错误
 try {
   const fakeCert = { ...cert, issuer: "fake-user-id" };
-  await normalUser.saveCert(fakeCert);
+  await normalUser.importCert(fakeCert);
 } catch (err) {
   console.error("证书验证失败:", err.message);
 }
@@ -302,16 +302,16 @@ const cert = await admin.issueCert({
 });
 ```
 
-#### `saveCert(certData)`
+#### `importCert(certData)`
 
-验证并保存证书。会自动验证：
+验证并导入证书。会自动验证：
 - 证书签名是否有效
 - `issuer` 是否与公钥匹配
 
 **参数：**
 - `certData` (Object) - 包含签名和公钥的证书数据
 
-**返回值：** Promise\<Object\> - 保存后的证书
+**返回值：** Promise\<Object\> - 导入后的证书
 
 **抛出错误：**
 - 缺少必要字段
@@ -320,7 +320,7 @@ const cert = await admin.issueCert({
 
 **示例：**
 ```javascript
-const savedCert = await user.saveCert(cert);
+const importedCert = await user.importCert(cert);
 ```
 
 #### `queryCerts(query)`
@@ -392,7 +392,7 @@ await user.deleteCert(cert.id);
 ```javascript
 // 篡改证书会被检测
 const fakeCert = { ...originalCert, issuer: "hacker-id" };
-await user.saveCert(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
+await user.importCert(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 ```
 
 ## 完整示例
@@ -411,8 +411,8 @@ const cert = await admin.issueCert({
   permissions: ["read", "write"]
 });
 
-// 用户保存证书
-await user.saveCert(cert);
+// 用户导入证书
+await user.importCert(cert);
 
 // 检查权限
 const hasEditorRole = await user.hasCert({

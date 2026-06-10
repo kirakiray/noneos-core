@@ -99,15 +99,15 @@ export class LocalUser extends BaseUser {
       subject,
     });
 
-    return this.saveCert(signedData);
+    return this.importCert(signedData);
   }
 
   /**
-   * 验证并保存证书
+   * 验证并导入证书
    * @param {Object} certData - 包含签名和公钥的证书数据
-   * @returns {Promise<Object>} 保存后的证书
+   * @returns {Promise<Object>} 导入后的证书
    */
-  async saveCert(certData) {
+  async importCert(certData) {
     // 移除外部传入时可能带有的 id，确保验证的数据只包含原始签名字段
     const { id: _certId, ...pureCertData } = certData;
 

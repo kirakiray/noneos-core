@@ -40,9 +40,9 @@
         const adminHasIt = adminQueryCerts.some(c => c.id === issuedCert.id);
 
 
-        // 2. normal 收到证书并保存
-        // saveCert 会验证证书签名是否有效、issuer 和公钥是否匹配
-        const savedCert = await normalUser.saveCert(issuedCert);
+        // 2. normal 收到证书并导入
+        // importCert 会验证证书签名是否有效、issuer 和公钥是否匹配
+        const importedCert = await normalUser.importCert(issuedCert);
 
         // 3. 验证 normalUser 是否成功保存并能够查询到该证书
         const normalHasCert = await normalUser.hasCert({
@@ -118,8 +118,8 @@
 
         let catchError = false;
         try {
-          // victim 或者任何人尝试保存这个被篡改的证书，预期抛出错误
-          await victim.saveCert(fakeCert);
+          // victim 或者任何人尝试导入这个被篡改的证书，预期抛出错误
+          await victim.importCert(fakeCert);
         } catch (err) {
           catchError = true;
         }
