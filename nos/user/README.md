@@ -9,43 +9,45 @@ LocalUser 是 NoneOS Core 的用户管理模块，提供基于 ECDSA 的密钥�
 ## 引入
 
 ```javascript
-import { LocalUser } from "/nos/user/local/user.js";
+import { getUser } from "/nos/user/main.js";
 ```
 
 ## 基本用法
 
-### 创建和初始化用户
+### 获取用户实例
 
 ```javascript
-const user = new LocalUser("my-namespace");
-await user.ready();
+const user = await getUser("my-namespace");
 
 console.log(user.userId);     // 用户唯一标识（公钥哈希）
 console.log(user.publicKey);  // 用户公钥
 console.log(user.namespace);  // "my-namespace"
 ```
 
-### 密钥持久化
+`getUser` 会自动：
+- 创建或获取已缓存的用户实例
+- 调用 `ready()` 准备用户
+- 返回已准备好的用户实例
 
-使用相同命名空间创建的用户会自动加载已保存的密钥：
+### 用户实例缓存
+
+多次调用 `getUser` 使用相同命名空间会返回同一个实例：
 
 ```javascript
-// 第一次创建
-const user1 = new LocalUser("app-user");
-await user1.ready();
+// 第一次获取
+const user1 = await getUser("app-user");
 console.log(user1.userId); // 例如: "abc123..."
 
-// 第二次使用相同命名空间
-const user2 = new LocalUser("app-user");
-await user2.ready();
+// 第二次获取相同命名空间
+const user2 = await getUser("app-user");
+console.log(user1 === user2); // true (同一个实例)
 console.log(user2.userId); // 相同的 "abc123..."
 ```
 
 ### 数据签名与验证
 
 ```javascript
-const user = new LocalUser("signer");
-await user.ready();
+const user = await getUser("signer");
 
 // 签名数据
 const data = { message: "Hello, World!", timestamp: Date.now() };
@@ -72,11 +74,8 @@ console.log(isTamperedValid); // false
 管理员用户可以为其他用户签发证书：
 
 ```javascript
-const admin = new LocalUser("admin-user");
-const normalUser = new LocalUser("normal-user");
-
-await admin.ready();
-await normalUser.ready();
+const admin = await getUser("admin-user");
+const normalUser = await getUser("normal-user");
 
 // 管理员签发证书
 const cert = await admin.issueCert({
@@ -154,6 +153,35 @@ console.log(hasCert); // false
 
 ## API 文档
 
+### getUser(namespace)
+
+获取用户实例的推荐方式。
+
+**参数：**
+- `namespace` (string) - 用户命名空间
+
+**返回值：** Promise\<LocalUser\> - 已准备好的用户实例
+
+**特性：**
+- 自动缓存用户实例
+- 自动调用 `ready()` 准备用户
+- 相同命名空间返回同一实例
+
+**示例：**
+```javascript
+const user = await getUser("my-app-user");
+```
+
+---
+
+## LocalUser 类
+
+如果需要直接使用 LocalUser 类（例如需要控制初始化时机），可以从 `/nos/user/local/user.js` 引入：
+
+```javascript
+import { LocalUser } from "/nos/user/local/user.js";
+```
+
 ### 构造函数
 
 #### `new LocalUser(namespace)`
@@ -170,7 +198,7 @@ const user = new LocalUser("my-app-user");
 
 ---
 
-### 属性
+### LocalUser 属性
 
 #### `namespace`
 
@@ -210,7 +238,7 @@ console.log(user.publicKey); // "-----BEGIN PUBLIC KEY..."
 
 ---
 
-### 方法
+### LocalUser 方法
 
 #### `ready()`
 
@@ -370,14 +398,11 @@ await user.saveCert(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 ## 完整示例
 
 ```javascript
-import { LocalUser } from "/nos/user/local/user.js";
+import { getUser } from "/nos/user/main.js";
 
 // 创建管理员和普通用户
-const admin = new LocalUser("admin-space");
-const user = new LocalUser("user-space");
-
-await admin.ready();
-await user.ready();
+const admin = await getUser("admin-space");
+const user = await getUser("user-space");
 
 // 管理员签发证书
 const cert = await admin.issueCert({
