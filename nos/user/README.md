@@ -67,6 +67,97 @@ const isTamperedValid = await user.verify(tamperedData);
 console.log(isTamperedValid); // false
 ```
 
+## 个人信息管理
+
+### 更新用户信息
+
+用户可以更新自己的个人信息，数据会自动签名并存储：
+
+```javascript
+const user = await getUser("my-user");
+
+// 更新用户信息
+const info = await user.updateInfo({
+  nickname: "我的昵称",
+  age: 25,
+  email: "user@example.com",
+  avatar: "https://example.com/avatar.png"
+});
+
+console.log(info.nickname);    // "我的昵称"
+console.log(info.userId);      // 用户ID
+console.log(info.signature);   // 数据签名
+console.log(info.signTime);    // 签名时间
+```
+
+### 获取用户信息
+
+```javascript
+const user = await getUser("my-user");
+
+// 获取已保存的用户信息
+const userInfo = await user.getInfo();
+
+console.log(userInfo.username);  // 默认用户名 "user-xxxxx"
+console.log(userInfo.nickname);  // 用户设置的昵称
+console.log(userInfo.userId);    // 用户ID
+```
+
+### 信息合并更新
+
+多次调用 `updateInfo` 会合并数据，不会覆盖未更新的字段：
+
+```javascript
+const user = await getUser("my-user");
+
+// 第一次更新
+await user.updateInfo({
+  nickname: "初始昵称",
+  city: "北京"
+});
+
+// 第二次更新（只更新 nickname，city 会保留）
+await user.updateInfo({
+  nickname: "新昵称",
+  hobby: "编程"
+});
+
+// 获取最终信息
+const info = await user.getInfo();
+console.log(info.nickname); // "新昵称"
+console.log(info.city);     // "北京"（保留）
+console.log(info.hobby);    // "编程"（新增）
+```
+
+### 验证信息签名
+
+用户信息包含签名，可以验证数据完整性：
+
+```javascript
+const user = await getUser("my-user");
+const info = await user.getInfo();
+
+// 验证签名有效性
+const isValid = await user.verify(info);
+console.log(isValid); // true
+
+// 篡改数据后验证
+const tamperedInfo = { ...info, nickname: "篡改昵称" };
+const isTamperedValid = await user.verify(tamperedInfo);
+console.log(isTamperedValid); // false
+```
+
+### 默认用户名
+
+首次初始化用户时，系统会自动生成默认用户名：
+
+```javascript
+const user = await getUser("new-user");
+const info = await user.getInfo();
+
+console.log(info.username); // "user-abc12345"（随机8位）
+```
+
 ## 证书管理
 
 ### 签发证书
@@ -371,6 +462,43 @@ const hasCert = await user.hasCert({
 await user.deleteCert(cert.id);
 ```
 
+#### `updateInfo(data)`
+
+更新用户个人信息。数据会自动签名并存储到数据库，多次调用会合并数据。
+
+**参数：**
+- `data` (Object) - 需要更新的用户信息字段
+
+**返回值：** Promise\<Object\> - 更新后的签名用户信息
+
+**特性：**
+- 自动添加 `userId` 字段
+- 自动签名数据
+- 合并现有信息，不会覆盖未更新的字段
+
+**示例：**
+```javascript
+const info = await user.updateInfo({
+  nickname: "我的昵称",
+  age: 25,
+  email: "user@example.com"
+});
+// 返回: { nickname: "我的昵称", age: 25, email: "...", userId: "...", signTime: 1234567890, publicKey: "...", signature: "..." }
+```
+
+#### `getInfo()`
+
+获取已保存的用户信息。
+
+**返回值：** Promise\<Object | null\> - 已签名的用户信息，如果不存在则返回 null
+
+**示例：**
+```javascript
+const userInfo = await user.getInfo();
+console.log(userInfo.username);  // 默认用户名
+console.log(userInfo.nickname);  // 用户设置的昵称
+```
+
 ## 安全特性
 
 ### 密钥管理
@@ -404,6 +532,16 @@ import { getUser } from "/nos/user/main.js";
 const admin = await getUser("admin-space");
 const user = await getUser("user-space");
 
+// 更新用户个人信息
+await user.updateInfo({
+  nickname: "普通用户",
+  email: "user@example.com"
+});
+
+const userInfo = await user.getInfo();
+console.log("用户昵称:", userInfo.nickname);
+console.log("默认用户名:", userInfo.username);
+
 // 管理员签发证书
 const cert = await admin.issueCert({
   subject: user.userId,
@@ -436,3 +574,4 @@ console.log("文档签名有效:", isValid);
 
 - [基本功能测试](../../tests/user/local/local-user.sb.html)
 - [证书管理测试](../../tests/user/local/local-user-cert.sb.html)
+- [个人信息测试](../../tests/user/local/local-user-info.sb.html)
