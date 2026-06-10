@@ -12,8 +12,6 @@ import { getHash } from "../util/hash/get-hash.js";
 export class BaseUser extends EventTarget {
   #signer; // 签名函数
   #verifier; // 验证函数
-  #publicKey; // 用户公钥 (Hex 字符串)
-  #privateKey; // 用户私钥 (Hex 字符串)
   #userId; // 用户唯一标识 (公钥哈希)
   #_inited; // 初始化状态 Promise
 
@@ -24,11 +22,8 @@ export class BaseUser extends EventTarget {
    */
   constructor(publicKey, privateKey) {
     super();
-    if (!publicKey) {
-      throw new Error("publicKey is required");
-    }
-    this.#publicKey = publicKey;
-    this.#privateKey = privateKey;
+    this._publicKey = publicKey;
+    this._privateKey = privateKey;
   }
 
   /**
@@ -42,14 +37,14 @@ export class BaseUser extends EventTarget {
    * 获取用户公钥
    */
   get publicKey() {
-    return this.#publicKey;
+    return this._publicKey;
   }
 
   /**
    * 获取用户私钥
    */
   get privateKey() {
-    return this.#privateKey;
+    return this._privateKey;
   }
 
   /**
@@ -64,12 +59,15 @@ export class BaseUser extends EventTarget {
     }
 
     return (this.#_inited = (async () => {
-      this.#userId = await getHash(this.#publicKey);
-      this.#verifier = await createVerifier(this.#publicKey);
+      if (!this.publicKey) {
+        throw new Error("publicKey is required for initialization");
+      }
+      this.#userId = await getHash(this.publicKey);
+      this.#verifier = await createVerifier(this.publicKey);
 
       // 如果存在私钥，创建签名器
-      if (this.#privateKey) {
-        this.#signer = await createSigner(this.#privateKey);
+      if (this.privateKey) {
+        this.#signer = await createSigner(this.privateKey);
       }
     })());
   }
@@ -101,7 +99,7 @@ export class BaseUser extends EventTarget {
     const recordData = {
       ...data,
       signTime: Date.now(),
-      publicKey: this.#publicKey,
+      publicKey: this.publicKey,
     };
 
     // 将对象序列化后进行签名
