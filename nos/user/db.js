@@ -1,4 +1,4 @@
-const STORE_NAME = "keys";
+const STORE_NAME = "data";
 const CERT_STORE_NAME = "certs";
 const DB_VERSION = 4;
 
@@ -54,7 +54,7 @@ export async function saveUserKeys(namespace, keys) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], "readwrite");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(keys, "default");
+    const request = store.put(keys, "keys");
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -74,7 +74,7 @@ export async function getUserKeys(namespace) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], "readonly");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.get("default");
+    const request = store.get("keys");
 
     request.onsuccess = (event) => {
       resolve(event.target.result || null);
