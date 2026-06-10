@@ -180,3 +180,41 @@ export async function deleteCertFromDb(namespace, certId) {
     request.onerror = () => reject(request.error);
   });
 }
+
+/**
+ * 保存用户信息
+ * @param {string} namespace
+ * @param {Object} infoData - 用户信息数据
+ */
+export async function saveUserInfo(namespace, infoData) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(infoData, "info");
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取用户信息
+ * @param {string} namespace
+ * @returns {Promise<Object | null>}
+ */
+export async function getUserInfo(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get("info");
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}

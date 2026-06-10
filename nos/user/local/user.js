@@ -5,6 +5,8 @@ import {
   saveCertToDb,
   getCertsFromDb,
   deleteCertFromDb,
+  saveUserInfo,
+  getUserInfo,
 } from "../db.js";
 import { generateKeyPair, createVerifier } from "../../crypto/crypto-ecdsa.js";
 import { getHash } from "../../util/hash/get-hash.js";
@@ -56,12 +58,14 @@ export class LocalUser extends BaseUser {
       // 创建新的初始化 Promise
       initPromise = (async () => {
         let keys = await getUserKeys(this.#namespace);
+        let isNewUser = false;
         if (!keys) {
           // 数据库中没有密钥，生成新的密钥对
           keys = await generateKeyPair();
           await saveUserKeys(this.#namespace, keys);
+          isNewUser = true;
         }
-        return keys;
+        return { keys, isNewUser };
       })();
 
       initPromises.set(this.#namespace, initPromise);
@@ -73,10 +77,17 @@ export class LocalUser extends BaseUser {
     }
 
     // 等待初始化完成并获取密钥
-    const keys = await initPromise;
+    const { keys, isNewUser } = await initPromise;
 
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
     await super.init(keys);
+
+    // 如果是新用户，生成默认用户名并保存
+    if (isNewUser) {
+      const defaultUsername = "user-" + Math.random().toString(36).substring(2, 10);
+      await this.updateInfo({ username: defaultUsername });
+    }
+
     return this;
   }
 
@@ -201,5 +212,36 @@ export class LocalUser extends BaseUser {
    */
   async deleteCert(id) {
     return deleteCertFromDb(this.#namespace, id);
+  }
+
+  /**
+   * 更新用户信息
+   * 合并现有信息，签名后存储到数据库
+   * @param {Object} data - 需要更新的用户信息字段
+   * @returns {Promise<Object>} 更新后的签名用户信息
+   */
+  async updateInfo(data) {
+    // 获取现有信息
+    const existingInfo = await getUserInfo(this.#namespace) || {};
+
+    // 合并数据，移除签名相关字段后重新签名
+    const { signTime, publicKey, signature, ...pureExistingInfo } = existingInfo;
+    const mergedData = { ...pureExistingInfo, ...data, userId: this.userId };
+
+    // 签名数据
+    const signedData = await this._sign(mergedData);
+
+    // 保存到数据库
+    await saveUserInfo(this.#namespace, signedData);
+
+    return signedData;
+  }
+
+  /**
+   * 获取用户信息
+   * @returns {Promise<Object | null>} 已签名的用户信息
+   */
+  async getInfo() {
+    return getUserInfo(this.#namespace);
   }
 }
