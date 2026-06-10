@@ -98,6 +98,10 @@ dist
 # Sveltekit cache directory
 .svelte-kit/
 
+# Rust server config
+server/config.toml
+server/target/
+
 # vitepress build output
 **/.vitepress/dist
 

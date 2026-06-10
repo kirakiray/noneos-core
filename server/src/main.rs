@@ -2,6 +2,43 @@ use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
+use serde::Deserialize;
+use clap::Parser;
+use std::fs;
+use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// 配置文件路径
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    #[serde(default = "default_port")]
+    port: u16,
+    #[serde(default = "default_host")]
+    host: String,
+}
+
+fn default_port() -> u16 {
+    8081
+}
+
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            port: default_port(),
+            host: default_host(),
+        }
+    }
+}
 
 async fn handle_connection(
     raw_stream: TcpStream,
@@ -53,8 +90,19 @@ async fn handle_connection(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "127.0.0.1:8081";
-    let listener = TcpListener::bind(addr).await?;
+    let args = Args::parse();
+
+    let config = if let Some(config_path) = args.config {
+        println!("正在从 {:?} 加载配置...", config_path);
+        let config_str = fs::read_to_string(config_path)?;
+        toml::from_str(&config_str)?
+    } else {
+        println!("未提供配置文件，使用默认配置");
+        Config::default()
+    };
+
+    let addr = format!("{}:{}", config.host, config.port);
+    let listener = TcpListener::bind(&addr).await?;
 
     println!("WebSocket 服务器运行在 ws://{}", addr);
     println!("使用 client.html 测试连接");
