@@ -1,14 +1,15 @@
-const DB_NAME = "nos_users_db";
 const STORE_NAME = "keys";
 const DB_VERSION = 1;
 
 /**
  * 获取数据库实例
+ * @param {string} namespace
  * @returns {Promise<IDBDatabase>}
  */
-function getDb() {
+function getDb(namespace) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const dbName = `nos_user_${namespace}`;
+    const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => {
       reject(request.error);
@@ -36,11 +37,11 @@ export async function saveUserKeys(namespace, keys) {
   if (!namespace) {
     throw new Error("namespace is required");
   }
-  const db = await getDb();
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], "readwrite");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(keys, namespace);
+    const request = store.put(keys, "default");
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -56,11 +57,11 @@ export async function getUserKeys(namespace) {
   if (!namespace) {
     throw new Error("namespace is required");
   }
-  const db = await getDb();
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], "readonly");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(namespace);
+    const request = store.get("default");
 
     request.onsuccess = (event) => {
       resolve(event.target.result || null);

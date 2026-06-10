@@ -28,11 +28,15 @@ export class LocalUser extends BaseUser {
     return this.#namespace;
   }
 
-  /**
+  /** 
    * 重写初始化方法，从数据库获取密钥对，如果不存在则生成并保存
    * @returns {Promise}
    */
   async init() {
+    if (this.userId) {
+      return this;
+    }
+
     let keys = await getUserKeys(this.#namespace);
     if (!keys) {
       // 数据库中没有密钥，生成新的密钥对
@@ -41,6 +45,7 @@ export class LocalUser extends BaseUser {
     }
 
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
-    return super.init(keys);
+    await super.init(keys);
+    return this;
   }
 }
