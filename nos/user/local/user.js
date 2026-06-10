@@ -8,6 +8,7 @@ import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
  */
 export class LocalUser extends BaseUser {
   #namespace;
+  #sessionId = "s-" + Math.random().toString(36).substring(2, 10);
 
   /**
    * 构造函数
