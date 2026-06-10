@@ -14,17 +14,18 @@
         <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
-          // 创建用户
-          const initUser = new BaseUser("test-user-1");
+          // 创建用户（不传参数将自动生成密钥对）
+          const initUser = new BaseUser();
 
           // 初始化用户
           await initUser.init();
 
           const hasInitUserId = !!initUser.userId;
           const hasInitPublicKey = !!initUser.publicKey;
+          const hasInitPrivateKey = !!initUser.privateKey;
 
           return {
-            assert: hasInitUserId && hasInitPublicKey,
+            assert: hasInitUserId && hasInitPublicKey && hasInitPrivateKey,
             content: {
               message: "用户创建和初始化成功",
               userId: initUser.userId,
@@ -41,7 +42,7 @@
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 创建用户
-          const signingUser = new BaseUser("test-user-2");
+          const signingUser = new BaseUser();
           await signingUser.init();
 
           // 签名数据
@@ -88,7 +89,7 @@
           import { BaseUser } from "/nos/user/base-user.js";
 
           // 首先创建一个完整用户并获取公钥
-          const fullUser = new BaseUser("test-user-3");
+          const fullUser = new BaseUser();
           await fullUser.init();
           const publicKeyHex = fullUser.publicKey;
 
@@ -119,39 +120,37 @@
       </template>
     </sb-test>
 
-    <sb-test name="User Persistence Test">
+    <sb-test name="User Instantiation from Keys Test">
       <template>
         <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
-          // 创建第一个用户实例
-          const persistenceUser1 = new BaseUser("test-user-4");
-          await persistenceUser1.init();
-          const savedUserId1 = persistenceUser1.userId;
-          const savedPublicKey1 = persistenceUser1.publicKey;
+          // 创建第一个用户实例并生成密钥
+          const originalUser = new BaseUser();
+          await originalUser.init();
+          const savedUserId = originalUser.userId;
+          const savedPublicKey = originalUser.publicKey;
+          const savedPrivateKey = originalUser.privateKey;
 
-          // 关闭连接
-          persistenceUser1.close();
+          // 创建第二个用户实例（使用导出的密钥）
+          const importedUser = new BaseUser(savedPublicKey, savedPrivateKey);
+          await importedUser.init();
+          const importedUserId = importedUser.userId;
+          const importedPublicKey = importedUser.publicKey;
 
-          // 创建第二个用户实例（相同ID）
-          const persistenceUser2 = new BaseUser("test-user-4");
-          await persistenceUser2.init();
-          const savedUserId2 = persistenceUser2.userId;
-          const savedPublicKey2 = persistenceUser2.publicKey;
-
-          // 验证数据持久化
-          const isUserIdMatched = savedUserId1 === savedUserId2;
-          const isPublicKeyMatched = savedPublicKey1 === savedPublicKey2;
+          // 验证数据
+          const isUserIdMatched = savedUserId === importedUserId;
+          const isPublicKeyMatched = savedPublicKey === importedPublicKey;
 
           // 验证签名功能
-          const persistenceTestData = { message: "Persistence test" };
-          const persistenceSignedData = await persistenceUser2.sign(persistenceTestData);
-          const isPersistenceVerifyValid = await persistenceUser2.verify(persistenceSignedData);
+          const persistenceTestData = { message: "Keys import test" };
+          const persistenceSignedData = await importedUser.sign(persistenceTestData);
+          const isPersistenceVerifyValid = await importedUser.verify(persistenceSignedData);
 
           return {
             assert: isUserIdMatched && isPublicKeyMatched && isPersistenceVerifyValid,
             content: {
-              message: "用户数据持久化测试成功",
+              message: "使用密钥实例化用户测试成功",
               userIdMatch: isUserIdMatched,
               publicKeyMatch: isPublicKeyMatched,
               signatureValid: isPersistenceVerifyValid,
@@ -166,7 +165,7 @@
         <script type="module">
           import { BaseUser } from "/nos/user/base-user.js";
 
-          const eventUser = new BaseUser("test-user-5");
+          const eventUser = new BaseUser();
           await eventUser.init();
 
           let isEventFired = false;

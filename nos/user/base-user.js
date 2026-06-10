@@ -1,5 +1,3 @@
-import { UserDB } from "./db.js";
-
 import {
   generateKeyPair,
   createSigner,
@@ -13,25 +11,22 @@ import { getHash } from "../util/hash/get-hash.js";
  * 继承自 EventTarget 以支持事件机制
  */
 export class BaseUser extends EventTarget {
-  #db; // 用户私有数据库
   #signer; // 签名函数
   #verifier; // 验证函数
   #publicKey; // 用户公钥 (Hex 字符串)
+  #privateKey; // 用户私钥 (Hex 字符串)
   #userId; // 用户唯一标识 (公钥哈希)
   #_inited; // 初始化状态 Promise
 
   /**
    * 构造函数
-   * @param {string|object} userId - 如果是字符串则视为公钥；如果是对象或为空，则初始化数据库
+   * @param {string} [publicKey] - 用户公钥
+   * @param {string} [privateKey] - 用户私钥（可选）
    */
-  constructor(userId) {
+  constructor(publicKey, privateKey) {
     super();
-    if (typeof userId === "string") {
-      this.#publicKey = userId;
-    } else {
-      // 如果传入的是配置对象，可以扩展，默认使用 IndexedDB 存储
-      this.#db = new UserDB(`NoneOSUser_${userId || "default"}`);
-    }
+    this.#publicKey = publicKey;
+    this.#privateKey = privateKey;
   }
 
   /**
@@ -49,49 +44,38 @@ export class BaseUser extends EventTarget {
   }
 
   /**
+   * 获取用户私钥
+   */
+  get privateKey() {
+    return this.#privateKey;
+  }
+
+  /**
    * 初始化用户钥匙对
    * 1. 如果已初始化，直接返回
    * 2. 如果只有公钥，则进入只读/验证模式
-   * 3. 如果有数据库，尝试从数据库加载密钥对，不存在则生成新密钥对并持久化
+   * 3. 如果都没有，生成新密钥对
    * @returns {Promise}
    */
   async init() {
-    if (!this.#db && !this.#publicKey) {
-      throw new Error("用户数据库或公钥至少要有一个");
-    }
-
     if (this.#_inited) {
       return this.#_inited;
     }
 
     return (this.#_inited = (async () => {
-      if (this.#publicKey && !this.#db) {
-        // 公钥模式：只能验证签名，不能生成签名
-        this.#userId = await getHash(this.#publicKey);
-        this.#verifier = await createVerifier(this.#publicKey);
-        return;
-      }
-
-      // 初始化数据库连接
-      await this.#db.init();
-
-      // 尝试从数据库获取密钥对
-      let pairData = await this.#db.get("pair");
-
-      if (!pairData || !pairData.publicKey) {
-        // 如果数据库中没有密钥对，生成新的 ECDSA 密钥对
+      if (!this.#publicKey) {
+        // 如果没有公钥，生成新的 ECDSA 密钥对
         const pair = await generateKeyPair();
-        pairData = pair;
-        await this.#db.set("pair", pair);
+        this.#publicKey = pair.publicKey;
+        this.#privateKey = pair.privateKey;
       }
 
-      this.#userId = await getHash(pairData.publicKey);
-      this.#publicKey = pairData.publicKey;
-      this.#verifier = await createVerifier(pairData.publicKey);
+      this.#userId = await getHash(this.#publicKey);
+      this.#verifier = await createVerifier(this.#publicKey);
 
       // 如果存在私钥，创建签名器
-      if (pairData.privateKey) {
-        this.#signer = await createSigner(pairData.privateKey);
+      if (this.#privateKey) {
+        this.#signer = await createSigner(this.#privateKey);
       }
     })());
   }
@@ -183,14 +167,5 @@ export class BaseUser extends EventTarget {
     return () => {
       this.removeEventListener(eventName, callback);
     };
-  }
-
-  /**
-   * 关闭用户数据库连接
-   */
-  close() {
-    if (this.#db) {
-      this.#db.close();
-    }
   }
 }
