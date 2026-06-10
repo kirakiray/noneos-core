@@ -73,9 +73,17 @@ export class BaseUser extends EventTarget {
       this.#userId = await getHash(this.#publicKey);
       this.#verifier = await createVerifier(this.#publicKey);
 
-      // 如果存在私钥，创建签名器
+      // 如果存在私钥，创建签名器并验证是否与公钥匹配
       if (this.#privateKey) {
         this.#signer = await createSigner(this.#privateKey);
+
+        // 验证公私钥是否匹配
+        const testMessage = "pairing-test";
+        const signature = await this.#signer(testMessage);
+        const isValid = await this.#verifier(testMessage, signature);
+        if (!isValid) {
+          throw new Error("publicKey and privateKey do not match");
+        }
       }
     })());
   }

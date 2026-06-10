@@ -254,6 +254,39 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Key Mismatch Initialization Test">
+    <template>
+      <script type="module">
+        import { BaseUser } from "/nos/user/base-user.js";
+        import { generateKeyPair } from "/nos/crypto/crypto-ecdsa.js";
+
+        const pair1 = await generateKeyPair();
+        const pair2 = await generateKeyPair();
+
+        // 使用 pair1 的公钥和 pair2 的私钥创建用户
+        const mismatchUser = new BaseUser(pair1.publicKey, pair2.privateKey);
+
+        let errorCaught = false;
+        let errorMessage = "";
+
+        try {
+          await mismatchUser.init();
+        } catch (error) {
+          errorCaught = true;
+          errorMessage = error.message;
+        }
+
+        return {
+          assert: errorCaught && errorMessage === "publicKey and privateKey do not match",
+          content: {
+            message: errorCaught ? "成功捕获密钥不匹配错误" : "未能捕获密钥不匹配错误",
+            errorMessage: errorMessage,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
