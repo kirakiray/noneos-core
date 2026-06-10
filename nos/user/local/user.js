@@ -1,5 +1,5 @@
 import { BaseUser } from "../base-user.js";
-import { getUserKeys, saveUserKeys } from "./db.js";
+import { getUserKeys, saveUserKeys } from "../db.js";
 import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
 
 /**
