@@ -2,10 +2,13 @@ use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
+use p256::ecdsa::{VerifyingKey, Signature, signature::Verifier};
+use p256::pkcs8::DecodePublicKey;
+use base64::{engine::general_purpose, Engine as _};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -40,30 +43,144 @@ impl Default for Config {
     }
 }
 
+#[derive(Serialize)]
+struct HandshakeResponse {
+    #[serde(rename = "type")]
+    msg_type: String,
+    status: String,
+    message: String,
+}
+
+fn verify_signature(public_key_b64: &str, message: &str, signature_b64: &str) -> Result<(), String> {
+    // 1. 解码公钥 (SPKI 格式)
+    let public_key_der = general_purpose::STANDARD
+        .decode(public_key_b64)
+        .map_err(|e| format!("无法解码公钥 base64: {}", e))?;
+    
+    let verifying_key = VerifyingKey::from_public_key_der(&public_key_der)
+        .map_err(|e| format!("无法解析公钥 SPKI: {}", e))?;
+
+    // 2. 解码签名 (Web Crypto 对于 ECDSA 返回原始 R|S 字节)
+    let signature_bytes = general_purpose::STANDARD
+        .decode(signature_b64)
+        .map_err(|e| format!("无法解码签名 base64: {}", e))?;
+    
+    let signature = Signature::from_slice(&signature_bytes)
+        .map_err(|e| format!("无法解析签名: {}", e))?;
+
+    // 3. 验证
+    verifying_key.verify(message.as_bytes(), &signature)
+        .map_err(|e| format!("签名验证失败: {}", e))?;
+
+    Ok(())
+}
+
 async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("新的 WebSocket 连接: {}", addr);
+    println!("新的 WebSocket 连接尝试: {}", addr);
 
     let ws_stream = accept_async(raw_stream).await?;
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
-    // 发送欢迎消息
-    ws_sender.send(Message::Text("欢迎连接到 WebSocket 服务器!".to_string())).await?;
+    // 握手阶段：等待用户信息
+    let handshake_data = match ws_receiver.next().await {
+        Some(Ok(Message::Text(text))) => text,
+        Some(Ok(_)) => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "握手阶段期望文本消息".to_string(),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("握手失败: 意外的消息类型".into());
+        }
+        _ => return Err("握手失败: 连接已关闭".into()),
+    };
 
+    let user_info: serde_json::Value = match serde_json::from_str(&handshake_data) {
+        Ok(v) => v,
+        Err(e) => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: format!("无效的 JSON: {}", e),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err(format!("握手失败: 无效的 JSON: {}", e).into());
+        }
+    };
+
+    let signature = match user_info.get("signature").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "缺少 'signature' 字段".to_string(),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("握手失败: 缺少签名".into());
+        }
+    };
+
+    let public_key = match user_info.get("publicKey").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "缺少 'publicKey' 字段".to_string(),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("握手失败: 缺少公钥".into());
+        }
+    };
+
+    // 重构被签名的数据
+    // 在 JS 端，我们已经确保了键是按字母顺序排序的
+    // serde_json::Value::as_object().unwrap() 返回的 Map 默认也是按字母顺序排序的
+    let mut data_obj = user_info.as_object().ok_or("无效的用户信息格式")?.clone();
+    data_obj.remove("signature");
+    let signed_message = serde_json::to_string(&data_obj)?;
+
+    println!("验证消息: {}", signed_message);
+
+    // 验证签名
+    match verify_signature(public_key, &signed_message, signature) {
+        Ok(_) => {
+            println!("用户 {} 验证通过", addr);
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "success".to_string(),
+                message: "身份验证成功".to_string(),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        }
+        Err(e) => {
+            eprintln!("用户 {} 验证失败: {}", addr, e);
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: format!("验证失败: {}", e),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err(format!("握手失败: {}", e).into());
+        }
+    }
+
+    // 握手成功后的正常消息处理
     while let Some(message) = ws_receiver.next().await {
         match message {
             Ok(msg) => {
                 match msg {
                     Message::Text(text) => {
                         println!("收到来自 {} 的消息: {}", addr, text);
-                        // 回显消息
                         let response = format!("服务器收到: {}", text);
                         ws_sender.send(Message::Text(response)).await?;
                     }
                     Message::Binary(data) => {
-                        println!("收到来自 {} 的二进制数据: {} 字节", addr, data.len());
                         ws_sender.send(Message::Binary(data)).await?;
                     }
                     Message::Ping(data) => {
@@ -84,7 +201,6 @@ async fn handle_connection(
         }
     }
 
-    println!("连接 {} 已关闭", addr);
     Ok(())
 }
 
@@ -105,7 +221,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(&addr).await?;
 
     println!("WebSocket 服务器运行在 ws://{}", addr);
-    println!("使用 client.html 测试连接");
 
     while let Ok((stream, addr)) = listener.accept().await {
         tokio::spawn(async move {

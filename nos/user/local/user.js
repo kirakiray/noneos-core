@@ -244,4 +244,67 @@ export class LocalUser extends BaseUser {
   async getInfo() {
     return getUserInfo(this.#namespace);
   }
+
+  /**
+   * 连接握手服务器
+   * @param {string} url - 握手服务器的 WebSocket 地址
+   * @returns {Promise<WebSocket>} 连接成功后的 WebSocket 实例
+   */
+  async connectServer(url) {
+    const userInfo = await this.getInfo();
+    if (!userInfo) {
+      throw new Error("User info not found");
+    }
+
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(url);
+      let isHandshaked = false;
+
+      const timeout = setTimeout(() => {
+        if (!isHandshaked) {
+          ws.close();
+          reject(new Error("Handshake timeout"));
+        }
+      }, 5000);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify(userInfo));
+      };
+
+      ws.onmessage = (event) => {
+        if (!isHandshaked) {
+          clearTimeout(timeout);
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "handshake" && data.status === "success") {
+              isHandshaked = true;
+              resolve(ws);
+            } else {
+              const error = new Error(data.message || "Handshake failed");
+              error.details = data;
+              reject(error);
+              ws.close();
+            }
+          } catch (e) {
+            reject(new Error("Invalid handshake response: " + event.data));
+            ws.close();
+          }
+        }
+      };
+
+      ws.onerror = (err) => {
+        if (!isHandshaked) {
+          clearTimeout(timeout);
+          reject(err);
+        }
+      };
+
+      ws.onclose = (event) => {
+        if (!isHandshaked) {
+          clearTimeout(timeout);
+          reject(new Error(event.reason || "Connection closed during handshake"));
+        }
+      };
+    });
+  }
 }

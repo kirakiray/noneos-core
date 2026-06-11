@@ -118,12 +118,18 @@ export class BaseUser extends EventTarget {
       publicKey: this.publicKey,
     };
 
+    // 对键进行排序以确保序列化结果的稳定性
+    const sortedData = {};
+    Object.keys(recordData).sort().forEach((key) => {
+      sortedData[key] = recordData[key];
+    });
+
     // 将对象序列化后进行签名
-    const signature = await this.#signer(JSON.stringify(recordData));
+    const signature = await this.#signer(JSON.stringify(sortedData));
 
     // 将 ArrayBuffer 签名转换为 Base64 字符串
     return {
-      ...recordData,
+      ...sortedData,
       signature: btoa(String.fromCharCode(...new Uint8Array(signature))),
     };
   }

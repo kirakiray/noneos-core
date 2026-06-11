@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connect Server Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Connect Server Tests</h1>
+
+  <sb-test name="User Connect to Handshake Server Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const testNamespace = "test-connect-" + Math.random().toString(36).substring(2, 10);
+        const testUser = new LocalUser(testNamespace);
+        
+        await testUser.ready();
+        
+        let ws;
+        let error;
+        try {
+          ws = await testUser.connectServer("ws://127.0.0.1:8081");
+        } catch (e) {
+          error = e;
+        }
+
+        const isConnected = !!ws && ws.readyState === WebSocket.OPEN;
+        
+        if (ws) ws.close();
+
+        return {
+          assert: isConnected,
+          content: {
+            message: isConnected ? "成功连接到握手服务器" : "连接失败",
+            userId: testUser.userId,
+            error: error ? error.message : null,
+            details: error ? error.details : null
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Send and Receive Echo Message Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const testNamespace2 = "test-msg-" + Math.random().toString(36).substring(2, 10);
+        const testUser2 = new LocalUser(testNamespace2);
+        await testUser2.ready();
+
+        const ws2 = await testUser2.connectServer("ws://127.0.0.1:8081");
+        
+        const testMsg = "Hello Server " + Math.random().toString(36).substring(2, 8);
+        let receivedEcho = null;
+
+        const echoPromise = new Promise((resolve) => {
+          ws2.onmessage = (event) => {
+            receivedEcho = event.data;
+            resolve();
+          };
+        });
+
+        ws2.send(testMsg);
+        
+        // 等待回显消息，超时 3 秒
+        await Promise.race([
+          echoPromise,
+          new Promise(res => setTimeout(res, 3000))
+        ]);
+
+        const isEchoMatched = receivedEcho === "服务器收到: " + testMsg;
+        
+        ws2.close();
+
+        return {
+          assert: isEchoMatched,
+          content: {
+            message: isEchoMatched ? "收到正确的服务器回显" : "回显匹配失败或超时",
+            sent: testMsg,
+            received: receivedEcho
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>
