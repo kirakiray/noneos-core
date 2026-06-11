@@ -21,6 +21,7 @@ const initPromises = new Map();
 export class LocalUser extends BaseUser {
   #namespace;
   #sessionId = "s-" + Math.random().toString(36).substring(2, 10);
+  #wsMap = new Map();
 
   /**
    * 构造函数
@@ -248,9 +249,17 @@ export class LocalUser extends BaseUser {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
-   * @returns {Promise<WebSocket>} 连接成功后的 WebSocket 实例
+   * @returns {Promise<boolean>} 连接成功返回 true
    */
   async connectServer(url) {
+    if (this.#wsMap.has(url)) {
+      const existingWs = this.#wsMap.get(url);
+      if (existingWs.readyState === WebSocket.OPEN || existingWs.readyState === WebSocket.CONNECTING) {
+        return true;
+      }
+      this.#wsMap.delete(url);
+    }
+
     const userInfo = await this.getInfo();
     if (!userInfo) {
       throw new Error("User info not found");
@@ -278,7 +287,30 @@ export class LocalUser extends BaseUser {
             const data = JSON.parse(event.data);
             if (data.type === "handshake" && data.status === "success") {
               isHandshaked = true;
-              resolve(ws);
+              this.#wsMap.set(url, ws);
+              
+              // 绑定后续消息处理
+              ws.onmessage = (e) => {
+                const messageEvent = new CustomEvent("message", {
+                  detail: {
+                    url: url,
+                    data: e.data,
+                    originalEvent: e
+                  }
+                });
+                this.dispatchEvent(messageEvent);
+              };
+
+              // 绑定关闭处理
+              ws.onclose = () => {
+                this.#wsMap.delete(url);
+                const closeEvent = new CustomEvent("close", {
+                  detail: { url: url }
+                });
+                this.dispatchEvent(closeEvent);
+              };
+
+              resolve(true);
             } else {
               const error = new Error(data.message || "Handshake failed");
               error.details = data;
@@ -306,5 +338,18 @@ export class LocalUser extends BaseUser {
         }
       };
     });
+  }
+
+  /**
+   * 向指定服务器发送数据
+   * @param {string} url - 服务器地址
+   * @param {string|ArrayBuffer|Blob} data - 发送的数据
+   */
+  sendToServer(url, data) {
+    const ws = this.#wsMap.get(url);
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`Connection to ${url} is not open`);
+    }
+    ws.send(data);
   }
 }

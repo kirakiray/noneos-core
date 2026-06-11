@@ -16,75 +16,99 @@
       <script type="module">
         import { LocalUser } from "/nos/user/local/user.js";
 
-        const testNamespace = "test-connect";
-        const testUser = new LocalUser(testNamespace);
-
-        await testUser.ready();
-
-        let ws;
+        const namespace1 = "test-connect";
+        const user1 = new LocalUser(namespace1);
+        
+        await user1.ready();
+        
+        let success = false;
         let error;
+        const url = "ws://127.0.0.1:8081";
         try {
-          ws = await testUser.connectServer("ws://127.0.0.1:8081");
+          success = await user1.connectServer(url);
         } catch (e) {
           error = e;
         }
 
-        const isConnected = !!ws && ws.readyState === WebSocket.OPEN;
-
-        if (ws) ws.close();
-
         return {
-          assert: isConnected,
+          assert: success === true,
           content: {
-            message: isConnected ? "成功连接到握手服务器" : "连接失败",
-            userId: testUser.userId,
-            error: error ? error.message : null,
-            details: error ? error.details : null
+            message: success ? "Successfully connected and returned true" : "Connection failed",
+            userId: user1.userId,
+            error: error ? error.message : null
           },
         };
       </script>
     </template>
   </sb-test>
 
-  <sb-test name="Send and Receive Echo Message Test">
+  <sb-test name="Custom Event Forwarding Test">
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/local/user.js";
 
-        const testNamespace2 = "test-msg";
-        const testUser2 = new LocalUser(testNamespace2);
-        await testUser2.ready();
+        const namespace2 = "test-msg";
+        const user2 = new LocalUser(namespace2);
+        await user2.ready();
 
-        const ws2 = await testUser2.connectServer("ws://127.0.0.1:8081");
+        const url2 = "ws://127.0.0.1:8081";
+        await user2.connectServer(url2);
+        
+        const msg2 = "Hello Server " + Math.random().toString(36).substring(2, 8);
+        let receivedDetail = null;
 
-        const testMsg = "Hello Server " + Math.random().toString(36).substring(2, 8);
-        let receivedEcho = null;
-
-        const echoPromise = new Promise((resolve) => {
-          ws2.onmessage = (event) => {
-            receivedEcho = event.data;
+        const messagePromise = new Promise((resolve) => {
+          user2.addEventListener("message", (event) => {
+            receivedDetail = event.detail;
             resolve();
-          };
+          }, { once: true });
         });
 
-        ws2.send(testMsg);
-
-        // 等待回显消息，超时 3 秒
+        user2.sendToServer(url2, msg2);
+        
         await Promise.race([
-          echoPromise,
+          messagePromise,
           new Promise(res => setTimeout(res, 3000))
         ]);
 
-        const isEchoMatched = receivedEcho === "Server received: " + testMsg;
-
-        ws2.close();
-
+        const isEchoMatched = receivedDetail && receivedDetail.data === "Server received: " + msg2;
+        
         return {
           assert: isEchoMatched,
           content: {
-            message: isEchoMatched ? "Received correct echo from server" : "Echo match failed or timeout",
-            sent: testMsg,
-            received: receivedEcho
+            message: isEchoMatched ? "Received correct event from LocalUser" : "Event match failed or timeout",
+            sent: msg2,
+            received: receivedDetail ? receivedDetail.data : null,
+            url: receivedDetail ? receivedDetail.url : null
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebSocket Persistence and Reuse Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const namespace3 = "test-reuse";
+        const user3 = new LocalUser(namespace3);
+        await user3.ready();
+
+        const url3 = "ws://127.0.0.1:8081";
+        
+        // 第一次连接
+        const firstResult = await user3.connectServer(url3);
+        
+        // 第二次连接（应该直接返回 true）
+        const secondResult = await user3.connectServer(url3);
+
+        return {
+          assert: firstResult === true && secondResult === true,
+          content: {
+            message: "Successfully reused existing connection",
+            firstResult,
+            secondResult
           },
         };
       </script>
@@ -96,56 +120,13 @@
       <script type="module">
         import { LocalUser } from "/nos/user/local/user.js";
 
-        const testNamespace3 = "test-tamper-data";
-        const testUser3 = new LocalUser(testNamespace3);
-        await testUser3.ready();
+        const namespace4 = "test-tamper-data";
+        const user4 = new LocalUser(namespace4);
+        await user4.ready();
 
-        const userInfo3 = await testUser3.getInfo();
-        // 篡改数据：修改用户名，但保持原始签名
-        const tamperedInfo3 = { ...userInfo3, username: "hacker" };
-
-        const url3 = "ws://127.0.0.1:8081";
-        let serverResponse3 = null;
-
-        const handshakeResult3 = await new Promise((resolve) => {
-          const ws = new WebSocket(url3);
-          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo3));
-          ws.onmessage = (e) => {
-            serverResponse3 = JSON.parse(e.data);
-            ws.close();
-            resolve(serverResponse3);
-          };
-          ws.onerror = () => resolve({ status: "error", message: "WebSocket error" });
-          setTimeout(() => { ws.close(); resolve({ status: "error", message: "timeout" }); }, 3000);
-        });
-
-        const isRejected3 = handshakeResult3.status === "error" && handshakeResult3.message.includes("Verification failed");
-
-        return {
-          assert: isRejected3,
-          content: {
-            message: isRejected3 ? "服务器正确拒绝了篡改的数据" : "服务器未能检测到篡改",
-            response: handshakeResult3
-          },
-        };
-      </script>
-    </template>
-  </sb-test>
-
-  <sb-test name="Tampered Signature Handshake Test (Should Fail)">
-    <template>
-      <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
-
-        const testNamespace4 = "test-tamper-sig";
-        const testUser4 = new LocalUser(testNamespace4);
-        await testUser4.ready();
-
-        const userInfo4 = await testUser4.getInfo();
-        // 篡改签名：修改签名的最后一个字符
-        const tamperedSig4 = userInfo4.signature.slice(0, -1) + (userInfo4.signature.endsWith("A") ? "B" : "A");
-        const tamperedInfo4 = { ...userInfo4, signature: tamperedSig4 };
-
+        const userInfo4 = await user4.getInfo();
+        const tamperedInfo4 = { ...userInfo4, username: "hacker" };
+        
         const url4 = "ws://127.0.0.1:8081";
         let serverResponse4 = null;
 
@@ -166,8 +147,49 @@
         return {
           assert: isRejected4,
           content: {
-            message: isRejected4 ? "服务器正确拒绝了错误的签名" : "服务器未能检测到错误签名",
+            message: isRejected4 ? "Server correctly rejected tampered data" : "Server failed to detect tampering",
             response: handshakeResult4
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Tampered Signature Handshake Test (Should Fail)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const namespace5 = "test-tamper-sig";
+        const user5 = new LocalUser(namespace5);
+        await user5.ready();
+
+        const userInfo5 = await user5.getInfo();
+        const tamperedSig5 = userInfo5.signature.slice(0, -1) + (userInfo5.signature.endsWith("A") ? "B" : "A");
+        const tamperedInfo5 = { ...userInfo5, signature: tamperedSig5 };
+        
+        const url5 = "ws://127.0.0.1:8081";
+        let serverResponse5 = null;
+
+        const handshakeResult5 = await new Promise((resolve) => {
+          const ws = new WebSocket(url5);
+          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo5));
+          ws.onmessage = (e) => {
+            serverResponse5 = JSON.parse(e.data);
+            ws.close();
+            resolve(serverResponse5);
+          };
+          ws.onerror = () => resolve({ status: "error", message: "WebSocket error" });
+          setTimeout(() => { ws.close(); resolve({ status: "error", message: "timeout" }); }, 3000);
+        });
+
+        const isRejected5 = handshakeResult5.status === "error" && handshakeResult5.message.includes("Verification failed");
+
+        return {
+          assert: isRejected5,
+          content: {
+            message: isRejected5 ? "Server correctly rejected wrong signature" : "Server failed to detect wrong signature",
+            response: handshakeResult5
           },
         };
       </script>
