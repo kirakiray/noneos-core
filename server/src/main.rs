@@ -8,13 +8,15 @@ use std::fs;
 use config::{Args, Config};
 use handler::handle_connection;
 
-/// WebSocket 服务器主入口
+/// WebSocket 服务器主入口函数
+/// 使用 tokio 运行时驱动异步 IO
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 解析命令行参数
+    // 1. 解析命令行参数（例如：server --config config.toml）
     let args = Args::parse();
 
-    // 加载配置
+    // 2. 加载配置信息
+    // 优先从指定的配置文件加载，否则使用代码中的默认配置
     let config = if let Some(config_path) = args.config {
         println!("Loading configuration from {:?}...", config_path);
         let config_str = fs::read_to_string(config_path)?;
@@ -24,17 +26,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Config::default()
     };
 
-    // 绑定监听地址
+    // 3. 初始化网络监听
+    // 将主机地址和端口拼接并绑定到 TCP 端口
     let addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&addr).await?;
 
-    println!("WebSocket server is running on ws://{}", addr);
+    println!("WebSocket server is successfully running on ws://{}", addr);
 
-    // 接受并处理连接
+    // 4. 服务器主循环：持续接受新的连接请求
     while let Ok((stream, addr)) = listener.accept().await {
+        // 为每一个新连接创建一个独立的 tokio 任务（轻量级线程）进行处理
+        // 这样可以实现高并发，一个连接的阻塞或处理不会影响其他连接
         tokio::spawn(async move {
+            // 调用 handler 模块中的业务逻辑函数
             if let Err(e) = handle_connection(stream, addr).await {
-                eprintln!("Error handling connection: {}", e);
+                eprintln!("Error handling connection from {}: {}", addr, e);
             }
         });
     }
