@@ -18,9 +18,9 @@
 
         const testNamespace = "test-connect";
         const testUser = new LocalUser(testNamespace);
-        
+
         await testUser.ready();
-        
+
         let ws;
         let error;
         try {
@@ -30,7 +30,7 @@
         }
 
         const isConnected = !!ws && ws.readyState === WebSocket.OPEN;
-        
+
         if (ws) ws.close();
 
         return {
@@ -56,7 +56,7 @@
         await testUser2.ready();
 
         const ws2 = await testUser2.connectServer("ws://127.0.0.1:8081");
-        
+
         const testMsg = "Hello Server " + Math.random().toString(36).substring(2, 8);
         let receivedEcho = null;
 
@@ -68,7 +68,7 @@
         });
 
         ws2.send(testMsg);
-        
+
         // 等待回显消息，超时 3 秒
         await Promise.race([
           echoPromise,
@@ -76,7 +76,7 @@
         ]);
 
         const isEchoMatched = receivedEcho === "Server received: " + testMsg;
-        
+
         ws2.close();
 
         return {
@@ -103,7 +103,7 @@
         const userInfo3 = await testUser3.getInfo();
         // 篡改数据：修改用户名，但保持原始签名
         const tamperedInfo3 = { ...userInfo3, username: "hacker" };
-        
+
         const url3 = "ws://127.0.0.1:8081";
         let serverResponse3 = null;
 
@@ -137,7 +137,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/local/user.js";
 
-        const testNamespace4 = "test-tamper-sig-" + Math.random().toString(36).substring(2, 10);
+        const testNamespace4 = "test-tamper-sig";
         const testUser4 = new LocalUser(testNamespace4);
         await testUser4.ready();
 
@@ -145,7 +145,7 @@
         // 篡改签名：修改签名的最后一个字符
         const tamperedSig4 = userInfo4.signature.slice(0, -1) + (userInfo4.signature.endsWith("A") ? "B" : "A");
         const tamperedInfo4 = { ...userInfo4, signature: tamperedSig4 };
-        
+
         const url4 = "ws://127.0.0.1:8081";
         let serverResponse4 = null;
 
