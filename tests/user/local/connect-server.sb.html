@@ -90,6 +90,89 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Tampered Data Handshake Test (Should Fail)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const testNamespace3 = "test-tamper-data-" + Math.random().toString(36).substring(2, 10);
+        const testUser3 = new LocalUser(testNamespace3);
+        await testUser3.ready();
+
+        const userInfo3 = await testUser3.getInfo();
+        // 篡改数据：修改用户名，但保持原始签名
+        const tamperedInfo3 = { ...userInfo3, username: "hacker" };
+        
+        const url3 = "ws://127.0.0.1:8081";
+        let serverResponse3 = null;
+
+        const handshakeResult3 = await new Promise((resolve) => {
+          const ws = new WebSocket(url3);
+          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo3));
+          ws.onmessage = (e) => {
+            serverResponse3 = JSON.parse(e.data);
+            ws.close();
+            resolve(serverResponse3);
+          };
+          ws.onerror = () => resolve({ status: "error", message: "WebSocket error" });
+          setTimeout(() => { ws.close(); resolve({ status: "error", message: "timeout" }); }, 3000);
+        });
+
+        const isRejected3 = handshakeResult3.status === "error" && handshakeResult3.message.includes("验证失败");
+
+        return {
+          assert: isRejected3,
+          content: {
+            message: isRejected3 ? "服务器正确拒绝了篡改的数据" : "服务器未能检测到篡改",
+            response: handshakeResult3
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Tampered Signature Handshake Test (Should Fail)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const testNamespace4 = "test-tamper-sig-" + Math.random().toString(36).substring(2, 10);
+        const testUser4 = new LocalUser(testNamespace4);
+        await testUser4.ready();
+
+        const userInfo4 = await testUser4.getInfo();
+        // 篡改签名：修改签名的最后一个字符
+        const tamperedSig4 = userInfo4.signature.slice(0, -1) + (userInfo4.signature.endsWith("A") ? "B" : "A");
+        const tamperedInfo4 = { ...userInfo4, signature: tamperedSig4 };
+        
+        const url4 = "ws://127.0.0.1:8081";
+        let serverResponse4 = null;
+
+        const handshakeResult4 = await new Promise((resolve) => {
+          const ws = new WebSocket(url4);
+          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo4));
+          ws.onmessage = (e) => {
+            serverResponse4 = JSON.parse(e.data);
+            ws.close();
+            resolve(serverResponse4);
+          };
+          ws.onerror = () => resolve({ status: "error", message: "WebSocket error" });
+          setTimeout(() => { ws.close(); resolve({ status: "error", message: "timeout" }); }, 3000);
+        });
+
+        const isRejected4 = handshakeResult4.status === "error" && handshakeResult4.message.includes("验证失败");
+
+        return {
+          assert: isRejected4,
+          content: {
+            message: isRejected4 ? "服务器正确拒绝了错误的签名" : "服务器未能检测到错误签名",
+            response: handshakeResult4
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
