@@ -161,6 +161,8 @@ pub async fn handle_connection(
                 message: format!("Verification failed: {}", e),
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            // 显式发送 Close 帧，确保客户端能正常收到错误响应后再关闭连接
+            let _ = ws_sender.send(Message::Close(None)).await;
             return Err(format!("Handshake failed: {}", e).into());
         }
     }

@@ -146,42 +146,71 @@
 
           const handshakeResult4 = await new Promise((resolve) => {
             const ws = new WebSocket(url4);
-            ws.onmessage = async (e) => {
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = (e) => {
               const data = JSON.parse(e.data);
               if (data.type === "handshake_challenge") {
                 // 模拟攻击者：收到挑战后，发送一个包含篡改数据的响应，但由于没有私钥，无法生成合法的 outer signature
                 // 这里我们直接发送一个非法的 signature 或者尝试重放旧的签名（如果结构允许）
-                ws.send(
-                  JSON.stringify({
-                    type: "handshake_response",
-                    challenge: data.challenge,
-                    userId: user4.userId,
-                    username: "hacker",
-                    publicKey: userInfo4.publicKey,
-                    signature: "YQ==", // Valid base64 (for 'a'), but definitely not a valid signature
-                  }),
-                );
+                const payload = JSON.stringify({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: user4.userId,
+                  username: "hacker",
+                  publicKey: userInfo4.publicKey,
+                  signature: "YQ==", // Valid base64 (for 'a'), but definitely not a valid signature
+                });
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
                 return;
               }
               serverResponse4 = data;
-              // 等待服务器主动关闭连接，验证安全性
-              setTimeout(() => {
-                if (ws.readyState === WebSocket.CLOSED) {
-                  resolve(serverResponse4);
-                } else {
-                  resolve({
-                    status: "error",
-                    message: "Server did not close connection",
-                  });
-                  ws.close();
-                }
-              }, 500);
             };
-            ws.onerror = () =>
-              resolve({ status: "error", message: "WebSocket error" });
+
+            ws.onclose = () => {
+              // 连接关闭时，如果已收到服务器响应，使用该响应
+              if (serverResponse4) {
+                safeResolve(serverResponse4);
+              } else {
+                safeResolve({ status: "error", message: "Connection closed without response" });
+              }
+            };
+
+            ws.onerror = () => {
+              // Safari 可能在 onmessage 之前触发 onerror，延迟处理以允许 onmessage 先到达
+              setTimeout(() => {
+                if (!hasResolved) {
+                  if (serverResponse4) {
+                    safeResolve(serverResponse4);
+                  } else {
+                    safeResolve({ status: "error", message: "WebSocket error" });
+                  }
+                }
+              }, 300);
+            };
+
             setTimeout(() => {
               ws.close();
-              resolve({ status: "error", message: "timeout" });
+              safeResolve({ status: "error", message: "timeout" });
             }, 3000);
           });
 
@@ -218,6 +247,23 @@
 
           const handshakeResult5 = await new Promise((resolve) => {
             const ws = new WebSocket(url5);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
             ws.onmessage = async (e) => {
               const data = JSON.parse(e.data);
               if (data.type === "handshake_challenge") {
@@ -233,28 +279,42 @@
                   (response.signature[0] === "A" ? "B" : "A") +
                   response.signature.slice(1);
 
-                ws.send(JSON.stringify(response));
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
                 return;
               }
               serverResponse5 = data;
-              // 等待服务器主动关闭连接，验证安全性
-              setTimeout(() => {
-                if (ws.readyState === WebSocket.CLOSED) {
-                  resolve(serverResponse5);
-                } else {
-                  resolve({
-                    status: "error",
-                    message: "Server did not close connection",
-                  });
-                  ws.close();
-                }
-              }, 500);
             };
-            ws.onerror = () =>
-              resolve({ status: "error", message: "WebSocket error" });
+
+            ws.onclose = () => {
+              // 连接关闭时，如果已收到服务器响应，使用该响应
+              if (serverResponse5) {
+                safeResolve(serverResponse5);
+              } else {
+                safeResolve({ status: "error", message: "Connection closed without response" });
+              }
+            };
+
+            ws.onerror = () => {
+              // Safari 可能在 onmessage 之前触发 onerror，延迟处理以允许 onmessage 先到达
+              setTimeout(() => {
+                if (!hasResolved) {
+                  if (serverResponse5) {
+                    safeResolve(serverResponse5);
+                  } else {
+                    safeResolve({ status: "error", message: "WebSocket error" });
+                  }
+                }
+              }, 300);
+            };
+
             setTimeout(() => {
               ws.close();
-              resolve({ status: "error", message: "timeout" });
+              safeResolve({ status: "error", message: "timeout" });
             }, 3000);
           });
 
