@@ -242,6 +242,49 @@ const hasCert = await user.cert.has({ role: "admin" });
 console.log(hasCert); // false
 ```
 
+### 统计证书数量
+
+```javascript
+// 获取所有证书数量
+const totalCount = await user.cert.count();
+
+// 获取特定角色的证书数量
+const adminCount = await user.cert.count({ role: "admin" });
+
+// 获取特定签发者签发的证书数量
+const count = await user.cert.count({ issuer: admin.userId });
+
+console.log(`总共有 ${totalCount} 个证书`);
+console.log(`其中 ${adminCount} 个是管理员证书`);
+```
+
+### 遍历证书
+
+```javascript
+// 遍历所有证书（内存友好，使用游标）
+for await (const cert of user.cert.values()) {
+  console.log(`证书: ${cert.role} - ${cert.subject}`);
+  
+  // 可以在遍历过程中处理每个证书
+  if (cert.signTime < Date.now() - 31536000000) {
+    console.log(`过期证书: ${cert.id}`);
+  }
+}
+
+// 遍历特定角色的证书
+for await (const cert of user.cert.values({ role: "admin" })) {
+  console.log(`管理员证书: ${cert.subject}`);
+}
+
+// 遍历复合条件的证书
+for await (const cert of user.cert.values({
+  role: "admin",
+  issuer: admin.userId
+})) {
+  console.log(`符合条件的证书: ${cert.id}`);
+}
+```
+
 ## API 文档
 
 ### getUser(namespace)
@@ -517,6 +560,66 @@ const hasCert = await user.cert.has({
 await user.cert.delete(cert.id);
 ```
 
+#### `count(query)`
+
+获取证书数量。
+
+**参数：**
+- `query` (Object) - 查询条件
+  - `role` (string) - 角色（可选）
+  - `issuer` (string) - 签发者ID（可选）
+  - `subject` (string) - 接收者ID（可选）
+
+**返回值：** Promise\<number\>
+
+**示例：**
+```javascript
+// 获取所有证书数量
+const totalCount = await user.cert.count();
+
+// 获取特定角色的证书数量
+const adminCount = await user.cert.count({ role: "admin" });
+
+// 获取复合条件的证书数量
+const count = await user.cert.count({
+  role: "admin",
+  issuer: admin.userId
+});
+```
+
+#### `values(query)`
+
+获取证书异步迭代器，支持 `for await...of` 语法遍历。使用 IndexedDB 游标实现，内存友好。
+
+**参数：**
+- `query` (Object) - 查询条件
+  - `role` (string) - 角色（可选）
+  - `issuer` (string) - 签发者ID（可选）
+  - `subject` (string) - 接收者ID（可选）
+
+**返回值：** AsyncIterable
+
+**示例：**
+```javascript
+// 遍历所有证书
+for await (const cert of user.cert.values()) {
+  console.log("证书:", cert.role, cert.subject);
+}
+
+// 遍历特定角色的证书
+for await (const cert of user.cert.values({ role: "admin" })) {
+  console.log("管理员证书:", cert.subject);
+}
+
+// 遍历复合条件的证书
+for await (const cert of user.cert.values({
+  role: "admin",
+  issuer: admin.userId
+})) {
+  console.log("符合条件的证书:", cert);
+}
+```
+
 ## 安全特性
 
 ### 密钥管理
@@ -577,6 +680,16 @@ const hasEditorRole = await user.cert.has({
 });
 
 console.log("拥有编辑权限:", hasEditorRole);
+
+// 统计证书数量
+const totalCount = await user.cert.count();
+const adminCount = await user.cert.count({ role: "admin" });
+console.log(`总共有 ${totalCount} 个证书，其中 ${adminCount} 个是管理员证书`);
+
+// 遍历所有证书
+for await (const cert of user.cert.values()) {
+  console.log(`证书: ${cert.role} - ${cert.subject}`);
+}
 
 // 签名和验证
 const document = { title: "Important Doc", content: "..." };

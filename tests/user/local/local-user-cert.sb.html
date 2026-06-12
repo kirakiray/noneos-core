@@ -69,21 +69,21 @@
       <script type="module">
         import { LocalUser } from "/nos/user/local/user.js";
 
-        const user = new LocalUser("cert_delete_test");
-        await user.ready();
+        const deleteUser = new LocalUser("cert_delete_test");
+        await deleteUser.ready();
 
         // 给自己签发一个证书
-        const cert = await user.cert.issue({
-          subject: user.userId,
+        const cert = await deleteUser.cert.issue({
+          subject: deleteUser.userId,
           role: "tester"
         });
 
-        const hasBeforeDelete = await user.cert.has({ role: "tester" });
+        const hasBeforeDelete = await deleteUser.cert.has({ role: "tester" });
 
         // 删除证书
-        await user.cert.delete(cert.id);
+        await deleteUser.cert.delete(cert.id);
 
-        const hasAfterDelete = await user.cert.has({ role: "tester" });
+        const hasAfterDelete = await deleteUser.cert.has({ role: "tester" });
 
         return {
           assert: hasBeforeDelete === true && hasAfterDelete === false,
@@ -129,6 +129,85 @@
           content: {
             message: "篡改证书验证拦截成功",
             catchError
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Count">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const countUser = new LocalUser("cert_count_test");
+        await countUser.ready();
+
+        // 初始数量应该为 0
+        const initialCount = await countUser.cert.count();
+
+        // 签发多个证书
+        await countUser.cert.issue({ subject: "user1", role: "admin" });
+        await countUser.cert.issue({ subject: "user2", role: "admin" });
+        await countUser.cert.issue({ subject: "user3", role: "editor" });
+
+        // 测试总数
+        const totalCount = await countUser.cert.count();
+
+        // 测试带查询条件的数量
+        const adminCount = await countUser.cert.count({ role: "admin" });
+        const editorCount = await countUser.cert.count({ role: "editor" });
+
+        return {
+          assert: initialCount === 0 && totalCount === 3 && adminCount === 2 && editorCount === 1,
+          content: {
+            message: "证书计数测试通过",
+            initialCount,
+            totalCount,
+            adminCount,
+            editorCount
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Values Iteration">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const valuesUser = new LocalUser("cert_values_test");
+        await valuesUser.ready();
+
+        // 签发多个证书
+        await valuesUser.cert.issue({ subject: "user1", role: "admin", level: 1 });
+        await valuesUser.cert.issue({ subject: "user2", role: "admin", level: 2 });
+        await valuesUser.cert.issue({ subject: "user3", role: "editor", level: 3 });
+
+        // 测试遍历所有证书
+        const allCerts = [];
+        for await (const cert of valuesUser.cert.values()) {
+          allCerts.push(cert);
+        }
+
+        // 测试遍历特定角色的证书
+        const adminCerts = [];
+        for await (const cert of valuesUser.cert.values({ role: "admin" })) {
+          adminCerts.push(cert);
+        }
+
+        const hasAllCerts = allCerts.length === 3;
+        const hasAdminCerts = adminCerts.length === 2;
+        const allHaveLevel = allCerts.every(cert => cert.level !== undefined);
+
+        return {
+          assert: hasAllCerts && hasAdminCerts && allHaveLevel,
+          content: {
+            message: "证书遍历测试通过",
+            allCertsCount: allCerts.length,
+            adminCertsCount: adminCerts.length,
+            allHaveLevel
           },
         };
       </script>
