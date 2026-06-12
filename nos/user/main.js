@@ -96,9 +96,11 @@ export const importUser = async (namespace, encryptedData, password) => {
 /**
  * 删除用户
  * @param {string} namespace - 用户命名空间
+ * @param {Object} options - 可选参数
+ * @param {boolean} options.skipConfirm - 跳过确认提示，直接删除
  * @returns {Promise<boolean>} 删除成功返回 true，取消返回 false
  */
-export const deleteUser = async (namespace) => {
+export const deleteUser = async (namespace, options = {}) => {
   if (!namespace) {
     throw new Error("namespace is required");
   }
@@ -109,16 +111,41 @@ export const deleteUser = async (namespace) => {
     throw new Error(`User "${namespace}" not found`);
   }
 
-  // 第一次确认
-  const confirm1 = confirm(`确定要删除用户 "${namespace}" 吗？\n\n警告：此操作不可恢复，所有用户数据将被永久删除！`);
-  if (!confirm1) {
-    return false;
-  }
+  const { skipConfirm = false } = options;
 
-  // 第二次确认
-  const confirm2 = confirm(`再次确认：您真的要删除用户 "${namespace}" 吗？\n\n此操作将永久删除：\n- 用户密钥对\n- 用户信息\n- 所有证书\n\n删除后无法恢复，请谨慎操作！`);
-  if (!confirm2) {
-    return false;
+  // 如果不跳过确认，显示确认对话框
+  if (!skipConfirm) {
+    // 获取用户语言
+    const lang = navigator.language || navigator.userLanguage;
+    const isZh = lang.startsWith('zh');
+    const isJa = lang.startsWith('ja');
+
+    // 根据语言选择提示文本
+    let confirm1Msg, confirm2Msg;
+    
+    if (isZh) {
+      confirm1Msg = `确定要删除用户 "${namespace}" 吗？\n\n警告：此操作不可恢复，所有用户数据将被永久删除！`;
+      confirm2Msg = `再次确认：您真的要删除用户 "${namespace}" 吗？\n\n此操作将永久删除：\n- 用户密钥对\n- 用户信息\n- 所有证书\n\n删除后无法恢复，请谨慎操作！`;
+    } else if (isJa) {
+      confirm1Msg = `ユーザー "${namespace}" を削除してもよろしいですか？\n\n警告：この操作は取り消せません。すべてのユーザーデータが完全に削除されます！`;
+      confirm2Msg = `再確認：本当にユーザー "${namespace}" を削除しますか？\n\nこの操作により以下が完全に削除されます：\n- ユーザー鍵ペア\n- ユーザー情報\n- すべての証明書\n\n削除後は復元できません。慎重に操作してください！`;
+    } else {
+      // 默认英语
+      confirm1Msg = `Are you sure you want to delete user "${namespace}"?\n\nWarning: This action cannot be undone. All user data will be permanently deleted!`;
+      confirm2Msg = `Confirm again: Do you really want to delete user "${namespace}"?\n\nThis action will permanently delete:\n- User key pair\n- User information\n- All certificates\n\nThis cannot be undone. Please proceed with caution!`;
+    }
+
+    // 第一次确认
+    const confirm1 = confirm(confirm1Msg);
+    if (!confirm1) {
+      return false;
+    }
+
+    // 第二次确认
+    const confirm2 = confirm(confirm2Msg);
+    if (!confirm2) {
+      return false;
+    }
   }
 
   // 删除数据库

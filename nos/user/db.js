@@ -2,14 +2,28 @@ const STORE_NAME = "data";
 const CERT_STORE_NAME = "certs";
 const DB_VERSION = 4;
 
+// 数据库连接缓存池
+const dbCache = new Map();
+const CACHE_TIMEOUT = 5000; // 5秒
+
 /**
- * 获取数据库实例
+ * 获取数据库实例（带缓存池）
  * @param {string} namespace
  * @returns {Promise<IDBDatabase>}
  */
 function getDb(namespace) {
   return new Promise((resolve, reject) => {
     const dbName = `nos_user_${namespace}`;
+
+    // 检查缓存
+    const cached = dbCache.get(dbName);
+    if (cached) {
+      clearTimeout(cached.timer);
+      cached.timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
+      resolve(cached.db);
+      return;
+    }
+
     const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => {
@@ -17,7 +31,10 @@ function getDb(namespace) {
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      const db = event.target.result;
+      const timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
+      dbCache.set(dbName, { db, timer });
+      resolve(db);
     };
 
     request.onupgradeneeded = (event) => {
@@ -39,6 +56,18 @@ function getDb(namespace) {
       }
     };
   });
+}
+
+/**
+ * 关闭并清理缓存中的数据库连接
+ * @param {string} dbName
+ */
+function closeDbCache(dbName) {
+  const cached = dbCache.get(dbName);
+  if (cached) {
+    cached.db.close();
+    dbCache.delete(dbName);
+  }
 }
 
 /**
