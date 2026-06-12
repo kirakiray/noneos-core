@@ -182,6 +182,147 @@ export async function deleteCertFromDb(namespace, certId) {
 }
 
 /**
+ * 使用游标遍历证书
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {AsyncIterable}
+ */
+export function iterateCerts(namespace, query = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  
+  return {
+    [Symbol.asyncIterator]() {
+      let db = null;
+      let request = null;
+      
+      return {
+        async next() {
+          if (!db) {
+            db = await getDb(namespace);
+            const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+            const store = transaction.objectStore(CERT_STORE_NAME);
+            
+            const { role, issuer, subject } = query;
+            const hasRole = role !== undefined;
+            const hasIssuer = issuer !== undefined;
+            const hasSubject = subject !== undefined;
+            
+            // 确定使用哪个索引
+            let indexName = null;
+            let indexKey = null;
+            
+            if (hasRole && hasIssuer && hasSubject) {
+              indexName = "role_issuer_subject";
+              indexKey = [role, issuer, subject];
+            } else if (hasRole && hasIssuer) {
+              indexName = "role_issuer";
+              indexKey = [role, issuer];
+            } else if (hasRole && hasSubject) {
+              indexName = "role_subject";
+              indexKey = [role, subject];
+            } else if (hasIssuer && hasSubject) {
+              indexName = "issuer_subject";
+              indexKey = [issuer, subject];
+            } else if (hasRole) {
+              indexName = "role";
+              indexKey = role;
+            } else if (hasIssuer) {
+              indexName = "issuer";
+              indexKey = issuer;
+            } else if (hasSubject) {
+              indexName = "subject";
+              indexKey = subject;
+            }
+            
+            if (indexName) {
+              const index = store.index(indexName);
+              request = index.openCursor(indexKey);
+            } else {
+              request = store.openCursor();
+            }
+          }
+          
+          return new Promise((resolve, reject) => {
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              
+              if (cursor) {
+                const value = cursor.value;
+                cursor.continue();
+                resolve({ value, done: false });
+              } else {
+                resolve({ value: undefined, done: true });
+              }
+            };
+            
+            request.onerror = () => reject(request.error);
+          });
+        }
+      };
+    }
+  };
+}
+
+/**
+ * 统计证书数量
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {Promise<number>}
+ */
+export async function countCerts(namespace, query = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    
+    const { role, issuer, subject } = query;
+    const hasRole = role !== undefined;
+    const hasIssuer = issuer !== undefined;
+    const hasSubject = subject !== undefined;
+    
+    // 确定使用哪个索引
+    let indexName = null;
+    let indexKey = null;
+    
+    if (hasRole && hasIssuer && hasSubject) {
+      indexName = "role_issuer_subject";
+      indexKey = [role, issuer, subject];
+    } else if (hasRole && hasIssuer) {
+      indexName = "role_issuer";
+      indexKey = [role, issuer];
+    } else if (hasRole && hasSubject) {
+      indexName = "role_subject";
+      indexKey = [role, subject];
+    } else if (hasIssuer && hasSubject) {
+      indexName = "issuer_subject";
+      indexKey = [issuer, subject];
+    } else if (hasRole) {
+      indexName = "role";
+      indexKey = role;
+    } else if (hasIssuer) {
+      indexName = "issuer";
+      indexKey = issuer;
+    } else if (hasSubject) {
+      indexName = "subject";
+      indexKey = subject;
+    }
+    
+    let request;
+    if (indexName) {
+      const index = store.index(indexName);
+      request = index.count(indexKey);
+    } else {
+      request = store.count();
+    }
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
  * 保存用户信息
  * @param {string} namespace
  * @param {Object} infoData - 用户信息数据

@@ -2,6 +2,8 @@ import {
   saveCertToDb,
   getCertsFromDb,
   deleteCertFromDb,
+  iterateCerts,
+  countCerts,
 } from "../db.js";
 import { createVerifier } from "../../crypto/crypto-ecdsa.js";
 import { getHash } from "../../util/hash/get-hash.js";
@@ -134,5 +136,23 @@ export class CertManager {
    */
   async delete(id) {
     return deleteCertFromDb(this.#user.namespace, id);
+  }
+
+  /**
+   * 获取证书数量
+   * @param {Object} query - { role, issuer, subject }
+   * @returns {Promise<number>}
+   */
+  async count(query = {}) {
+    return countCerts(this.#user.namespace, query);
+  }
+
+  /**
+   * 获取证书异步迭代器
+   * @param {Object} query - { role, issuer, subject }
+   * @returns {AsyncIterable}
+   */
+  values(query = {}) {
+    return iterateCerts(this.#user.namespace, query);
   }
 }
