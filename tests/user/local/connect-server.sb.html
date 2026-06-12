@@ -334,5 +334,89 @@
         </script>
       </template>
     </sb-test>
+
+    <sb-test name="Handshake Timeout Test (No Response to Challenge)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace6 = "test-timeout";
+          const user6 = new LocalUser(namespace6);
+          await user6.ready();
+
+          const url6 = "ws://127.0.0.1:8081";
+          let serverResponse6 = null;
+
+          const handshakeResult6 = await new Promise((resolve) => {
+            const ws = new WebSocket(url6);
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              // 收到 onopen 后不做任何事，故意不回复 handshake_challenge
+            };
+
+            ws.onmessage = (e) => {
+              const data = JSON.parse(e.data);
+              // 记录服务器任何响应，但故意不回复
+              serverResponse6 = data;
+            };
+
+            ws.onclose = (event) => {
+              safeResolve({
+                status: "closed",
+                reason: event.reason || "Connection closed",
+                serverResponse: serverResponse6,
+              });
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved && serverResponse6) {
+                  safeResolve({
+                    status: "closed",
+                    serverResponse: serverResponse6,
+                  });
+                } else if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            // 安全阀：10秒后强制结束
+            setTimeout(() => {
+              ws.close();
+              safeResolve({
+                status: "timeout",
+                serverResponse: serverResponse6,
+              });
+            }, 10000);
+          });
+
+          const isTimeoutHandled =
+            serverResponse6 !== null &&
+            serverResponse6.type === "handshake" &&
+            serverResponse6.status === "error" &&
+            serverResponse6.message.includes("timeout");
+
+          return {
+            assert: isTimeoutHandled,
+            content: {
+              message: isTimeoutHandled
+                ? "Server correctly disconnected after handshake timeout"
+                : "Server did not handle timeout as expected",
+              serverResponse: serverResponse6,
+              result: handshakeResult6,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

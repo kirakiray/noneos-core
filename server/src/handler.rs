@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
+use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
@@ -121,10 +122,10 @@ pub async fn handle_connection(
     };
     ws_sender.send(Message::Text(serde_json::to_string(&challenge_msg)?)).await?;
 
-    // 3. 接收响应
-    let handshake_data = match ws_receiver.next().await {
-        Some(Ok(Message::Text(text))) => text,
-        Some(Ok(_)) => {
+    // 3. 接收响应 (5秒超时)
+    let handshake_data = match timeout(Duration::from_secs(5), ws_receiver.next()).await {
+        Ok(Some(Ok(Message::Text(text)))) => text,
+        Ok(Some(Ok(_))) => {
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
@@ -132,9 +133,25 @@ pub async fn handle_connection(
                 is_admin: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            let _ = ws_sender.send(Message::Close(None)).await;
             return Err("Handshake failed: Unexpected message type".into());
         }
-        _ => return Err("Handshake failed: Connection closed by client".into()),
+        Err(_elapsed) => {
+            // 超时：5秒内未收到任何响应
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Handshake timeout: no response within 5 seconds".to_string(),
+                is_admin: None,
+            };
+            let _ = ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await;
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("Handshake failed: timeout waiting for response".into());
+        }
+        _ => {
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("Handshake failed: Connection closed by client".into());
+        }
     };
 
     // 4. 数据解析
