@@ -102,6 +102,7 @@ pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
     state: Arc<Mutex<AppState>>,
+    handshake_timeout_secs: u64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("New WebSocket connection attempt from: {}", addr);
 
@@ -122,8 +123,8 @@ pub async fn handle_connection(
     };
     ws_sender.send(Message::Text(serde_json::to_string(&challenge_msg)?)).await?;
 
-    // 3. 接收响应 (5秒超时)
-    let handshake_data = match timeout(Duration::from_secs(5), ws_receiver.next()).await {
+    // 3. 接收响应 (可配置超时)
+    let handshake_data = match timeout(Duration::from_secs(handshake_timeout_secs), ws_receiver.next()).await {
         Ok(Some(Ok(Message::Text(text)))) => text,
         Ok(Some(Ok(_))) => {
             let resp = HandshakeResponse {
@@ -137,11 +138,11 @@ pub async fn handle_connection(
             return Err("Handshake failed: Unexpected message type".into());
         }
         Err(_elapsed) => {
-            // 超时：5秒内未收到任何响应
+            // 超时：指定时间内未收到任何响应
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
-                message: "Handshake timeout: no response within 5 seconds".to_string(),
+                message: format!("Handshake timeout: no response within {} seconds", handshake_timeout_secs),
                 is_admin: None,
             };
             let _ = ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await;

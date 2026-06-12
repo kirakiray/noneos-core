@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // 这样可以实现高并发，一个连接的阻塞或处理不会影响其他连接
         tokio::spawn(async move {
             // 调用 handler 模块中的业务逻辑函数
-            if let Err(e) = handle_connection(stream, addr, state).await {
+            if let Err(e) = handle_connection(stream, addr, state, config.handshake_timeout_secs).await {
                 eprintln!("Error handling connection from {}: {}", addr, e);
             }
         });

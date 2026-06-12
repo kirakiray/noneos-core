@@ -29,6 +29,10 @@ pub struct Config {
     /// 如果配置文件中未指定，则没有管理员
     #[serde(default)]
     pub admin_user_id: Option<String>,
+    /// 握手超时时间（秒），客户端必须在此时间内完成 handshake_challenge
+    /// 如果配置文件中未指定，默认为 5 秒
+    #[serde(default = "default_handshake_timeout")]
+    pub handshake_timeout_secs: u64,
 }
 
 /// 获取默认端口号的辅助函数
@@ -41,6 +45,11 @@ fn default_host() -> String {
     "127.0.0.1".to_string()
 }
 
+/// 获取默认握手超时时间的辅助函数
+fn default_handshake_timeout() -> u64 {
+    5
+}
+
 /// 为 Config 实现 Default trait，方便在未提供配置文件时创建默认配置实例
 impl Default for Config {
     fn default() -> Self {
@@ -48,6 +57,7 @@ impl Default for Config {
             port: default_port(),
             host: default_host(),
             admin_user_id: None,
+            handshake_timeout_secs: default_handshake_timeout(),
         }
     }
 }

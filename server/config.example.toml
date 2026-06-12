@@ -1,3 +1,4 @@
 port = 8081
 host = "127.0.0.1"
 admin_user_id = "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c981"
+handshake_timeout_secs = 1
