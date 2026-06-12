@@ -169,7 +169,7 @@ const admin = await getUser("admin-user");
 const normalUser = await getUser("normal-user");
 
 // 管理员签发证书
-const cert = await admin.issueCert({
+const cert = await admin.cert.issue({
   subject: normalUser.userId,  // 被签发人的用户ID
   role: "admin",                 // 角色
   permission: "all"              // 可选的附加数据
@@ -188,12 +188,12 @@ console.log(cert.signature);  // 签名
 
 ```javascript
 // 接收者导入证书
-const importedCert = await normalUser.importCert(cert);
+const importedCert = await normalUser.cert.import(cert);
 
 // 如果证书被篡改，会抛出错误
 try {
   const fakeCert = { ...cert, issuer: "fake-user-id" };
-  await normalUser.importCert(fakeCert);
+  await normalUser.cert.import(fakeCert);
 } catch (err) {
   console.error("证书验证失败:", err.message);
 }
@@ -203,15 +203,15 @@ try {
 
 ```javascript
 // 查询所有特定角色的证书
-const adminCerts = await user.queryCerts({ role: "admin" });
+const adminCerts = await user.cert.query({ role: "admin" });
 
 // 查询特定签发者的证书
-const certsFromAdmin = await user.queryCerts({
+const certsFromAdmin = await user.cert.query({
   issuer: admin.userId
 });
 
 // 查询特定条件的证书
-const specificCert = await user.queryCerts({
+const specificCert = await user.cert.query({
   role: "admin",
   issuer: admin.userId,
   subject: normalUser.userId
@@ -222,7 +222,7 @@ const specificCert = await user.queryCerts({
 
 ```javascript
 // 检查是否拥有某证书
-const hasAdminCert = await user.hasCert({
+const hasAdminCert = await user.cert.has({
   role: "admin",
   issuer: admin.userId,
   subject: user.userId
@@ -235,10 +235,10 @@ console.log(hasAdminCert); // true 或 false
 
 ```javascript
 // 删除证书
-await user.deleteCert(cert.id);
+await user.cert.delete(cert.id);
 
 // 验证是否已删除
-const hasCert = await user.hasCert({ role: "admin" });
+const hasCert = await user.cert.has({ role: "admin" });
 console.log(hasCert); // false
 ```
 
@@ -327,6 +327,16 @@ console.log(user.publicKey); // "-----BEGIN PUBLIC KEY..."
 
 **返回值：** Function | null
 
+#### `cert`
+
+获取证书管理器实例。
+
+**返回值：** CertManager
+
+```javascript
+console.log(user.cert); // CertManager 实例
+```
+
 ---
 
 ### LocalUser 方法
@@ -372,96 +382,6 @@ const signedData = await user.sign({ message: "Hello" });
 const isValid = await user.verify(signedData);
 ```
 
-#### `issueCert(options)`
-
-签发证书。
-
-**参数：**
-- `options` (Object)
-  - `subject` (string) - 被签发人的用户ID（必填）
-  - `role` (string) - 角色（必填）
-  - `...data` (Object) - 其他附加数据（可选）
-
-**返回值：** Promise\<Object\> - 签发后的证书对象
-
-**示例：**
-```javascript
-const cert = await admin.issueCert({
-  subject: user.userId,
-  role: "editor",
-  permissions: ["read", "write"]
-});
-```
-
-#### `importCert(certData)`
-
-验证并导入证书。会自动验证：
-- 证书签名是否有效
-- `issuer` 是否与公钥匹配
-
-**参数：**
-- `certData` (Object) - 包含签名和公钥的证书数据
-
-**返回值：** Promise\<Object\> - 导入后的证书
-
-**抛出错误：**
-- 缺少必要字段
-- 用户ID与公钥不匹配
-- 证书签名验证失败
-
-**示例：**
-```javascript
-const importedCert = await user.importCert(cert);
-```
-
-#### `queryCerts(query)`
-
-查询证书。
-
-**参数：**
-- `query` (Object) - 查询条件
-  - `role` (string) - 角色（可选）
-  - `issuer` (string) - 签发者ID（可选）
-  - `subject` (string) - 接收者ID（可选）
-
-**返回值：** Promise\<Array\<Object\>\> - 证书数组
-
-**示例：**
-```javascript
-const certs = await user.queryCerts({ role: "admin" });
-```
-
-#### `hasCert(query)`
-
-检查是否拥有某证书。
-
-**参数：**
-- `query` (Object) - 查询条件（同 `queryCerts`）
-
-**返回值：** Promise\<boolean\>
-
-**示例：**
-```javascript
-const hasCert = await user.hasCert({
-  role: "admin",
-  issuer: admin.userId
-});
-```
-
-#### `deleteCert(id)`
-
-删除证书。
-
-**参数：**
-- `id` (string) - 证书ID
-
-**返回值：** Promise\<void\>
-
-**示例：**
-```javascript
-await user.deleteCert(cert.id);
-```
-
 #### `updateInfo(data)`
 
 更新用户个人信息。数据会自动签名并存储到数据库，多次调用会合并数据。
@@ -499,6 +419,104 @@ console.log(userInfo.username);  // 默认用户名
 console.log(userInfo.nickname);  // 用户设置的昵称
 ```
 
+---
+
+## CertManager 类
+
+证书管理器类，通过 `user.cert` 访问。
+
+### CertManager 方法
+
+#### `issue(options)`
+
+签发证书。
+
+**参数：**
+- `options` (Object)
+  - `subject` (string) - 被签发人的用户ID（必填）
+  - `role` (string) - 角色（必填）
+  - `...data` (Object) - 其他附加数据（可选）
+
+**返回值：** Promise\<Object\> - 签发后的证书对象
+
+**示例：**
+```javascript
+const cert = await admin.cert.issue({
+  subject: user.userId,
+  role: "editor",
+  permissions: ["read", "write"]
+});
+```
+
+#### `import(certData)`
+
+验证并导入证书。会自动验证：
+- 证书签名是否有效
+- `issuer` 是否与公钥匹配
+
+**参数：**
+- `certData` (Object) - 包含签名和公钥的证书数据
+
+**返回值：** Promise\<Object\> - 导入后的证书
+
+**抛出错误：**
+- 缺少必要字段
+- 用户ID与公钥不匹配
+- 证书签名验证失败
+
+**示例：**
+```javascript
+const importedCert = await user.cert.import(cert);
+```
+
+#### `query(query)`
+
+查询证书。
+
+**参数：**
+- `query` (Object) - 查询条件
+  - `role` (string) - 角色（可选）
+  - `issuer` (string) - 签发者ID（可选）
+  - `subject` (string) - 接收者ID（可选）
+
+**返回值：** Promise\<Array\<Object\>\> - 证书数组
+
+**示例：**
+```javascript
+const certs = await user.cert.query({ role: "admin" });
+```
+
+#### `has(query)`
+
+检查是否拥有某证书。
+
+**参数：**
+- `query` (Object) - 查询条件（同 `query`）
+
+**返回值：** Promise\<boolean\>
+
+**示例：**
+```javascript
+const hasCert = await user.cert.has({
+  role: "admin",
+  issuer: admin.userId
+});
+```
+
+#### `delete(id)`
+
+删除证书。
+
+**参数：**
+- `id` (string) - 证书ID
+
+**返回值：** Promise\<void\>
+
+**示例：**
+```javascript
+await user.cert.delete(cert.id);
+```
+
 ## 安全特性
 
 ### 密钥管理
@@ -520,7 +538,7 @@ console.log(userInfo.nickname);  // 用户设置的昵称
 ```javascript
 // 篡改证书会被检测
 const fakeCert = { ...originalCert, issuer: "hacker-id" };
-await user.importCert(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
+await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 ```
 
 ## 完整示例
@@ -543,17 +561,17 @@ console.log("用户昵称:", userInfo.nickname);
 console.log("默认用户名:", userInfo.username);
 
 // 管理员签发证书
-const cert = await admin.issueCert({
+const cert = await admin.cert.issue({
   subject: user.userId,
   role: "editor",
   permissions: ["read", "write"]
 });
 
 // 用户导入证书
-await user.importCert(cert);
+await user.cert.import(cert);
 
 // 检查权限
-const hasEditorRole = await user.hasCert({
+const hasEditorRole = await user.cert.has({
   role: "editor",
   issuer: admin.userId
 });

@@ -24,8 +24,8 @@
         await normalUser.ready();
 
         // 1. admin 给 normal 签发证书
-        // issueCert 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
-        const issuedCert = await adminUser.issueCert({
+        // issue 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
+        const issuedCert = await adminUser.cert.issue({
           subject: normalUser.userId,
           role: "admin",
           permission: "all"
@@ -36,16 +36,16 @@
         const isSubjectNormal = issuedCert.subject === normalUser.userId;
 
         // admin 自己可以通过查询查到发出的证书
-        const adminQueryCerts = await adminUser.queryCerts({ role: "admin" });
+        const adminQueryCerts = await adminUser.cert.query({ role: "admin" });
         const adminHasIt = adminQueryCerts.some(c => c.id === issuedCert.id);
 
 
         // 2. normal 收到证书并导入
-        // importCert 会验证证书签名是否有效、issuer 和公钥是否匹配
-        const importedCert = await normalUser.importCert(issuedCert);
+        // import 会验证证书签名是否有效、issuer 和公钥是否匹配
+        const importedCert = await normalUser.cert.import(issuedCert);
 
         // 3. 验证 normalUser 是否成功保存并能够查询到该证书
-        const normalHasCert = await normalUser.hasCert({
+        const normalHasCert = await normalUser.cert.has({
           role: "admin",
           issuer: adminUser.userId,
           subject: normalUser.userId
@@ -73,17 +73,17 @@
         await user.ready();
 
         // 给自己签发一个证书
-        const cert = await user.issueCert({
+        const cert = await user.cert.issue({
           subject: user.userId,
           role: "tester"
         });
 
-        const hasBeforeDelete = await user.hasCert({ role: "tester" });
+        const hasBeforeDelete = await user.cert.has({ role: "tester" });
 
         // 删除证书
-        await user.deleteCert(cert.id);
+        await user.cert.delete(cert.id);
 
-        const hasAfterDelete = await user.hasCert({ role: "tester" });
+        const hasAfterDelete = await user.cert.has({ role: "tester" });
 
         return {
           assert: hasBeforeDelete === true && hasAfterDelete === false,
@@ -108,7 +108,7 @@
         await victim.ready();
 
         // hacker 给自己签发一个证书
-        const fakeCert = await hacker.issueCert({
+        const fakeCert = await hacker.cert.issue({
           subject: hacker.userId,
           role: "admin"
         });
@@ -119,7 +119,7 @@
         let catchError = false;
         try {
           // victim 或者任何人尝试导入这个被篡改的证书，预期抛出错误
-          await victim.importCert(fakeCert);
+          await victim.cert.import(fakeCert);
         } catch (err) {
           catchError = true;
         }
