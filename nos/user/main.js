@@ -1,5 +1,5 @@
 import { LocalUser } from "./local/user.js";
-import { getUserKeys, getUserInfo, saveUserKeys, saveUserInfo } from "./db.js";
+import { getUserKeys, getUserInfo, saveUserKeys, saveUserInfo, closeDbByNamespace } from "./db.js";
 import { encryptWithPassword, decryptWithPassword } from "../crypto/crypto-aes.js";
 
 const users = new Map();
@@ -147,6 +147,9 @@ export const deleteUser = async (namespace, options = {}) => {
       return false;
     }
   }
+
+  // 关闭缓存中的数据库连接
+  closeDbByNamespace(namespace);
 
   // 删除数据库
   return new Promise((resolve, reject) => {

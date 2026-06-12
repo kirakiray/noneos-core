@@ -71,6 +71,15 @@ function closeDbCache(dbName) {
 }
 
 /**
+ * 根据 namespace 关闭并清理缓存中的数据库连接
+ * @param {string} namespace
+ */
+export function closeDbByNamespace(namespace) {
+  const dbName = `nos_user_${namespace}`;
+  closeDbCache(dbName);
+}
+
+/**
  * 存储用户密钥对
  * @param {string} namespace
  * @param {Object} keys - { publicKey, privateKey }

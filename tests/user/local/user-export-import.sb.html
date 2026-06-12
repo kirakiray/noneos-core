@@ -54,6 +54,13 @@
         const importTargetNs = "import_target_user_1";
         const importPassword = "import_password_456";
 
+        // 前置清理：确保目标命名空间不存在
+        try {
+          await deleteUser(importTargetNs, { skipConfirm: true });
+        } catch (e) {
+          // 目标用户不存在时忽略错误
+        }
+
         // 创建源用户
         const sourceUser = await getUser(importSourceNs);
         const sourceUserId = sourceUser.userId;
@@ -245,6 +252,13 @@
         const specialSourceNs = "special_chars_source_1";
         const specialTargetNs = "special_chars_target_1";
         const specialPassword = "密码测试_!@#$%^&*()";
+
+        // 前置清理：确保目标命名空间不存在
+        try {
+          await deleteUser(specialTargetNs, { skipConfirm: true });
+        } catch (e) {
+          // 目标用户不存在时忽略错误
+        }
 
         // 创建用户并设置特殊字符信息
         const specialUser = await getUser(specialSourceNs);
