@@ -42,6 +42,13 @@ export class LocalUser extends BaseUser {
   }
 
   /**
+   * 获取会话 ID
+   */
+  get sessionId() {
+    return this.#sessionId;
+  }
+
+  /**
    * 获取证书管理器
    */
   get cert() {
@@ -174,6 +181,7 @@ export class LocalUser extends BaseUser {
                 type: "handshake_response",
                 challenge: data.challenge,
                 userId: this.userId,
+                sessionId: this.#sessionId,
                 username: userInfo.username
               });
               ws.send(JSON.stringify(response));

@@ -19,6 +19,7 @@ struct UserSession {
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
+/// 用户以 "userId:sessionId" 为 key 存储，同一 userId 的不同 sessionId 可同时连接
 pub struct AppState {
     pub admin_user_id: Option<String>,
     users: HashMap<String, UserSession>,
@@ -32,22 +33,68 @@ impl AppState {
         }
     }
 
-    fn add_user(&mut self, user_id: &str, username: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>) {
-        self.users.insert(user_id.to_string(), UserSession {
+    /// 添加用户连接，如果相同的 conn_key 已存在，踢掉旧连接再替换
+    fn add_user(&mut self, conn_key: &str, username: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>) {
+        // 如果相同 key 已存在，先踢掉旧连接
+        if let Some(mut old_session) = self.users.remove(conn_key) {
+            if let Some(tx) = old_session.disconnect_tx.take() {
+                let _ = tx.send(());
+            }
+        }
+        self.users.insert(conn_key.to_string(), UserSession {
             username: username.to_string(),
             addr,
             disconnect_tx: Some(disconnect_tx),
         });
     }
 
-    fn remove_user(&mut self, user_id: &str) -> Option<UserSession> {
-        self.users.remove(user_id)
+    fn remove_user(&mut self, conn_key: &str) -> Option<UserSession> {
+        self.users.remove(conn_key)
+    }
+
+    /// 根据 userId 踢掉该用户的所有连接（用于管理员断开用户）
+    fn disconnect_user_by_id(&mut self, target_user_id: &str) -> usize {
+        let prefix = format!("{}:", target_user_id);
+        let keys_to_remove: Vec<String> = self.users.keys()
+            .filter(|k| k.starts_with(&prefix))
+            .cloned()
+            .collect();
+        let count = keys_to_remove.len();
+        for key in keys_to_remove {
+            if let Some(mut session) = self.users.remove(&key) {
+                if let Some(tx) = session.disconnect_tx.take() {
+                    let _ = tx.send(());
+                }
+            }
+        }
+        count
+    }
+
+    /// 断开指定 session（conn_key = userId:sessionId）
+    fn disconnect_session(&mut self, target_user_id: &str, target_session_id: &str) -> bool {
+        let conn_key = format!("{}:{}", target_user_id, target_session_id);
+        if let Some(mut session) = self.users.remove(&conn_key) {
+            if let Some(tx) = session.disconnect_tx.take() {
+                let _ = tx.send(());
+            }
+            true
+        } else {
+            false
+        }
     }
 
     fn get_all_users(&self) -> Vec<serde_json::Value> {
-        self.users.iter().map(|(id, session)| {
+        self.users.iter().map(|(conn_key, session)| {
+            // 从 conn_key (userId:sessionId) 中拆分出 userId 和 sessionId
+            let parts: Vec<&str> = conn_key.splitn(2, ':').collect();
+            let (user_id, session_id) = if parts.len() == 2 {
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                (conn_key.clone(), String::new())
+            };
             serde_json::json!({
-                "userId": id,
+                "userId": user_id,
+                "sessionId": session_id,
                 "username": session.username,
                 "addr": session.addr.to_string(),
             })
@@ -82,6 +129,8 @@ struct AdminCommand {
     action: String,
     #[serde(default)]
     user_id: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
 }
 
 /// 管理命令响应格式
@@ -225,8 +274,12 @@ pub async fn handle_connection(
         }
     };
 
-    // 提取 userId 和 username
+    // 提取 userId、sessionId 和 username
     let user_id = handshake_obj.get("userId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let session_id = handshake_obj.get("sessionId")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
@@ -234,6 +287,9 @@ pub async fn handle_connection(
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
+
+    // 以 userId + sessionId 作为连接 key，同一 userId 的不同 sessionId 可共存
+    let conn_key = format!("{}:{}", user_id, session_id);
 
     // 7. 签名验证
     handshake_obj.remove("signature");
@@ -247,15 +303,15 @@ pub async fn handle_connection(
                 st.admin_user_id.as_deref() == Some(&user_id)
             };
 
-            // 创建 disconnect 通道并注册用户
+            // 创建 disconnect 通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
             {
                 let mut st = state.lock().await;
-                st.add_user(&user_id, &username, addr, disconnect_tx);
+                st.add_user(&conn_key, &username, addr, disconnect_tx);
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
-            println!("Handshake: User {} ({}) authenticated successfully{}", user_id, username, role_str);
+            println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
 
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
@@ -270,7 +326,7 @@ pub async fn handle_connection(
                 tokio::select! {
                     // 接收 disconnect 信号
                     _ = &mut disconnect_rx => {
-                        println!("User {} ({}) disconnected by admin", user_id, username);
+                        println!("User {}:{} ({}) disconnected by admin", user_id, session_id, username);
                         let _ = ws_sender.send(Message::Close(None)).await;
                         break;
                     }
@@ -280,7 +336,7 @@ pub async fn handle_connection(
                             Some(Ok(msg)) => {
                                 match msg {
                                     Message::Text(text) => {
-                                        println!("Message from {} ({}){}: {}", user_id, username, role_str, text);
+                                        println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, text);
 
                                         // 尝试解析为 JSON 管理命令
                                         if let Ok(cmd) = serde_json::from_str::<AdminCommand>(&text) {
@@ -325,33 +381,74 @@ pub async fn handle_connection(
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         } else {
-                                                            let result = {
+                                                            let count = {
                                                                 let mut st = state.lock().await;
-                                                                if let Some(mut session) = st.remove_user(&target_id) {
-                                                                    if let Some(tx) = session.disconnect_tx.take() {
-                                                                        let _ = tx.send(());
-                                                                    }
-                                                                    true
-                                                                } else {
-                                                                    false
-                                                                }
+                                                                st.disconnect_user_by_id(&target_id)
                                                             };
-                                                            if result {
+                                                            if count > 0 {
                                                                 let resp = AdminResponse {
                                                                     msg_type: "admin_response".to_string(),
                                                                     action: "disconnect_user".to_string(),
                                                                     status: "ok".to_string(),
-                                                                    message: Some(format!("User {} disconnected", target_id)),
+                                                                    message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
                                                                     users: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                                println!("Admin {} disconnected user {}", user_id, target_id);
+                                                                println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
                                                             } else {
                                                                 let resp = AdminResponse {
                                                                     msg_type: "admin_response".to_string(),
                                                                     action: "disconnect_user".to_string(),
                                                                     status: "error".to_string(),
                                                                     message: Some(format!("User {} not found", target_id)),
+                                                                    users: None,
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            }
+                                                        }
+                                                    }
+                                                    "disconnect_session" => {
+                                                        let target_user = cmd.user_id.clone().unwrap_or_default();
+                                                        let target_session = cmd.session_id.clone().unwrap_or_default();
+                                                        if target_session.is_empty() {
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "disconnect_session".to_string(),
+                                                                status: "error".to_string(),
+                                                                message: Some("Missing session_id".to_string()),
+                                                                users: None,
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        } else if target_user == user_id && target_session == session_id {
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "disconnect_session".to_string(),
+                                                                status: "error".to_string(),
+                                                                message: Some("Cannot disconnect yourself".to_string()),
+                                                                users: None,
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        } else {
+                                                            let found = {
+                                                                let mut st = state.lock().await;
+                                                                st.disconnect_session(&target_user, &target_session)
+                                                            };
+                                                            if found {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "disconnect_session".to_string(),
+                                                                    status: "ok".to_string(),
+                                                                    message: Some(format!("Session {} disconnected for user {}", target_session, target_user)),
+                                                                    users: None,
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
+                                                            } else {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "disconnect_session".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some(format!("Session {} not found for user {}", target_session, target_user)),
                                                                     users: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -386,14 +483,14 @@ pub async fn handle_connection(
                                     }
                                     Message::Pong(_) => {}
                                     Message::Close(_) => {
-                                        println!("Connection closed by client: {} ({})", user_id, addr);
+                                        println!("Connection closed by client: {}:{} ({})", user_id, session_id, addr);
                                         break;
                                     }
                                     Message::Frame(_) => {}
                                 }
                             }
                             Some(Err(e)) => {
-                                eprintln!("WebSocket error for {} ({}): {}", user_id, addr, e);
+                                eprintln!("WebSocket error for {}:{} ({}): {}", user_id, session_id, addr, e);
                                 break;
                             }
                             None => break,
@@ -405,12 +502,12 @@ pub async fn handle_connection(
             // 9. 清理：连接关闭后从状态中移除用户
             {
                 let mut st = state.lock().await;
-                st.remove_user(&user_id);
+                st.remove_user(&conn_key);
             }
-            println!("User {} ({}) removed from state", user_id, username);
+            println!("User {}:{} ({}) removed from state", user_id, session_id, username);
         }
         Err(e) => {
-            eprintln!("Handshake: User {} authentication FAILED: {}", user_id, e);
+            eprintln!("Handshake: User {}:{} authentication FAILED: {}", user_id, session_id, e);
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
