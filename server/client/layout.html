@@ -1,0 +1,92 @@
+<template page>
+  <style>
+    :host {
+      display: flex;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    .sidebar {
+      width: 200px;
+      background-color: var(--md-sys-color-surface-container);
+      border-right: 1px solid var(--md-sys-color-surface-variant);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px;
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+    }
+
+    .tab {
+      display: block;
+      padding: 14px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface-variant);
+      border-left: 3px solid transparent;
+      transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+      user-select: none;
+      text-decoration: none;
+    }
+
+    .tab:hover {
+      background-color: var(--md-sys-color-surface-container-highest);
+    }
+
+    .tab.active {
+      color: var(--md-sys-color-primary);
+      background-color: var(--md-sys-color-primary-container);
+      border-left-color: var(--md-sys-color-primary);
+      font-weight: bold;
+    }
+
+    .content {
+      flex: 1;
+      overflow: auto;
+      background-color: var(--md-sys-color-surface);
+    }
+  </style>
+
+  <nav class="sidebar">
+    <div class="sidebar-header">NoneOS Console</div>
+    <a class="tab" class:active="activeChat" href="./page.html" olink>聊天客户端</a>
+    <a class="tab" class:active="activeAdmin" href="./admin.html" olink>管理员控制台</a>
+  </nav>
+
+  <main class="content">
+    <slot></slot>
+  </main>
+
+  <script>
+    export default () => {
+      return {
+        data: {
+          activeChat: true,
+          activeAdmin: false,
+        },
+        routerChange() {
+          this.refreshActive();
+        },
+        ready() {
+          this.refreshActive();
+        },
+        proto: {
+          refreshActive() {
+            const { current } = this.app;
+            if (!current) return;
+            const path = current.src || "";
+            this.activeChat = path.endsWith("page.html");
+            this.activeAdmin = path.endsWith("admin.html");
+          },
+        },
+      };
+    };
+  </script>
+</template>

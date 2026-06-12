@@ -1,0 +1,425 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      color: var(--md-sys-color-on-surface);
+      text-align: center;
+      margin: 0 0 16px 0;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #connectBtn {
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+
+    #refreshBtn {
+      background-color: var(--md-sys-color-tertiary);
+      color: var(--md-sys-color-on-tertiary);
+    }
+
+    .user-count {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .user-grid {
+      flex: 1;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      align-content: start;
+    }
+
+    .user-card {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+      transition: box-shadow 0.2s;
+    }
+
+    .user-card:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .user-card .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .user-card .user-name {
+      font-weight: bold;
+      font-size: 15px;
+      color: var(--md-sys-color-on-surface);
+      word-break: break-all;
+    }
+
+    .user-card .user-id {
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-family: monospace;
+      word-break: break-all;
+      opacity: 0.7;
+    }
+
+    .user-card .user-addr {
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      opacity: 0.6;
+    }
+
+    .user-card .user-role {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      font-weight: bold;
+    }
+
+    .user-card .kick-btn {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      background-color: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
+      margin-top: 4px;
+    }
+
+    .user-card .kick-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .user-card.self {
+      border: 2px solid var(--md-sys-color-primary);
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+  </style>
+
+  <div class="container">
+    <h1>管理员控制台</h1>
+
+    <div
+      class="status-bar"
+      class:connected="connected"
+      class:disconnected="!connected"
+    >
+      <span>{{connected ? '已连接' : '未连接'}}</span>
+      <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
+    </div>
+
+    <div class="controls">
+      <button id="connectBtn" on:click="connect" :disabled="connecting">
+        {{connecting ? '连接中...' : '连接服务器'}}
+      </button>
+      <button id="refreshBtn" on:click="refreshUsers" :disabled="!connected">
+        刷新用户列表
+      </button>
+    </div>
+
+    <div class="user-count" :style.display="connected ? '' : 'none'">
+      在线用户：{{users.length}} 人
+    </div>
+
+    <div class="user-grid">
+      <o-fill :value="users">
+        <div class="user-card" class:self="$data.isSelf">
+          <div class="user-avatar">{{$data.avatar}}</div>
+          <div class="user-name">{{$data.username}}</div>
+          <div class="user-id">{{$data.userIdShort}}</div>
+          <div class="user-addr">{{$data.addr}}</div>
+          <div class="user-role" :style.display="$data.isAdmin ? '' : 'none'">管理员</div>
+          <button
+            class="kick-btn"
+            on:click="kickUser($data.userId)"
+            :disabled="$data.isSelf"
+          >
+            {{$data.isSelf ? '自己' : '断开'}}
+          </button>
+        </div>
+      </o-fill>
+      <div class="empty-state" :style.display="users.length === 0 && connected ? '' : 'none'">
+        暂无在线用户
+      </div>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ query }) => {
+      const ADMIN_JSON_URL = "/tests/user/local/admin.json";
+      const WS_URL = "ws://127.0.0.1:8081";
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connecting: false,
+          adminUsername: "",
+          adminUserId: "",
+          users: [],
+          _ws: null,
+          _adminUser: null,
+        },
+
+        proto: {
+          async connect() {
+            if (this.connecting || this.connected) return;
+            this.connecting = true;
+
+            try {
+              // 1. 导入管理员用户数据
+              const { saveUserKeys, saveUserInfo } = await import("/nos/user/db.js");
+              const { getUser, deleteUser } = await import("/nos/user/main.js");
+
+              const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+              const adminNs = "admin-console-ns";
+
+              // 清理旧数据并重新写入
+              try { await deleteUser(adminNs, { skipConfirm: true }); } catch (e) { /* ignore */ }
+              await saveUserKeys(adminNs, adminData.keys);
+              await saveUserInfo(adminNs, adminData.info);
+
+              const adminUser = await getUser(adminNs);
+              this._adminUser = adminUser;
+              this.adminUserId = adminUser.userId;
+              const adminInfo = await adminUser.getInfo();
+              this.adminUsername = adminInfo.username || "Admin";
+
+              // 2. 建立 WebSocket 连接并完成握手
+              await this._handshake(adminUser, adminInfo);
+            } catch (e) {
+              console.error("Connect failed:", e);
+              this.connecting = false;
+            }
+          },
+
+          _handshake(adminUser, adminInfo) {
+            return new Promise((resolve, reject) => {
+              const ws = new WebSocket(WS_URL);
+              let isHandshaked = false;
+              let pendingSend = null;
+
+              const handshakeTimeout = setTimeout(() => {
+                if (!isHandshaked) {
+                  ws.close();
+                  this.connecting = false;
+                  reject(new Error("Handshake timeout"));
+                }
+              }, 5000);
+
+              ws.onopen = () => {
+                if (pendingSend !== null) {
+                  ws.send(pendingSend);
+                  pendingSend = null;
+                }
+              };
+
+              ws.onmessage = async (e) => {
+                const data = JSON.parse(e.data);
+
+                // 阶段1: 收到挑战，签名并回应
+                if (data.type === "handshake_challenge") {
+                  const response = await adminUser._sign({
+                    type: "handshake_response",
+                    challenge: data.challenge,
+                    userId: adminUser.userId,
+                    username: adminInfo.username,
+                  });
+                  const payload = JSON.stringify(response);
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(payload);
+                  } else {
+                    pendingSend = payload;
+                  }
+                  return;
+                }
+
+                // 阶段2: 握手结果
+                if (data.type === "handshake") {
+                  clearTimeout(handshakeTimeout);
+
+                  if (data.status === "success" && data.is_admin) {
+                    isHandshaked = true;
+                    this._ws = ws;
+                    this.connected = true;
+                    this.connecting = false;
+
+                    // 切换 onmessage 为管理消息处理
+                    ws.onmessage = (msgEvent) => this._handleMessage(msgEvent);
+                    ws.onclose = () => this._onClose();
+
+                    // 自动拉取用户列表
+                    this._sendAdmin({ action: "list_users" });
+                    resolve(true);
+                  } else {
+                    this.connecting = false;
+                    ws.close();
+                    reject(new Error(data.message || "Not authorized as admin"));
+                  }
+                  return;
+                }
+              };
+
+              ws.onerror = (err) => {
+                if (!isHandshaked) {
+                  clearTimeout(handshakeTimeout);
+                  this.connecting = false;
+                  reject(err);
+                }
+              };
+
+              ws.onclose = (event) => {
+                if (!isHandshaked) {
+                  clearTimeout(handshakeTimeout);
+                  this.connecting = false;
+                  reject(new Error(event.reason || "Connection closed during handshake"));
+                }
+              };
+            });
+          },
+
+          _sendAdmin(cmd) {
+            if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+            this._ws.send(JSON.stringify({ type: "admin", ...cmd }));
+          },
+
+          _handleMessage(event) {
+            try {
+              const data = JSON.parse(event.data);
+
+              if (data.type === "admin_response") {
+                if (data.action === "list_users" && data.status === "ok") {
+                  this.users = (data.users || []).map((u) => ({
+                    ...u,
+                    avatar: (u.username || "?")[0].toUpperCase(),
+                    userIdShort: u.userId ? u.userId.substring(0, 12) + "..." : "",
+                    isSelf: u.userId === this.adminUserId,
+                    isAdmin: u.userId === this.adminUserId,
+                  }));
+                }
+
+                if (data.action === "disconnect_user") {
+                  // 断开操作完成后自动刷新列表
+                  if (data.status === "ok") {
+                    this._sendAdmin({ action: "list_users" });
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("Failed to parse message:", e);
+            }
+          },
+
+          _onClose() {
+            this.connected = false;
+            this._ws = null;
+            this.users = [];
+          },
+
+          refreshUsers() {
+            if (this.connected) {
+              this._sendAdmin({ action: "list_users" });
+            }
+          },
+
+          kickUser(userId) {
+            if (!this.connected) return;
+            if (userId === this.adminUserId) return;
+
+            this._sendAdmin({ action: "disconnect_user", user_id: userId });
+          },
+        },
+
+        detached() {
+          if (this._ws) {
+            this._ws.close();
+            this._ws = null;
+          }
+        },
+      };
+    };
+  </script>
+</template>

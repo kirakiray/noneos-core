@@ -3,23 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebSocket 客户端示例</title>
+    <title>NoneOS Console</title>
     <link rel="stylesheet" href="https://punch-ui-v2.pages.dev/packages/css/pui-global.css" />
     <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@latest/dist/ofa.min.js#debug"></script>
     <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-      }
-      o-page {
+      o-app {
         width: 100%;
         height: 100%;
+        display: block;
       }
     </style>
   </head>
   <body>
-    <o-page src="./page.html"></o-page>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/libs/router/dist/router.min.mjs"></l-m>
+    <o-router fix-body>
+      <o-app src="./app-config.js"></o-app>
+    </o-router>
   </body>
 </html>
