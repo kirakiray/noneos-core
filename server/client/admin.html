@@ -211,7 +211,9 @@
           <div class="user-name">{{$data.username}}</div>
           <div class="user-id">{{$data.userIdShort}}</div>
           <div class="user-addr">{{$data.addr}}</div>
-          <div class="user-role" :style.display="$data.isAdmin ? '' : 'none'">管理员</div>
+          <div class="user-role" :style.display="$data.isAdmin ? '' : 'none'">
+            管理员
+          </div>
           <button
             class="kick-btn"
             on:click="kickUser($data.userId)"
@@ -221,14 +223,17 @@
           </button>
         </div>
       </o-fill>
-      <div class="empty-state" :style.display="users.length === 0 && connected ? '' : 'none'">
+      <div
+        class="empty-state"
+        :style.display="users.length === 0 && connected ? '' : 'none'"
+      >
         暂无在线用户
       </div>
     </div>
   </div>
 
   <script>
-    export default async ({ query }) => {
+    export default async ({ query, load }) => {
       const ADMIN_JSON_URL = "/tests/user/local/admin.json";
       const WS_URL = "ws://127.0.0.1:8081";
 
@@ -251,14 +256,20 @@
 
             try {
               // 1. 导入管理员用户数据
-              const { saveUserKeys, saveUserInfo } = await import("/nos/user/db.js");
-              const { getUser, deleteUser } = await import("/nos/user/main.js");
+              const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+              const { getUser, deleteUser } = await load("/nos/user/main.js");
 
-              const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+              const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
+                r.json(),
+              );
               const adminNs = "admin-console-ns";
 
               // 清理旧数据并重新写入
-              try { await deleteUser(adminNs, { skipConfirm: true }); } catch (e) { /* ignore */ }
+              try {
+                await deleteUser(adminNs, { skipConfirm: true });
+              } catch (e) {
+                /* ignore */
+              }
               await saveUserKeys(adminNs, adminData.keys);
               await saveUserInfo(adminNs, adminData.info);
 
@@ -337,7 +348,9 @@
                   } else {
                     this.connecting = false;
                     ws.close();
-                    reject(new Error(data.message || "Not authorized as admin"));
+                    reject(
+                      new Error(data.message || "Not authorized as admin"),
+                    );
                   }
                   return;
                 }
@@ -355,7 +368,11 @@
                 if (!isHandshaked) {
                   clearTimeout(handshakeTimeout);
                   this.connecting = false;
-                  reject(new Error(event.reason || "Connection closed during handshake"));
+                  reject(
+                    new Error(
+                      event.reason || "Connection closed during handshake",
+                    ),
+                  );
                 }
               };
             });
@@ -375,7 +392,9 @@
                   this.users = (data.users || []).map((u) => ({
                     ...u,
                     avatar: (u.username || "?")[0].toUpperCase(),
-                    userIdShort: u.userId ? u.userId.substring(0, 12) + "..." : "",
+                    userIdShort: u.userId
+                      ? u.userId.substring(0, 12) + "..."
+                      : "",
                     isSelf: u.userId === this.adminUserId,
                     isAdmin: u.userId === this.adminUserId,
                   }));
