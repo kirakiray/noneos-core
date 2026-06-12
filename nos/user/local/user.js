@@ -277,15 +277,29 @@ export class LocalUser extends BaseUser {
       }, 5000);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify(userInfo));
+        // 等待服务器发送握手挑战 (Challenge)
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         if (!isHandshaked) {
-          clearTimeout(timeout);
           try {
             const data = JSON.parse(event.data);
+
+            // 1. 处理服务器发送的挑战
+            if (data.type === "handshake_challenge") {
+              const response = await this._sign({
+                type: "handshake_response",
+                challenge: data.challenge,
+                userId: this.userId,
+                username: userInfo.username
+              });
+              ws.send(JSON.stringify(response));
+              return;
+            }
+
+            // 2. 处理最终的握手结果
             if (data.type === "handshake" && data.status === "success") {
+              clearTimeout(timeout);
               isHandshaked = true;
               this.#wsMap.set(url, ws);
               

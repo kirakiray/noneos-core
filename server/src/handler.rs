@@ -4,6 +4,8 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use serde::Serialize;
 use crate::crypto::verify_signature;
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
 
 /// 握手阶段返回给客户端的响应格式
 /// 客户端根据 type="handshake" 和 status 来判断连接是否被服务器认可
@@ -16,6 +18,14 @@ struct HandshakeResponse {
     status: String,
     /// 给用户的提示信息，如果是错误状态则包含错误原因
     message: String,
+}
+
+/// 挑战信息格式
+#[derive(Serialize)]
+struct HandshakeChallenge {
+    #[serde(rename = "type")]
+    msg_type: String,
+    challenge: String,
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
@@ -31,7 +41,20 @@ pub async fn handle_connection(
     // 将流拆分为发送端（sink）和接收端（stream），方便并发或顺序处理
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
-    // 2. 身份验证阶段：服务器强制要求客户端发送的第一条消息必须是已签名的用户信息
+    // 2. 发送挑战：生成一个随机字符串并发送给客户端，防止重放攻击
+    let challenge: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect();
+    
+    let challenge_msg = HandshakeChallenge {
+        msg_type: "handshake_challenge".to_string(),
+        challenge: challenge.clone(),
+    };
+    ws_sender.send(Message::Text(serde_json::to_string(&challenge_msg)?)).await?;
+
+    // 3. 接收响应：等待客户端返回包含签名的握手响应
     let handshake_data = match ws_receiver.next().await {
         Some(Ok(Message::Text(text))) => text,
         Some(Ok(_)) => {
@@ -47,23 +70,47 @@ pub async fn handle_connection(
         _ => return Err("Handshake failed: Connection closed by client".into()),
     };
 
-    // 3. 数据解析：尝试将收到的文本解析为 JSON 对象
-    let user_info: serde_json::Value = match serde_json::from_str(&handshake_data) {
-        Ok(v) => v,
-        Err(e) => {
+    // 4. 数据解析：尝试将收到的文本解析为 JSON 对象
+    let mut handshake_obj: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&handshake_data) {
+        Ok(serde_json::Value::Object(v)) => v,
+        _ => {
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
-                message: format!("Invalid JSON format: {}", e),
+                message: "Invalid JSON format or not an object".to_string(),
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-            return Err(format!("Handshake failed: Invalid JSON: {}", e).into());
+            return Err("Handshake failed: Invalid JSON".into());
         }
     };
 
-    // 4. 字段校验：检查是否包含签名和公钥
-    let signature = match user_info.get("signature").and_then(|v| v.as_str()) {
+    // 5. 挑战校验：检查返回的挑战内容是否匹配
+    let received_challenge = match handshake_obj.get("challenge").and_then(|v| v.as_str()) {
         Some(s) => s,
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Missing 'challenge' field".to_string(),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("Handshake failed: Missing challenge".into());
+        }
+    };
+
+    if received_challenge != challenge {
+        let resp = HandshakeResponse {
+            msg_type: "handshake".to_string(),
+            status: "error".to_string(),
+            message: "Challenge mismatch".to_string(),
+        };
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Err("Handshake failed: Challenge mismatch".into());
+    }
+
+    // 6. 字段校验：提取签名和公钥
+    let signature = match handshake_obj.get("signature").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
         None => {
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
@@ -75,8 +122,8 @@ pub async fn handle_connection(
         }
     };
 
-    let public_key = match user_info.get("publicKey").and_then(|v| v.as_str()) {
-        Some(s) => s,
+    let public_key = match handshake_obj.get("publicKey").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
         None => {
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
@@ -88,17 +135,13 @@ pub async fn handle_connection(
         }
     };
 
-    // 5. 签名比对：重构被签名的数据字符串
-    // 重要：JS 端签名时移除了 signature 字段并对键进行了排序
-    // 这里我们从解析后的 JSON 中移除 signature，serde_json 的 Object 默认也是按键排序的
-    let mut data_obj = user_info.as_object().ok_or("Invalid user info object")?.clone();
-    data_obj.remove("signature");
-    let signed_message = serde_json::to_string(&data_obj)?;
+    // 7. 签名比对：重构被签名的数据字符串
+    // 客户端签名时会包含除 signature 外的所有字段，并按键排序
+    handshake_obj.remove("signature");
+    let signed_message = serde_json::to_string(&handshake_obj)?;
 
-    println!("Handshake: Verifying signature for user at {}", addr);
-
-    // 6. 调用加密模块验证签名
-    match verify_signature(public_key, &signed_message, signature) {
+    // 8. 调用加密模块验证签名
+    match verify_signature(&public_key, &signed_message, &signature) {
         Ok(_) => {
             // 验证成功：通知客户端可以开始正常通信
             println!("Handshake: User {} authenticated successfully", addr);

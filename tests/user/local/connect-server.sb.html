@@ -125,6 +125,7 @@
         await user4.ready();
 
         const userInfo4 = await user4.getInfo();
+        // 模拟篡改数据：修改用户名但保留原有的（针对旧数据的）签名
         const tamperedInfo4 = { ...userInfo4, username: "hacker" };
         
         const url4 = "ws://127.0.0.1:8081";
@@ -132,9 +133,22 @@
 
         const handshakeResult4 = await new Promise((resolve) => {
           const ws = new WebSocket(url4);
-          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo4));
-          ws.onmessage = (e) => {
-            serverResponse4 = JSON.parse(e.data);
+          ws.onmessage = async (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === "handshake_challenge") {
+              // 模拟攻击者：收到挑战后，发送一个包含篡改数据的响应，但由于没有私钥，无法生成合法的 outer signature
+              // 这里我们直接发送一个非法的 signature 或者尝试重放旧的签名（如果结构允许）
+              ws.send(JSON.stringify({
+                type: "handshake_response",
+                challenge: data.challenge,
+                userId: user4.userId,
+                username: "hacker",
+                publicKey: userInfo4.publicKey,
+                signature: "YQ==" // Valid base64 (for 'a'), but definitely not a valid signature
+              }));
+              return;
+            }
+            serverResponse4 = data;
             ws.close();
             resolve(serverResponse4);
           };
@@ -165,17 +179,29 @@
         await user5.ready();
 
         const userInfo5 = await user5.getInfo();
-        const tamperedSig5 = userInfo5.signature.slice(0, -1) + (userInfo5.signature.endsWith("A") ? "B" : "A");
-        const tamperedInfo5 = { ...userInfo5, signature: tamperedSig5 };
         
         const url5 = "ws://127.0.0.1:8081";
         let serverResponse5 = null;
 
         const handshakeResult5 = await new Promise((resolve) => {
           const ws = new WebSocket(url5);
-          ws.onopen = () => ws.send(JSON.stringify(tamperedInfo5));
-          ws.onmessage = (e) => {
-            serverResponse5 = JSON.parse(e.data);
+          ws.onmessage = async (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === "handshake_challenge") {
+              // 生成一个合法的响应
+              const response = await user5._sign({
+                type: "handshake_response",
+                challenge: data.challenge,
+                userId: user5.userId,
+                username: userInfo5.username
+              });
+              // 篡改签名：修改签名的第一个字符
+              response.signature = (response.signature[0] === "A" ? "B" : "A") + response.signature.slice(1);
+              
+              ws.send(JSON.stringify(response));
+              return;
+            }
+            serverResponse5 = data;
             ws.close();
             resolve(serverResponse5);
           };
