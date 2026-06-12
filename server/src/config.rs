@@ -25,6 +25,10 @@ pub struct Config {
     /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 "127.0.0.1"
     #[serde(default = "default_host")]
     pub host: String,
+    /// 管理员用户的 userId，连接服务器后拥有管理权限
+    /// 如果配置文件中未指定，则没有管理员
+    #[serde(default)]
+    pub admin_user_id: Option<String>,
 }
 
 /// 获取默认端口号的辅助函数
@@ -43,6 +47,7 @@ impl Default for Config {
         Self {
             port: default_port(),
             host: default_host(),
+            admin_user_id: None,
         }
     }
 }

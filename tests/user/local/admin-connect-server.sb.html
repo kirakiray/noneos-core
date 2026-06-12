@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Connect Server Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Admin Connect Server Tests</h1>
+
+    <sb-test name="Import Admin User from admin.json">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser, deleteUser } from "/nos/user/main.js";
+
+          const adminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const adminImportNs = "admin-test-ns";
+
+          // 前置清理
+          try {
+            await deleteUser(adminImportNs, { skipConfirm: true });
+          } catch (e) { /* 不存在则忽略 */ }
+
+          // 直接写入数据库
+          await saveUserKeys(adminImportNs, adminData.keys);
+          await saveUserInfo(adminImportNs, adminData.info);
+
+          // 获取用户实例
+          const adminImportedUser = await getUser(adminImportNs);
+          const adminImportedInfo = await adminImportedUser.getInfo();
+
+          const isUserIdMatch = adminImportedUser.userId === adminData.info.userId;
+          const isUsernameMatch = adminImportedInfo.username === adminData.info.username;
+
+          return {
+            assert: isUserIdMatch && isUsernameMatch,
+            content: {
+              message: isUserIdMatch && isUsernameMatch ? "Admin user imported successfully" : "Import failed",
+              importedUserId: adminImportedUser.userId,
+              expectedUserId: adminData.info.userId,
+              importedUsername: adminImportedInfo.username,
+              expectedUsername: adminData.info.username,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin Connect Identity Verification">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser } from "/nos/user/main.js";
+
+          const adminData2 = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const adminConNs = "admin-connect-ns";
+
+          try {
+            const { deleteUser } = await import("/nos/user/main.js");
+            await deleteUser(adminConNs, { skipConfirm: true });
+          } catch (e) { /* ignore */ }
+
+          await saveUserKeys(adminConNs, adminData2.keys);
+          await saveUserInfo(adminConNs, adminData2.info);
+          const adminConUser = await getUser(adminConNs);
+
+          const adminConUrl = "ws://127.0.0.1:8081";
+          let handshakeAdminResult = null;
+
+          const adminConPromise = new Promise((resolve) => {
+            const ws = new WebSocket(adminConUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const adminConInfo = await adminConUser.getInfo();
+                const response = await adminConUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: adminConUser.userId,
+                  username: adminConInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                handshakeAdminResult = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!handshakeAdminResult) {
+                safeResolve({ status: "error", message: "Connection closed without handshake" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await adminConPromise;
+
+          const isAdminAuth = handshakeAdminResult.status === "success" && handshakeAdminResult.is_admin === true;
+
+          return {
+            assert: isAdminAuth,
+            content: {
+              message: isAdminAuth ? "Admin user authenticated with is_admin=true" : "Admin authentication failed",
+              status: handshakeAdminResult.status,
+              is_admin: handshakeAdminResult.is_admin,
+              handshakeMessage: handshakeAdminResult.message,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin List Connected Users">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser } from "/nos/user/main.js";
+
+          const adminData3 = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const adminListNs = "admin-list-ns";
+
+          try {
+            const { deleteUser } = await import("/nos/user/main.js");
+            await deleteUser(adminListNs, { skipConfirm: true });
+          } catch (e) { /* ignore */ }
+
+          await saveUserKeys(adminListNs, adminData3.keys);
+          await saveUserInfo(adminListNs, adminData3.info);
+          const adminListUser = await getUser(adminListNs);
+
+          const adminListUrl = "ws://127.0.0.1:8081";
+          let adminListHandshake = null;
+          let adminListResponse = null;
+
+          const adminListPromise = new Promise((resolve) => {
+            const ws = new WebSocket(adminListUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const adminListInfo = await adminListUser.getInfo();
+                const response = await adminListUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: adminListUser.userId,
+                  username: adminListInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                adminListHandshake = data;
+                if (data.status === "success") {
+                  // 发送 list_users 管理命令
+                  ws.send(JSON.stringify({
+                    type: "admin",
+                    action: "list_users",
+                  }));
+                } else {
+                  ws.close();
+                  safeResolve({ status: "error", message: "Handshake failed" });
+                }
+                return;
+              }
+              if (data.type === "admin_response") {
+                adminListResponse = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!adminListResponse) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await adminListPromise;
+
+          const isListOK = adminListResponse && adminListResponse.status === "ok";
+          const hasUsers = isListOK && Array.isArray(adminListResponse.users) && adminListResponse.users.length > 0;
+          const selfInList = hasUsers && adminListResponse.users.some(
+            u => u.userId === adminListUser.userId
+          );
+
+          return {
+            assert: isListOK && selfInList,
+            content: {
+              message: selfInList ? `Admin listed ${adminListResponse.users.length} user(s), self included` : "list_users failed",
+              status: adminListResponse?.status,
+              userCount: adminListResponse?.users?.length,
+              users: adminListResponse?.users,
+              responseMessage: adminListResponse?.message,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Non-Admin Connect Identity Verification">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const normNs = "norm-connect-ns";
+          const normUser = new LocalUser(normNs);
+
+          await normUser.ready();
+
+          const normUrl = "ws://127.0.0.1:8081";
+          let normHandshake = null;
+
+          const normPromise = new Promise((resolve) => {
+            const ws = new WebSocket(normUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const normInfo = await normUser.getInfo();
+                const response = await normUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: normUser.userId,
+                  username: normInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                normHandshake = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!normHandshake) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await normPromise;
+
+          const isNormAuth = normHandshake.status === "success" && normHandshake.is_admin === false;
+
+          return {
+            assert: isNormAuth,
+            content: {
+              message: isNormAuth ? "Non-admin user authenticated with is_admin=false" : "Non-admin auth unexpected result",
+              status: normHandshake.status,
+              is_admin: normHandshake.is_admin,
+              handshakeMessage: normHandshake.message,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Non-Admin Permission Denied for Admin Commands">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const norm2Ns = "norm-deny-ns";
+          const norm2User = new LocalUser(norm2Ns);
+
+          await norm2User.ready();
+
+          const norm2Url = "ws://127.0.0.1:8081";
+          let norm2AdminResp = null;
+
+          const norm2Promise = new Promise((resolve) => {
+            const ws = new WebSocket(norm2Url);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const norm2Info = await norm2User.getInfo();
+                const response = await norm2User._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: norm2User.userId,
+                  username: norm2Info.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                if (data.status === "success") {
+                  // 尝试发送管理命令
+                  ws.send(JSON.stringify({
+                    type: "admin",
+                    action: "list_users",
+                  }));
+                } else {
+                  ws.close();
+                  safeResolve({ status: "error" });
+                }
+                return;
+              }
+              if (data.type === "admin_response") {
+                norm2AdminResp = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!norm2AdminResp) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await norm2Promise;
+
+          const isDenied = norm2AdminResp?.status === "error"
+            && norm2AdminResp?.message?.includes("Permission denied");
+
+          return {
+            assert: isDenied,
+            content: {
+              message: isDenied ? "Non-admin correctly denied permission" : "Permission check failed",
+              response: norm2AdminResp,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin Disconnect Regular User">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser } from "/nos/user/main.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          // 准备管理员用户
+          const adminData6 = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const adminDiscNs = "admin-disc-ns";
+
+          try {
+            const { deleteUser } = await import("/nos/user/main.js");
+            await deleteUser(adminDiscNs, { skipConfirm: true });
+          } catch (e) { /* ignore */ }
+
+          await saveUserKeys(adminDiscNs, adminData6.keys);
+          await saveUserInfo(adminDiscNs, adminData6.info);
+          const adminDiscUser = await getUser(adminDiscNs);
+
+          // 准备普通用户
+          const victimNs = "victim-disc-ns";
+          const victimUser = new LocalUser(victimNs);
+          await victimUser.ready();
+
+          const discUrl = "ws://127.0.0.1:8081";
+
+          // 先连接普通用户
+          let victimConnected = false;
+          let victimClosed = false;
+
+          const victimPromise = new Promise((resolve) => {
+            const ws = new WebSocket(discUrl);
+            let pendingSend = null;
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const victimInfo = await victimUser.getInfo();
+                const response = await victimUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: victimUser.userId,
+                  username: victimInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake" && data.status === "success") {
+                victimConnected = true;
+                resolve(true);
+              }
+            };
+
+            ws.onclose = () => {
+              victimClosed = true;
+            };
+
+            ws.onerror = () => {};
+
+            setTimeout(() => {
+              ws.close();
+              if (!victimConnected) resolve(false);
+            }, 5000);
+          });
+
+          await victimPromise;
+
+          // 管理员连接并断开普通用户
+          let adminDiscResult = null;
+
+          const adminDiscPromise = new Promise((resolve) => {
+            const ws = new WebSocket(discUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const adminDiscInfo = await adminDiscUser.getInfo();
+                const response = await adminDiscUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: adminDiscUser.userId,
+                  username: adminDiscInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake" && data.status === "success") {
+                // 断开 victim 用户
+                ws.send(JSON.stringify({
+                  type: "admin",
+                  action: "disconnect_user",
+                  user_id: victimUser.userId,
+                }));
+                return;
+              }
+              if (data.type === "admin_response") {
+                adminDiscResult = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!adminDiscResult) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await adminDiscPromise;
+
+          // 等待 victim 收到 close
+          await new Promise(r => setTimeout(r, 500));
+
+          const isDisconnectOK = adminDiscResult?.status === "ok"
+            && adminDiscResult?.action === "disconnect_user";
+          const isVictimDisconnected = victimConnected && victimClosed;
+
+          return {
+            assert: isDisconnectOK && isVictimDisconnected,
+            content: {
+              message: isDisconnectOK && isVictimDisconnected
+                ? `Admin disconnected victim user (victim closed: ${victimClosed})`
+                : "Disconnect test failed",
+              disconnectResult: adminDiscResult,
+              victimConnected: victimConnected,
+              victimClosed: victimClosed,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
