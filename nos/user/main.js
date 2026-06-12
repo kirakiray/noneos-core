@@ -154,20 +154,26 @@ export const deleteUser = async (namespace, options = {}) => {
   // 删除数据库
   return new Promise((resolve, reject) => {
     const dbName = `nos_user_${namespace}`;
-    const request = indexedDB.deleteDatabase(dbName);
 
-    request.onsuccess = () => {
-      // 从内存缓存中移除
-      users.delete(namespace);
-      resolve(true);
+    // Safari 需要延迟确保事务完全结束
+    const doDelete = () => {
+      const request = indexedDB.deleteDatabase(dbName);
+
+      request.onsuccess = () => {
+        // 从内存缓存中移除
+        users.delete(namespace);
+        resolve(true);
+      };
+
+      request.onerror = () => {
+        reject(new Error(`Failed to delete database for user "${namespace}"`));
+      };
+
+      request.onblocked = () => {
+        reject(new Error(`Database deletion blocked for user "${namespace}". Please close all connections and try again.`));
+      };
     };
 
-    request.onerror = () => {
-      reject(new Error(`Failed to delete database for user "${namespace}"`));
-    };
-
-    request.onblocked = () => {
-      reject(new Error(`Database deletion blocked for user "${namespace}". Please close all connections and try again.`));
-    };
+    setTimeout(doDelete, 100);
   });
 };
