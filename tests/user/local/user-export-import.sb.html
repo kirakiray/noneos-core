@@ -292,6 +292,57 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Decrypt Exported Data Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, deleteUser } from "/nos/user/main.js";
+        import { decryptWithPassword } from "/nos/crypto/crypto-aes.js";
+
+        const decryptNs = "decrypt_test_user_1";
+        const decryptPassword = "decrypt_password_789";
+
+        // 前置清理
+        try {
+          await deleteUser(decryptNs, { skipConfirm: true });
+        } catch (e) {
+          // 用户不存在时忽略错误
+        }
+
+        // 创建用户并设置信息
+        const decryptUser = await getUser(decryptNs);
+        const decryptUserId = decryptUser.userId;
+        await decryptUser.updateInfo({
+          username: "解密测试用户",
+          bio: "用于测试导出数据解密",
+        });
+
+        // 导出用户
+        const encryptedData = await exportUser(decryptNs, decryptPassword);
+
+        // 解密导出数据
+        const decryptedJson = await decryptWithPassword(decryptPassword, encryptedData);
+        const decryptedObj = JSON.parse(decryptedJson);
+
+        // 验证解密后的数据字段
+        const hasNamespace = decryptedObj.namespace === decryptNs;
+        const hasKeys = !!(decryptedObj.keys && decryptedObj.keys.publicKey && decryptedObj.keys.privateKey);
+        const hasInfo = !!(decryptedObj.info && decryptedObj.info.username === "解密测试用户");
+        const hasExportTime = typeof decryptedObj.exportTime === "number";
+
+        // 清理测试数据
+        await deleteUser(decryptNs, { skipConfirm: true });
+
+        return {
+          assert: hasNamespace && hasKeys && hasInfo && hasExportTime,
+          content: {
+            message: "导出数据解密成功，以下是解密后的明文内容",
+            decryptedData: decryptedObj,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
