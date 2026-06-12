@@ -117,15 +117,19 @@
     const dbListDiv = document.getElementById('dbList');
     const dbItemsDiv = document.getElementById('dbItems');
 
+    let pendingDatabases = []; // 存储待删除的数据库列表
+
     function showStatus(message, type) {
       statusDiv.textContent = message;
       statusDiv.className = `status ${type}`;
     }
 
-    function showDbList(databases) {
+    function showDbList(databases, isPending = false) {
       if (databases.length === 0) {
         dbItemsDiv.innerHTML = '<p>没有找到以 nos_user 开头的数据库</p>';
       } else {
+        const headerText = isPending ? '待删除的数据库：' : '已删除的数据库：';
+        dbListDiv.querySelector('h3').textContent = headerText;
         dbItemsDiv.innerHTML = databases.map(db => 
           `<div class="db-item">${db}</div>`
         ).join('');
@@ -164,19 +168,44 @@
     }
 
     deleteBtn.addEventListener('click', async () => {
-      // 弹窗确认
-      const confirmed = confirm(
-        '⚠️ 警告：此操作不可逆！\n\n' +
-        '即将清除本地的所有用户数据（包括用户密钥和证书）。\n\n' +
-        '请确认是否继续？'
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
       try {
-        // 获取所有以 nos_user 开头的数据库
+        // 如果已经有待删除的数据库列表，执行删除
+        if (pendingDatabases.length > 0) {
+          const confirmed = confirm(
+            '⚠️ 警告：此操作不可逆！\n\n' +
+            '即将清除本地的所有用户数据（包括用户密钥和证书）。\n\n' +
+            '请确认是否继续？'
+          );
+
+          if (!confirmed) {
+            return;
+          }
+
+          // 删除所有数据库
+          showStatus(`正在删除 ${pendingDatabases.length} 个用户数据库...`, 'info');
+          
+          const deletePromises = pendingDatabases.map(dbName => deleteDatabase(dbName));
+          await Promise.all(deletePromises);
+
+          // 显示成功消息和已删除的数据库列表
+          showStatus(`成功删除 ${pendingDatabases.length} 个用户数据库`, 'success');
+          showDbList(pendingDatabases, false);
+          
+          // 清空待删除列表
+          pendingDatabases = [];
+          deleteBtn.textContent = '清除所有带nos user';
+          return;
+        }
+
+      } catch (error) {
+        console.error('删除数据库时出错:', error);
+        showStatus(`错误：${error.message}`, 'error');
+      }
+    });
+
+    // 页面加载时自动扫描并展示数据库列表
+    async function init() {
+      try {
         showStatus('正在扫描数据库...', 'info');
         
         const databases = await getAllDatabases();
@@ -187,22 +216,21 @@
           return;
         }
 
-        // 显示即将删除的数据库列表
-        showStatus(`找到 ${databases.length} 个用户数据库，正在删除...`, 'info');
-
-        // 删除所有数据库
-        const deletePromises = databases.map(dbName => deleteDatabase(dbName));
-        await Promise.all(deletePromises);
-
-        // 显示成功消息和已删除的数据库列表
-        showStatus(`成功删除 ${databases.length} 个用户数据库`, 'success');
-        showDbList(databases);
+        // 显示找到的数据库列表
+        showStatus(`找到 ${databases.length} 个用户数据库，请确认删除`, 'info');
+        showDbList(databases, true);
+        
+        // 保存待删除列表并更新按钮文本
+        pendingDatabases = databases;
+        deleteBtn.textContent = '确认删除';
 
       } catch (error) {
-        console.error('删除数据库时出错:', error);
+        console.error('扫描数据库时出错:', error);
         showStatus(`错误：${error.message}`, 'error');
       }
-    });
+    }
+
+    init();
   </script>
 </body>
 
