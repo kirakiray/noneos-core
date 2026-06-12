@@ -216,7 +216,7 @@
           </div>
           <button
             class="kick-btn"
-            on:click="kickUser($data.userId)"
+            on:click="$host.kickUser($data.userId)"
             :disabled="$data.isSelf"
           >
             {{$data.isSelf ? '自己' : '断开'}}
