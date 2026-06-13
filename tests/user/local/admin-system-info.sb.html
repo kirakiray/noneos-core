@@ -57,7 +57,8 @@
       <template>
         <script type="module">
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
-          import { getUser, deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { deleteUser } from "/nos/user/main.js";
 
           const sysData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const sysImportNs = "sysinfo-import-ns";
@@ -71,8 +72,9 @@
           await saveUserKeys(sysImportNs, sysData.keys);
           await saveUserInfo(sysImportNs, sysData.info);
 
-          // 获取用户实例
-          const sysImportedUser = await getUser(sysImportNs);
+          // 创建 AdminUser 实例
+          const sysImportedUser = new AdminUser(sysImportNs);
+          await sysImportedUser.ready();
           const sysImportedInfo = await sysImportedUser.getInfo();
 
           const sysIsUserIdMatch = sysImportedUser.userId === sysData.info.userId;
@@ -96,104 +98,25 @@
       <template>
         <script type="module">
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
-          import { getUser } from "/nos/user/main.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
 
           const sysInfoData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const sysInfoNs = "sysinfo-get-ns";
 
           try {
-            const { deleteUser } = await import("/nos/user/main.js");
             await deleteUser(sysInfoNs, { skipConfirm: true });
           } catch (e) { /* ignore */ }
 
           await saveUserKeys(sysInfoNs, sysInfoData.keys);
           await saveUserInfo(sysInfoNs, sysInfoData.info);
-          const sysInfoUser = await getUser(sysInfoNs);
+
+          const sysInfoUser = new AdminUser(sysInfoNs);
+          await sysInfoUser.ready();
 
           const sysInfoUrl = "ws://127.0.0.1:8081";
-          let sysInfoHandshake = null;
-          let sysInfoResponse = null;
 
-          const sysInfoPromise = new Promise((resolve) => {
-            const ws = new WebSocket(sysInfoUrl);
-            let pendingSend = null;
-            let hasResolved = false;
-
-            const safeResolve = (value) => {
-              if (!hasResolved) {
-                hasResolved = true;
-                resolve(value);
-              }
-            };
-
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const sysInfo = await sysInfoUser.getInfo();
-                const response = await sysInfoUser._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: sysInfoUser.userId,
-                  sessionId: sysInfoUser.sessionId,
-                  username: sysInfo.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake") {
-                sysInfoHandshake = data;
-                if (data.status === "success") {
-                  // 发送 get_system_info 管理命令
-                  ws.send(JSON.stringify({
-                    type: "admin",
-                    action: "get_system_info",
-                  }));
-                } else {
-                  ws.close();
-                  safeResolve({ status: "error", message: "Handshake failed" });
-                }
-                return;
-              }
-              if (data.type === "admin_response") {
-                sysInfoResponse = data;
-                ws.close();
-                safeResolve(data);
-              }
-            };
-
-            ws.onclose = () => {
-              if (!sysInfoResponse) {
-                safeResolve({ status: "error", message: "Connection closed" });
-              }
-            };
-
-            ws.onerror = () => {
-              setTimeout(() => {
-                if (!hasResolved) {
-                  safeResolve({ status: "error", message: "WebSocket error" });
-                }
-              }, 300);
-            };
-
-            setTimeout(() => {
-              ws.close();
-              safeResolve({ status: "error", message: "timeout" });
-            }, 5000);
-          });
-
-          await sysInfoPromise;
+          const sysInfoResponse = await sysInfoUser.getSystemInfo(sysInfoUrl);
 
           const sysIsOk = sysInfoResponse && sysInfoResponse.status === "ok";
           const hasSystemInfo = sysIsOk && sysInfoResponse.system_info != null;
