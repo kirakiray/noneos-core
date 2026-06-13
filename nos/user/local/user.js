@@ -257,4 +257,78 @@ export class LocalUser extends BaseUser {
     }
     ws.send(data);
   }
+
+  /**
+   * 发送 JSON 命令到服务器并等待匹配的响应
+   * @param {string} url - 服务器地址
+   * @param {Object} request - 请求对象
+   * @param {string} responseType - 期望的响应 type
+   * @param {string} [responseAction] - 可选的响应 action 匹配
+   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @returns {Promise<Object>} 响应对象
+   */
+  async #sendJsonCommand(url, request, responseType, responseAction, timeout = 5000) {
+    await this.connectServer(url);
+
+    return new Promise((resolve, reject) => {
+      const handler = (e) => {
+        let data;
+        try {
+          data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
+        } catch {
+          return;
+        }
+        if (data?.type === responseType) {
+          if (responseAction === undefined || data.action === responseAction) {
+            this.removeEventListener("message", handler);
+            resolve(data);
+          }
+        }
+      };
+
+      this.addEventListener("message", handler);
+      this.sendToServer(url, JSON.stringify(request));
+
+      setTimeout(() => {
+        this.removeEventListener("message", handler);
+        reject(new Error(`Command timed out (type: ${responseType})`));
+      }, timeout);
+    });
+  }
+
+  /**
+   * 查询指定 userId 是否在线，以及其当前 sessionId 列表
+   * @param {string} url - 服务器地址
+   * @param {string} targetUserId - 要查询的用户 ID
+   * @returns {Promise<{online: boolean, sessions: string[]}>}
+   */
+  async queryUserOnline(url, targetUserId) {
+    const result = await this.#sendJsonCommand(
+      url,
+      { type: "query", action: "user_online", user_id: targetUserId },
+      "query_response",
+      "user_online",
+    );
+    if (result.status === "ok") {
+      return { online: result.online, sessions: result.sessions };
+    }
+    throw new Error(result.message || "Query failed");
+  }
+
+  /**
+   * 通过服务器转发数据到指定 userId 的指定 sessionId
+   * @param {string} url - 服务器地址
+   * @param {string} targetUserId - 目标用户 ID
+   * @param {string} targetSessionId - 目标会话 ID
+   * @param {*} data - 要发送的数据（任何 JSON 可序列化的值）
+   * @returns {Promise<Object>} 发送结果
+   */
+  async sendToUser(url, targetUserId, targetSessionId, data) {
+    return this.#sendJsonCommand(
+      url,
+      { type: "relay", action: "send_data", target_user_id: targetUserId, target_session_id: targetSessionId, data },
+      "relay_response",
+      "send_data",
+    );
+  }
 }

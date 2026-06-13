@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, mpsc, Mutex};
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,7 @@ struct UserSession {
     username: String,
     addr: SocketAddr,
     disconnect_tx: Option<oneshot::Sender<()>>,
+    data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -35,7 +36,7 @@ impl AppState {
     }
 
     /// 添加用户连接，如果相同的 conn_key 已存在，踢掉旧连接再替换
-    fn add_user(&mut self, conn_key: &str, username: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>) {
+    fn add_user(&mut self, conn_key: &str, username: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) {
         // 如果相同 key 已存在，先踢掉旧连接
         if let Some(mut old_session) = self.users.remove(conn_key) {
             if let Some(tx) = old_session.disconnect_tx.take() {
@@ -46,6 +47,7 @@ impl AppState {
             username: username.to_string(),
             addr,
             disconnect_tx: Some(disconnect_tx),
+            data_tx,
         });
     }
 
@@ -100,6 +102,24 @@ impl AppState {
                 "addr": session.addr.to_string(),
             })
         }).collect()
+    }
+
+    /// 查询指定 userId 是否在线，返回所有 sessionId
+    fn get_user_sessions(&self, user_id: &str) -> Vec<String> {
+        let prefix = format!("{}:", user_id);
+        self.users.keys()
+            .filter(|k| k.starts_with(&prefix))
+            .filter_map(|k| {
+                let parts: Vec<&str> = k.splitn(2, ':').collect();
+                if parts.len() == 2 { Some(parts[1].to_string()) } else { None }
+            })
+            .collect()
+    }
+
+    /// 获取指定 session 的 data_tx 通道
+    fn get_session_data_tx(&self, user_id: &str, session_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        self.users.get(&conn_key).map(|s| s.data_tx.clone())
     }
 }
 
@@ -350,11 +370,12 @@ pub async fn handle_connection(
                 st.admin_user_id.as_deref() == Some(&user_id)
             };
 
-            // 创建 disconnect 通道并注册用户（以 userId:sessionId 为 key）
+            // 创建 disconnect 通道和 data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
+            let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
             {
                 let mut st = state.lock().await;
-                st.add_user(&conn_key, &username, addr, disconnect_tx);
+                st.add_user(&conn_key, &username, addr, disconnect_tx, data_tx);
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
@@ -377,6 +398,10 @@ pub async fn handle_connection(
                         let _ = ws_sender.send(Message::Close(None)).await;
                         break;
                     }
+                    // 接收转发消息（其他用户通过 relay 发送过来的数据）
+                    Some(forward_msg) = data_rx.recv() => {
+                        ws_sender.send(forward_msg).await?;
+                    }
                     // 接收客户端消息
                     msg = ws_receiver.next() => {
                         match msg {
@@ -385,162 +410,276 @@ pub async fn handle_connection(
                                     Message::Text(text) => {
                                         println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, text);
 
-                                        // 尝试解析为 JSON 管理命令
-                                        if let Ok(cmd) = serde_json::from_str::<AdminCommand>(&text) {
-                                            if cmd.msg_type == "admin" {
-                                                if !is_admin {
-                                                    let resp = AdminResponse {
-                                                        msg_type: "admin_response".to_string(),
-                                                        action: cmd.action,
-                                                        status: "error".to_string(),
-                                                        message: Some("Permission denied: not an admin".to_string()),
-                                                        users: None,
-                                                        system_info: None,
-                                                    };
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                        // 尝试解析为 JSON 命令
+                                        if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
+                                            let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+                                            // 处理管理命令
+                                            if msg_type == "admin" {
+                                                if let Ok(admin_cmd) = serde_json::from_str::<AdminCommand>(&text) {
+                                                    if !is_admin {
+                                                        let resp = AdminResponse {
+                                                            msg_type: "admin_response".to_string(),
+                                                            action: admin_cmd.action,
+                                                            status: "error".to_string(),
+                                                            message: Some("Permission denied: not an admin".to_string()),
+                                                            users: None,
+                                                            system_info: None,
+                                                        };
+                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        continue;
+                                                    }
+
+                                                    match admin_cmd.action.as_str() {
+                                                        "list_users" => {
+                                                            let users = {
+                                                                let st = state.lock().await;
+                                                                st.get_all_users()
+                                                            };
+                                                            let count = users.len();
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "list_users".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some(format!("{} user(s) connected", count)),
+                                                                users: Some(users),
+                                                                system_info: None,
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        "disconnect_user" => {
+                                                            let target_id = admin_cmd.user_id.clone().unwrap_or_default();
+                                                            if target_id == user_id {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "disconnect_user".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Cannot disconnect yourself".to_string()),
+                                                                    users: None,
+                                                                    system_info: None,
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let count = {
+                                                                    let mut st = state.lock().await;
+                                                                    st.disconnect_user_by_id(&target_id)
+                                                                };
+                                                                if count > 0 {
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "disconnect_user".to_string(),
+                                                                        status: "ok".to_string(),
+                                                                        message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
+                                                                        users: None,
+                                                                        system_info: None,
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                    println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
+                                                                } else {
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "disconnect_user".to_string(),
+                                                                        status: "error".to_string(),
+                                                                        message: Some(format!("User {} not found", target_id)),
+                                                                        users: None,
+                                                                        system_info: None,
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                }
+                                                            }
+                                                        }
+                                                        "disconnect_session" => {
+                                                            let target_user = admin_cmd.user_id.clone().unwrap_or_default();
+                                                            let target_session = admin_cmd.session_id.clone().unwrap_or_default();
+                                                            if target_session.is_empty() {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "disconnect_session".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Missing session_id".to_string()),
+                                                                    users: None,
+                                                                    system_info: None,
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else if target_user == user_id && target_session == session_id {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "disconnect_session".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Cannot disconnect yourself".to_string()),
+                                                                    users: None,
+                                                                    system_info: None,
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let found = {
+                                                                    let mut st = state.lock().await;
+                                                                    st.disconnect_session(&target_user, &target_session)
+                                                                };
+                                                                if found {
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "disconnect_session".to_string(),
+                                                                        status: "ok".to_string(),
+                                                                        message: Some(format!("Session {} disconnected for user {}", target_session, target_user)),
+                                                                        users: None,
+                                                                        system_info: None,
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                    println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
+                                                                } else {
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "disconnect_session".to_string(),
+                                                                        status: "error".to_string(),
+                                                                        message: Some(format!("Session {} not found for user {}", target_session, target_user)),
+                                                                        users: None,
+                                                                        system_info: None,
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                }
+                                                            }
+                                                        }
+                                                        "get_system_info" => {
+                                                            let info = collect_system_info();
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "get_system_info".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some("System info collected".to_string()),
+                                                                users: None,
+                                                                system_info: Some(info),
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        _ => {
+                                                            let action_name = admin_cmd.action.clone();
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: admin_cmd.action,
+                                                                status: "error".to_string(),
+                                                                message: Some(format!("Unknown admin action: {}", action_name)),
+                                                                users: None,
+                                                                system_info: None,
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                    }
                                                     continue;
                                                 }
+                                            }
 
-                                                match cmd.action.as_str() {
-                                                    "list_users" => {
-                                                        let users = {
+                                            // 处理查询命令：查询用户是否在线
+                                            if msg_type == "query" {
+                                                let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                                                if action == "user_online" {
+                                                    let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+                                                    if target_user_id.is_empty() {
+                                                        let resp = serde_json::json!({
+                                                            "type": "query_response",
+                                                            "action": "user_online",
+                                                            "status": "error",
+                                                            "message": "Missing user_id"
+                                                        });
+                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    } else {
+                                                        let sessions = {
                                                             let st = state.lock().await;
-                                                            st.get_all_users()
+                                                            st.get_user_sessions(target_user_id)
                                                         };
-                                                        let count = users.len();
-                                                        let resp = AdminResponse {
-                                                            msg_type: "admin_response".to_string(),
-                                                            action: "list_users".to_string(),
-                                                            status: "ok".to_string(),
-                                                            message: Some(format!("{} user(s) connected", count)),
-                                                            users: Some(users),
-                                                            system_info: None,
-                                                        };
+                                                        let online = !sessions.is_empty();
+                                                        let resp = serde_json::json!({
+                                                            "type": "query_response",
+                                                            "action": "user_online",
+                                                            "status": "ok",
+                                                            "online": online,
+                                                            "sessions": sessions
+                                                        });
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     }
-                                                    "disconnect_user" => {
-                                                        let target_id = cmd.user_id.clone().unwrap_or_default();
-                                                        if target_id == user_id {
-                                                            let resp = AdminResponse {
-                                                                msg_type: "admin_response".to_string(),
-                                                                action: "disconnect_user".to_string(),
-                                                                status: "error".to_string(),
-                                                                message: Some("Cannot disconnect yourself".to_string()),
-                                                                users: None,
-                                                                system_info: None,
-                                                            };
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                        } else {
-                                                            let count = {
-                                                                let mut st = state.lock().await;
-                                                                st.disconnect_user_by_id(&target_id)
-                                                            };
-                                                            if count > 0 {
-                                                                let resp = AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: "disconnect_user".to_string(),
-                                                                    status: "ok".to_string(),
-                                                                    message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
-                                                                    users: None,
-                                                                    system_info: None,
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                                println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
-                                                            } else {
-                                                                let resp = AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: "disconnect_user".to_string(),
-                                                                    status: "error".to_string(),
-                                                                    message: Some(format!("User {} not found", target_id)),
-                                                                    users: None,
-                                                                    system_info: None,
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            }
-                                                        }
-                                                    }
-                                                    "disconnect_session" => {
-                                                        let target_user = cmd.user_id.clone().unwrap_or_default();
-                                                        let target_session = cmd.session_id.clone().unwrap_or_default();
-                                                        if target_session.is_empty() {
-                                                            let resp = AdminResponse {
-                                                                msg_type: "admin_response".to_string(),
-                                                                action: "disconnect_session".to_string(),
-                                                                status: "error".to_string(),
-                                                                message: Some("Missing session_id".to_string()),
-                                                                users: None,
-                                                                system_info: None,
-                                                            };
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                        } else if target_user == user_id && target_session == session_id {
-                                                            let resp = AdminResponse {
-                                                                msg_type: "admin_response".to_string(),
-                                                                action: "disconnect_session".to_string(),
-                                                                status: "error".to_string(),
-                                                                message: Some("Cannot disconnect yourself".to_string()),
-                                                                users: None,
-                                                                system_info: None,
-                                                            };
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                        } else {
-                                                            let found = {
-                                                                let mut st = state.lock().await;
-                                                                st.disconnect_session(&target_user, &target_session)
-                                                            };
-                                                            if found {
-                                                                let resp = AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: "disconnect_session".to_string(),
-                                                                    status: "ok".to_string(),
-                                                                    message: Some(format!("Session {} disconnected for user {}", target_session, target_user)),
-                                                                    users: None,
-                                                                    system_info: None,
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                                println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
-                                                            } else {
-                                                                let resp = AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: "disconnect_session".to_string(),
-                                                                    status: "error".to_string(),
-                                                                    message: Some(format!("Session {} not found for user {}", target_session, target_user)),
-                                                                    users: None,
-                                                                    system_info: None,
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            }
-                                                        }
-                                                    }
-                                                    "get_system_info" => {
-                                                        let info = collect_system_info();
-                                                        let resp = AdminResponse {
-                                                            msg_type: "admin_response".to_string(),
-                                                            action: "get_system_info".to_string(),
-                                                            status: "ok".to_string(),
-                                                            message: Some("System info collected".to_string()),
-                                                            users: None,
-                                                            system_info: Some(info),
-                                                        };
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    }
-                                                    _ => {
-                                                        let action_name = cmd.action.clone();
-                                                        let resp = AdminResponse {
-                                                            msg_type: "admin_response".to_string(),
-                                                            action: cmd.action,
-                                                            status: "error".to_string(),
-                                                            message: Some(format!("Unknown admin action: {}", action_name)),
-                                                            users: None,
-                                                            system_info: None,
-                                                        };
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    }
+                                                    continue;
                                                 }
+                                                // 未知 query action
+                                                let resp = serde_json::json!({
+                                                    "type": "query_response",
+                                                    "action": action,
+                                                    "status": "error",
+                                                    "message": format!("Unknown query action: {}", action)
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                continue;
+                                            }
+
+                                            // 处理 relay 命令：转发数据到指定用户 session
+                                            if msg_type == "relay" {
+                                                let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                                                if action == "send_data" {
+                                                    let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+                                                    let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+                                                    let relay_data = cmd.get("data");
+
+                                                    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
+                                                        let resp = serde_json::json!({
+                                                            "type": "relay_response",
+                                                            "action": "send_data",
+                                                            "status": "error",
+                                                            "message": "Missing target_user_id, target_session_id, or data"
+                                                        });
+                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    } else {
+                                                        // 构造要转发给目标的消息
+                                                        let forward_msg = serde_json::json!({
+                                                            "type": "relay",
+                                                            "from_user_id": user_id,
+                                                            "from_session_id": session_id,
+                                                            "data": relay_data
+                                                        });
+                                                        let forward_text = serde_json::to_string(&forward_msg)?;
+
+                                                        // 获取目标的 data_tx 并发送
+                                                        let delivered = {
+                                                            let st = state.lock().await;
+                                                            if let Some(tx) = st.get_session_data_tx(target_user, target_session) {
+                                                                tx.send(Message::Text(forward_text)).is_ok()
+                                                            } else {
+                                                                false
+                                                            }
+                                                        };
+
+                                                        if delivered {
+                                                            let resp = serde_json::json!({
+                                                                "type": "relay_response",
+                                                                "action": "send_data",
+                                                                "status": "ok",
+                                                                "message": "Data delivered to target"
+                                                            });
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+                                                        } else {
+                                                            let resp = serde_json::json!({
+                                                                "type": "relay_response",
+                                                                "action": "send_data",
+                                                                "status": "error",
+                                                                "message": "Target session not found or offline"
+                                                            });
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                    }
+                                                    continue;
+                                                }
+                                                // 未知 relay action
+                                                let resp = serde_json::json!({
+                                                    "type": "relay_response",
+                                                    "action": action,
+                                                    "status": "error",
+                                                    "message": format!("Unknown relay action: {}", action)
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                 continue;
                                             }
                                         }
 
-                                        // 非管理命令：回显
+                                        // 非管理/查询/relay 命令：回显
                                         let response = format!("Server received: {}", text);
                                         ws_sender.send(Message::Text(response)).await?;
                                     }
