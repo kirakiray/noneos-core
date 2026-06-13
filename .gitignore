@@ -158,3 +158,4 @@ Cargo.lock
 *.pdb
 
 _prompt.md
+.webkit-test-data
