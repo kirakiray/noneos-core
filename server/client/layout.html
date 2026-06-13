@@ -23,15 +23,19 @@
   ></l-m>
 
   <p-nav-bar style="padding: 16px">
-    <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
-      <span slot="icon">⚙️</span>
-      <span>管理员控制台</span>
-    </p-nav-item>
-    <p-nav-item attr:active="activeChat" on:click="navigateToChat">
-      <span slot="icon">💬</span>
-      <span>普通WS连接</span>
-    </p-nav-item>
-  </p-nav-bar>
+      <p-nav-item attr:active="activeChat" on:click="navigateToChat">
+        <span slot="icon">💬</span>
+        <span>普通WS连接</span>
+      </p-nav-item>
+      <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
+        <span slot="icon">⚙️</span>
+        <span>管理员控制台</span>
+      </p-nav-item>
+      <p-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
+        <span slot="icon">📊</span>
+        <span>系统信息</span>
+      </p-nav-item>
+    </p-nav-bar>
 
   <main class="content">
     <slot></slot>
@@ -43,6 +47,7 @@
         data: {
           activeChat: true,
           activeAdmin: false,
+          activeSysInfo: false,
         },
         routerChange() {
           this.refreshActive();
@@ -57,12 +62,16 @@
             const path = current.src || "";
             this.activeChat = path.endsWith("page.html");
             this.activeAdmin = path.endsWith("admin.html");
+            this.activeSysInfo = path.endsWith("system-info.html");
           },
           navigateToChat() {
             window.location.hash = "./page.html";
           },
           navigateToAdmin() {
             window.location.hash = "./admin.html";
+          },
+          navigateToSysInfo() {
+            window.location.hash = "./system-info.html";
           },
         },
       };

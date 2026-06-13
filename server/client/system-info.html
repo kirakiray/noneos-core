@@ -1,0 +1,489 @@
+<template page>
+  <l-m
+    src="https://punch-ui-v2.pages.dev/packages/list/list.html"
+  ></l-m>
+
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      color: var(--md-sys-color-on-surface);
+      text-align: center;
+      margin: 0 0 16px 0;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #connectBtn {
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+
+    #refreshBtn {
+      background-color: var(--md-sys-color-tertiary);
+      color: var(--md-sys-color-on-tertiary);
+    }
+
+    .info-section {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .info-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .info-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .info-card h2 .icon {
+      font-size: 20px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-size: 14px;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .info-value {
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+      font-family: monospace;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background-color: var(--md-sys-color-surface-variant);
+      border-radius: 4px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-fill.low {
+      background-color: var(--md-sys-color-success);
+    }
+
+    .progress-fill.medium {
+      background-color: var(--md-sys-color-tertiary);
+    }
+
+    .progress-fill.high {
+      background-color: var(--md-sys-color-error);
+    }
+
+    .disk-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+    }
+
+    .disk-item:last-child {
+      border-bottom: none;
+    }
+
+    .disk-mount {
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface);
+      margin-bottom: 4px;
+    }
+
+    .disk-fs {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-family: monospace;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+  </style>
+
+  <div class="container">
+    <h1>系统信息</h1>
+
+    <div
+      class="status-bar"
+      class:connected="connected"
+      class:disconnected="!connected"
+    >
+      <span>{{connected ? '已连接' : '未连接'}}</span>
+      <span :style.display="connected && lastUpdate ? '' : 'none'">— 上次更新：{{lastUpdate}}</span>
+    </div>
+
+    <div class="controls">
+      <button id="connectBtn" on:click="connect" :disabled="connecting">
+        {{connecting ? '连接中...' : '连接服务器'}}
+      </button>
+      <button id="refreshBtn" on:click="fetchSystemInfo" :disabled="!connected">
+        刷新系统信息
+      </button>
+    </div>
+
+    <o-if :value="connected && systemInfo">
+      <div class="info-section">
+        <!-- 内存 -->
+        <div class="info-card">
+          <h2><span class="icon">🧠</span> 内存</h2>
+          <div class="info-row">
+            <span class="info-label">总计</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.total)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">已使用</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.used)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">可用</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.available)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">使用率</span>
+            <span class="info-value">{{systemInfo.memory.usage_percent}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              :style.width="clampPercent(systemInfo.memory.usage_percent) + '%'"
+              class:low="systemInfo.memory.usage_percent < 60"
+              class:medium="systemInfo.memory.usage_percent >= 60 && systemInfo.memory.usage_percent < 85"
+              class:high="systemInfo.memory.usage_percent >= 85"
+            ></div>
+          </div>
+        </div>
+
+        <!-- CPU -->
+        <div class="info-card">
+          <h2><span class="icon">⚡</span> CPU</h2>
+          <div class="info-row">
+            <span class="info-label">核心数</span>
+            <span class="info-value">{{systemInfo.cpu.core_count}} 核</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">使用率</span>
+            <span class="info-value">{{systemInfo.cpu.usage_percent}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              :style.width="clampPercent(systemInfo.cpu.usage_percent) + '%'"
+              class:low="systemInfo.cpu.usage_percent < 60"
+              class:medium="systemInfo.cpu.usage_percent >= 60 && systemInfo.cpu.usage_percent < 85"
+              class:high="systemInfo.cpu.usage_percent >= 85"
+            ></div>
+          </div>
+        </div>
+
+        <!-- 磁盘 -->
+        <div class="info-card">
+          <h2><span class="icon">💾</span> 磁盘</h2>
+          <o-fill :value="systemInfo.disks">
+            <div class="disk-item">
+              <div class="disk-mount">{{$data.mount_point}}</div>
+              <div class="disk-fs">{{$data.file_system}}</div>
+              <div class="info-row" style="padding: 4px 0; font-size: 13px;">
+                <span class="info-label">总计</span>
+                <span class="info-value">{{$host.formatBytes($data.total_space)}}</span>
+              </div>
+              <div class="info-row" style="padding: 4px 0; font-size: 13px;">
+                <span class="info-label">可用</span>
+                <span class="info-value">{{$host.formatBytes($data.available_space)}}</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style.width="$host.diskUsagePercent($data) + '%'"
+                  class:low="$host.diskUsagePercent($data) < 60"
+                  class:medium="$host.diskUsagePercent($data) >= 60 && $host.diskUsagePercent($data) < 85"
+                  class:high="$host.diskUsagePercent($data) >= 85"
+                ></div>
+              </div>
+            </div>
+          </o-fill>
+        </div>
+      </div>
+    </o-if>
+    <o-else>
+      <div class="empty-state">
+        点击「刷新系统信息」获取数据
+      </div>
+    </o-else>
+  </div>
+
+  <script>
+    export default async ({ query, load }) => {
+      const ADMIN_JSON_URL = "/tests/user/local/admin.json";
+      const WS_URL = "ws://127.0.0.1:8081";
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connecting: false,
+          systemInfo: null,
+          lastUpdate: "",
+          _ws: null,
+          _adminUser: null,
+        },
+
+        proto: {
+          formatBytes(bytes) {
+            if (!bytes || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = (bytes / Math.pow(1024, i)).toFixed(1);
+            return val + " " + units[i];
+          },
+
+          clampPercent(pct) {
+            return Math.min(100, Math.max(0, pct));
+          },
+
+          diskUsagePercent(disk) {
+            if (!disk || !disk.total_space || disk.total_space === 0) return 0;
+            const used = disk.total_space - disk.available_space;
+            return this.clampPercent((used / disk.total_space) * 100);
+          },
+
+          async connect() {
+            if (this.connecting || this.connected) return;
+            this.connecting = true;
+
+            try {
+              const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+              const { getUser, deleteUser } = await load("/nos/user/main.js");
+
+              const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
+                r.json(),
+              );
+              const sysNs = "sys-info-console-ns";
+
+              try {
+                await deleteUser(sysNs, { skipConfirm: true });
+              } catch (e) {
+                /* ignore */
+              }
+              await saveUserKeys(sysNs, adminData.keys);
+              await saveUserInfo(sysNs, adminData.info);
+
+              const adminUser = await getUser(sysNs);
+              this._adminUser = adminUser;
+              const adminInfo = await adminUser.getInfo();
+
+              await this._handshake(adminUser, adminInfo);
+            } catch (e) {
+              console.error("Connect failed:", e);
+              this.connecting = false;
+            }
+          },
+
+          _handshake(adminUser, adminInfo) {
+            return new Promise((resolve, reject) => {
+              const ws = new WebSocket(WS_URL);
+              let isHandshaked = false;
+              let pendingSend = null;
+
+              const handshakeTimeout = setTimeout(() => {
+                if (!isHandshaked) {
+                  ws.close();
+                  this.connecting = false;
+                  reject(new Error("Handshake timeout"));
+                }
+              }, 5000);
+
+              ws.onopen = () => {
+                if (pendingSend !== null) {
+                  ws.send(pendingSend);
+                  pendingSend = null;
+                }
+              };
+
+              ws.onmessage = async (e) => {
+                const data = JSON.parse(e.data);
+
+                if (data.type === "handshake_challenge") {
+                  const response = await adminUser._sign({
+                    type: "handshake_response",
+                    challenge: data.challenge,
+                    userId: adminUser.userId,
+                    sessionId: adminUser.sessionId,
+                    username: adminInfo.username,
+                  });
+                  const payload = JSON.stringify(response);
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(payload);
+                  } else {
+                    pendingSend = payload;
+                  }
+                  return;
+                }
+
+                if (data.type === "handshake") {
+                  clearTimeout(handshakeTimeout);
+
+                  if (data.status === "success" && data.is_admin) {
+                    isHandshaked = true;
+                    this._ws = ws;
+                    this.connected = true;
+                    this.connecting = false;
+
+                    ws.onmessage = (msgEvent) => this._handleMessage(msgEvent);
+                    ws.onclose = () => this._onClose();
+
+                    // 连接成功后自动获取系统信息
+                    this.fetchSystemInfo();
+                    resolve(true);
+                  } else {
+                    this.connecting = false;
+                    ws.close();
+                    reject(new Error(data.message || "Not authorized as admin"));
+                  }
+                  return;
+                }
+              };
+
+              ws.onerror = (err) => {
+                if (!isHandshaked) {
+                  clearTimeout(handshakeTimeout);
+                  this.connecting = false;
+                  reject(err);
+                }
+              };
+
+              ws.onclose = (event) => {
+                if (!isHandshaked) {
+                  clearTimeout(handshakeTimeout);
+                  this.connecting = false;
+                  reject(new Error(event.reason || "Connection closed during handshake"));
+                }
+              };
+            });
+          },
+
+          _sendAdmin(cmd) {
+            if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+            this._ws.send(JSON.stringify({ type: "admin", ...cmd }));
+          },
+
+          _handleMessage(event) {
+            try {
+              const data = JSON.parse(event.data);
+
+              if (data.type === "admin_response" && data.action === "get_system_info") {
+                if (data.status === "ok" && data.system_info) {
+                  this.systemInfo = data.system_info;
+                  this.lastUpdate = new Date().toLocaleTimeString();
+                }
+              }
+            } catch (e) {
+              console.error("Failed to parse message:", e);
+            }
+          },
+
+          _onClose() {
+            this.connected = false;
+            this._ws = null;
+            this.systemInfo = null;
+            this.lastUpdate = "";
+          },
+
+          fetchSystemInfo() {
+            if (this.connected) {
+              this._sendAdmin({ action: "get_system_info" });
+            }
+          },
+        },
+
+        detached() {
+          if (this._ws) {
+            this._ws.close();
+            this._ws = null;
+          }
+        },
+      };
+    };
+  </script>
+</template>
