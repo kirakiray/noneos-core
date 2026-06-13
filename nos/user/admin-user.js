@@ -13,7 +13,7 @@ export class AdminUser extends LocalUser {
    * @returns {Promise<Object>} 管理命令响应
    */
   async #adminCommand(url, action, extra = {}) {
-    await this.connectServer(url);
+    await this.server.connect(url);
 
     return new Promise((resolve, reject) => {
       const handler = (e) => {
@@ -31,7 +31,7 @@ export class AdminUser extends LocalUser {
 
       this.addEventListener("message", handler);
 
-      this.sendToServer(url, JSON.stringify({ type: "admin", action, ...extra }));
+      this.server.sendToServer(url, JSON.stringify({ type: "admin", action, ...extra }));
 
       setTimeout(() => {
         this.removeEventListener("message", handler);

@@ -95,10 +95,10 @@
           const t1Url = "ws://127.0.0.1:8081";
 
           // 连接服务器
-          await t1User.connectServer(t1Url);
+          await t1User.server.connect(t1Url);
 
           // 查询自己的在线状态
-          const t1Result = await t1User.queryUserOnline(t1Url, t1User.userId);
+          const t1Result = await t1User.server.queryUserOnline(t1Url, t1User.userId);
 
           const t1Online = t1Result.online === true;
           const t1HasSession =
@@ -137,12 +137,12 @@
           const t2Url = "ws://127.0.0.1:8081";
 
           // 连接服务器
-          await t2User.connectServer(t2Url);
+          await t2User.server.connect(t2Url);
 
           // 查询一个不存在的 userId（离线状态）
           const t2FakeUserId =
             "nonexistent-user-" + Math.random().toString(36).substring(2, 10);
-          const t2Result = await t2User.queryUserOnline(t2Url, t2FakeUserId);
+          const t2Result = await t2User.server.queryUserOnline(t2Url, t2FakeUserId);
 
           const t2Offline = t2Result.online === false;
           const t2EmptySessions =
@@ -185,11 +185,11 @@
           const t3Url = "ws://127.0.0.1:8081";
 
           // 两个用户都连接服务器
-          await t3aUser.connectServer(t3Url);
-          await t3bUser.connectServer(t3Url);
+          await t3aUser.server.connect(t3Url);
+          await t3bUser.server.connect(t3Url);
 
           // 用户 A 查询用户 B
-          const t3Result = await t3aUser.queryUserOnline(t3Url, t3bUser.userId);
+          const t3Result = await t3aUser.server.queryUserOnline(t3Url, t3bUser.userId);
 
           const t3Online = t3Result.online === true;
           const t3HasSession =
@@ -235,8 +235,8 @@
           const t4Url = "ws://127.0.0.1:8081";
 
           // 两个用户都连接服务器
-          await t4Sender.connectServer(t4Url);
-          await t4Receiver.connectServer(t4Url);
+          await t4Sender.server.connect(t4Url);
+          await t4Receiver.server.connect(t4Url);
 
           // 接收方监听 relay 事件
           const t4RecvPromise = new Promise((resolve) => {
@@ -273,7 +273,7 @@
             timestamp: Date.now(),
           };
 
-          const t4SendResult = await t4Sender.sendToUser(
+          const t4SendResult = await t4Sender.server.sendToUser(
             t4Url,
             t4Receiver.userId,
             t4Receiver.sessionId,
@@ -319,7 +319,7 @@
           await t5User.ready();
 
           const t5Url = "ws://127.0.0.1:8081";
-          await t5User.connectServer(t5Url);
+          await t5User.server.connect(t5Url);
 
           // 尝试发送到不存在的 session
           const t5FakeUserId =
@@ -329,7 +329,7 @@
 
           let t5Error = null;
           try {
-            await t5User.sendToUser(t5Url, t5FakeUserId, t5FakeSessionId, {
+            await t5User.server.sendToUser(t5Url, t5FakeUserId, t5FakeSessionId, {
               test: true,
             });
           } catch (e) {
@@ -371,8 +371,8 @@
 
           const t6Url = "ws://127.0.0.1:8081";
 
-          await t6Sender.connectServer(t6Url);
-          await t6Receiver.connectServer(t6Url);
+          await t6Sender.server.connect(t6Url);
+          await t6Receiver.server.connect(t6Url);
 
           // 接收方等待 message 事件
           const t6MsgPromise = new Promise((resolve) => {
@@ -407,7 +407,7 @@
             msg: "Hello via event!",
             seq: 1,
           };
-          const t6SendResponse = await t6Sender.sendToUser(
+          const t6SendResponse = await t6Sender.server.sendToUser(
             t6Url,
             t6Receiver.userId,
             t6Receiver.sessionId,

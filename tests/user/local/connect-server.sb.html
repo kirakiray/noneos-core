@@ -27,7 +27,7 @@
           let error;
           const url = "ws://127.0.0.1:8081";
           try {
-            success = await user1.connectServer(url);
+            success = await user1.server.connect(url);
           } catch (e) {
             error = e;
           }
@@ -56,7 +56,7 @@
           await user2.ready();
 
           const url2 = "ws://127.0.0.1:8081";
-          await user2.connectServer(url2);
+          await user2.server.connect(url2);
 
           const msg2 =
             "Hello Server " + Math.random().toString(36).substring(2, 8);
@@ -73,7 +73,7 @@
             );
           });
 
-          user2.sendToServer(url2, msg2);
+          user2.server.sendToServer(url2, msg2);
 
           await Promise.race([
             messagePromise,
@@ -111,10 +111,10 @@
           const url3 = "ws://127.0.0.1:8081";
 
           // 第一次连接
-          const firstResult = await user3.connectServer(url3);
+          const firstResult = await user3.server.connect(url3);
 
           // 第二次连接（应该直接返回 true）
-          const secondResult = await user3.connectServer(url3);
+          const secondResult = await user3.server.connect(url3);
 
           return {
             assert: firstResult === true && secondResult === true,

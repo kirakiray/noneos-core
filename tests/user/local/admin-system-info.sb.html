@@ -160,8 +160,8 @@
 
           const sysNormUrl = "ws://127.0.0.1:8081";
 
-          // 使用 connectServer 建立连接
-          await sysNormUser.connectServer(sysNormUrl);
+          // 使用 server.connect 建立连接
+          await sysNormUser.server.connect(sysNormUrl);
 
           // 发送 get_system_info 命令，验证被拒绝
           const sysNormAdminResp = await new Promise((resolve) => {
@@ -176,7 +176,7 @@
               }
             };
             sysNormUser.addEventListener("message", handler);
-            sysNormUser.sendToServer(sysNormUrl, JSON.stringify({ type: "admin", action: "get_system_info" }));
+            sysNormUser.server.sendToServer(sysNormUrl, JSON.stringify({ type: "admin", action: "get_system_info" }));
 
             setTimeout(() => {
               sysNormUser.removeEventListener("message", handler);

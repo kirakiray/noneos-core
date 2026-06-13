@@ -311,8 +311,8 @@
 
           const norm2Url = "ws://127.0.0.1:8081";
 
-          // 使用 connectServer 建立连接
-          await norm2User.connectServer(norm2Url);
+          // 使用 server.connect 建立连接
+          await norm2User.server.connect(norm2Url);
 
           // 发送 admin 命令，验证被拒绝
           const norm2AdminResp = await new Promise((resolve) => {
@@ -327,7 +327,7 @@
               }
             };
             norm2User.addEventListener("message", handler);
-            norm2User.sendToServer(norm2Url, JSON.stringify({ type: "admin", action: "list_users" }));
+            norm2User.server.sendToServer(norm2Url, JSON.stringify({ type: "admin", action: "list_users" }));
 
             setTimeout(() => {
               norm2User.removeEventListener("message", handler);
@@ -378,10 +378,10 @@
 
           const discUrl = "ws://127.0.0.1:8081";
 
-          // 先连接普通用户（使用 connectServer 建立连接）
+          // 先连接普通用户（使用 server.connect 建立连接）
           let victimClosed = false;
 
-          await victimUser.connectServer(discUrl);
+          await victimUser.server.connect(discUrl);
           victimUser.addEventListener("close", () => { victimClosed = true; });
 
           // 管理员发送 disconnect 命令
@@ -428,17 +428,17 @@
           const adminSessUser = new AdminUser(adminSessNs);
           await adminSessUser.ready();
 
-          // 准备普通用户（通过 connectServer 连接第一个 session）
+          // 准备普通用户（通过 server.connect 连接第一个 session）
           const sessUserNs = "sess-target-ns";
           const sessUser1 = new LocalUser(sessUserNs);
           await sessUser1.ready();
 
           const sessUrl = "ws://127.0.0.1:8081";
 
-          // 连接普通用户的第一个 session（使用 connectServer 建立长连接）
+          // 连接普通用户的第一个 session（使用 server.connect 建立长连接）
           let sess1Closed = false;
 
-          await sessUser1.connectServer(sessUrl);
+          await sessUser1.server.connect(sessUrl);
           sessUser1.addEventListener("close", () => { sess1Closed = true; });
 
           // 连接普通用户的第二个 session（模拟另一个 LocalUser 实例，不同 sessionId）
