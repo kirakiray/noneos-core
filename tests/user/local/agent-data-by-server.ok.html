@@ -101,16 +101,18 @@
           const t1Result = await t1User.queryUserOnline(t1Url, t1User.userId);
 
           const t1Online = t1Result.online === true;
-          const t1HasSession = Array.isArray(t1Result.sessions)
-            && t1Result.sessions.length === 1
-            && t1Result.sessions[0] === t1User.sessionId;
+          const t1HasSession =
+            Array.isArray(t1Result.sessions) &&
+            t1Result.sessions.length === 1 &&
+            t1Result.sessions[0] === t1User.sessionId;
 
           return {
             assert: t1Online && t1HasSession,
             content: {
-              message: t1Online && t1HasSession
-                ? "Self online query succeeded"
-                : "Self online query failed",
+              message:
+                t1Online && t1HasSession
+                  ? "Self online query succeeded"
+                  : "Self online query failed",
               online: t1Result.online,
               sessions: t1Result.sessions,
               expectedSessionId: t1User.sessionId,
@@ -138,18 +140,21 @@
           await t2User.connectServer(t2Url);
 
           // 查询一个不存在的 userId（离线状态）
-          const t2FakeUserId = "nonexistent-user-" + Math.random().toString(36).substring(2, 10);
+          const t2FakeUserId =
+            "nonexistent-user-" + Math.random().toString(36).substring(2, 10);
           const t2Result = await t2User.queryUserOnline(t2Url, t2FakeUserId);
 
           const t2Offline = t2Result.online === false;
-          const t2EmptySessions = Array.isArray(t2Result.sessions) && t2Result.sessions.length === 0;
+          const t2EmptySessions =
+            Array.isArray(t2Result.sessions) && t2Result.sessions.length === 0;
 
           return {
             assert: t2Offline && t2EmptySessions,
             content: {
-              message: t2Offline && t2EmptySessions
-                ? "Offline user query correctly returned online=false"
-                : "Offline user query unexpected result",
+              message:
+                t2Offline && t2EmptySessions
+                  ? "Offline user query correctly returned online=false"
+                  : "Offline user query unexpected result",
               online: t2Result.online,
               sessions: t2Result.sessions,
               queriedUserId: t2FakeUserId,
@@ -187,16 +192,18 @@
           const t3Result = await t3aUser.queryUserOnline(t3Url, t3bUser.userId);
 
           const t3Online = t3Result.online === true;
-          const t3HasSession = Array.isArray(t3Result.sessions)
-            && t3Result.sessions.length === 1
-            && t3Result.sessions[0] === t3bUser.sessionId;
+          const t3HasSession =
+            Array.isArray(t3Result.sessions) &&
+            t3Result.sessions.length === 1 &&
+            t3Result.sessions[0] === t3bUser.sessionId;
 
           return {
             assert: t3Online && t3HasSession,
             content: {
-              message: t3Online && t3HasSession
-                ? "Other user online query succeeded"
-                : "Other user online query failed",
+              message:
+                t3Online && t3HasSession
+                  ? "Other user online query succeeded"
+                  : "Other user online query failed",
               online: t3Result.online,
               sessions: t3Result.sessions,
               targetUserId: t3bUser.userId,
@@ -236,11 +243,17 @@
             const t4Handler = (e) => {
               let data;
               try {
-                data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
               } catch {
                 return;
               }
-              if (data?.type === "relay" && data?.from_user_id === t4Sender.userId) {
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t4Sender.userId
+              ) {
                 t4Receiver.removeEventListener("message", t4Handler);
                 resolve(data);
               }
@@ -260,22 +273,29 @@
             timestamp: Date.now(),
           };
 
-          const t4SendResult = await t4Sender.sendToUser(t4Url, t4Receiver.userId, t4Receiver.sessionId, t4Payload);
+          const t4SendResult = await t4Sender.sendToUser(
+            t4Url,
+            t4Receiver.userId,
+            t4Receiver.sessionId,
+            t4Payload,
+          );
 
           // 等待接收方收到
           const t4Received = await t4RecvPromise;
 
           const t4SendOk = t4SendResult.status === "ok";
-          const t4RecvOk = t4Received !== null
-            && t4Received.data?.text === t4Payload.text
-            && t4Received.data?.number === t4Payload.number;
+          const t4RecvOk =
+            t4Received !== null &&
+            t4Received.data?.text === t4Payload.text &&
+            t4Received.data?.number === t4Payload.number;
 
           return {
             assert: t4SendOk && t4RecvOk,
             content: {
-              message: t4SendOk && t4RecvOk
-                ? "Data successfully relayed from sender to receiver"
-                : "Relay test failed",
+              message:
+                t4SendOk && t4RecvOk
+                  ? "Data successfully relayed from sender to receiver"
+                  : "Relay test failed",
               sendStatus: t4SendResult.status,
               sendMessage: t4SendResult.message,
               receivedPayload: t4Received,
@@ -302,12 +322,16 @@
           await t5User.connectServer(t5Url);
 
           // 尝试发送到不存在的 session
-          const t5FakeUserId = "fake-user-" + Math.random().toString(36).substring(2, 10);
-          const t5FakeSessionId = "s-fake-" + Math.random().toString(36).substring(2, 10);
+          const t5FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t5FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
 
           let t5Error = null;
           try {
-            await t5User.sendToUser(t5Url, t5FakeUserId, t5FakeSessionId, { test: true });
+            await t5User.sendToUser(t5Url, t5FakeUserId, t5FakeSessionId, {
+              test: true,
+            });
           } catch (e) {
             t5Error = e;
           }
@@ -355,11 +379,17 @@
             const t6Handler = (e) => {
               let data;
               try {
-                data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
               } catch {
                 return;
               }
-              if (data?.type === "relay" && data?.from_user_id === t6Sender.userId) {
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t6Sender.userId
+              ) {
                 t6Receiver.removeEventListener("message", t6Handler);
                 resolve(data);
               }
@@ -377,23 +407,30 @@
             msg: "Hello via event!",
             seq: 1,
           };
-          const t6SendResponse = await t6Sender.sendToUser(t6Url, t6Receiver.userId, t6Receiver.sessionId, t6Payload);
+          const t6SendResponse = await t6Sender.sendToUser(
+            t6Url,
+            t6Receiver.userId,
+            t6Receiver.sessionId,
+            t6Payload,
+          );
 
           // 等待接收
           const t6ReceivedData = await t6MsgPromise;
 
           const t6SendOk = t6SendResponse?.status === "ok";
-          const t6RecvOk = t6ReceivedData !== null
-            && t6ReceivedData.from_user_id === t6Sender.userId
-            && t6ReceivedData.data?.msg === "Hello via event!"
-            && t6ReceivedData.data?.seq === 1;
+          const t6RecvOk =
+            t6ReceivedData !== null &&
+            t6ReceivedData.from_user_id === t6Sender.userId &&
+            t6ReceivedData.data?.msg === "Hello via event!" &&
+            t6ReceivedData.data?.seq === 1;
 
           return {
             assert: t6SendOk && t6RecvOk,
             content: {
-              message: t6SendOk && t6RecvOk
-                ? "Receiver correctly got relay data via message event"
-                : "Receiver event test failed",
+              message:
+                t6SendOk && t6RecvOk
+                  ? "Receiver correctly got relay data via message event"
+                  : "Receiver event test failed",
               sendResponse: t6SendResponse,
               receivedData: t6ReceivedData,
               expectedUserId: t6Sender.userId,
