@@ -477,7 +477,17 @@
           },
         },
 
+        attached() {
+          this._refreshTimer = setInterval(() => {
+            this.fetchSystemInfo();
+          }, 1000);
+        },
+
         detached() {
+          if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+          }
           if (this._ws) {
             this._ws.close();
             this._ws = null;
