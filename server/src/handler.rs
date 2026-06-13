@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use sysinfo::{System, Disks};
 
 /// 已连接用户的信息
 struct UserSession {
@@ -144,6 +145,52 @@ struct AdminResponse {
     message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     users: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_info: Option<serde_json::Value>,
+}
+
+/// 收集系统信息（内存、CPU、磁盘使用情况）
+fn collect_system_info() -> serde_json::Value {
+    let mut system = System::new_all();
+    system.refresh_memory();
+    let disks = Disks::new_with_refreshed_list();
+
+    // 内存信息（字节）
+    let total_memory = system.total_memory();
+    let used_memory = system.used_memory();
+    let available_memory = system.available_memory();
+
+    // CPU 信息（new_all 已加载 CPU 信息）
+    let cpu_usage = system.global_cpu_usage();
+    let cpu_count = system.cpus().len();
+
+    // 磁盘信息
+    let disk_list: Vec<serde_json::Value> = disks.iter().map(|disk| {
+        serde_json::json!({
+            "mount_point": disk.mount_point().to_string_lossy(),
+            "total_space": disk.total_space(),
+            "available_space": disk.available_space(),
+            "file_system": disk.file_system().to_string_lossy(),
+        })
+    }).collect();
+
+    serde_json::json!({
+        "memory": {
+            "total": total_memory,
+            "used": used_memory,
+            "available": available_memory,
+            "usage_percent": if total_memory > 0 {
+                (used_memory as f64 / total_memory as f64 * 100.0 * 100.0).round() / 100.0
+            } else {
+                0.0
+            },
+        },
+        "cpu": {
+            "usage_percent": (cpu_usage * 100.0).round() / 100.0,
+            "core_count": cpu_count,
+        },
+        "disks": disk_list,
+    })
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
@@ -348,6 +395,7 @@ pub async fn handle_connection(
                                                         status: "error".to_string(),
                                                         message: Some("Permission denied: not an admin".to_string()),
                                                         users: None,
+                                                        system_info: None,
                                                     };
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     continue;
@@ -366,6 +414,7 @@ pub async fn handle_connection(
                                                             status: "ok".to_string(),
                                                             message: Some(format!("{} user(s) connected", count)),
                                                             users: Some(users),
+                                                            system_info: None,
                                                         };
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     }
@@ -378,6 +427,7 @@ pub async fn handle_connection(
                                                                 status: "error".to_string(),
                                                                 message: Some("Cannot disconnect yourself".to_string()),
                                                                 users: None,
+                                                                system_info: None,
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         } else {
@@ -392,6 +442,7 @@ pub async fn handle_connection(
                                                                     status: "ok".to_string(),
                                                                     message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
                                                                     users: None,
+                                                                    system_info: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                                 println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
@@ -402,6 +453,7 @@ pub async fn handle_connection(
                                                                     status: "error".to_string(),
                                                                     message: Some(format!("User {} not found", target_id)),
                                                                     users: None,
+                                                                    system_info: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             }
@@ -417,6 +469,7 @@ pub async fn handle_connection(
                                                                 status: "error".to_string(),
                                                                 message: Some("Missing session_id".to_string()),
                                                                 users: None,
+                                                                system_info: None,
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         } else if target_user == user_id && target_session == session_id {
@@ -426,6 +479,7 @@ pub async fn handle_connection(
                                                                 status: "error".to_string(),
                                                                 message: Some("Cannot disconnect yourself".to_string()),
                                                                 users: None,
+                                                                system_info: None,
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         } else {
@@ -440,6 +494,7 @@ pub async fn handle_connection(
                                                                     status: "ok".to_string(),
                                                                     message: Some(format!("Session {} disconnected for user {}", target_session, target_user)),
                                                                     users: None,
+                                                                    system_info: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                                 println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
@@ -450,10 +505,23 @@ pub async fn handle_connection(
                                                                     status: "error".to_string(),
                                                                     message: Some(format!("Session {} not found for user {}", target_session, target_user)),
                                                                     users: None,
+                                                                    system_info: None,
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             }
                                                         }
+                                                    }
+                                                    "get_system_info" => {
+                                                        let info = collect_system_info();
+                                                        let resp = AdminResponse {
+                                                            msg_type: "admin_response".to_string(),
+                                                            action: "get_system_info".to_string(),
+                                                            status: "ok".to_string(),
+                                                            message: Some("System info collected".to_string()),
+                                                            users: None,
+                                                            system_info: Some(info),
+                                                        };
+                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     }
                                                     _ => {
                                                         let action_name = cmd.action.clone();
@@ -463,6 +531,7 @@ pub async fn handle_connection(
                                                             status: "error".to_string(),
                                                             message: Some(format!("Unknown admin action: {}", action_name)),
                                                             users: None,
+                                                            system_info: None,
                                                         };
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     }

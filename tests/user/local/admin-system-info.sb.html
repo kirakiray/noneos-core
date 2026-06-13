@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin System Info Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Admin System Info Tests</h1>
+
+    <!-- ============================================================ -->
+    <!-- Admin System Info 使用说明                                    -->
+    <!-- ============================================================ -->
+    <!--
+    Admin 可以发送以下命令获取服务器系统信息：
+
+    发送：
+        { "type": "admin", "action": "get_system_info" }
+
+    响应：
+        {
+          "type": "admin_response",
+          "action": "get_system_info",
+          "status": "ok",
+          "message": "System info collected",
+          "system_info": {
+            "memory": {
+              "total": 8589934592,
+              "used": 4294967296,
+              "available": 4294967296,
+              "usage_percent": 50.0
+            },
+            "cpu": {
+              "usage_percent": 45.5,
+              "core_count": 8
+            },
+            "disks": [
+              {
+                "mount_point": "/",
+                "total_space": 500000000000,
+                "available_space": 250000000000,
+                "file_system": "apfs"
+              }
+            ]
+          }
+        }
+
+    非管理员用户发送此命令会收到权限拒绝。
+    -->
+
+    <sb-test name="Import Admin User from admin.json for System Info Test">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser, deleteUser } from "/nos/user/main.js";
+
+          const sysData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const sysImportNs = "sysinfo-import-ns";
+
+          // 前置清理
+          try {
+            await deleteUser(sysImportNs, { skipConfirm: true });
+          } catch (e) { /* 不存在则忽略 */ }
+
+          // 直接写入数据库
+          await saveUserKeys(sysImportNs, sysData.keys);
+          await saveUserInfo(sysImportNs, sysData.info);
+
+          // 获取用户实例
+          const sysImportedUser = await getUser(sysImportNs);
+          const sysImportedInfo = await sysImportedUser.getInfo();
+
+          const sysIsUserIdMatch = sysImportedUser.userId === sysData.info.userId;
+          const sysIsUsernameMatch = sysImportedInfo.username === sysData.info.username;
+
+          return {
+            assert: sysIsUserIdMatch && sysIsUsernameMatch,
+            content: {
+              message: sysIsUserIdMatch && sysIsUsernameMatch ? "Admin user imported successfully for system info test" : "Import failed",
+              importedUserId: sysImportedUser.userId,
+              expectedUserId: sysData.info.userId,
+              importedUsername: sysImportedInfo.username,
+              expectedUsername: sysData.info.username,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin Get System Info">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { getUser } from "/nos/user/main.js";
+
+          const sysInfoData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const sysInfoNs = "sysinfo-get-ns";
+
+          try {
+            const { deleteUser } = await import("/nos/user/main.js");
+            await deleteUser(sysInfoNs, { skipConfirm: true });
+          } catch (e) { /* ignore */ }
+
+          await saveUserKeys(sysInfoNs, sysInfoData.keys);
+          await saveUserInfo(sysInfoNs, sysInfoData.info);
+          const sysInfoUser = await getUser(sysInfoNs);
+
+          const sysInfoUrl = "ws://127.0.0.1:8081";
+          let sysInfoHandshake = null;
+          let sysInfoResponse = null;
+
+          const sysInfoPromise = new Promise((resolve) => {
+            const ws = new WebSocket(sysInfoUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const sysInfo = await sysInfoUser.getInfo();
+                const response = await sysInfoUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: sysInfoUser.userId,
+                  sessionId: sysInfoUser.sessionId,
+                  username: sysInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                sysInfoHandshake = data;
+                if (data.status === "success") {
+                  // 发送 get_system_info 管理命令
+                  ws.send(JSON.stringify({
+                    type: "admin",
+                    action: "get_system_info",
+                  }));
+                } else {
+                  ws.close();
+                  safeResolve({ status: "error", message: "Handshake failed" });
+                }
+                return;
+              }
+              if (data.type === "admin_response") {
+                sysInfoResponse = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!sysInfoResponse) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await sysInfoPromise;
+
+          const sysIsOk = sysInfoResponse && sysInfoResponse.status === "ok";
+          const hasSystemInfo = sysIsOk && sysInfoResponse.system_info != null;
+          const hasMemory = hasSystemInfo && sysInfoResponse.system_info.memory != null;
+          const hasCpu = hasSystemInfo && sysInfoResponse.system_info.cpu != null;
+          const hasDisks = hasSystemInfo && Array.isArray(sysInfoResponse.system_info.disks);
+          const memoryFields = hasMemory
+            && typeof sysInfoResponse.system_info.memory.total === "number"
+            && typeof sysInfoResponse.system_info.memory.used === "number"
+            && typeof sysInfoResponse.system_info.memory.available === "number"
+            && typeof sysInfoResponse.system_info.memory.usage_percent === "number";
+          const cpuFields = hasCpu
+            && typeof sysInfoResponse.system_info.cpu.usage_percent === "number"
+            && typeof sysInfoResponse.system_info.cpu.core_count === "number";
+          const disksValid = hasDisks && sysInfoResponse.system_info.disks.length > 0;
+
+          return {
+            assert: sysIsOk && hasSystemInfo && memoryFields && cpuFields && disksValid,
+            content: {
+              message: sysIsOk && hasSystemInfo && memoryFields && cpuFields && disksValid
+                ? "Admin successfully retrieved system info"
+                : "System info retrieval failed or incomplete",
+              status: sysInfoResponse?.status,
+              system_info: sysInfoResponse?.system_info,
+              responseMessage: sysInfoResponse?.message,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Non-Admin Permission Denied for get_system_info">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const sysNormNs = "sysinfo-norm-deny-ns";
+          const sysNormUser = new LocalUser(sysNormNs);
+
+          await sysNormUser.ready();
+
+          const sysNormUrl = "ws://127.0.0.1:8081";
+          let sysNormAdminResp = null;
+
+          const sysNormPromise = new Promise((resolve) => {
+            const ws = new WebSocket(sysNormUrl);
+            let pendingSend = null;
+            let hasResolved = false;
+
+            const safeResolve = (value) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                resolve(value);
+              }
+            };
+
+            ws.onopen = () => {
+              if (pendingSend !== null) {
+                ws.send(pendingSend);
+                pendingSend = null;
+              }
+            };
+
+            ws.onmessage = async (e) => {
+              const data = JSON.parse(e.data);
+              if (data.type === "handshake_challenge") {
+                const sysNormInfo = await sysNormUser.getInfo();
+                const response = await sysNormUser._sign({
+                  type: "handshake_response",
+                  challenge: data.challenge,
+                  userId: sysNormUser.userId,
+                  sessionId: sysNormUser.sessionId,
+                  username: sysNormInfo.username,
+                });
+                const payload = JSON.stringify(response);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(payload);
+                } else {
+                  pendingSend = payload;
+                }
+                return;
+              }
+              if (data.type === "handshake") {
+                if (data.status === "success") {
+                  // 尝试发送 get_system_info 管理命令
+                  ws.send(JSON.stringify({
+                    type: "admin",
+                    action: "get_system_info",
+                  }));
+                } else {
+                  ws.close();
+                  safeResolve({ status: "error" });
+                }
+                return;
+              }
+              if (data.type === "admin_response") {
+                sysNormAdminResp = data;
+                ws.close();
+                safeResolve(data);
+              }
+            };
+
+            ws.onclose = () => {
+              if (!sysNormAdminResp) {
+                safeResolve({ status: "error", message: "Connection closed" });
+              }
+            };
+
+            ws.onerror = () => {
+              setTimeout(() => {
+                if (!hasResolved) {
+                  safeResolve({ status: "error", message: "WebSocket error" });
+                }
+              }, 300);
+            };
+
+            setTimeout(() => {
+              ws.close();
+              safeResolve({ status: "error", message: "timeout" });
+            }, 5000);
+          });
+
+          await sysNormPromise;
+
+          const sysIsDenied = sysNormAdminResp?.status === "error"
+            && sysNormAdminResp?.message?.includes("Permission denied");
+
+          return {
+            assert: sysIsDenied,
+            content: {
+              message: sysIsDenied ? "Non-admin correctly denied for get_system_info" : "Permission check failed",
+              response: sysNormAdminResp,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
