@@ -310,87 +310,30 @@
           await norm2User.ready();
 
           const norm2Url = "ws://127.0.0.1:8081";
-          let norm2AdminResp = null;
 
-          const norm2Promise = new Promise((resolve) => {
-            const ws = new WebSocket(norm2Url);
-            let pendingSend = null;
-            let hasResolved = false;
+          // 使用 connectServer 建立连接
+          await norm2User.connectServer(norm2Url);
 
-            const safeResolve = (value) => {
-              if (!hasResolved) {
-                hasResolved = true;
-                resolve(value);
+          // 发送 admin 命令，验证被拒绝
+          const norm2AdminResp = await new Promise((resolve) => {
+            const handler = (e) => {
+              let data;
+              try {
+                data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
+              } catch { return; }
+              if (data?.type === "admin_response") {
+                norm2User.removeEventListener("message", handler);
+                resolve(data);
               }
             };
-
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const norm2Info = await norm2User.getInfo();
-                const response = await norm2User._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: norm2User.userId,
-                  sessionId: norm2User.sessionId,
-                  username: norm2Info.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake") {
-                if (data.status === "success") {
-                  // 尝试发送管理命令
-                  ws.send(JSON.stringify({
-                    type: "admin",
-                    action: "list_users",
-                  }));
-                } else {
-                  ws.close();
-                  safeResolve({ status: "error" });
-                }
-                return;
-              }
-              if (data.type === "admin_response") {
-                norm2AdminResp = data;
-                ws.close();
-                safeResolve(data);
-              }
-            };
-
-            ws.onclose = () => {
-              if (!norm2AdminResp) {
-                safeResolve({ status: "error", message: "Connection closed" });
-              }
-            };
-
-            ws.onerror = () => {
-              setTimeout(() => {
-                if (!hasResolved) {
-                  safeResolve({ status: "error", message: "WebSocket error" });
-                }
-              }, 300);
-            };
+            norm2User.addEventListener("message", handler);
+            norm2User.sendToServer(norm2Url, JSON.stringify({ type: "admin", action: "list_users" }));
 
             setTimeout(() => {
-              ws.close();
-              safeResolve({ status: "error", message: "timeout" });
+              norm2User.removeEventListener("message", handler);
+              resolve({ status: "error", message: "timeout" });
             }, 5000);
           });
-
-          await norm2Promise;
 
           const isDenied = norm2AdminResp?.status === "error"
             && norm2AdminResp?.message?.includes("Permission denied");
@@ -435,59 +378,11 @@
 
           const discUrl = "ws://127.0.0.1:8081";
 
-          // 先连接普通用户
-          let victimConnected = false;
+          // 先连接普通用户（使用 connectServer 建立连接）
           let victimClosed = false;
 
-          const victimPromise = new Promise((resolve) => {
-            const ws = new WebSocket(discUrl);
-            let pendingSend = null;
-
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const victimInfo = await victimUser.getInfo();
-                const response = await victimUser._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: victimUser.userId,
-                  sessionId: victimUser.sessionId,
-                  username: victimInfo.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake" && data.status === "success") {
-                victimConnected = true;
-                resolve(true);
-              }
-            };
-
-            ws.onclose = () => {
-              victimClosed = true;
-            };
-
-            ws.onerror = () => {};
-
-            setTimeout(() => {
-              ws.close();
-              if (!victimConnected) resolve(false);
-            }, 5000);
-          });
-
-          await victimPromise;
+          await victimUser.connectServer(discUrl);
+          victimUser.addEventListener("close", () => { victimClosed = true; });
 
           // 管理员发送 disconnect 命令
           const adminDiscResult = await adminDiscUser.disconnectUser(discUrl, victimUser.userId);
@@ -497,16 +392,14 @@
 
           const isDisconnectOK = adminDiscResult?.status === "ok"
             && adminDiscResult?.action === "disconnect_user";
-          const isVictimDisconnected = victimConnected && victimClosed;
 
           return {
-            assert: isDisconnectOK && isVictimDisconnected,
+            assert: isDisconnectOK && victimClosed,
             content: {
-              message: isDisconnectOK && isVictimDisconnected
+              message: isDisconnectOK && victimClosed
                 ? `Admin disconnected victim user (victim closed: ${victimClosed})`
                 : "Disconnect test failed",
               disconnectResult: adminDiscResult,
-              victimConnected: victimConnected,
               victimClosed: victimClosed,
             },
           };
@@ -543,59 +436,10 @@
           const sessUrl = "ws://127.0.0.1:8081";
 
           // 连接普通用户的第一个 session（使用 connectServer 建立长连接）
-          let sess1Connected = false;
           let sess1Closed = false;
-          const sess1Promise = new Promise((resolve) => {
-            const ws = new WebSocket(sessUrl);
-            let pendingSend = null;
 
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const info = await sessUser1.getInfo();
-                const response = await sessUser1._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: sessUser1.userId,
-                  sessionId: sessUser1.sessionId,
-                  username: info.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake" && data.status === "success") {
-                sess1Connected = true;
-                resolve(ws);
-              }
-            };
-
-            ws.onclose = () => {
-              sess1Closed = true;
-            };
-
-            ws.onerror = () => {};
-
-            setTimeout(() => {
-              if (!sess1Connected) {
-                ws.close();
-                resolve(null);
-              }
-            }, 5000);
-          });
-
-          const ws1 = await sess1Promise;
+          await sessUser1.connectServer(sessUrl);
+          sessUser1.addEventListener("close", () => { sess1Closed = true; });
 
           // 连接普通用户的第二个 session（模拟另一个 LocalUser 实例，不同 sessionId）
           let sess2Connected = false;
@@ -655,117 +499,33 @@
 
           const ws2 = await sess2Promise;
 
-          // 管理员连接并列出用户，确认看到两个 session
-          let adminSessListResult = null;
+          // 管理员使用 AdminUser API 分步操作
+          const adminSessListResult = await adminSessUser.listUsers(sessUrl);
+
           let adminSessDisconnectResult = null;
           let adminSessAfterList = null;
 
-          const adminSessPromise = new Promise((resolve) => {
-            const ws = new WebSocket(sessUrl);
-            let pendingSend = null;
-            let hasResolved = false;
+          // 找到第二个 session（fake session）
+          const targetSessions = (adminSessListResult.users || []).filter(
+            u => u.userId === sessUser1.userId && u.sessionId !== sessUser1.sessionId
+          );
 
-            const safeResolve = (value) => {
-              if (!hasResolved) {
-                hasResolved = true;
-                resolve(value);
-              }
-            };
-
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const info = await adminSessUser.getInfo();
-                const response = await adminSessUser._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: adminSessUser.userId,
-                  sessionId: adminSessUser.sessionId,
-                  username: info.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake" && data.status === "success") {
-                // 第一步：list_users 确认两个 session
-                ws.send(JSON.stringify({ type: "admin", action: "list_users" }));
-                return;
-              }
-              if (data.type === "admin_response") {
-                if (data.action === "disconnect_session") {
-                  adminSessDisconnectResult = data;
-                  // 第三步：再次 list_users 确认只有一个 session 剩余
-                  ws.send(JSON.stringify({ type: "admin", action: "list_users" }));
-                  return;
-                }
-                if (data.action === "list_users") {
-                  if (adminSessDisconnectResult) {
-                    // 第三步之后的 list_users 响应
-                    adminSessAfterList = data;
-                    ws.close();
-                    safeResolve(data);
-                  } else {
-                    // 第一步：list_users 确认两个 session
-                    adminSessListResult = data;
-                    // 第二步：断开第二个 session（只断开 fake session）
-                    const targetSessions = (data.users || []).filter(
-                      u => u.userId === sessUser1.userId && u.sessionId !== sessUser1.sessionId
-                    );
-                    if (targetSessions.length > 0) {
-                      ws.send(JSON.stringify({
-                        type: "admin",
-                        action: "disconnect_session",
-                        user_id: sessUser1.userId,
-                        session_id: targetSessions[0].sessionId,
-                      }));
-                    } else {
-                      ws.close();
-                      safeResolve({ status: "error", message: "Fake session not found in list" });
-                    }
-                  }
-                  return;
-                }
-              }
-            };
-
-            ws.onclose = () => {
-              if (!adminSessAfterList) {
-                safeResolve({ status: "error", message: "Connection closed" });
-              }
-            };
-
-            ws.onerror = () => {
-              setTimeout(() => {
-                if (!hasResolved) {
-                  safeResolve({ status: "error", message: "WebSocket error" });
-                }
-              }, 300);
-            };
-
-            setTimeout(() => {
-              ws.close();
-              safeResolve({ status: "error", message: "timeout" });
-            }, 8000);
-          });
-
-          await adminSessPromise;
+          if (targetSessions.length > 0) {
+            adminSessDisconnectResult = await adminSessUser.disconnectSession(
+              sessUrl,
+              sessUser1.userId,
+              targetSessions[0].sessionId,
+            );
+            // 再次 list_users 确认只有一个 session 剩余
+            adminSessAfterList = await adminSessUser.listUsers(sessUrl);
+          } else {
+            adminSessDisconnectResult = { status: "error", message: "Fake session not found in list" };
+          }
 
           // 等待 session2 收到 close
           await new Promise(r => setTimeout(r, 500));
 
-          const session1StillConnected = sess1Connected && !sess1Closed;
+          const session1StillConnected = !sess1Closed;
           const session2Disconnected = sess2Connected && sess2Closed;
           const disconnectOK = adminSessDisconnectResult?.status === "ok";
           const afterListOK = adminSessAfterList?.status === "ok";
@@ -773,7 +533,6 @@
             && adminSessAfterList.users.filter(u => u.userId === sessUser1.userId).length === 1;
 
           // 清理
-          if (ws1 && ws1.readyState === WebSocket.OPEN) ws1.close();
           if (ws2 && ws2.readyState === WebSocket.OPEN) ws2.close();
 
           return {
@@ -782,7 +541,6 @@
               message: disconnectOK && session1StillConnected && session2Disconnected
                 ? `Disconnected session2, session1 still alive (remaining: ${onlyOneSessionLeft})`
                 : "Disconnect session test failed",
-              session1Connected: sess1Connected,
               session1Closed: sess1Closed,
               session2Connected: sess2Connected,
               session2Closed: sess2Closed,

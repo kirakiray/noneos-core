@@ -159,87 +159,30 @@
           await sysNormUser.ready();
 
           const sysNormUrl = "ws://127.0.0.1:8081";
-          let sysNormAdminResp = null;
 
-          const sysNormPromise = new Promise((resolve) => {
-            const ws = new WebSocket(sysNormUrl);
-            let pendingSend = null;
-            let hasResolved = false;
+          // 使用 connectServer 建立连接
+          await sysNormUser.connectServer(sysNormUrl);
 
-            const safeResolve = (value) => {
-              if (!hasResolved) {
-                hasResolved = true;
-                resolve(value);
+          // 发送 get_system_info 命令，验证被拒绝
+          const sysNormAdminResp = await new Promise((resolve) => {
+            const handler = (e) => {
+              let data;
+              try {
+                data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
+              } catch { return; }
+              if (data?.type === "admin_response") {
+                sysNormUser.removeEventListener("message", handler);
+                resolve(data);
               }
             };
-
-            ws.onopen = () => {
-              if (pendingSend !== null) {
-                ws.send(pendingSend);
-                pendingSend = null;
-              }
-            };
-
-            ws.onmessage = async (e) => {
-              const data = JSON.parse(e.data);
-              if (data.type === "handshake_challenge") {
-                const sysNormInfo = await sysNormUser.getInfo();
-                const response = await sysNormUser._sign({
-                  type: "handshake_response",
-                  challenge: data.challenge,
-                  userId: sysNormUser.userId,
-                  sessionId: sysNormUser.sessionId,
-                  username: sysNormInfo.username,
-                });
-                const payload = JSON.stringify(response);
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(payload);
-                } else {
-                  pendingSend = payload;
-                }
-                return;
-              }
-              if (data.type === "handshake") {
-                if (data.status === "success") {
-                  // 尝试发送 get_system_info 管理命令
-                  ws.send(JSON.stringify({
-                    type: "admin",
-                    action: "get_system_info",
-                  }));
-                } else {
-                  ws.close();
-                  safeResolve({ status: "error" });
-                }
-                return;
-              }
-              if (data.type === "admin_response") {
-                sysNormAdminResp = data;
-                ws.close();
-                safeResolve(data);
-              }
-            };
-
-            ws.onclose = () => {
-              if (!sysNormAdminResp) {
-                safeResolve({ status: "error", message: "Connection closed" });
-              }
-            };
-
-            ws.onerror = () => {
-              setTimeout(() => {
-                if (!hasResolved) {
-                  safeResolve({ status: "error", message: "WebSocket error" });
-                }
-              }, 300);
-            };
+            sysNormUser.addEventListener("message", handler);
+            sysNormUser.sendToServer(sysNormUrl, JSON.stringify({ type: "admin", action: "get_system_info" }));
 
             setTimeout(() => {
-              ws.close();
-              safeResolve({ status: "error", message: "timeout" });
+              sysNormUser.removeEventListener("message", handler);
+              resolve({ status: "error", message: "timeout" });
             }, 5000);
           });
-
-          await sysNormPromise;
 
           const sysIsDenied = sysNormAdminResp?.status === "error"
             && sysNormAdminResp?.message?.includes("Permission denied");

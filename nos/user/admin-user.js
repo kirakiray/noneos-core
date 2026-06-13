@@ -67,4 +67,15 @@ export class AdminUser extends LocalUser {
   async getSystemInfo(url) {
     return this.#adminCommand(url, "get_system_info");
   }
+
+  /**
+   * 断开指定用户的指定会话
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {string} userId - 目标用户 ID
+   * @param {string} sessionId - 目标会话 ID
+   * @returns {Promise<Object>} 操作结果
+   */
+  async disconnectSession(url, userId, sessionId) {
+    return this.#adminCommand(url, "disconnect_session", { user_id: userId, session_id: sessionId });
+  }
 }
