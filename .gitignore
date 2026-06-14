@@ -159,3 +159,4 @@ Cargo.lock
 
 _prompt.md
 .webkit-test-data
+.chrome-test-data

@@ -111,10 +111,6 @@ export class LocalUser extends BaseUser {
       await this.updateInfo({ username: defaultUsername });
     }
 
-    // 初始化完成后，自动连接默认服务器（非阻塞）
-    await this.#server.init();
-    this.#server.connectToDefaultServers().catch(() => {});
-
     return this;
   }
 
