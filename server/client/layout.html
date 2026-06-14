@@ -1,7 +1,7 @@
 <template page>
   <style>
     :host {
-      display: flex;
+      display: flex !important;
       flex-direction: column;
       height: 100%;
     }
@@ -12,8 +12,9 @@
     }
 
     .content {
+      display: block;
+      position: relative;
       flex: 1;
-      overflow: auto;
       background-color: var(--md-sys-color-surface);
     }
   </style>
@@ -23,22 +24,24 @@
   ></l-m>
 
   <p-nav-bar style="padding: 16px">
-      <p-nav-item attr:active="activeChat" on:click="navigateToChat">
-        <span slot="icon">💬</span>
-        <span>普通WS连接</span>
-      </p-nav-item>
-      <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
-        <span slot="icon">⚙️</span>
-        <span>管理员控制台</span>
-      </p-nav-item>
-      <p-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
-        <span slot="icon">📊</span>
-        <span>系统信息</span>
-      </p-nav-item>
-    </p-nav-bar>
+    <p-nav-item attr:active="activeChat" on:click="navigateToChat">
+      <span slot="icon">💬</span>
+      <span>普通WS连接</span>
+    </p-nav-item>
+    <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
+      <span slot="icon">⚙️</span>
+      <span>管理员控制台</span>
+    </p-nav-item>
+    <p-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
+      <span slot="icon">📊</span>
+      <span>系统信息</span>
+    </p-nav-item>
+  </p-nav-bar>
 
   <main class="content">
-    <slot></slot>
+    <div style="position: absolute; left: 0; top: 0; width: 100%; height: 100%">
+      <slot></slot>
+    </div>
   </main>
 
   <script>

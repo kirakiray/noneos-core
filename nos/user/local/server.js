@@ -4,6 +4,7 @@ const DEFAULT_SERVERS = ["ws://localhost:8081", "ws://localhost:8082"];
 
 export class ServerManager {
   #wsMap = new Map();
+  #connectPromises = new Map();
   #user;
   #servers = [];
   #serversLoaded = false;
@@ -95,7 +96,7 @@ export class ServerManager {
    * @returns {Promise<boolean>} 连接成功返回 true
    */
   async connect(url) {
-    debugger;
+    // 检查是否已有可用连接
     if (this.#wsMap.has(url)) {
       const existingWs = this.#wsMap.get(url);
       if (
@@ -112,7 +113,12 @@ export class ServerManager {
       throw new Error("User info not found");
     }
 
-    return new Promise((resolve, reject) => {
+    // 检查是否已有同一 URL 的连接正在进行中，防止并行重复连接
+    if (this.#connectPromises.has(url)) {
+      return this.#connectPromises.get(url);
+    }
+    
+    const promise = new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       let isHandshaked = false;
 
@@ -203,6 +209,16 @@ export class ServerManager {
         }
       };
     });
+
+    // 缓存正在进行的连接 Promise
+    this.#connectPromises.set(url, promise);
+
+    // 连接完成后清理缓存
+    promise.finally(() => {
+      this.#connectPromises.delete(url);
+    });
+
+    return promise;
   }
 
   /**
