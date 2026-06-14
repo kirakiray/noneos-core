@@ -249,7 +249,6 @@
           adminUsername: "",
           adminUserId: "",
           users: [],
-          _ws: null,
           _adminUser: null,
         },
 
@@ -259,206 +258,102 @@
             this.connecting = true;
 
             try {
-              // 1. 导入管理员用户数据
-              const { saveUserKeys, saveUserInfo } =
-                await load("/nos/user/db.js");
-              const { getUser, deleteUser } = await load("/nos/user/main.js");
+              if (!this._adminUser) {
+                const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+                const { deleteUser } = await load("/nos/user/main.js");
+                const { AdminUser } = await load("/nos/user/admin-user.js");
 
-              const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
-                r.json(),
-              );
-              const adminNs = "admin-console-ns";
+                const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+                const adminNs = "admin-console-ns";
 
-              // 清理旧数据并重新写入
-              try {
-                await deleteUser(adminNs, { skipConfirm: true });
-              } catch (e) {
-                /* ignore */
+                // 清理旧数据并重新写入
+                try {
+                  await deleteUser(adminNs, { skipConfirm: true });
+                } catch (e) {
+                  /* ignore */
+                }
+                await saveUserKeys(adminNs, adminData.keys);
+                await saveUserInfo(adminNs, adminData.info);
+
+                const adminUser = new AdminUser(adminNs);
+                await adminUser.ready();
+                this._adminUser = adminUser;
+                this.adminUserId = adminUser.userId;
+                const adminInfo = await adminUser.getInfo();
+                this.adminUsername = adminInfo.username || "Admin";
+
+                // 监听连接关闭
+                adminUser.addEventListener("close", () => this._onClose());
               }
-              await saveUserKeys(adminNs, adminData.keys);
-              await saveUserInfo(adminNs, adminData.info);
 
-              const adminUser = await getUser(adminNs);
-              this._adminUser = adminUser;
-              this.adminUserId = adminUser.userId;
-              const adminInfo = await adminUser.getInfo();
-              this.adminUsername = adminInfo.username || "Admin";
+              // 通过执行 list_users 验证管理员身份并获取初始数据
+              const response = await this._adminUser.listUsers(WS_URL);
 
-              // 2. 建立 WebSocket 连接并完成握手
-              await this._handshake(adminUser, adminInfo);
+              if (response.status === "ok") {
+                this.connected = true;
+                this.connecting = false;
+                this.users = (response.users || []).map((u) => ({
+                  ...u,
+                  avatar: (u.username || "?")[0].toUpperCase(),
+                  isSelf: u.userId === this.adminUserId,
+                  isAdmin: u.userId === this.adminUserId,
+                }));
+              } else {
+                throw new Error(response.message || "Not authorized as admin");
+              }
             } catch (e) {
               console.error("Connect failed:", e);
               this.connecting = false;
             }
           },
 
-          _handshake(adminUser, adminInfo) {
-            return new Promise((resolve, reject) => {
-              const ws = new WebSocket(WS_URL);
-              let isHandshaked = false;
-              let pendingSend = null;
-
-              const handshakeTimeout = setTimeout(() => {
-                if (!isHandshaked) {
-                  ws.close();
-                  this.connecting = false;
-                  reject(new Error("Handshake timeout"));
-                }
-              }, 5000);
-
-              ws.onopen = () => {
-                if (pendingSend !== null) {
-                  ws.send(pendingSend);
-                  pendingSend = null;
-                }
-              };
-
-              ws.onmessage = async (e) => {
-                const data = JSON.parse(e.data);
-
-                // 阶段1: 收到挑战，签名并回应
-                if (data.type === "handshake_challenge") {
-                  const response = await adminUser._sign({
-                    type: "handshake_response",
-                    challenge: data.challenge,
-                    userId: adminUser.userId,
-                    sessionId: adminUser.sessionId,
-                    username: adminInfo.username,
-                    host: window.location.origin,
-                  });
-                  const payload = JSON.stringify(response);
-                  if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(payload);
-                  } else {
-                    pendingSend = payload;
-                  }
-                  return;
-                }
-
-                // 阶段2: 握手结果
-                if (data.type === "handshake") {
-                  clearTimeout(handshakeTimeout);
-
-                  if (data.status === "success" && data.is_admin) {
-                    isHandshaked = true;
-                    this._ws = ws;
-                    this.connected = true;
-                    this.connecting = false;
-
-                    // 切换 onmessage 为管理消息处理
-                    ws.onmessage = (msgEvent) => this._handleMessage(msgEvent);
-                    ws.onclose = () => this._onClose();
-
-                    // 自动拉取用户列表
-                    this._sendAdmin({ action: "list_users" });
-                    resolve(true);
-                  } else {
-                    this.connecting = false;
-                    ws.close();
-                    reject(
-                      new Error(data.message || "Not authorized as admin"),
-                    );
-                  }
-                  return;
-                }
-              };
-
-              ws.onerror = (err) => {
-                if (!isHandshaked) {
-                  clearTimeout(handshakeTimeout);
-                  this.connecting = false;
-                  reject(err);
-                }
-              };
-
-              ws.onclose = (event) => {
-                if (!isHandshaked) {
-                  clearTimeout(handshakeTimeout);
-                  this.connecting = false;
-                  reject(
-                    new Error(
-                      event.reason || "Connection closed during handshake",
-                    ),
-                  );
-                }
-              };
-            });
-          },
-
-          _sendAdmin(cmd) {
-            if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
-            this._ws.send(JSON.stringify({ type: "admin", ...cmd }));
-          },
-
-          _handleMessage(event) {
+          async refreshUsers() {
+            if (!this.connected || !this._adminUser) return;
             try {
-              const data = JSON.parse(event.data);
-
-              if (data.type === "admin_response") {
-                if (data.action === "list_users" && data.status === "ok") {
-                  this.users = (data.users || []).map((u) => ({
-                    ...u,
-                    avatar: (u.username || "?")[0].toUpperCase(),
-                    isSelf: u.userId === this.adminUserId,
-                    isAdmin: u.userId === this.adminUserId,
-                  }));
-                }
-
-                if (data.action === "disconnect_user") {
-                  // 断开操作完成后自动刷新列表
-                  if (data.status === "ok") {
-                    this._sendAdmin({ action: "list_users" });
-                  }
-                }
-
-                if (data.action === "disconnect_session") {
-                  // 断开 session 后自动刷新列表
-                  if (data.status === "ok") {
-                    this._sendAdmin({ action: "list_users" });
-                  }
-                }
+              const response = await this._adminUser.listUsers(WS_URL);
+              if (response.status === "ok") {
+                this.users = (response.users || []).map((u) => ({
+                  ...u,
+                  avatar: (u.username || "?")[0].toUpperCase(),
+                  isSelf: u.userId === this.adminUserId,
+                  isAdmin: u.userId === this.adminUserId,
+                }));
               }
             } catch (e) {
-              console.error("Failed to parse message:", e);
+              console.error("refreshUsers failed:", e);
+            }
+          },
+
+          async kickUser(userId) {
+            if (!this.connected || !this._adminUser) return;
+            if (userId === this.adminUserId) return;
+            try {
+              await this._adminUser.disconnectUser(WS_URL, userId);
+              await this.refreshUsers();
+            } catch (e) {
+              console.error("kickUser failed:", e);
+            }
+          },
+
+          async kickSession(userId, sessionId) {
+            if (!this.connected || !this._adminUser) return;
+            if (userId === this.adminUserId) return;
+            try {
+              await this._adminUser.disconnectSession(WS_URL, userId, sessionId);
+              await this.refreshUsers();
+            } catch (e) {
+              console.error("kickSession failed:", e);
             }
           },
 
           _onClose() {
             this.connected = false;
-            this._ws = null;
             this.users = [];
-          },
-
-          refreshUsers() {
-            if (this.connected) {
-              this._sendAdmin({ action: "list_users" });
-            }
-          },
-
-          kickUser(userId) {
-            if (!this.connected) return;
-            if (userId === this.adminUserId) return;
-
-            this._sendAdmin({ action: "disconnect_user", user_id: userId });
-          },
-
-          kickSession(userId, sessionId) {
-            if (!this.connected) return;
-            if (userId === this.adminUserId) return;
-
-            this._sendAdmin({
-              action: "disconnect_session",
-              user_id: userId,
-              session_id: sessionId,
-            });
           },
         },
 
         detached() {
-          if (this._ws) {
-            this._ws.close();
-            this._ws = null;
-          }
+          this._adminUser = null;
         },
       };
     };

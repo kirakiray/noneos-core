@@ -305,8 +305,8 @@
           connecting: false,
           systemInfo: null,
           lastUpdate: "",
-          _ws: null,
           _adminUser: null,
+          _refreshTimer: null,
         },
 
         proto: {
@@ -333,147 +333,61 @@
             this.connecting = true;
 
             try {
-              const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
-              const { getUser, deleteUser } = await load("/nos/user/main.js");
+              if (!this._adminUser) {
+                const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+                const { deleteUser } = await load("/nos/user/main.js");
+                const { AdminUser } = await load("/nos/user/admin-user.js");
 
-              const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
-                r.json(),
-              );
-              const sysNs = "sys-info-console-ns";
+                const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+                const sysNs = "sys-info-console-ns";
 
-              try {
-                await deleteUser(sysNs, { skipConfirm: true });
-              } catch (e) {
-                /* ignore */
+                try {
+                  await deleteUser(sysNs, { skipConfirm: true });
+                } catch (e) {
+                  /* ignore */
+                }
+                await saveUserKeys(sysNs, adminData.keys);
+                await saveUserInfo(sysNs, adminData.info);
+
+                const adminUser = new AdminUser(sysNs);
+                await adminUser.ready();
+                this._adminUser = adminUser;
+
+                // 监听连接关闭
+                adminUser.addEventListener("close", () => this._onClose());
               }
-              await saveUserKeys(sysNs, adminData.keys);
-              await saveUserInfo(sysNs, adminData.info);
 
-              const adminUser = await getUser(sysNs);
-              this._adminUser = adminUser;
-              const adminInfo = await adminUser.getInfo();
-
-              await this._handshake(adminUser, adminInfo);
+              // 通过获取系统信息验证连接
+              await this.fetchSystemInfo();
+              if (this.systemInfo) {
+                this.connected = true;
+                this.connecting = false;
+              } else {
+                throw new Error("Failed to get system info");
+              }
             } catch (e) {
               console.error("Connect failed:", e);
               this.connecting = false;
             }
           },
 
-          _handshake(adminUser, adminInfo) {
-            return new Promise((resolve, reject) => {
-              const ws = new WebSocket(WS_URL);
-              let isHandshaked = false;
-              let pendingSend = null;
-
-              const handshakeTimeout = setTimeout(() => {
-                if (!isHandshaked) {
-                  ws.close();
-                  this.connecting = false;
-                  reject(new Error("Handshake timeout"));
-                }
-              }, 5000);
-
-              ws.onopen = () => {
-                if (pendingSend !== null) {
-                  ws.send(pendingSend);
-                  pendingSend = null;
-                }
-              };
-
-              ws.onmessage = async (e) => {
-                const data = JSON.parse(e.data);
-
-                if (data.type === "handshake_challenge") {
-                  const response = await adminUser._sign({
-                    type: "handshake_response",
-                    challenge: data.challenge,
-                    userId: adminUser.userId,
-                    sessionId: adminUser.sessionId,
-                    username: adminInfo.username,
-                  });
-                  const payload = JSON.stringify(response);
-                  if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(payload);
-                  } else {
-                    pendingSend = payload;
-                  }
-                  return;
-                }
-
-                if (data.type === "handshake") {
-                  clearTimeout(handshakeTimeout);
-
-                  if (data.status === "success" && data.is_admin) {
-                    isHandshaked = true;
-                    this._ws = ws;
-                    this.connected = true;
-                    this.connecting = false;
-
-                    ws.onmessage = (msgEvent) => this._handleMessage(msgEvent);
-                    ws.onclose = () => this._onClose();
-
-                    // 连接成功后自动获取系统信息
-                    this.fetchSystemInfo();
-                    resolve(true);
-                  } else {
-                    this.connecting = false;
-                    ws.close();
-                    reject(new Error(data.message || "Not authorized as admin"));
-                  }
-                  return;
-                }
-              };
-
-              ws.onerror = (err) => {
-                if (!isHandshaked) {
-                  clearTimeout(handshakeTimeout);
-                  this.connecting = false;
-                  reject(err);
-                }
-              };
-
-              ws.onclose = (event) => {
-                if (!isHandshaked) {
-                  clearTimeout(handshakeTimeout);
-                  this.connecting = false;
-                  reject(new Error(event.reason || "Connection closed during handshake"));
-                }
-              };
-            });
-          },
-
-          _sendAdmin(cmd) {
-            if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
-            this._ws.send(JSON.stringify({ type: "admin", ...cmd }));
-          },
-
-          _handleMessage(event) {
+          async fetchSystemInfo() {
+            if (!this._adminUser) return;
             try {
-              const data = JSON.parse(event.data);
-
-              if (data.type === "admin_response" && data.action === "get_system_info") {
-                if (data.status === "ok" && data.system_info) {
-                  this.systemInfo = data.system_info;
-                  this.lastUpdate = new Date().toLocaleTimeString();
-                }
+              const response = await this._adminUser.getSystemInfo(WS_URL);
+              if (response.status === "ok" && response.system_info) {
+                this.systemInfo = response.system_info;
+                this.lastUpdate = new Date().toLocaleTimeString();
               }
             } catch (e) {
-              console.error("Failed to parse message:", e);
+              console.error("fetchSystemInfo failed:", e);
             }
           },
 
           _onClose() {
             this.connected = false;
-            this._ws = null;
             this.systemInfo = null;
             this.lastUpdate = "";
-          },
-
-          fetchSystemInfo() {
-            if (this.connected) {
-              this._sendAdmin({ action: "get_system_info" });
-            }
           },
         },
 
@@ -488,10 +402,7 @@
             clearInterval(this._refreshTimer);
             this._refreshTimer = null;
           }
-          if (this._ws) {
-            this._ws.close();
-            this._ws = null;
-          }
+          this._adminUser = null;
         },
       };
     };
