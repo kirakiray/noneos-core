@@ -25,7 +25,7 @@
 
           let success = false;
           let error;
-          const url = "ws://127.0.0.1:8081";
+          const url = "ws://localhost:8081";
           try {
             success = await user1.server.connect(url);
           } catch (e) {
@@ -55,7 +55,7 @@
           const user2 = new LocalUser(namespace2);
           await user2.ready();
 
-          const url2 = "ws://127.0.0.1:8081";
+          const url2 = "ws://localhost:8081";
           await user2.server.connect(url2);
 
           const msg2 =
@@ -108,7 +108,7 @@
           const user3 = new LocalUser(namespace3);
           await user3.ready();
 
-          const url3 = "ws://127.0.0.1:8081";
+          const url3 = "ws://localhost:8081";
 
           // 第一次连接
           const firstResult = await user3.server.connect(url3);
@@ -141,7 +141,7 @@
           // 模拟篡改数据：修改用户名但保留原有的（针对旧数据的）签名
           const tamperedInfo4 = { ...userInfo4, username: "hacker" };
 
-          const url4 = "ws://127.0.0.1:8081";
+          const url4 = "ws://localhost:8081";
           let serverResponse4 = null;
 
           const handshakeResult4 = await new Promise((resolve) => {
@@ -242,7 +242,7 @@
 
           const userInfo5 = await user5.getInfo();
 
-          const url5 = "ws://127.0.0.1:8081";
+          const url5 = "ws://localhost:8081";
           let serverResponse5 = null;
 
           const handshakeResult5 = await new Promise((resolve) => {
@@ -344,7 +344,7 @@
           const user6 = new LocalUser(namespace6);
           await user6.ready();
 
-          const url6 = "ws://127.0.0.1:8081";
+          const url6 = "ws://localhost:8081";
           let serverResponse6 = null;
 
           const handshakeResult6 = await new Promise((resolve) => {

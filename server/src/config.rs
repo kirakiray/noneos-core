@@ -22,7 +22,7 @@ pub struct Config {
     #[serde(default = "default_port")]
     pub port: u16,
     /// 服务器监听的 IP 地址或主机名
-    /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 "127.0.0.1"
+    /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 "localhost"
     #[serde(default = "default_host")]
     pub host: String,
     /// 管理员用户的 userId，连接服务器后拥有管理权限
@@ -42,7 +42,7 @@ fn default_port() -> u16 {
 
 /// 获取默认监听地址的辅助函数
 fn default_host() -> String {
-    "127.0.0.1".to_string()
+    "localhost".to_string()
 }
 
 /// 获取默认握手超时时间的辅助函数

@@ -114,7 +114,7 @@
           const sysInfoUser = new AdminUser(sysInfoNs);
           await sysInfoUser.ready();
 
-          const sysInfoUrl = "ws://127.0.0.1:8081";
+          const sysInfoUrl = "ws://localhost:8081";
 
           const sysInfoResponse = await sysInfoUser.getSystemInfo(sysInfoUrl);
 
@@ -158,7 +158,7 @@
 
           await sysNormUser.ready();
 
-          const sysNormUrl = "ws://127.0.0.1:8081";
+          const sysNormUrl = "ws://localhost:8081";
 
           // 使用 server.connect 建立连接
           await sysNormUser.server.connect(sysNormUrl);

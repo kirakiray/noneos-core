@@ -24,7 +24,7 @@
     在自己的用户空间中获取 userId，将其拷贝到服务器配置中：
 
         port = 8081
-        host = "127.0.0.1"
+        host = "localhost"
         admin_user_id = "你的 userId"
 
     只有 userId 匹配该值的用户在握手后会被标记为 is_admin = true。
@@ -45,7 +45,7 @@
           "status": "ok",
           "message": "3 user(s) connected",
           "users": [
-            { "userId": "...", "sessionId": "s-...", "username": "...", "addr": "127.0.0.1:54321" },
+            { "userId": "...", "sessionId": "s-...", "username": "...", "addr": "localhost:54321" },
             ...
           ]
         }
@@ -135,7 +135,7 @@
           const adminConUser = new AdminUser(adminConNs);
           await adminConUser.ready();
 
-          const adminConUrl = "ws://127.0.0.1:8081";
+          const adminConUrl = "ws://localhost:8081";
 
           // 通过成功执行管理员命令来验证管理员身份
           let listResult;
@@ -180,7 +180,7 @@
           const adminListUser = new AdminUser(adminListNs);
           await adminListUser.ready();
 
-          const adminListUrl = "ws://127.0.0.1:8081";
+          const adminListUrl = "ws://localhost:8081";
 
           const adminListResponse = await adminListUser.listUsers(adminListUrl);
 
@@ -214,7 +214,7 @@
 
           await normUser.ready();
 
-          const normUrl = "ws://127.0.0.1:8081";
+          const normUrl = "ws://localhost:8081";
           let normHandshake = null;
 
           const normPromise = new Promise((resolve) => {
@@ -309,7 +309,7 @@
 
           await norm2User.ready();
 
-          const norm2Url = "ws://127.0.0.1:8081";
+          const norm2Url = "ws://localhost:8081";
 
           // 使用 server.connect 建立连接
           await norm2User.server.connect(norm2Url);
@@ -376,7 +376,7 @@
           const victimUser = new LocalUser(victimNs);
           await victimUser.ready();
 
-          const discUrl = "ws://127.0.0.1:8081";
+          const discUrl = "ws://localhost:8081";
 
           // 先连接普通用户（使用 server.connect 建立连接）
           let victimClosed = false;
@@ -433,7 +433,7 @@
           const sessUser1 = new LocalUser(sessUserNs);
           await sessUser1.ready();
 
-          const sessUrl = "ws://127.0.0.1:8081";
+          const sessUrl = "ws://localhost:8081";
 
           // 连接普通用户的第一个 session（使用 server.connect 建立长连接）
           let sess1Closed = false;

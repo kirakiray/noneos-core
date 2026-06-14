@@ -129,7 +129,7 @@ async fn async_iterator_example() {
 // async fn async_network_example() -> std::io::Result<()> {
 //     use tokio::net::TcpListener;
 //     
-//     let listener = TcpListener::bind("127.0.0.1:8080").await?;
+//     let listener = TcpListener::bind("localhost:8080").await?;
 //     
 //     loop {
 //         let (socket, _) = listener.accept().await?;

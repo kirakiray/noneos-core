@@ -92,7 +92,7 @@
           const t1User = new LocalUser(t1Ns);
           await t1User.ready();
 
-          const t1Url = "ws://127.0.0.1:8081";
+          const t1Url = "ws://localhost:8081";
 
           // 连接服务器
           await t1User.server.connect(t1Url);
@@ -134,7 +134,7 @@
           const t2User = new LocalUser(t2Ns);
           await t2User.ready();
 
-          const t2Url = "ws://127.0.0.1:8081";
+          const t2Url = "ws://localhost:8081";
 
           // 连接服务器
           await t2User.server.connect(t2Url);
@@ -182,7 +182,7 @@
           const t3bUser = new LocalUser(t3bNs);
           await t3bUser.ready();
 
-          const t3Url = "ws://127.0.0.1:8081";
+          const t3Url = "ws://localhost:8081";
 
           // 两个用户都连接服务器
           await t3aUser.server.connect(t3Url);
@@ -232,7 +232,7 @@
           const t4Receiver = new LocalUser(t4RecvNs);
           await t4Receiver.ready();
 
-          const t4Url = "ws://127.0.0.1:8081";
+          const t4Url = "ws://localhost:8081";
 
           // 两个用户都连接服务器
           await t4Sender.server.connect(t4Url);
@@ -318,7 +318,7 @@
           const t5User = new LocalUser(t5Ns);
           await t5User.ready();
 
-          const t5Url = "ws://127.0.0.1:8081";
+          const t5Url = "ws://localhost:8081";
           await t5User.server.connect(t5Url);
 
           // 尝试发送到不存在的 session
@@ -369,7 +369,7 @@
           const t6Receiver = new LocalUser(t6RecvNs);
           await t6Receiver.ready();
 
-          const t6Url = "ws://127.0.0.1:8081";
+          const t6Url = "ws://localhost:8081";
 
           await t6Sender.server.connect(t6Url);
           await t6Receiver.server.connect(t6Url);
