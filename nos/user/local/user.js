@@ -108,7 +108,7 @@ export class LocalUser extends BaseUser {
     }
 
     // 自动连接默认服务器列表，不阻塞 ready()
-    await this.#server.connectAll().catch(() => {});
+    this.#server.connectAll().catch(() => {});
 
     return this;
   }

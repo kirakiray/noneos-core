@@ -200,9 +200,11 @@
         // 创建用户
         await getUser(skipDeleteNs);
 
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         // 使用 skipConfirm 参数直接删除，不弹出确认框
         const skipDeleteResult = await deleteUser(skipDeleteNs, { skipConfirm: true });
-        
+
         // 删除成功应该返回 true
         const isDeleted = skipDeleteResult === true;
 
