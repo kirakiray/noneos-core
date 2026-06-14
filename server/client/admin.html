@@ -1,7 +1,5 @@
 <template page>
-  <l-m
-    src="https://punch-ui-v2.pages.dev/packages/list/list.html"
-  ></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
 
   <style>
     :host {
@@ -195,35 +193,36 @@
     <p-list class="user-list">
       <o-fill :value="users">
         <p-list-item>
-          <span
-            slot="prefix"
-            class="user-avatar"
-            class:admin="$data.isAdmin"
-          >{{$data.avatar}}</span>
+          <span slot="prefix" class="user-avatar" class:admin="$data.isAdmin"
+            >{{$data.avatar}}</span
+          >
           <span>{{$data.username}}</span>
-          <div secondary>
-            {{$data.host || $data.addr}}
-            <div class="user-session">
-              {{$data.addr}}
-            </div>
-          </div>
-          <span slot="suffix" style="display:flex;align-items:center;gap:4px">
+          <div secondary>{{$data.host || $data.addr}}</div>
+          <span
+            slot="suffix"
+            style="display: flex; align-items: center; gap: 4px"
+          >
             <span
               class="admin-badge"
               :style.display="$data.isAdmin ? '' : 'none'"
-            >管理员</span>
+              >管理员</span
+            >
             <button
               class="kick-btn"
               on:click="$host.kickSession($data.userId, $data.sessionId)"
               :disabled="$data.isSelf"
               :style.display="$data.isSelf ? 'none' : ''"
-            >断开会话</button>
+            >
+              断开会话
+            </button>
             <button
               class="kick-all-btn"
               on:click="$host.kickUser($data.userId)"
               :disabled="$data.isSelf"
               :style.display="$data.isSelf ? 'none' : ''"
-            >断开所有</button>
+            >
+              断开所有
+            </button>
           </span>
         </p-list-item>
       </o-fill>
@@ -261,7 +260,8 @@
 
             try {
               // 1. 导入管理员用户数据
-              const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+              const { saveUserKeys, saveUserInfo } =
+                await load("/nos/user/db.js");
               const { getUser, deleteUser } = await load("/nos/user/main.js");
 
               const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
@@ -446,7 +446,11 @@
             if (!this.connected) return;
             if (userId === this.adminUserId) return;
 
-            this._sendAdmin({ action: "disconnect_session", user_id: userId, session_id: sessionId });
+            this._sendAdmin({
+              action: "disconnect_session",
+              user_id: userId,
+              session_id: sessionId,
+            });
           },
         },
 
