@@ -679,8 +679,9 @@ pub async fn handle_connection(
                                             }
                                         }
 
-                                        // 非管理/查询/relay 命令，不做处理
-                                        // (纯文本回声逻辑已移除)
+                                        // 非管理/查询/relay 命令：回显
+                                        let response = format!("Server received: {}", text);
+                                        ws_sender.send(Message::Text(response)).await?;
                                     }
                                     Message::Binary(data) => {
                                         ws_sender.send(Message::Binary(data)).await?;

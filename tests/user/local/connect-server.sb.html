@@ -46,7 +46,58 @@
       </template>
     </sb-test>
 
+    <sb-test name="Custom Event Forwarding Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
 
+          const namespace2 = "test-msg";
+          const user2 = new LocalUser(namespace2);
+          await user2.ready();
+
+          const url2 = "ws://127.0.0.1:8081";
+          await user2.server.connect(url2);
+
+          const msg2 =
+            "Hello Server " + Math.random().toString(36).substring(2, 8);
+          let receivedDetail = null;
+
+          const messagePromise = new Promise((resolve) => {
+            user2.addEventListener(
+              "message",
+              (event) => {
+                receivedDetail = event.detail;
+                resolve();
+              },
+              { once: true },
+            );
+          });
+
+          user2.server.sendToServer(url2, msg2);
+
+          await Promise.race([
+            messagePromise,
+            new Promise((res) => setTimeout(res, 3000)),
+          ]);
+
+          const isEchoMatched =
+            receivedDetail &&
+            receivedDetail.data === "Server received: " + msg2;
+
+          return {
+            assert: isEchoMatched,
+            content: {
+              message: isEchoMatched
+                ? "Received correct event from LocalUser"
+                : "Event match failed or timeout",
+              sent: msg2,
+              received: receivedDetail ? receivedDetail.data : null,
+              url: receivedDetail ? receivedDetail.url : null,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
 
     <sb-test name="WebSocket Persistence and Reuse Test">
       <template>
