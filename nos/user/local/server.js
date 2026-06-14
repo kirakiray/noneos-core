@@ -1,9 +1,63 @@
+import { saveServerList, getServerList } from "../db.js";
+
+const DEFAULT_SERVERS = ["ws://localhost:8081", "ws://localhost:8082"];
+
 export class ServerManager {
   #wsMap = new Map();
+  #servers = [];
   #user;
+  #inited = false;
 
   constructor(user) {
     this.#user = user;
+  }
+
+  /**
+   * 初始化默认服务器列表
+   * 从数据库读取，如果为空则写入默认列表
+   */
+  async init() {
+    if (this.#inited) return;
+    this.#inited = true;
+
+    const namespace = this.#user.namespace;
+    let servers = await getServerList(namespace);
+    if (!servers || servers.length === 0) {
+      servers = [...DEFAULT_SERVERS];
+      await saveServerList(namespace, servers);
+    }
+    this.#servers = servers;
+  }
+
+  /**
+   * 获取服务器列表
+   * @returns {string[]}
+   */
+  getServers() {
+    return [...this.#servers];
+  }
+
+  /**
+   * 添加服务器
+   * @param {string} url - 服务器 WebSocket 地址
+   */
+  async addServer(url) {
+    if (this.#servers.includes(url)) return;
+    this.#servers.push(url);
+    await saveServerList(this.#user.namespace, this.#servers);
+  }
+
+  /**
+   * 删除服务器
+   * @param {string} url - 服务器 WebSocket 地址
+   * @returns {boolean} 是否成功删除
+   */
+  async removeServer(url) {
+    const index = this.#servers.indexOf(url);
+    if (index === -1) return false;
+    this.#servers.splice(index, 1);
+    await saveServerList(this.#user.namespace, this.#servers);
+    return true;
   }
 
   /**
@@ -113,6 +167,23 @@ export class ServerManager {
         }
       };
     });
+  }
+
+  /**
+   * 连接所有默认服务器
+   * 每个服务器连接失败不会影响其他默认服务器的连接
+   * @returns {Promise<Array<{url: string, success: boolean, error: Error|null}>>}
+   */
+  async connectToDefaultServers() {
+    const servers = this.getServers();
+    const results = await Promise.allSettled(
+      servers.map(url => this.connect(url).then(() => true).catch(e => { throw e; }))
+    );
+    return results.map((r, i) => ({
+      url: servers[i],
+      success: r.status === "fulfilled" && r.value === true,
+      error: r.status === "rejected" ? r.reason : null,
+    }));
   }
 
   /**
