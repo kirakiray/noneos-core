@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Default Server Tests</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Default Server Tests</h1>
+
+    <sb-test name="Default Server List After Ready">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace1 = "test-default-list-" + Math.random().toString(36).substring(2, 8);
+          const user1 = new LocalUser(namespace1);
+          await user1.ready();
+
+          const servers = user1.server.getServers();
+
+          const has8081 = servers.includes("ws://localhost:8081");
+          const has8082 = servers.includes("ws://localhost:8082");
+
+          return {
+            assert: has8081 && has8082 && servers.length === 2,
+            content: {
+              message: has8081 && has8082
+                ? "Default server list contains both servers"
+                : "Missing expected servers",
+              servers,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Add and Remove Server Persistence">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace2 = "test-add-remove-" + Math.random().toString(36).substring(2, 8);
+          const user2 = new LocalUser(namespace2);
+          await user2.ready();
+
+          const testUrl = "ws://localhost:9090";
+          await user2.server.addServer(testUrl);
+          const serverListAfterAdd = user2.server.getServers();
+          const addSuccess = serverListAfterAdd.includes(testUrl);
+
+          const removeSuccess = await user2.server.removeServer(testUrl);
+          const serverListAfterRemove = user2.server.getServers();
+          const notFoundAfterRemove = !serverListAfterRemove.includes(testUrl);
+
+          return {
+            assert: addSuccess && removeSuccess && notFoundAfterRemove,
+            content: {
+              message: addSuccess && removeSuccess && notFoundAfterRemove
+                ? "Add and remove server works correctly"
+                : "Add/remove failed",
+              serverListAfterRemove,
+              addResult: { url: testUrl, added: addSuccess },
+              removeResult: { url: testUrl, removed: removeSuccess },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Add Duplicate Server Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace3 = "test-dup-" + Math.random().toString(36).substring(2, 8);
+          const user3 = new LocalUser(namespace3);
+          await user3.ready();
+
+          const initialCount = user3.server.getServers().length;
+
+          // 添加一个已存在的服务器（应被忽略）
+          await user3.server.addServer("ws://localhost:8081");
+          const afterDup = user3.server.getServers().length;
+
+          return {
+            assert: initialCount === afterDup,
+            content: {
+              message: initialCount === afterDup
+                ? "Duplicate server was correctly ignored"
+                : "Duplicate server was incorrectly added",
+              initialCount,
+              afterDup,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Connect to Default Servers">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace4 = "test-connect-defaults-" + Math.random().toString(36).substring(2, 8);
+          const user4 = new LocalUser(namespace4);
+          await user4.ready();
+
+          const results = await user4.server.connectToDefaultServers();
+
+          // 8081 应当能连上（测试服务器在运行），8082 可能连不上
+          const result8081 = results.find(r => r.url === "ws://localhost:8081");
+          const result8082 = results.find(r => r.url === "ws://localhost:8082");
+
+          const hasTwoResults = results.length === 2;
+          const foundUrls = results.every(r => r.url !== undefined);
+
+          return {
+            assert: hasTwoResults && foundUrls,
+            content: {
+              message: "connectToDefaultServers attempted all servers",
+              results: results.map(r => ({
+                url: r.url,
+                success: r.success,
+                error: r.error ? r.error.message : null,
+              })),
+              server8081: result8081 ? { success: result8081.success } : "not found",
+              server8082: result8082 ? { success: result8082.success } : "not found",
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Server List Persists Across Instances">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace5 = "test-persist-" + Math.random().toString(36).substring(2, 8);
+          const customUrl = "ws://localhost:7070";
+
+          // 第一个实例：添加自定义服务器
+          const user5a = new LocalUser(namespace5);
+          await user5a.ready();
+          await user5a.server.addServer(customUrl);
+          const serversAfterAdd = user5a.server.getServers();
+
+          // 销毁第一个实例的 db 连接（关闭缓存）
+          // 创建新实例，验证服务器列表是否持久化
+          const user5b = new LocalUser(namespace5);
+          await user5b.ready();
+          const serversFromNewInstance = user5b.server.getServers();
+
+          const isPersisted = serversFromNewInstance.includes(customUrl);
+          const hasDefaults = serversFromNewInstance.includes("ws://localhost:8081")
+            && serversFromNewInstance.includes("ws://localhost:8082");
+
+          return {
+            assert: isPersisted && hasDefaults,
+            content: {
+              message: isPersisted && hasDefaults
+                ? "Server list correctly persisted across instances"
+                : "Server list persistence failed",
+              firstInstance: serversAfterAdd,
+              secondInstance: serversFromNewInstance,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
