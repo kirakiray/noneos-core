@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, mpsc, Mutex};
 use tokio::time::{timeout, Duration};
-use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
+use tokio_tungstenite::{accept_hdr_async, tungstenite::protocol::Message};
 use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
 use rand::{thread_rng, Rng};
@@ -15,6 +15,7 @@ use sysinfo::{System, Disks};
 /// 已连接用户的信息
 struct UserSession {
     username: String,
+    host: String,
     addr: SocketAddr,
     disconnect_tx: Option<oneshot::Sender<()>>,
     data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
@@ -36,7 +37,7 @@ impl AppState {
     }
 
     /// 添加用户连接，如果相同的 conn_key 已存在，踢掉旧连接再替换
-    fn add_user(&mut self, conn_key: &str, username: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) {
+    fn add_user(&mut self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) {
         // 如果相同 key 已存在，先踢掉旧连接
         if let Some(mut old_session) = self.users.remove(conn_key) {
             if let Some(tx) = old_session.disconnect_tx.take() {
@@ -45,6 +46,7 @@ impl AppState {
         }
         self.users.insert(conn_key.to_string(), UserSession {
             username: username.to_string(),
+            host: host.to_string(),
             addr,
             disconnect_tx: Some(disconnect_tx),
             data_tx,
@@ -99,6 +101,7 @@ impl AppState {
                 "userId": user_id,
                 "sessionId": session_id,
                 "username": session.username,
+                "host": session.host,
                 "addr": session.addr.to_string(),
             })
         }).collect()
@@ -222,8 +225,15 @@ pub async fn handle_connection(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("New WebSocket connection attempt from: {}", addr);
 
-    // 1. WebSocket 握手
-    let ws_stream = accept_async(raw_stream).await?;
+    // 1. WebSocket 握手，并捕获 Origin 请求头（由浏览器自动发送，更可信）
+    let client_origin = std::sync::Mutex::new(String::new());
+    let ws_stream = accept_hdr_async(raw_stream, |req: &tungstenite::handshake::server::Request, response: tungstenite::handshake::server::Response| {
+        if let Some(origin_val) = req.headers().get("origin") {
+            *client_origin.lock().unwrap() = origin_val.to_str().unwrap_or("").to_string();
+        }
+        Ok(response)
+    }).await?;
+    let client_origin = client_origin.into_inner().unwrap_or_default();
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
     // 2. 发送挑战
@@ -375,7 +385,7 @@ pub async fn handle_connection(
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
             {
                 let mut st = state.lock().await;
-                st.add_user(&conn_key, &username, addr, disconnect_tx, data_tx);
+                st.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx);
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };

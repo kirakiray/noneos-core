@@ -52,7 +52,8 @@ export class ServerManager {
                 challenge: data.challenge,
                 userId: this.#user.userId,
                 sessionId: this.#user.sessionId,
-                username: userInfo.username
+                username: userInfo.username,
+                host: window.location.origin
               });
               ws.send(JSON.stringify(response));
               return;

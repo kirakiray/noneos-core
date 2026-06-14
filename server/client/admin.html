@@ -202,9 +202,9 @@
           >{{$data.avatar}}</span>
           <span>{{$data.username}}</span>
           <div secondary>
-            {{$data.addr}}
+            {{$data.host || $data.addr}}
             <div class="user-session">
-              {{$data.userIdShort}} / {{$data.sessionId}}
+              {{$data.addr}}
             </div>
           </div>
           <span slot="suffix" style="display:flex;align-items:center;gap:4px">
@@ -324,6 +324,7 @@
                     userId: adminUser.userId,
                     sessionId: adminUser.sessionId,
                     username: adminInfo.username,
+                    host: window.location.origin,
                   });
                   const payload = JSON.stringify(response);
                   if (ws.readyState === WebSocket.OPEN) {
@@ -398,9 +399,6 @@
                   this.users = (data.users || []).map((u) => ({
                     ...u,
                     avatar: (u.username || "?")[0].toUpperCase(),
-                    userIdShort: u.userId
-                      ? u.userId.substring(0, 12) + "..."
-                      : "",
                     isSelf: u.userId === this.adminUserId,
                     isAdmin: u.userId === this.adminUserId,
                   }));
