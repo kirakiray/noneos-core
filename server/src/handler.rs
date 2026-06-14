@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, mpsc, Mutex};
 use tokio::time::{timeout, Duration};
-use tokio_tungstenite::{accept_hdr_async, tungstenite::protocol::Message};
+use tokio_tungstenite::{accept_hdr_async, tungstenite::{protocol::Message, handshake::server::{Request, Response, ErrorResponse}}};
 use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
 use rand::{thread_rng, Rng};
@@ -148,8 +148,6 @@ struct HandshakeChallenge {
 /// 管理命令请求格式
 #[derive(Deserialize)]
 struct AdminCommand {
-    #[serde(rename = "type")]
-    msg_type: String,
     action: String,
     #[serde(default)]
     user_id: Option<String>,
@@ -217,6 +215,7 @@ fn collect_system_info() -> serde_json::Value {
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
+#[allow(clippy::result_large_err)]
 pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
@@ -227,11 +226,15 @@ pub async fn handle_connection(
 
     // 1. WebSocket 握手，并捕获 Origin 请求头（由浏览器自动发送，更可信）
     let client_origin = std::sync::Mutex::new(String::new());
-    let ws_stream = accept_hdr_async(raw_stream, |req: &tungstenite::handshake::server::Request, response: tungstenite::handshake::server::Response| {
+    let ws_stream = accept_hdr_async(raw_stream, |req: &Request, response: Response| {
         if let Some(origin_val) = req.headers().get("origin") {
-            *client_origin.lock().unwrap() = origin_val.to_str().unwrap_or("").to_string();
+            if let Ok(origin_str) = origin_val.to_str() {
+                if let Ok(mut origin) = client_origin.lock() {
+                    *origin = origin_str.to_string();
+                }
+            }
         }
-        Ok(response)
+        Ok::<_, ErrorResponse>(response)
     }).await?;
     let client_origin = client_origin.into_inner().unwrap_or_default();
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
