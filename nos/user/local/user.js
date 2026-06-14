@@ -1,10 +1,5 @@
 import { BaseUser } from "../base-user.js";
-import {
-  getUserKeys,
-  saveUserKeys,
-  saveUserInfo,
-  getUserInfo,
-} from "../db.js";
+import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "../db.js";
 import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
 import { ServerManager } from "./server.js";
@@ -107,9 +102,13 @@ export class LocalUser extends BaseUser {
 
     // 如果是新用户，生成默认用户名并保存
     if (isNewUser) {
-      const defaultUsername = "user-" + Math.random().toString(36).substring(2, 10);
+      const defaultUsername =
+        "user-" + Math.random().toString(36).substring(2, 10);
       await this.updateInfo({ username: defaultUsername });
     }
+
+    // 自动连接默认服务器列表，不阻塞 ready()
+    await this.#server.connectAll().catch(() => {});
 
     return this;
   }
@@ -122,10 +121,11 @@ export class LocalUser extends BaseUser {
    */
   async updateInfo(data) {
     // 获取现有信息
-    const existingInfo = await getUserInfo(this.#namespace) || {};
+    const existingInfo = (await getUserInfo(this.#namespace)) || {};
 
     // 合并数据，移除签名相关字段后重新签名
-    const { signTime, publicKey, signature, ...pureExistingInfo } = existingInfo;
+    const { signTime, publicKey, signature, ...pureExistingInfo } =
+      existingInfo;
     const mergedData = { ...pureExistingInfo, ...data, userId: this.userId };
 
     // 签名数据
@@ -144,5 +144,4 @@ export class LocalUser extends BaseUser {
   async getInfo() {
     return getUserInfo(this.#namespace);
   }
-
 }
