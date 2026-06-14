@@ -680,6 +680,18 @@ pub async fn handle_connection(
                                         }
 
                                         // 非管理/查询/relay 命令：回显
+                                        // 限制纯文本回声的大小不超过 100 字节
+                                        if text.len() > 100 {
+                                            let err_msg = serde_json::json!({
+                                                "type": "echo_error",
+                                                "status": "error",
+                                                "message": format!("Echo rejected: payload too large ({} bytes, max 100)", text.len())
+                                            });
+                                            ws_sender.send(Message::Text(serde_json::to_string(&err_msg)?)).await?;
+                                            let _ = ws_sender.send(Message::Close(None)).await;
+                                            println!("Disconnected {}:{} ({}): payload too large ({} bytes)", user_id, session_id, username, text.len());
+                                            break;
+                                        }
                                         let response = format!("Server received: {}", text);
                                         ws_sender.send(Message::Text(response)).await?;
                                     }
