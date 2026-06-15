@@ -3,6 +3,7 @@ import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "../db.js";
 import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
 import { ServerManager } from "./server.js";
+import { RemoteUser } from "./remote-user.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
@@ -155,6 +156,36 @@ export class LocalUser extends BaseUser {
    */
   async getInfo() {
     return getUserInfo(this.#namespace);
+  }
+
+  /**
+   * 连接远程用户，返回对应的 RemoteUser 实例
+   * 会查询已连接的服务器确认对方是否在线
+   * @param {string} userId - 目标用户的 userId
+   * @returns {Promise<RemoteUser>}
+   */
+  async connectUser(userId) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+    // 查询已连接服务器，确认目标用户至少在一台服务器上在线
+    const urls = this.#server.connectedUrls;
+    let found = false;
+    for (const url of urls) {
+      try {
+        const result = await this.#server.queryUserOnline(url, userId);
+        if (result.online) {
+          found = true;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (!found) {
+      throw new Error(`User ${userId} is not online on any connected server`);
+    }
+    return new RemoteUser(userId, this);
   }
 
   /**

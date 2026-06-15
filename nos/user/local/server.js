@@ -17,6 +17,14 @@ export class ServerManager {
   }
 
   /**
+   * 获取当前已连接的服务器 URL 列表
+   * @returns {string[]}
+   */
+  get connectedUrls() {
+    return [...this.#wsMap.keys()];
+  }
+
+  /**
    * 获取服务器列表
    * @returns {Promise<string[]>}
    */

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connect User Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Connect User Tests</h1>
+
+  <sb-test name="Connect to Remote User and Send Message Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsA = "connect-user-a";
+        const nsB = "connect-user-b";
+        const serverUrl1 = "ws://localhost:8081";
+
+        // 创建多个 LocalUser：userA 和 userB（含多个 session）
+        const userA = new LocalUser(nsA);
+        const userB = new LocalUser(nsB);
+        const userB2 = new LocalUser(nsB);
+        const userB3 = new LocalUser(nsB);
+
+        await Promise.all([userA.ready(), userB.ready(), userB2.ready(), userB3.ready()]);
+
+        // 所有用户都连接到同一台服务器
+        await Promise.all([
+          userA.server.connect(serverUrl1),
+          userB.server.connect(serverUrl1),
+          userB2.server.connect(serverUrl1),
+          userB3.server.connect(serverUrl1),
+        ]);
+
+        // userA 连接 userB
+        const remoteB = await userA.connectUser(userB.userId);
+
+        // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
+        const sessionIds = await remoteB.getSessionIds();
+        const hasB1 = sessionIds.includes(userB.sessionId);
+        const hasB2 = sessionIds.includes(userB2.sessionId);
+        const hasB3 = sessionIds.includes(userB3.sessionId);
+        const countAtLeast3 = sessionIds.length >= 3;
+
+        // userA 通过 remoteB 发送消息给 userB
+        let receivedMessage = null;
+        userB.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userA.userId) {
+              receivedMessage = parsed.data;
+            }
+          } catch {}
+        });
+
+        await remoteB.send(userB.sessionId, "hello from A");
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const messageReceived = receivedMessage === "hello from A";
+
+        return {
+          assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
+          content: {
+            message: "connectUser 测试成功，发现同用户多个 session 并成功发送消息",
+            userAId: userA.userId,
+            userBId: userB.userId,
+            sessionIds,
+            expectedSessions: [userB.sessionId, userB2.sessionId, userB3.sessionId],
+            sentMessage: "hello from A",
+            receivedMessage,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="RemoteUser Message Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsC = "connect-user-c";
+        const nsD = "connect-user-d";
+        const serverUrl2 = "ws://localhost:8081";
+
+        const userC = new LocalUser(nsC);
+        const userD = new LocalUser(nsD);
+
+        await Promise.all([userC.ready(), userD.ready()]);
+
+        await Promise.all([
+          userC.server.connect(serverUrl2),
+          userD.server.connect(serverUrl2),
+        ]);
+
+        // userC 连接 userD
+        const remoteD = await userC.connectUser(userD.userId);
+
+        // 通过 remoteD 监听来自 userD 的消息
+        let remoteMessageDetail = null;
+        remoteD.bind("message", (event) => {
+          remoteMessageDetail = event.detail;
+        });
+
+        // 同时通过 userC 监听所有消息
+        let localMessageDetail = null;
+        userC.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userD.userId) {
+              localMessageDetail = {
+                fromUserId: parsed.from_user_id,
+                fromSessionId: parsed.from_session_id,
+                data: parsed.data,
+                viaServer: event.detail.url,
+              };
+            }
+          } catch {}
+        });
+
+        // userD 发送消息给 userC
+        const remoteC = await userD.connectUser(userC.userId);
+        await remoteC.send(userC.sessionId, "hello from D");
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const remoteEventReceived =
+          remoteMessageDetail !== null &&
+          remoteMessageDetail.fromUserId === userD.userId &&
+          remoteMessageDetail.data === "hello from D";
+
+        const localEventReceived =
+          localMessageDetail !== null &&
+          localMessageDetail.fromUserId === userD.userId &&
+          localMessageDetail.data === "hello from D";
+
+        return {
+          assert: remoteEventReceived && localEventReceived,
+          content: {
+            message: "RemoteUser message 事件测试成功",
+            remoteEventDetail: remoteMessageDetail,
+            localEventDetail: localMessageDetail,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>
