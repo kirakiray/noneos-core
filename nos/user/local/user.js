@@ -16,6 +16,7 @@ export class LocalUser extends BaseUser {
   #sessionId = "s-" + Math.random().toString(36).substring(2, 10);
   #cert;
   #server;
+  #sessionChannel;
 
   /**
    * 构造函数
@@ -29,6 +30,17 @@ export class LocalUser extends BaseUser {
     this.#namespace = namespace;
     this.#cert = new CertManager(this);
     this.#server = new ServerManager(this);
+    // 创建持久化的 BroadcastChannel 监听跨标签页 session 查询
+    this.#sessionChannel = new BroadcastChannel(`noneos-sessions-${namespace}`);
+    this.#sessionChannel.addEventListener("message", (event) => {
+      if (event.data.type === "session-announce") {
+        // 其他标签页请求广播，回复自己的 sessionId
+        this.#sessionChannel.postMessage({
+          type: "session-response",
+          sessionId: this.#sessionId,
+        });
+      }
+    });
   }
 
   /**
@@ -143,5 +155,38 @@ export class LocalUser extends BaseUser {
    */
   async getInfo() {
     return getUserInfo(this.#namespace);
+  }
+
+  /**
+   * 获取同一 namespace 下所有标签页的 sessionId 列表
+   * 通过 BroadcastChannel 实现跨标签页通信，无需经过服务器
+   * 每个 LocalUser 实例在构造时已注册持久化监听器，会自动回复其他实例的查询
+   * @param {number} [timeout=100] - 等待其他标签页响应的超时时间（毫秒）
+   * @returns {Promise<string[]>} 包含自身在内的所有活跃 sessionId 列表
+   */
+  async getSessionIds(timeout = 1000) {
+    return new Promise((resolve) => {
+      const sessions = new Set();
+      // 包含自己的 sessionId
+      sessions.add(this.#sessionId);
+
+      const handler = (event) => {
+        if (event.data.type === "session-response") {
+          // 收集其他标签页的 sessionId
+          sessions.add(event.data.sessionId);
+        }
+      };
+
+      this.#sessionChannel.addEventListener("message", handler);
+
+      // 广播 announce，询问其他标签页
+      this.#sessionChannel.postMessage({ type: "session-announce" });
+
+      // 超时后返回收集到的结果
+      setTimeout(() => {
+        this.#sessionChannel.removeEventListener("message", handler);
+        resolve([...sessions]);
+      }, timeout);
+    });
   }
 }

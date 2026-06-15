@@ -120,6 +120,57 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Get Session IDs Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsSession = "session_test_user_1";
+
+        // 创建三个相同 namespace 的 LocalUser，模拟三个浏览器标签页
+        const sessionUser1 = new LocalUser(nsSession);
+        const sessionUser2 = new LocalUser(nsSession);
+        const sessionUser3 = new LocalUser(nsSession);
+
+        await Promise.all([
+          sessionUser1.ready(),
+          sessionUser2.ready(),
+          sessionUser3.ready(),
+        ]);
+
+        // 让 sessionUser1 发起查询，收集所有 sessionId
+        const sessionIds = await sessionUser1.getSessionIds(100);
+
+        const isArray = Array.isArray(sessionIds);
+        const contains1 = sessionIds.includes(sessionUser1.sessionId);
+        const contains2 = sessionIds.includes(sessionUser2.sessionId);
+        const contains3 = sessionIds.includes(sessionUser3.sessionId);
+        const allStrings = sessionIds.every((id) => typeof id === "string");
+
+        return {
+          assert:
+            isArray &&
+            contains1 &&
+            contains2 &&
+            contains3 &&
+            allStrings &&
+            sessionIds.length >= 3,
+          content: {
+            message: "getSessionIds 测试成功，成功发现 3 个同 namespace 的 session",
+            ownSessionId: sessionUser1.sessionId,
+            allSessionIds: [
+              sessionUser1.sessionId,
+              sessionUser2.sessionId,
+              sessionUser3.sessionId,
+            ],
+            discoveredSessionIds: sessionIds,
+            count: sessionIds.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
