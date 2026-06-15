@@ -20,6 +20,7 @@ struct UserSession {
     disconnect_tx: Option<oneshot::Sender<()>>,
     data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
     latency_ms: Option<u64>,                  // 最近一次延迟测量的 RTT（毫秒）
+    connected_at: u64,                        // 连接建立时的 Unix 时间戳（毫秒）
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -45,6 +46,10 @@ impl AppState {
                 let _ = tx.send(());
             }
         }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
         self.users.insert(conn_key.to_string(), UserSession {
             username: username.to_string(),
             host: host.to_string(),
@@ -52,6 +57,7 @@ impl AppState {
             disconnect_tx: Some(disconnect_tx),
             data_tx,
             latency_ms: None,
+            connected_at: now,
         });
     }
 
@@ -106,6 +112,7 @@ impl AppState {
                 "host": session.host,
                 "addr": session.addr.to_string(),
                 "latencyMs": session.latency_ms,
+                "connectedAt": session.connected_at,
             })
         }).collect()
     }

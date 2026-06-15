@@ -216,11 +216,14 @@
           <div secondary>
             {{$data.host || $data.addr}}
             <span
-               class="latency-badge"
-               class:high="$data.latencyMs > 200"
-               :style.display="$data.latencyMs != null ? '' : 'none'"
-               >{{$data.latencyMs}}ms</span
-             >
+              class="latency-badge"
+              class:high="$data.latencyMs > 200"
+              :style.display="$data.latencyMs != null ? '' : 'none'"
+              >{{$data.latencyMs}}ms</span
+            >
+            <span style="font-size: 11px; opacity: 0.6; margin-left: 8px"
+              >{{$data.connectedTime}}</span
+            >
           </div>
           <span
             slot="suffix"
@@ -284,11 +287,14 @@
 
             try {
               if (!this._adminUser) {
-                const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+                const { saveUserKeys, saveUserInfo } =
+                  await load("/nos/user/db.js");
                 const { deleteUser } = await load("/nos/user/main.js");
                 const { AdminUser } = await load("/nos/user/admin-user.js");
 
-                const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+                const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
+                  r.json(),
+                );
                 const adminNs = "admin-console-ns";
 
                 // 清理旧数据并重新写入
@@ -322,6 +328,7 @@
                   avatar: (u.username || "?")[0].toUpperCase(),
                   isSelf: u.userId === this.adminUserId,
                   isAdmin: u.userId === this.adminUserId,
+                  connectedTime: this._formatTime(u.connectedAt),
                 }));
 
                 // 自动每 5 秒刷新用户列表（用于更新延迟等动态数据）
@@ -347,6 +354,7 @@
                   avatar: (u.username || "?")[0].toUpperCase(),
                   isSelf: u.userId === this.adminUserId,
                   isAdmin: u.userId === this.adminUserId,
+                  connectedTime: this._formatTime(u.connectedAt),
                 }));
               }
             } catch (e) {
@@ -369,11 +377,22 @@
             if (!this.connected || !this._adminUser) return;
             if (userId === this.adminUserId) return;
             try {
-              await this._adminUser.disconnectSession(WS_URL, userId, sessionId);
+              await this._adminUser.disconnectSession(
+                WS_URL,
+                userId,
+                sessionId,
+              );
               await this.refreshUsers();
             } catch (e) {
               console.error("kickSession failed:", e);
             }
+          },
+
+          _formatTime(epochMs) {
+            if (!epochMs) return "";
+            const d = new Date(epochMs);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
           },
 
           _onClose() {
