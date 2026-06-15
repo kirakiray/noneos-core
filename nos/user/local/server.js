@@ -10,6 +10,7 @@ export class ServerManager {
   #serversLoaded = false;
   #latencyTimer = null;
   #latencyIntervalMs = 30000;
+  #latencyCache = new Map();
 
   constructor(user) {
     this.#user = user;
@@ -420,14 +421,14 @@ export class ServerManager {
   }
 
   /**
-   * 通过服务器转发数据到指定 userId 的指定 sessionId
+   * 通过指定服务器转发数据到指定 userId 的指定 sessionId
    * @param {string} url - 服务器地址
    * @param {string} targetUserId - 目标用户 ID
    * @param {string} targetSessionId - 目标会话 ID
    * @param {*} data - 要发送的数据（JSON 可序列化值或二进制数据）
    * @returns {Promise<Object>} 发送结果
    */
-  async sendToUser(url, targetUserId, targetSessionId, data) {
+  async relayToUserViaServer(url, targetUserId, targetSessionId, data) {
     if (this.#isBinaryData(data)) {
       return this.#sendBinaryRelayCommand(
         url,
@@ -448,6 +449,94 @@ export class ServerManager {
       },
       "relay_response",
       "send_data",
+    );
+  }
+
+  /**
+   * 自动查找目标用户在线且延迟最低的服务器，通过该服务器转发数据
+   * @param {string} targetUserId - 目标用户 ID
+   * @param {string} targetSessionId - 目标会话 ID
+   * @param {*} data - 要发送的数据（JSON 可序列化值或二进制数据）
+   * @returns {Promise<Object>} 发送结果
+   */
+  async sendToUser(targetUserId, targetSessionId, data) {
+    // 获取所有已连接的服务器
+    const connectedUrls = [...this.#wsMap.keys()];
+    if (connectedUrls.length === 0) {
+      throw new Error("No connected servers available");
+    }
+
+    // 并行查询各服务器上目标用户的在线状态
+    const onlineResults = await Promise.allSettled(
+      connectedUrls.map(async (url) => {
+        const result = await this.queryUserOnline(url, targetUserId);
+        return { url, online: result.online, sessions: result.sessions };
+      }),
+    );
+
+    // 筛选出目标用户在线的服务器
+    const onlineServers = [];
+    for (const result of onlineResults) {
+      if (result.status === "fulfilled" && result.value.online) {
+        onlineServers.push(result.value);
+      }
+    }
+
+    if (onlineServers.length === 0) {
+      throw new Error(
+        `Target user ${targetUserId} is not online on any connected server`,
+      );
+    }
+
+    // 如果只有一台服务器在线，直接使用
+    if (onlineServers.length === 1) {
+      return this.relayToUserViaServer(
+        onlineServers[0].url,
+        targetUserId,
+        targetSessionId,
+        data,
+      );
+    }
+
+    // 有多台服务器在线，选择延迟最低的
+    // 优先使用缓存延迟数据，无缓存则实时测量
+    const latencyResults = await Promise.allSettled(
+      onlineServers.map(async (server) => {
+        let latency = this.#latencyCache.get(server.url);
+        if (!latency) {
+          latency = await this.testLatency(server.url);
+        }
+        return { url: server.url, latency: latency.oneWayLatency };
+      }),
+    );
+
+    // 筛选出延迟测量成功的服务器
+    const candidates = [];
+    for (const result of latencyResults) {
+      if (result.status === "fulfilled") {
+        candidates.push(result.value);
+      }
+    }
+
+    if (candidates.length === 0) {
+      // 延迟测量全部失败，回退到第一台在线服务器
+      return this.relayToUserViaServer(
+        onlineServers[0].url,
+        targetUserId,
+        targetSessionId,
+        data,
+      );
+    }
+
+    // 按延迟升序排序，选最低的
+    candidates.sort((a, b) => a.latency - b.latency);
+    const bestServer = candidates[0];
+
+    return this.relayToUserViaServer(
+      bestServer.url,
+      targetUserId,
+      targetSessionId,
+      data,
     );
   }
 
@@ -518,6 +607,9 @@ export class ServerManager {
 
     // 触发延迟测试完成事件
     this.#user._trigger("latency_test", { url, ...result });
+
+    // 缓存延迟结果
+    this.#latencyCache.set(url, result);
 
     return result;
   }

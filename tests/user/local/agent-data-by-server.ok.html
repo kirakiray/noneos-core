@@ -273,7 +273,7 @@
             timestamp: Date.now(),
           };
 
-          const t4SendResult = await t4Sender.server.sendToUser(
+          const t4SendResult = await t4Sender.server.relayToUserViaServer(
             t4Url,
             t4Receiver.userId,
             t4Receiver.sessionId,
@@ -329,7 +329,7 @@
 
           let t5Error = null;
           try {
-            await t5User.server.sendToUser(t5Url, t5FakeUserId, t5FakeSessionId, {
+            await t5User.server.relayToUserViaServer(t5Url, t5FakeUserId, t5FakeSessionId, {
               test: true,
             });
           } catch (e) {
@@ -407,7 +407,7 @@
             msg: "Hello via event!",
             seq: 1,
           };
-          const t6SendResponse = await t6Sender.server.sendToUser(
+          const t6SendResponse = await t6Sender.server.relayToUserViaServer(
             t6Url,
             t6Receiver.userId,
             t6Receiver.sessionId,
@@ -504,7 +504,7 @@
           });
 
           // 发送二进制数据
-          const t7SendResult = await t7Sender.server.sendToUser(
+          const t7SendResult = await t7Sender.server.relayToUserViaServer(
             t7Url,
             t7Receiver.userId,
             t7Receiver.sessionId,
@@ -602,7 +602,7 @@
           });
 
           // 发送 ArrayBuffer
-          const t8SendResult = await t8Sender.server.sendToUser(
+          const t8SendResult = await t8Sender.server.relayToUserViaServer(
             t8Url,
             t8Receiver.userId,
             t8Receiver.sessionId,
@@ -629,6 +629,181 @@
               receivedHeader: t8Received?.header,
               receivedLength: t8Received?.payload?.length,
               expectedLength: t8ExpectedBytes.length,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 9: 自动选择服务器转发数据（sendToUser 无 url 参数）      -->
+    <!-- ============================================================ -->
+    <sb-test name="Auto-Select Server via sendToUser (No URL)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          // 发送方
+          const t9SendNs = "agent-t9send-ns";
+          const t9Sender = new LocalUser(t9SendNs);
+          await t9Sender.ready();
+
+          // 接收方
+          const t9RecvNs = "agent-t9recv-ns";
+          const t9Receiver = new LocalUser(t9RecvNs);
+          await t9Receiver.ready();
+
+          const t9Url1 = "ws://localhost:8081";
+          const t9Url2 = "ws://localhost:8082";
+
+          // 发送方连接两台服务器
+          await t9Sender.server.connect(t9Url1);
+          await t9Sender.server.connect(t9Url2);
+
+          // 接收方只连接第一台服务器
+          await t9Receiver.server.connect(t9Url1);
+
+          // 接收方监听 relay 事件
+          const t9RecvPromise = new Promise((resolve) => {
+            const t9Handler = (e) => {
+              let data;
+              try {
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
+              } catch {
+                return;
+              }
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t9Sender.userId
+              ) {
+                t9Receiver.removeEventListener("message", t9Handler);
+                resolve(data);
+              }
+            };
+            t9Receiver.addEventListener("message", t9Handler);
+
+            setTimeout(() => {
+              t9Receiver.removeEventListener("message", t9Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 使用 sendToUser（无 url 参数）自动选择服务器
+          const t9Payload = {
+            text: "Auto-select server test!",
+            value: 99,
+          };
+          const t9SendResult = await t9Sender.server.sendToUser(
+            t9Receiver.userId,
+            t9Receiver.sessionId,
+            t9Payload,
+          );
+
+          // 等待接收方收到
+          const t9Received = await t9RecvPromise;
+
+          const t9SendOk = t9SendResult.status === "ok";
+          const t9RecvOk =
+            t9Received !== null &&
+            t9Received.data?.text === t9Payload.text &&
+            t9Received.data?.value === t9Payload.value;
+
+          return {
+            assert: t9SendOk && t9RecvOk,
+            content: {
+              message:
+                t9SendOk && t9RecvOk
+                  ? "sendToUser auto-selected server and relayed successfully"
+                  : "sendToUser auto-select test failed",
+              sendStatus: t9SendResult.status,
+              sendMessage: t9SendResult.message,
+              receivedPayload: t9Received,
+              expectedPayload: t9Payload,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 10: sendToUser 目标不在线应该抛出错误                    -->
+    <!-- ============================================================ -->
+    <sb-test name="sendToUser Target Offline (Should Throw)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const t10Ns = "agent-t10-ns";
+          const t10User = new LocalUser(t10Ns);
+          await t10User.ready();
+
+          const t10Url = "ws://localhost:8081";
+          await t10User.server.connect(t10Url);
+
+          // 尝试发送到不存在的用户（离线）
+          const t10FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t10FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
+
+          let t10Error = null;
+          try {
+            await t10User.server.sendToUser(t10FakeUserId, t10FakeSessionId, {
+              test: true,
+            });
+          } catch (e) {
+            t10Error = e;
+          }
+
+          return {
+            assert: t10Error !== null,
+            content: {
+              message: t10Error
+                ? "sendToUser correctly threw error for offline target"
+                : "sendToUser should throw when target is offline",
+              error: t10Error?.message || t10Error,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 11: sendToUser 无可用连接应抛出错误                      -->
+    <!-- ============================================================ -->
+    <sb-test name="sendToUser No Connection (Should Throw)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const t11Ns = "agent-t11-ns";
+          const t11User = new LocalUser(t11Ns);
+          await t11User.ready();
+
+          const t11FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t11FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
+
+          let t11Error = null;
+          try {
+            await t11User.server.sendToUser(t11FakeUserId, t11FakeSessionId, {
+              test: true,
+            });
+          } catch (e) {
+            t11Error = e;
+          }
+
+          return {
+            assert: t11Error !== null && t11Error.message.includes("No connected servers"),
+            content: {
+              message: t11Error
+                ? "sendToUser correctly threw error when no server connected"
+                : "sendToUser should throw when no server connected",
+              error: t11Error?.message || t11Error,
             },
           };
         </script>
