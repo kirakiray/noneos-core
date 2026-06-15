@@ -481,5 +481,66 @@
         </script>
       </template>
     </sb-test>
+
+    <sb-test name="Periodic Latency Monitor Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace8 = "test-latency-monitor";
+          const user8 = new LocalUser(namespace8);
+          await user8.ready();
+
+          const url8 = "ws://localhost:8081";
+          await user8.server.connect(url8);
+
+          // 收集 2 次周期性测量结果
+          const measurements = [];
+
+          const listener = (e) => {
+            if (e.detail.url === url8) {
+              measurements.push(e.detail);
+            }
+          };
+          user8.addEventListener("latency_test", listener);
+
+          // 启动监测，每隔 100ms 测一次（测试时用短间隔）
+          user8.server.startLatencyMonitor(100);
+
+          // 等待收集到 2 次有效数据
+          await new Promise((resolve, reject) => {
+            const check = setInterval(() => {
+              if (measurements.length >= 2) {
+                clearInterval(check);
+                resolve();
+              }
+            }, 50);
+            setTimeout(() => {
+              clearInterval(check);
+              reject(new Error("Timeout waiting for measurements"));
+            }, 5000);
+          });
+
+          user8.server.stopLatencyMonitor();
+          user8.removeEventListener("latency_test", listener);
+
+          // 验证所有测量结果有效
+          const allValid8 = measurements.every(
+            (m) => m.rtt >= 0 && m.rtt < 10000 && m.oneWayLatency >= 0,
+          );
+
+          return {
+            assert: allValid8 && measurements.length >= 2,
+            content: {
+              message: allValid8
+                ? `Collected ${measurements.length} valid latency measurements`
+                : "Some measurements were invalid",
+              count: measurements.length,
+              samples: measurements,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

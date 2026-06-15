@@ -8,6 +8,8 @@ export class ServerManager {
   #user;
   #servers = [];
   #serversLoaded = false;
+  #latencyTimer = null;
+  #latencyIntervalMs = 30000;
 
   constructor(user) {
     this.#user = user;
@@ -179,9 +181,16 @@ export class ServerManager {
               ws.onclose = () => {
                 this.#wsMap.delete(url);
                 this.#user._trigger("close", { url: url });
+                // 没有活跃连接时自动停止延迟监测
+                if (this.#wsMap.size === 0) {
+                  this.stopLatencyMonitor();
+                }
               };
 
               resolve(true);
+
+              // 连接成功后自动启动静默延迟监测
+              this.#ensureLatencyMonitor();
             } else {
               // 触发握手失败事件
               this.#user._trigger("handshake", {
@@ -410,4 +419,136 @@ export class ServerManager {
 
     return result;
   }
+
+  /**
+   * 确保延迟监测正在运行（静默方式，无日志无事件）
+   * 连接成功后自动调用
+   */
+  #ensureLatencyMonitor() {
+    if (this.#latencyTimer) return;
+
+    this.#latencyIntervalMs = 30000;
+
+    const run = () => {
+      const urls = [...this.#wsMap.keys()];
+      for (const url of urls) {
+        this.testLatency(url).catch(() => {});
+      }
+    };
+
+    run();
+    this.#latencyTimer = setInterval(run, this.#latencyIntervalMs);
+    document.addEventListener(
+      "visibilitychange",
+      this.#handleVisibilityChange,
+    );
+  }
+
+  /**
+   * 启动周期性延迟监测（显式启动，带日志和事件通知）
+   * 
+   * 通常不需要手动调用，连接成功后会自动静默启动。
+   * 仅在需要自定义间隔或显式控制时使用。
+   * 
+   * @param {number} [intervalMs=30000] - 测量间隔（毫秒），默认 30 秒
+   */
+  startLatencyMonitor(intervalMs = 30000) {
+    if (this.#latencyTimer) {
+      this.stopLatencyMonitor();
+    }
+
+    this.#latencyIntervalMs = intervalMs;
+
+    const run = () => {
+      const urls = [...this.#wsMap.keys()];
+      for (const url of urls) {
+        this.testLatency(url).catch((err) => {
+          console.warn(
+            `[ServerManager] Periodic latency test to ${url} failed:`,
+            err.message,
+          );
+        });
+      }
+    };
+
+    // 立即执行一次
+    run();
+
+    // 启动定时器
+    this.#latencyTimer = setInterval(run, this.#latencyIntervalMs);
+
+    // Tab 切到后台时降低频率，切回恢复
+    document.addEventListener(
+      "visibilitychange",
+      this.#handleVisibilityChange,
+    );
+
+    console.log(
+      `[ServerManager] Latency monitor started, interval=${intervalMs}ms`,
+    );
+
+    // 触发启动事件
+    this.#user._trigger("latency_monitor", {
+      status: "started",
+      intervalMs,
+    });
+  }
+
+  /**
+   * 停止周期性延迟监测
+   */
+  stopLatencyMonitor() {
+    if (this.#latencyTimer) {
+      clearInterval(this.#latencyTimer);
+      this.#latencyTimer = null;
+    }
+
+    document.removeEventListener(
+      "visibilitychange",
+      this.#handleVisibilityChange,
+    );
+
+    console.log("[ServerManager] Latency monitor stopped");
+  }
+
+  /**
+   * 获取延迟监测当前是否活跃
+   * @returns {boolean}
+   */
+  get isLatencyMonitorActive() {
+    return this.#latencyTimer !== null;
+  }
+
+  /**
+   * 处理页面可见性变化：隐藏时降低频率，可见时恢复
+   */
+  #handleVisibilityChange = () => {
+    if (this.#latencyTimer) {
+      clearInterval(this.#latencyTimer);
+      this.#latencyTimer = null;
+    }
+
+    if (document.hidden) {
+      // 后台时用 5 倍间隔
+      const bgInterval = this.#latencyIntervalMs * 5;
+      this.#latencyTimer = setInterval(() => {
+        const urls = [...this.#wsMap.keys()];
+        for (const url of urls) {
+          this.testLatency(url).catch(() => {});
+        }
+      }, bgInterval);
+    } else {
+      // 回到前台立即测一次，然后恢复正常间隔
+      const urls = [...this.#wsMap.keys()];
+      for (const url of urls) {
+        this.testLatency(url).catch(() => {});
+      }
+      this.#latencyTimer = setInterval(() => {
+        const urls = [...this.#wsMap.keys()];
+        for (const url of urls) {
+          this.testLatency(url).catch(() => {});
+        }
+      }, this.#latencyIntervalMs);
+    }
+  };
 }
