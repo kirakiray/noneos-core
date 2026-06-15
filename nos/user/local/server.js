@@ -375,11 +375,7 @@ export class ServerManager {
       timeout,
     );
 
-    console.log(
-      `[ServerManager] Latency to ${url}: RTT=${rtt}ms, one-way ~${oneWayLatency}ms`,
-    );
-
-    return {
+    const result = {
       rtt,
       oneWayLatency,
       clientTime,
@@ -387,5 +383,17 @@ export class ServerManager {
       serverSendTime: response.server_send_time,
       clientRecvTime,
     };
+
+    console.log(
+      `[ServerManager] Latency to ${url}: RTT=${rtt}ms, one-way ~${oneWayLatency}ms`,
+    );
+
+    // 触发延迟测试完成事件
+    const latencyEvent = new CustomEvent("latency_test", {
+      detail: { url, ...result },
+    });
+    this.#user.dispatchEvent(latencyEvent);
+
+    return result;
   }
 }
