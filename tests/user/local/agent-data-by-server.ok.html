@@ -439,5 +439,200 @@
         </script>
       </template>
     </sb-test>
+    <!-- ============================================================ -->
+    <!-- Test 7: 通过服务器转发二进制 Uint8Array（0-255 全字节值）      -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay Binary Uint8Array (0-255) to Target User Session">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          // 发送方
+          const t7SendNs = "agent-t7send-ns";
+          const t7Sender = new LocalUser(t7SendNs);
+          await t7Sender.ready();
+
+          // 接收方
+          const t7RecvNs = "agent-t7recv-ns";
+          const t7Receiver = new LocalUser(t7RecvNs);
+          await t7Receiver.ready();
+
+          const t7Url = "ws://localhost:8081";
+
+          await t7Sender.server.connect(t7Url);
+          await t7Receiver.server.connect(t7Url);
+
+          // 构造 0-255 全字节值
+          const t7ExpectedBytes = new Uint8Array(256);
+          for (let i = 0; i < 256; i++) {
+            t7ExpectedBytes[i] = i;
+          }
+
+          // 辅助函数：解析二进制 relay 帧
+          const t7ParseBinaryRelay = async (blob) => {
+            const buffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = bytes.slice(4, 4 + headerLen);
+            const headerText = new TextDecoder().decode(headerBytes);
+            const header = JSON.parse(headerText);
+            const payload = bytes.slice(4 + headerLen);
+            return { header, payload };
+          };
+
+          const t7RecvPromise = new Promise((resolve) => {
+            const t7Handler = async (e) => {
+              if (typeof e.detail.data === "string") {
+                return;
+              }
+              const t7Parsed = await t7ParseBinaryRelay(e.detail.data);
+              if (
+                t7Parsed.header?.type === "relay" &&
+                t7Parsed.header?.from_user_id === t7Sender.userId
+              ) {
+                t7Receiver.removeEventListener("message", t7Handler);
+                resolve(t7Parsed);
+              }
+            };
+            t7Receiver.addEventListener("message", t7Handler);
+
+            setTimeout(() => {
+              t7Receiver.removeEventListener("message", t7Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送二进制数据
+          const t7SendResult = await t7Sender.server.sendToUser(
+            t7Url,
+            t7Receiver.userId,
+            t7Receiver.sessionId,
+            t7ExpectedBytes,
+          );
+
+          const t7Received = await t7RecvPromise;
+
+          const t7SendOk = t7SendResult.status === "ok";
+          const t7RecvOk =
+            t7Received !== null &&
+            t7Received.payload.length === t7ExpectedBytes.length &&
+            t7Received.payload.every((v, i) => v === t7ExpectedBytes[i]);
+
+          return {
+            assert: t7SendOk && t7RecvOk,
+            content: {
+              message:
+                t7SendOk && t7RecvOk
+                  ? "Binary Uint8Array (0-255) successfully relayed"
+                  : "Binary Uint8Array relay failed",
+              sendStatus: t7SendResult.status,
+              sendMessage: t7SendResult.message,
+              receivedHeader: t7Received?.header,
+              receivedLength: t7Received?.payload?.length,
+              expectedLength: t7ExpectedBytes.length,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 8: 通过服务器转发 ArrayBuffer                             -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay ArrayBuffer to Target User Session">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          // 发送方
+          const t8SendNs = "agent-t8send-ns";
+          const t8Sender = new LocalUser(t8SendNs);
+          await t8Sender.ready();
+
+          // 接收方
+          const t8RecvNs = "agent-t8recv-ns";
+          const t8Receiver = new LocalUser(t8RecvNs);
+          await t8Receiver.ready();
+
+          const t8Url = "ws://localhost:8081";
+
+          await t8Sender.server.connect(t8Url);
+          await t8Receiver.server.connect(t8Url);
+
+          // 构造 ArrayBuffer 测试数据
+          const t8ExpectedBytes = new Uint8Array([
+            0, 1, 2, 3, 255, 254, 253, 252, 128, 127,
+          ]);
+          const t8ArrayBuffer = t8ExpectedBytes.buffer;
+
+          // 辅助函数：解析二进制 relay 帧
+          const t8ParseBinaryRelay = async (blob) => {
+            const buffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = bytes.slice(4, 4 + headerLen);
+            const headerText = new TextDecoder().decode(headerBytes);
+            const header = JSON.parse(headerText);
+            const payload = bytes.slice(4 + headerLen);
+            return { header, payload };
+          };
+
+          const t8RecvPromise = new Promise((resolve) => {
+            const t8Handler = async (e) => {
+              if (typeof e.detail.data === "string") {
+                return;
+              }
+              const t8Parsed = await t8ParseBinaryRelay(e.detail.data);
+              if (
+                t8Parsed.header?.type === "relay" &&
+                t8Parsed.header?.from_user_id === t8Sender.userId
+              ) {
+                t8Receiver.removeEventListener("message", t8Handler);
+                resolve(t8Parsed);
+              }
+            };
+            t8Receiver.addEventListener("message", t8Handler);
+
+            setTimeout(() => {
+              t8Receiver.removeEventListener("message", t8Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送 ArrayBuffer
+          const t8SendResult = await t8Sender.server.sendToUser(
+            t8Url,
+            t8Receiver.userId,
+            t8Receiver.sessionId,
+            t8ArrayBuffer,
+          );
+
+          const t8Received = await t8RecvPromise;
+
+          const t8SendOk = t8SendResult.status === "ok";
+          const t8RecvOk =
+            t8Received !== null &&
+            t8Received.payload.length === t8ExpectedBytes.length &&
+            t8Received.payload.every((v, i) => v === t8ExpectedBytes[i]);
+
+          return {
+            assert: t8SendOk && t8RecvOk,
+            content: {
+              message:
+                t8SendOk && t8RecvOk
+                  ? "ArrayBuffer successfully relayed"
+                  : "ArrayBuffer relay failed",
+              sendStatus: t8SendResult.status,
+              sendMessage: t8SendResult.message,
+              receivedHeader: t8Received?.header,
+              receivedLength: t8Received?.payload?.length,
+              expectedLength: t8ExpectedBytes.length,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

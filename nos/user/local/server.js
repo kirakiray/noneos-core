@@ -327,14 +327,116 @@ export class ServerManager {
   }
 
   /**
+   * 检测数据是否为二进制类型
+   * @param {*} data
+   * @returns {boolean}
+   */
+  #isBinaryData(data) {
+    return (
+      data instanceof ArrayBuffer ||
+      ArrayBuffer.isView(data) ||
+      data instanceof Blob ||
+      data instanceof File
+    );
+  }
+
+  /**
+   * 将二进制数据转换为 Uint8Array
+   * @param {ArrayBuffer|ArrayBufferView|Blob|File} data
+   * @returns {Promise<Uint8Array>}
+   */
+  async #binaryToUint8Array(data) {
+    if (data instanceof ArrayBuffer) {
+      return new Uint8Array(data);
+    }
+    if (ArrayBuffer.isView(data)) {
+      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    }
+    if (data instanceof Blob || data instanceof File) {
+      const buffer = await data.arrayBuffer();
+      return new Uint8Array(buffer);
+    }
+    throw new Error("Unsupported binary data type");
+  }
+
+  /**
+   * 通过二进制帧发送 relay 命令并等待响应
+   * 帧格式：[4 字节 header JSON 长度 u32 BE] + [header JSON bytes] + [原始二进制 payload]
+   * @param {string} url - 服务器地址
+   * @param {string} targetUserId - 目标用户 ID
+   * @param {string} targetSessionId - 目标会话 ID
+   * @param {ArrayBuffer|ArrayBufferView|Blob|File} data - 要发送的二进制数据
+   * @returns {Promise<Object>} 发送结果
+   */
+  async #sendBinaryRelayCommand(url, targetUserId, targetSessionId, data) {
+    await this.connect(url);
+
+    const payloadBytes = await this.#binaryToUint8Array(data);
+
+    const header = JSON.stringify({
+      type: "relay",
+      action: "send_data",
+      target_user_id: targetUserId,
+      target_session_id: targetSessionId,
+    });
+    const headerBytes = new TextEncoder().encode(header);
+    const headerLen = headerBytes.length;
+
+    if (headerLen > 0xffffffff) {
+      throw new Error("Binary relay header too large");
+    }
+
+    const frame = new Uint8Array(4 + headerLen + payloadBytes.length);
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+    view.setUint32(0, headerLen, false);
+    frame.set(headerBytes, 4);
+    frame.set(payloadBytes, 4 + headerLen);
+
+    return new Promise((resolve, reject) => {
+      const handler = (e) => {
+        if (typeof e.detail.data !== "string") {
+          return;
+        }
+        let resp;
+        try {
+          resp = JSON.parse(e.detail.data);
+        } catch {
+          return;
+        }
+        if (resp?.type === "relay_response" && resp?.action === "send_data") {
+          this.#user.removeEventListener("message", handler);
+          resolve(resp);
+        }
+      };
+
+      this.#user.addEventListener("message", handler);
+      this.sendToServer(url, frame);
+
+      setTimeout(() => {
+        this.#user.removeEventListener("message", handler);
+        reject(new Error("Command timed out (type: relay_response)"));
+      }, 5000);
+    });
+  }
+
+  /**
    * 通过服务器转发数据到指定 userId 的指定 sessionId
    * @param {string} url - 服务器地址
    * @param {string} targetUserId - 目标用户 ID
    * @param {string} targetSessionId - 目标会话 ID
-   * @param {*} data - 要发送的数据（任何 JSON 可序列化的值）
+   * @param {*} data - 要发送的数据（JSON 可序列化值或二进制数据）
    * @returns {Promise<Object>} 发送结果
    */
   async sendToUser(url, targetUserId, targetSessionId, data) {
+    if (this.#isBinaryData(data)) {
+      return this.#sendBinaryRelayCommand(
+        url,
+        targetUserId,
+        targetSessionId,
+        data,
+      );
+    }
+
     return this.#sendJsonCommand(
       url,
       {
@@ -410,9 +512,9 @@ export class ServerManager {
       clientRecvTime,
     };
 
-    console.log(
-      `[ServerManager] Latency to ${url}: RTT=${rtt}ms, one-way ~${oneWayLatency}ms`,
-    );
+    // console.log(
+    //   `[ServerManager] Latency to ${url}: RTT=${rtt}ms, one-way ~${oneWayLatency}ms`,
+    // );
 
     // 触发延迟测试完成事件
     this.#user._trigger("latency_test", { url, ...result });

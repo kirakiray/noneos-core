@@ -777,7 +777,107 @@ pub async fn handle_connection(
                                         ws_sender.send(Message::Text(response)).await?;
                                     }
                                     Message::Binary(data) => {
-                                        ws_sender.send(Message::Binary(data)).await?;
+                                        // 解析二进制 relay 帧：[4 字节 header JSON 长度 u32 BE] + [header JSON bytes] + [原始 payload]
+                                        if data.len() < 4 {
+                                            let resp = serde_json::json!({
+                                                "type": "relay_response",
+                                                "action": "send_data",
+                                                "status": "error",
+                                                "message": "Invalid binary relay frame: too short"
+                                            });
+                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                            continue;
+                                        }
+
+                                        let header_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+                                        if header_len > data.len() - 4 {
+                                            let resp = serde_json::json!({
+                                                "type": "relay_response",
+                                                "action": "send_data",
+                                                "status": "error",
+                                                "message": "Invalid binary relay frame: header length out of bounds"
+                                            });
+                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                            continue;
+                                        }
+
+                                        let header: serde_json::Value = match serde_json::from_slice(&data[4..4 + header_len]) {
+                                            Ok(v) => v,
+                                            Err(_) => {
+                                                let resp = serde_json::json!({
+                                                    "type": "relay_response",
+                                                    "action": "send_data",
+                                                    "status": "error",
+                                                    "message": "Invalid binary relay frame: header JSON parse failed"
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                continue;
+                                            }
+                                        };
+
+                                        let msg_type = header.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                        let action = header.get("action").and_then(|v| v.as_str()).unwrap_or("");
+
+                                        if msg_type == "relay" && action == "send_data" {
+                                            let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+                                            let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+
+                                            if target_user.is_empty() || target_session.is_empty() {
+                                                let resp = serde_json::json!({
+                                                    "type": "relay_response",
+                                                    "action": "send_data",
+                                                    "status": "error",
+                                                    "message": "Missing target_user_id or target_session_id"
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                            } else {
+                                                let payload = &data[4 + header_len..];
+
+                                                let forward_header = serde_json::json!({
+                                                    "type": "relay",
+                                                    "from_user_id": user_id,
+                                                    "from_session_id": session_id,
+                                                });
+                                                let forward_header_bytes = serde_json::to_vec(&forward_header)?;
+                                                let forward_header_len = forward_header_bytes.len() as u32;
+
+                                                let mut forward_frame = Vec::with_capacity(4 + forward_header_bytes.len() + payload.len());
+                                                forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
+                                                forward_frame.extend_from_slice(&forward_header_bytes);
+                                                forward_frame.extend_from_slice(payload);
+
+                                                let delivered = {
+                                                    let st = state.lock().await;
+                                                    if let Some(tx) = st.get_session_data_tx(target_user, target_session) {
+                                                        tx.send(Message::Binary(forward_frame)).is_ok()
+                                                    } else {
+                                                        false
+                                                    }
+                                                };
+
+                                                if delivered {
+                                                    let resp = serde_json::json!({
+                                                        "type": "relay_response",
+                                                        "action": "send_data",
+                                                        "status": "ok",
+                                                        "message": "Binary data delivered to target"
+                                                    });
+                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+                                                } else {
+                                                    let resp = serde_json::json!({
+                                                        "type": "relay_response",
+                                                        "action": "send_data",
+                                                        "status": "error",
+                                                        "message": "Target session not found or offline"
+                                                    });
+                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                }
+                                            }
+                                        } else {
+                                            // 非 relay 二进制帧保持原样回显
+                                            ws_sender.send(Message::Binary(data)).await?;
+                                        }
                                     }
                                     Message::Ping(data) => {
                                         ws_sender.send(Message::Pong(data)).await?;
