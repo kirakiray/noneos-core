@@ -191,7 +191,10 @@
               if (serverResponse4) {
                 safeResolve(serverResponse4);
               } else {
-                safeResolve({ status: "error", message: "Connection closed without response" });
+                safeResolve({
+                  status: "error",
+                  message: "Connection closed without response",
+                });
               }
             };
 
@@ -202,7 +205,10 @@
                   if (serverResponse4) {
                     safeResolve(serverResponse4);
                   } else {
-                    safeResolve({ status: "error", message: "WebSocket error" });
+                    safeResolve({
+                      status: "error",
+                      message: "WebSocket error",
+                    });
                   }
                 }
               }, 300);
@@ -295,7 +301,10 @@
               if (serverResponse5) {
                 safeResolve(serverResponse5);
               } else {
-                safeResolve({ status: "error", message: "Connection closed without response" });
+                safeResolve({
+                  status: "error",
+                  message: "Connection closed without response",
+                });
               }
             };
 
@@ -306,7 +315,10 @@
                   if (serverResponse5) {
                     safeResolve(serverResponse5);
                   } else {
-                    safeResolve({ status: "error", message: "WebSocket error" });
+                    safeResolve({
+                      status: "error",
+                      message: "WebSocket error",
+                    });
                   }
                 }
               }, 300);
@@ -413,6 +425,57 @@
                 : "Server did not handle timeout as expected",
               serverResponse: serverResponse6,
               result: handshakeResult6,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Latency Measurement Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespace7 = "test-latency";
+          const user7 = new LocalUser(namespace7);
+          await user7.ready();
+
+          const url7 = "ws://localhost:8081";
+          await user7.server.connect(url7);
+
+          // 执行延迟测试：客户端测量 RTT，服务器也能知道延迟
+          const result = await user7.server.testLatency(url7);
+
+          // 验证结果合理性
+          const hasValidRtt = result.rtt >= 0 && result.rtt < 10000;
+          const hasValidOneWay =
+            result.oneWayLatency >= 0 && result.oneWayLatency < 5000;
+          const timestampsValid =
+            result.clientTime >= 0 &&
+            result.serverRecvTime >= 0 &&
+            result.serverSendTime >= 0 &&
+            result.clientRecvTime >= 0;
+
+          // client_time < server_recv_time < client_recv_time（正常情况下）
+          // 注意：由于 client 和 server 时钟不完全同步，clientTime 可能略大于 serverRecvTime
+          // 但 RTT = clientRecvTime - clientTime 始终是正确的相对测量
+          const rttPositive = result.rtt >= 0;
+
+          const allValid =
+            hasValidRtt && hasValidOneWay && timestampsValid && rttPositive;
+
+          return {
+            assert: allValid,
+            content: {
+              message: allValid
+                ? `Latency measurement successful — RTT: ${result.rtt}ms, one-way: ~${result.oneWayLatency}ms`
+                : "Latency measurement produced invalid results",
+              rtt: result.rtt,
+              oneWayLatency: result.oneWayLatency,
+              clientTime: result.clientTime,
+              serverRecvTime: result.serverRecvTime,
+              serverSendTime: result.serverSendTime,
+              clientRecvTime: result.clientRecvTime,
             },
           };
         </script>

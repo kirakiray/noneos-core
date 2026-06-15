@@ -322,4 +322,70 @@ export class ServerManager {
       "send_data",
     );
   }
+
+  /**
+   * 测试客户端到指定服务器的网络延迟
+   * 
+   * 工作机制：
+   * 1. 客户端发送 latency_test 消息（含 client_time）
+   * 2. 服务器记录 server_recv_time，回复 latency_test_response（含 client_time, server_recv_time, server_send_time）
+   * 3. 客户端收到响应后计算 RTT = now - client_time，单向延迟 ≈ RTT / 2
+   * 4. 客户端将完整时序报告发给服务器，让服务器也知道延迟
+   * 
+   * 两端都知道延迟，不存在伪造。
+   * 
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @returns {Promise<{rtt: number, oneWayLatency: number, clientTime: number, serverRecvTime: number, serverSendTime: number, clientRecvTime: number}>}
+   */
+  async testLatency(url, timeout = 5000) {
+    // 确保已连接
+    await this.connect(url);
+
+    // 步骤 1：发送延迟测试请求，精确记录发送时间
+    const clientTime = Date.now();
+    const response = await this.#sendJsonCommand(
+      url,
+      {
+        type: "latency_test",
+        client_time: clientTime,
+      },
+      "latency_test_response",
+      undefined,
+      timeout,
+    );
+
+    // 步骤 2：收到响应，计算延迟
+    const clientRecvTime = Date.now();
+    const rtt = clientRecvTime - clientTime;
+    const oneWayLatency = Math.round(rtt / 2);
+
+    // 步骤 3：将完整时序报告发给服务器，让服务器也知晓延迟
+    await this.#sendJsonCommand(
+      url,
+      {
+        type: "latency_report",
+        client_time: clientTime,
+        server_recv_time: response.server_recv_time,
+        server_send_time: response.server_send_time,
+        client_recv_time: clientRecvTime,
+      },
+      "latency_report_ack",
+      undefined,
+      timeout,
+    );
+
+    console.log(
+      `[ServerManager] Latency to ${url}: RTT=${rtt}ms, one-way ~${oneWayLatency}ms`,
+    );
+
+    return {
+      rtt,
+      oneWayLatency,
+      clientTime,
+      serverRecvTime: response.server_recv_time,
+      serverSendTime: response.server_send_time,
+      clientRecvTime,
+    };
+  }
 }

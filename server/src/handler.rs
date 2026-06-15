@@ -690,9 +690,53 @@ pub async fn handle_connection(
                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                 continue;
                                             }
+
+                                            // 处理 latency_test 命令：测量客户端到服务器的延迟
+                                            if msg_type == "latency_test" {
+                                                let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let now_ms = std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_millis() as u64;
+                                                let resp = serde_json::json!({
+                                                    "type": "latency_test_response",
+                                                    "client_time": client_time,
+                                                    "server_recv_time": now_ms,
+                                                    "server_send_time": now_ms
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                continue;
+                                            }
+
+                                            // 处理 latency_report：客户端报告完整的延迟数据，服务器据此计算自身的延迟认知
+                                            if msg_type == "latency_report" {
+                                                let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let _server_recv_time = cmd.get("server_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let _server_send_time = cmd.get("server_send_time").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let client_recv_time = cmd.get("client_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
+
+                                                let now_ms = std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_millis() as u64;
+
+                                                if client_time > 0 && client_recv_time > client_time {
+                                                    let rtt = client_recv_time - client_time;
+                                                    let one_way_ms = rtt / 2;
+                                                    println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
+                                                }
+
+                                                let ack = serde_json::json!({
+                                                    "type": "latency_report_ack",
+                                                    "server_recv_time": now_ms,
+                                                    "status": "ok"
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&ack)?)).await?;
+                                                continue;
+                                            }
                                         }
 
-                                        // 非管理/查询/relay 命令：回显
+                                        // 非管理/查询/relay/latency 命令：回显
                                         // 限制纯文本回声的大小不超过 100 字节
                                         if text.len() > 100 {
                                             let err_msg = serde_json::json!({
