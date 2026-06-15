@@ -450,7 +450,7 @@
               measurements.push(e.detail);
             }
           };
-          user8.addEventListener("latency_test", listener);
+          const cancel = user8.bind("latency_test", listener);
 
           // 启动监测，每隔 100ms 测一次（测试时用短间隔）
           user8.server.startLatencyMonitor(100);
@@ -470,7 +470,7 @@
           });
 
           user8.server.stopLatencyMonitor();
-          user8.removeEventListener("latency_test", listener);
+          cancel();
 
           // 验证所有测量结果有效
           const allValid8 = measurements.every(

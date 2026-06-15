@@ -171,15 +171,15 @@
                 data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
               } catch { return; }
               if (data?.type === "admin_response") {
-                sysNormUser.removeEventListener("message", handler);
+                cancel();
                 resolve(data);
               }
             };
-            sysNormUser.addEventListener("message", handler);
+            const cancel = sysNormUser.bind("message", handler);
             sysNormUser.server.sendToServer(sysNormUrl, JSON.stringify({ type: "admin", action: "get_system_info" }));
 
             setTimeout(() => {
-              sysNormUser.removeEventListener("message", handler);
+              cancel();
               resolve({ status: "error", message: "timeout" });
             }, 5000);
           });

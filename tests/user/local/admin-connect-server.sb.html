@@ -322,15 +322,15 @@
                 data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
               } catch { return; }
               if (data?.type === "admin_response") {
-                norm2User.removeEventListener("message", handler);
+                cancel();
                 resolve(data);
               }
             };
-            norm2User.addEventListener("message", handler);
+            const cancel = norm2User.bind("message", handler);
             norm2User.server.sendToServer(norm2Url, JSON.stringify({ type: "admin", action: "list_users" }));
 
             setTimeout(() => {
-              norm2User.removeEventListener("message", handler);
+              cancel();
               resolve({ status: "error", message: "timeout" });
             }, 5000);
           });
