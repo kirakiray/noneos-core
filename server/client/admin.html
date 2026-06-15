@@ -163,6 +163,22 @@
       color: var(--md-sys-color-on-surface-variant);
       font-size: 14px;
     }
+
+    .latency-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 8px;
+      background-color: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .latency-badge.high {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
   </style>
 
   <div class="container">
@@ -197,7 +213,15 @@
             >{{$data.avatar}}</span
           >
           <span>{{$data.username}}</span>
-          <div secondary>{{$data.host || $data.addr}}</div>
+          <div secondary>
+            {{$data.host || $data.addr}}
+            <span
+               class="latency-badge"
+               class:high="$data.latencyMs > 200"
+               :style.display="$data.latencyMs != null ? '' : 'none'"
+               >{{$data.latencyMs}}ms</span
+             >
+          </div>
           <span
             slot="suffix"
             style="display: flex; align-items: center; gap: 4px"
@@ -250,6 +274,7 @@
           adminUserId: "",
           users: [],
           _adminUser: null,
+          _refreshTimer: null,
         },
 
         proto: {
@@ -298,6 +323,11 @@
                   isSelf: u.userId === this.adminUserId,
                   isAdmin: u.userId === this.adminUserId,
                 }));
+
+                // 自动每 5 秒刷新用户列表（用于更新延迟等动态数据）
+                this._refreshTimer = setInterval(() => {
+                  this.refreshUsers();
+                }, 5000);
               } else {
                 throw new Error(response.message || "Not authorized as admin");
               }
@@ -349,6 +379,10 @@
           _onClose() {
             this.connected = false;
             this.users = [];
+            if (this._refreshTimer) {
+              clearInterval(this._refreshTimer);
+              this._refreshTimer = null;
+            }
           },
         },
 

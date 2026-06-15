@@ -19,6 +19,7 @@ struct UserSession {
     addr: SocketAddr,
     disconnect_tx: Option<oneshot::Sender<()>>,
     data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
+    latency_ms: Option<u64>,                  // 最近一次延迟测量的 RTT（毫秒）
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -50,6 +51,7 @@ impl AppState {
             addr,
             disconnect_tx: Some(disconnect_tx),
             data_tx,
+            latency_ms: None,
         });
     }
 
@@ -103,6 +105,7 @@ impl AppState {
                 "username": session.username,
                 "host": session.host,
                 "addr": session.addr.to_string(),
+                "latencyMs": session.latency_ms,
             })
         }).collect()
     }
@@ -123,6 +126,14 @@ impl AppState {
     fn get_session_data_tx(&self, user_id: &str, session_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
         let conn_key = format!("{}:{}", user_id, session_id);
         self.users.get(&conn_key).map(|s| s.data_tx.clone())
+    }
+
+    /// 更新指定 session 的延迟数据
+    fn update_latency(&mut self, user_id: &str, session_id: &str, rtt: u64) {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        if let Some(session) = self.users.get_mut(&conn_key) {
+            session.latency_ms = Some(rtt);
+        }
     }
 }
 
@@ -715,17 +726,23 @@ pub async fn handle_connection(
                                                 let _server_send_time = cmd.get("server_send_time").and_then(|v| v.as_u64()).unwrap_or(0);
                                                 let client_recv_time = cmd.get("client_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
 
+                                                let rtt = if client_time > 0 && client_recv_time > client_time {
+                                                    client_recv_time - client_time
+                                                } else {
+                                                    0
+                                                };
+                                                if rtt > 0 {
+                                                    let one_way_ms = rtt / 2;
+                                                    println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
+                                                    // 保存延迟到状态
+                                                    let mut st = state.lock().await;
+                                                    st.update_latency(&user_id, &session_id, rtt);
+                                                }
+
                                                 let now_ms = std::time::SystemTime::now()
                                                     .duration_since(std::time::UNIX_EPOCH)
                                                     .unwrap_or_default()
                                                     .as_millis() as u64;
-
-                                                if client_time > 0 && client_recv_time > client_time {
-                                                    let rtt = client_recv_time - client_time;
-                                                    let one_way_ms = rtt / 2;
-                                                    println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
-                                                }
-
                                                 let ack = serde_json::json!({
                                                     "type": "latency_report_ack",
                                                     "server_recv_time": now_ms,
