@@ -125,7 +125,8 @@ export class ServerManager {
       const timeout = setTimeout(() => {
         if (!isHandshaked) {
           ws.close();
-          reject(new Error("Handshake timeout"));
+          const err = new Error("Handshake timeout");
+          reject(err);
         }
       }, 5000);
 
@@ -158,29 +159,37 @@ export class ServerManager {
               isHandshaked = true;
               this.#wsMap.set(url, ws);
 
+              // 触发握手成功事件
+              this.#user._trigger("handshake", {
+                url,
+                status: "success",
+                isAdmin: data.is_admin,
+              });
+
               // 绑定后续消息处理
               ws.onmessage = (e) => {
-                const messageEvent = new CustomEvent("message", {
-                  detail: {
-                    url: url,
-                    data: e.data,
-                    originalEvent: e,
-                  },
+                this.#user._trigger("message", {
+                  url: url,
+                  data: e.data,
+                  originalEvent: e,
                 });
-                this.#user.dispatchEvent(messageEvent);
               };
 
               // 绑定关闭处理
               ws.onclose = () => {
                 this.#wsMap.delete(url);
-                const closeEvent = new CustomEvent("close", {
-                  detail: { url: url },
-                });
-                this.#user.dispatchEvent(closeEvent);
+                this.#user._trigger("close", { url: url });
               };
 
               resolve(true);
             } else {
+              // 触发握手失败事件
+              this.#user._trigger("handshake", {
+                url,
+                status: "error",
+                message: data.message || "Handshake failed",
+              });
+
               const error = new Error(data.message || "Handshake failed");
               error.details = data;
               reject(error);
@@ -193,16 +202,24 @@ export class ServerManager {
         }
       };
 
-      ws.onerror = (err) => {
+      ws.onerror = () => {
         if (!isHandshaked) {
           clearTimeout(timeout);
-          reject(err);
+          this.#user._trigger("ws_error", {
+            url,
+            error: "WebSocket connection failed",
+          });
+          reject(new Error("WebSocket connection failed"));
         }
       };
 
       ws.onclose = (event) => {
         if (!isHandshaked) {
           clearTimeout(timeout);
+          this.#user._trigger("ws_error", {
+            url,
+            error: event.reason || "Connection closed during handshake",
+          });
           reject(
             new Error(event.reason || "Connection closed during handshake"),
           );
@@ -389,10 +406,7 @@ export class ServerManager {
     );
 
     // 触发延迟测试完成事件
-    const latencyEvent = new CustomEvent("latency_test", {
-      detail: { url, ...result },
-    });
-    this.#user.dispatchEvent(latencyEvent);
+    this.#user._trigger("latency_test", { url, ...result });
 
     return result;
   }

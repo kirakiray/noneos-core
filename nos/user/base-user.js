@@ -1,7 +1,4 @@
-import {
-  createSigner,
-  createVerifier,
-} from "../crypto/crypto-ecdsa.js";
+import { createSigner, createVerifier } from "../crypto/crypto-ecdsa.js";
 
 import { getHash } from "../util/hash/get-hash.js";
 
@@ -120,9 +117,11 @@ export class BaseUser extends EventTarget {
 
     // 对键进行排序以确保序列化结果的稳定性
     const sortedData = {};
-    Object.keys(recordData).sort().forEach((key) => {
-      sortedData[key] = recordData[key];
-    });
+    Object.keys(recordData)
+      .sort()
+      .forEach((key) => {
+        sortedData[key] = recordData[key];
+      });
 
     // 将对象序列化后进行签名
     const signature = await this.#signer(JSON.stringify(sortedData));
@@ -155,7 +154,7 @@ export class BaseUser extends EventTarget {
     try {
       // 将 Base64 签名还原为 ArrayBuffer
       const signatureBuffer = new Uint8Array(
-        [...atob(signature)].map((c) => c.charCodeAt(0))
+        [...atob(signature)].map((c) => c.charCodeAt(0)),
       ).buffer;
 
       // 执行异步验证
@@ -181,5 +180,10 @@ export class BaseUser extends EventTarget {
     return () => {
       this.removeEventListener(eventName, callback);
     };
+  }
+
+  _trigger(eventName, detail) {
+    const event = new CustomEvent(eventName, { detail });
+    this.dispatchEvent(event);
   }
 }
