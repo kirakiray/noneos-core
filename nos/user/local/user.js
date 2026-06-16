@@ -43,6 +43,53 @@ export class LocalUser extends BaseUser {
         });
       }
     });
+
+    // 监听 relay 消息并分发给对应的 RemoteUser 实例
+    this.#setupRelayDispatch();
+  }
+
+  /**
+   * 设置 relay 消息分发：当本地用户收到 relay 消息时，
+   * 解析后分发给缓存的 RemoteUser 实例
+   */
+  #setupRelayDispatch() {
+    this.bind("message", (event) => {
+      let rawData;
+      try {
+        rawData =
+          typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+      } catch {
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawData);
+      } catch {
+        return;
+      }
+
+      if (parsed.type !== "relay") return;
+
+      const fromUserId = parsed.from_user_id;
+      if (!fromUserId) return;
+
+      // 查找缓存的 RemoteUser 实例
+      if (this.#remoteUserCache.has(fromUserId)) {
+        const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
+        // Promise 已完成才能拿到 RemoteUser
+        Promise.resolve(remoteUserPromise).then((remoteUser) => {
+          remoteUser._trigger("message", {
+            fromUserId,
+            fromSessionId: parsed.from_session_id,
+            data: parsed.data,
+            viaServer: event.detail.url,
+          });
+        });
+      }
+    });
   }
 
   /**

@@ -64,45 +64,4 @@ export class RemoteUser extends BaseUser {
   async send(sessionId, data) {
     return this.#localUser.server.sendToUser(this.#userId, sessionId, data);
   }
-
-  /**
-   * 绑定事件监听器
-   * 支持 "message" 事件，监听来自该远程用户的消息
-   * @param {string} eventName - 事件名称
-   * @param {Function} callback - 回调函数
-   * @returns {Function} 解绑函数
-   */
-  bind(eventName, callback) {
-    if (eventName === "message") {
-      const handler = (event) => {
-        try {
-          const rawData =
-            typeof event.detail.data === "string"
-              ? event.detail.data
-              : new TextDecoder().decode(event.detail.data);
-          const parsed = JSON.parse(rawData);
-
-          if (parsed.type === "relay" && parsed.from_user_id === this.#userId) {
-            const detail = {
-              fromUserId: parsed.from_user_id,
-              fromSessionId: parsed.from_session_id,
-              data: parsed.data,
-              viaServer: event.detail.url,
-            };
-            callback(new CustomEvent("message", { detail }));
-          }
-        } catch {
-          // 非 JSON 消息或解析错误，忽略
-        }
-      };
-
-      this.#localUser.addEventListener(eventName, handler);
-
-      return () => {
-        this.#localUser.removeEventListener(eventName, handler);
-      };
-    }
-
-    return super.bind(eventName, callback);
-  }
 }
