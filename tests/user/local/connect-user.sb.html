@@ -158,6 +158,80 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Binary Relay Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsE = "connect-user-e";
+        const nsF = "connect-user-f";
+        const serverUrl3 = "ws://localhost:8081";
+
+        const userE = new LocalUser(nsE);
+        const userF = new LocalUser(nsF);
+
+        await Promise.all([userE.ready(), userF.ready()]);
+
+        await Promise.all([
+          userE.server.connect(serverUrl3),
+          userF.server.connect(serverUrl3),
+        ]);
+
+        // userE 连接 userF
+        const remoteF = await userE.connectUser(userF.userId);
+
+        // userF 监听收到的二进制消息
+        let receivedBinary = null;
+        let receivedFromUserId = null;
+        let receivedFromSessionId = null;
+        userF.bind("message", async (event) => {
+          const rawData = event.detail.data;
+          // 二进制消息：e.data 为 Blob
+          if (rawData instanceof Blob) {
+            const buffer = await rawData.arrayBuffer();
+            const view = new DataView(buffer);
+
+            // 解析帧：[4 字节 header 长度 u32 BE] + [header JSON] + [payload]
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = new Uint8Array(buffer, 4, headerLen);
+            const header = JSON.parse(new TextDecoder().decode(headerBytes));
+            const payload = new Uint8Array(buffer, 4 + headerLen);
+
+            receivedFromUserId = header.from_user_id;
+            receivedFromSessionId = header.from_session_id;
+            receivedBinary = payload;
+          }
+        });
+
+        // userE 发送二进制数据给 userF
+        const binaryPayload = new Uint8Array([0x00, 0x01, 0x02, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc]);
+        await remoteF.send(userF.sessionId, binaryPayload);
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const binaryReceived = receivedBinary !== null;
+        const payloadMatch =
+          binaryReceived &&
+          receivedBinary.length === binaryPayload.length &&
+          receivedBinary.every((b, i) => b === binaryPayload[i]);
+        const fromUserMatch = receivedFromUserId === userE.userId;
+        const fromSessionMatch = receivedFromSessionId === userE.sessionId;
+
+        return {
+          assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
+          content: {
+            message: "二进制 relay 测试成功",
+            expectedPayload: Array.from(binaryPayload),
+            receivedPayload: receivedBinary ? Array.from(receivedBinary) : null,
+            fromUserId: receivedFromUserId,
+            fromSessionId: receivedFromSessionId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
