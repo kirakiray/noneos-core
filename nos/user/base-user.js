@@ -188,6 +188,10 @@ export class BaseUser extends EventTarget {
     return unbind;
   }
 
+  _unbindAll() {
+    [...this.#unbindFns].forEach((unbind) => unbind());
+  }
+
   _trigger(eventName, detail) {
     const event = new CustomEvent(eventName, { detail });
     this.dispatchEvent(event);
