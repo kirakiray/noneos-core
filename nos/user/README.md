@@ -91,6 +91,140 @@ const isValid = await user.verify(info);
 console.log(isValid); // true
 ```
 
+## 用户连接与通信
+
+LocalUser 通过 WebSocket 握手服务器建立连接，并支持用户间的数据通信。通信方式有两种：
+
+- **服务端 relay 转发**：数据经由服务器中转，稳定可靠，但受服务器网络影响
+- **WebRTC P2P 直连**：建立后数据直接在两个用户间传输，延迟更低，不占用服务器带宽
+
+### 连接服务器
+
+```javascript
+const user = await getUser("my-user");
+
+// 手动连接指定服务器
+await user.server.connect("ws://localhost:8081");
+
+// 查看已连接的服务器
+console.log(user.server.connectedUrls); // ["ws://localhost:8081"]
+```
+
+### 连接远程用户
+
+使用 `connectUser()` 连接另一个用户，返回 `RemoteUser` 实例。连接前会查询已连接的服务器确认对方在线。
+
+```javascript
+const userA = await getUser("user-a");
+const userB = await getUser("user-b");
+
+// 双方先连接到同一台服务器，默认情况下，已经会连上官方的服务器
+// await userA.server.connect("ws://localhost:8081");
+// await userB.server.connect("ws://localhost:8081");
+
+// userA 连接 userB（默认 mode: "auto"，会自动发起 WebRTC）
+const remoteB = await userA.connectUser(userB.userId);
+```
+
+### 传输模式
+
+`connectUser()` 支持通过 `options.mode` 指定初始传输模式，也可在实例化后通过 `setTransportMode()` 随时切换：
+
+| 模式 | 说明 |
+|------|------|
+| `"auto"`（默认） | 发起 WebRTC 连接，DataChannel 可用时优先走 P2P，不可用时自动回退到服务端 relay |
+| `"relay"` | 不发起 WebRTC，始终使用服务端 relay 转发 |
+| `"webrtc"` | 发起 WebRTC，仅使用 P2P 直连，DataChannel 不可用时 `send()` 抛出错误 |
+
+```javascript
+// 使用纯服务端转发模式（不发起 WebRTC）
+const remoteB = await userA.connectUser(userB.userId, { mode: "relay" });
+
+// 使用默认的 auto 模式（发起 WebRTC，自动回退）
+const remoteB = await userA.connectUser(userB.userId); // 或 { mode: "auto" }
+
+// 仅使用 WebRTC（DataChannel 不可用时 send() 抛错）
+const remoteB = await userA.connectUser(userB.userId, { mode: "webrtc" });
+
+// 实例化后切换传输模式
+remoteB.setTransportMode("relay");  // 切换到纯 relay
+remoteB.setTransportMode("auto");   // 切换回 auto
+```
+
+### 发送与接收消息
+
+通过 `RemoteUser.send(sessionId, data)` 发送数据，通过监听 `"message"` 事件接收数据。无论走 P2P 还是 relay，事件格式保持一致，对上层透明。
+
+```javascript
+const userA = await getUser("user-a");
+const userB = await getUser("user-b");
+
+await userA.server.connect("ws://localhost:8081");
+await userB.server.connect("ws://localhost:8081");
+
+// userA 连接 userB
+const remoteB = await userA.connectUser(userB.userId);
+
+// userB 端会自动创建对应的 RemoteUser(A)（收到 WebRTC 信令时自动创建）
+const remoteA = await userB.connectUser(userA.userId);
+
+// 监听来自 userA 的消息（P2P 和 relay 消息都会触发）
+remoteA.bind("message", (event) => {
+  console.log(event.detail.fromUserId);      // 发送方 userId
+  console.log(event.detail.fromSessionId);   // 发送方 sessionId
+  console.log(event.detail.data);            // 消息内容
+});
+
+// userA 发送消息给 userB
+// auto 模式下：WebRTC 可用时走 P2P，否则走 relay
+await remoteB.send(userB.sessionId, "hello from A");
+```
+
+### WebRTC 连接状态
+
+通过监听 `"webrtc_state"` 事件获取 WebRTC 连接状态变化：
+
+```javascript
+remoteB.bind("webrtc_state", (event) => {
+  console.log(event.detail.state);
+  // "connecting"  - 正在建立 WebRTC 连接
+  // "connected"   - WebRTC 连接已建立，send() 走 P2P
+  // "disconnected" - WebRTC 断开，自动回退到 relay，并尝试重连
+  // "failed"      - WebRTC 连接失败，自动回退到 relay
+});
+```
+
+### 自动回退与重连
+
+在 `auto` 模式下：
+
+- WebRTC 建立前，`send()` 自动走服务端 relay，通信不受影响
+- WebRTC 建立后，`send()` 优先走 P2P DataChannel
+- P2P 通道断开时，自动回退到 relay，不中断通信
+- initiator 端会在断开后延迟 3 秒自动重新发起 WebRTC 信令
+- 重连成功后自动切换回 P2P
+
+整个过程对上层透明，`send()` 始终可用。
+
+### 获取对方会话列表
+
+一个用户可能同时有多个会话（多个标签页），通过 `getSessionIds()` 获取对方所有在线的 sessionId：
+
+```javascript
+const remoteB = await userA.connectUser(userB.userId);
+const sessionIds = await remoteB.getSessionIds();
+console.log(sessionIds); // ["s-xxxx", "s-yyyy", ...]
+```
+
+### 二进制数据
+
+`send()` 支持发送二进制数据（`ArrayBuffer`、`ArrayBufferView`、`Blob`）。二进制数据始终通过服务端 relay 转发（WebRTC DataChannel 使用 JSON 信封格式）：
+
+```javascript
+const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0x66, 0x77, 0x88]);
+await remoteB.send(userB.sessionId, binaryData);
+```
+
 ## 证书管理
 
 ### 签发与导入
@@ -301,6 +435,86 @@ await user.ready();
 
 **返回值：** Promise\<Object \| null\> - 已签名的用户信息，如果不存在则返回 null
 
+#### `connectUser(userId, options)`
+
+连接远程用户，返回对应的 `RemoteUser` 实例。会查询已连接的服务器确认对方在线。相同 userId 的多次调用会返回缓存的同一实例。
+
+**参数：**
+- `userId` (string) - 目标用户的 userId
+- `options` (Object) - 连接选项（可选）
+  - `mode` ("auto" | "relay" | "webrtc") - 传输模式，默认 `"auto"`
+    - `"auto"`：发起 WebRTC，DataChannel 可用时优先走 P2P，否则回退 relay
+    - `"relay"`：不发起 WebRTC，仅使用服务端 relay 转发
+    - `"webrtc"`：发起 WebRTC，仅使用 P2P，DataChannel 不可用时 `send()` 抛出错误
+
+**返回值：** Promise\<RemoteUser\>
+
+**抛出错误：**
+- 目标用户不在线
+- `mode` 取值非法
+
+**特性：**
+- 相同 userId 复用缓存的 RemoteUser 实例
+- 缓存命中时按本次 `mode` 同步传输模式
+- `mode` 为 `"auto"` 或 `"webrtc"` 时作为 WebRTC initiator 自动发起信令
+- 收到对方 WebRTC 信令时会自动创建对应 RemoteUser（作为 answerer）
+
+---
+
+## RemoteUser 类
+
+远程用户类，代表通过服务器连接的另一个用户。通过 `connectUser()` 获取实例，提供发送数据、接收消息和 WebRTC P2P 直连能力。
+
+继承自 `EventTarget`，可通过 `bind(eventName, callback)` 监听事件。
+
+### RemoteUser 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `userId` | string | 远程用户的 userId |
+| `transportMode` | "auto" \| "relay" \| "webrtc" | 当前传输模式 |
+| `webrtcState` | string | WebRTC 连接状态（`"new"` / `"connecting"` / `"connected"` / `"disconnected"` / `"failed"`） |
+
+### RemoteUser 事件
+
+| 事件名 | detail | 说明 |
+|--------|--------|------|
+| `"message"` | `{ fromUserId, fromSessionId, data }` | 收到对方消息（P2P 或 relay 均触发） |
+| `"webrtc_state"` | `{ state }` | WebRTC 连接状态变化 |
+
+### RemoteUser 方法
+
+#### `send(sessionId, data)`
+
+发送数据给对方。根据当前 `transportMode` 选择传输方式：
+
+- `"auto"`：DataChannel 可用时走 P2P，否则回退 relay
+- `"relay"`：始终走服务端 relay
+- `"webrtc"`：仅走 P2P，DataChannel 不可用时抛错
+
+二进制数据（`ArrayBuffer` / `ArrayBufferView` / `Blob`）在 `"auto"` 模式下始终走 relay。
+
+**参数：**
+- `sessionId` (string) - 目标会话 ID（走 WebRTC 时仅用于事件 detail）
+- `data` (*) - 要发送的数据（JSON 可序列化值或二进制数据）
+
+**返回值：** Promise\<Object\> - 发送结果（走 WebRTC 时为 `{ status: "ok", via: "webrtc" }`）
+
+#### `setTransportMode(mode)`
+
+设置传输模式，可在实例化后随时切换。
+
+**参数：**
+- `mode` ("auto" | "relay" | "webrtc") - 传输模式
+
+**抛出错误：** `mode` 取值非法
+
+#### `getSessionIds()`
+
+获取远程用户当前所有在线的 sessionId 列表。通过查询所有已连接的服务器获取。
+
+**返回值：** Promise\<string[]\>
+
 ---
 
 ## CertManager 类
@@ -416,3 +630,5 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [基本功能测试](../../tests/user/local/local-user.sb.html)
 - [证书管理测试](../../tests/user/local/local-user-cert.sb.html)
 - [个人信息测试](../../tests/user/local/local-user-info.sb.html)
+- [用户连接与通信测试](../../tests/user/local/connect-user.sb.html)（含 WebRTC P2P 与 relay 模式）
+- [服务器连接测试](../../tests/user/local/connect-server.sb.html)
