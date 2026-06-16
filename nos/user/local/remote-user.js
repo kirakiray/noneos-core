@@ -23,7 +23,7 @@ const RECONNECT_DELAY = 3000;
  * - "relay"：始终使用服务端 relay 转发
  * - "webrtc"：仅使用 WebRTC，DataChannel 不可时 send() 抛出错误
  *
- * 可通过 connectUser(userId, { webrtc: false }) 禁用 WebRTC 初始化，
+ * 可通过 connectUser(userId, { mode: "relay" }) 指定初始传输模式，
  * 也可在实例化后通过 setTransportMode() 自由切换模式。
  */
 export class RemoteUser extends BaseUser {

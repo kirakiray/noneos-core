@@ -253,8 +253,10 @@ export class LocalUser extends BaseUser {
    * 会查询已连接的服务器确认对方是否在线
    * @param {string} userId - 目标用户的 userId
    * @param {Object} [options] - 连接选项
-   * @param {boolean} [options.webrtc=true] - 是否启用 WebRTC P2P 连接。
-   *   设为 false 时仅使用服务端 relay 转发，不发起 WebRTC 信令。
+   * @param {"auto" | "relay" | "webrtc"} [options.mode="auto"] - 传输模式：
+   *   - "auto"（默认）：发起 WebRTC 连接，DataChannel 可用时优先走 P2P，否则回退 relay
+   *   - "relay"：不发起 WebRTC，仅使用服务端 relay 转发
+   *   - "webrtc"：发起 WebRTC，仅使用 P2P，DataChannel 不可用时 send() 抛出错误
    *   实例化后仍可通过 RemoteUser.setTransportMode() 自由切换传输模式。
    * @returns {Promise<RemoteUser>}
    */
@@ -263,20 +265,23 @@ export class LocalUser extends BaseUser {
       throw new Error("userId is required");
     }
 
-    const { webrtc = true } = options;
+    const { mode = "auto" } = options;
+    if (mode !== "auto" && mode !== "relay" && mode !== "webrtc") {
+      throw new Error(`Invalid transport mode: ${mode}`);
+    }
 
     // 已有缓存（进行中的 Promise 或已完成的 RemoteUser）
     if (this.#remoteUserCache.has(userId)) {
       const cached = await this.#remoteUserCache.get(userId);
-      // 若缓存实例的 WebRTC 启用状态与本次请求不一致，按本次请求调整
-      if (!webrtc && cached.transportMode === "auto") {
-        cached.setTransportMode("relay");
+      // 缓存实例已存在，按本次请求同步传输模式
+      if (cached.transportMode !== mode) {
+        cached.setTransportMode(mode);
       }
       return cached;
     }
 
     // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
-    const promise = this.#doConnectUser(userId, webrtc);
+    const promise = this.#doConnectUser(userId, mode);
     this.#remoteUserCache.set(userId, promise);
 
     try {
@@ -288,7 +293,7 @@ export class LocalUser extends BaseUser {
     }
   }
 
-  async #doConnectUser(userId, webrtc) {
+  async #doConnectUser(userId, mode) {
     // 查询已连接服务器，确认目标用户至少在一台服务器上在线
     const urls = this.#server.connectedUrls;
     let found = false;
@@ -306,12 +311,11 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    // webrtc === true 时作为 initiator 创建 RemoteUser，构造函数中会自动发起 WebRTC 连接
-    // webrtc === false 时仅创建 RemoteUser 并强制使用 relay 模式
-    const remoteUser = new RemoteUser(userId, this, webrtc === true);
-    if (!webrtc) {
-      remoteUser.setTransportMode("relay");
-    }
+    // mode !== "relay" 时作为 initiator 创建 RemoteUser，构造函数中会自动发起 WebRTC 连接
+    // mode === "relay" 时不发起 WebRTC，仅创建 RemoteUser 并强制使用 relay 模式
+    const useWebRTC = mode !== "relay";
+    const remoteUser = new RemoteUser(userId, this, useWebRTC);
+    remoteUser.setTransportMode(mode);
     return remoteUser;
   }
 

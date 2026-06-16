@@ -37,7 +37,7 @@
         ]);
 
         // userA 连接 userB（使用纯服务端转发模式，不发起 WebRTC）
-        const remoteB = await userA.connectUser(userB.userId, { webrtc: false });
+        const remoteB = await userA.connectUser(userB.userId, { mode: "relay" });
 
         // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
         const sessionIds = await remoteB.getSessionIds();
@@ -103,7 +103,7 @@
         ]);
 
         // userC 连接 userD（使用纯服务端转发模式，不发起 WebRTC）
-        const remoteD = await userC.connectUser(userD.userId, { webrtc: false });
+        const remoteD = await userC.connectUser(userD.userId, { mode: "relay" });
 
         // 通过 remoteD 监听来自 userD 的消息
         let remoteMessageDetail = null;
@@ -131,7 +131,7 @@
         });
 
         // userD 发送消息给 userC（使用纯服务端转发模式，不发起 WebRTC）
-        const remoteC = await userD.connectUser(userC.userId, { webrtc: false });
+        const remoteC = await userD.connectUser(userC.userId, { mode: "relay" });
         await remoteC.send(userC.sessionId, "hello from D");
 
         // 等待消息到达
