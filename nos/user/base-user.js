@@ -13,6 +13,7 @@ export class BaseUser extends EventTarget {
   #_inited; // 初始化状态 Promise
   #privateKey; // 私钥
   #publicKey; // 公钥
+  #unbindFns = new Set(); // 存储 bind 注册的取消函数
 
   /**
    * 构造函数
@@ -177,9 +178,14 @@ export class BaseUser extends EventTarget {
   bind(eventName, callback) {
     this.addEventListener(eventName, callback);
 
-    return () => {
+    const unbind = () => {
+      this.#unbindFns.delete(unbind);
       this.removeEventListener(eventName, callback);
     };
+
+    this.#unbindFns.add(unbind);
+
+    return unbind;
   }
 
   _trigger(eventName, detail) {
