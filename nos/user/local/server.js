@@ -128,7 +128,7 @@ export class ServerManager {
     if (this.#connectPromises.has(url)) {
       return this.#connectPromises.get(url);
     }
-    
+
     const promise = new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       let isHandshaked = false;
@@ -300,17 +300,17 @@ export class ServerManager {
         }
         if (data?.type === responseType) {
           if (responseAction === undefined || data.action === responseAction) {
-            this.#user.removeEventListener("message", handler);
+            unbind();
             resolve(data);
           }
         }
       };
 
-      this.#user.addEventListener("message", handler);
+      const unbind = this.#user.bind("message", handler);
       this.sendToServer(url, JSON.stringify(request));
 
       setTimeout(() => {
-        this.#user.removeEventListener("message", handler);
+        unbind();
         reject(new Error(`Command timed out (type: ${responseType})`));
       }, timeout);
     });
@@ -413,16 +413,16 @@ export class ServerManager {
           return;
         }
         if (resp?.type === "relay_response" && resp?.action === "send_data") {
-          this.#user.removeEventListener("message", handler);
+          unbind();
           resolve(resp);
         }
       };
 
-      this.#user.addEventListener("message", handler);
+      const unbind = this.#user.bind("message", handler);
       this.sendToServer(url, frame);
 
       setTimeout(() => {
-        this.#user.removeEventListener("message", handler);
+        unbind();
         reject(new Error("Command timed out (type: relay_response)"));
       }, 5000);
     });
@@ -550,15 +550,15 @@ export class ServerManager {
 
   /**
    * 测试客户端到指定服务器的网络延迟
-   * 
+   *
    * 工作机制：
    * 1. 客户端发送 latency_test 消息（含 client_time）
    * 2. 服务器记录 server_recv_time，回复 latency_test_response（含 client_time, server_recv_time, server_send_time）
    * 3. 客户端收到响应后计算 RTT = now - client_time，单向延迟 ≈ RTT / 2
    * 4. 客户端将完整时序报告发给服务器，让服务器也知道延迟
-   * 
+   *
    * 两端都知道延迟，不存在伪造。
-   * 
+   *
    * @param {string} url - 服务器 WebSocket 地址
    * @param {number} [timeout=5000] - 超时时间（毫秒）
    * @returns {Promise<{rtt: number, oneWayLatency: number, clientTime: number, serverRecvTime: number, serverSendTime: number, clientRecvTime: number}>}
@@ -640,18 +640,15 @@ export class ServerManager {
 
     run();
     this.#latencyTimer = setInterval(run, this.#latencyIntervalMs);
-    document.addEventListener(
-      "visibilitychange",
-      this.#handleVisibilityChange,
-    );
+    document.addEventListener("visibilitychange", this.#handleVisibilityChange);
   }
 
   /**
    * 启动周期性延迟监测（显式启动，带日志和事件通知）
-   * 
+   *
    * 通常不需要手动调用，连接成功后会自动静默启动。
    * 仅在需要自定义间隔或显式控制时使用。
-   * 
+   *
    * @param {number} [intervalMs=30000] - 测量间隔（毫秒），默认 30 秒
    */
   startLatencyMonitor(intervalMs = 30000) {
@@ -680,10 +677,7 @@ export class ServerManager {
     this.#latencyTimer = setInterval(run, this.#latencyIntervalMs);
 
     // Tab 切到后台时降低频率，切回恢复
-    document.addEventListener(
-      "visibilitychange",
-      this.#handleVisibilityChange,
-    );
+    document.addEventListener("visibilitychange", this.#handleVisibilityChange);
 
     console.log(
       `[ServerManager] Latency monitor started, interval=${intervalMs}ms`,
