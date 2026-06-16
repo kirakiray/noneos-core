@@ -29,12 +29,12 @@ export class AdminUser extends LocalUser {
         }
       };
 
-      this.addEventListener("message", handler);
+      const unbind = this.bind("message", handler);
 
       this.server.sendToServer(url, JSON.stringify({ type: "admin", action, ...extra }));
 
       setTimeout(() => {
-        this.removeEventListener("message", handler);
+        unbind();
         reject(new Error(`Admin command "${action}" timed out`));
       }, 5000);
     });
