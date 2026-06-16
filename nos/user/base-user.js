@@ -188,7 +188,11 @@ export class BaseUser extends EventTarget {
     return unbind;
   }
 
-  _unbindAll() {
+  _unbindAll(userId) {
+    if (userId !== this.#userId) {
+      // 防止错误运行才加的标识
+      throw new Error("userId must match the user's userId");
+    }
     [...this.#unbindFns].forEach((unbind) => unbind());
   }
 
