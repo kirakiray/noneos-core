@@ -82,10 +82,7 @@ export class RemoteUser extends BaseUser {
               : new TextDecoder().decode(event.detail.data);
           const parsed = JSON.parse(rawData);
 
-          if (
-            parsed.type === "relay" &&
-            parsed.from_user_id === this.#userId
-          ) {
+          if (parsed.type === "relay" && parsed.from_user_id === this.#userId) {
             const detail = {
               fromUserId: parsed.from_user_id,
               fromSessionId: parsed.from_session_id,

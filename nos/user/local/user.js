@@ -18,6 +18,7 @@ export class LocalUser extends BaseUser {
   #cert;
   #server;
   #sessionChannel;
+  #remoteUserCache = new Map(); // userId -> Promise<RemoteUser>
 
   /**
    * 构造函数
@@ -168,6 +169,26 @@ export class LocalUser extends BaseUser {
     if (!userId) {
       throw new Error("userId is required");
     }
+
+    // 已有缓存（进行中的 Promise 或已完成的 RemoteUser）
+    if (this.#remoteUserCache.has(userId)) {
+      return this.#remoteUserCache.get(userId);
+    }
+
+    // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
+    const promise = this.#doConnectUser(userId);
+    this.#remoteUserCache.set(userId, promise);
+
+    try {
+      return await promise;
+    } catch {
+      // 失败时清理缓存，允许下次重试
+      this.#remoteUserCache.delete(userId);
+      throw new Error(`User ${userId} is not online on any connected server`);
+    }
+  }
+
+  async #doConnectUser(userId) {
     // 查询已连接服务器，确认目标用户至少在一台服务器上在线
     const urls = this.#server.connectedUrls;
     let found = false;
