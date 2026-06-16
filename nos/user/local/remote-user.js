@@ -17,11 +17,20 @@ const RECONNECT_DELAY = 3000;
  * - connectUser() 调用方作为 initiator 立即发起 WebRTC 信令
  * - 信令通过现有服务端 relay 机制转发（data.type === "__webrtc"）
  * - DataChannel 建立后 send() 优先走 P2P，断开时自动回退到 relay
+ *
+ * 传输模式（transportMode）：
+ * - "auto"（默认）：优先 WebRTC，不可用时回退 relay
+ * - "relay"：始终使用服务端 relay 转发
+ * - "webrtc"：仅使用 WebRTC，DataChannel 不可时 send() 抛出错误
+ *
+ * 可通过 connectUser(userId, { webrtc: false }) 禁用 WebRTC 初始化，
+ * 也可在实例化后通过 setTransportMode() 自由切换模式。
  */
 export class RemoteUser extends BaseUser {
   #userId;
   #localUser;
   #isInitiator;
+  #transportMode = "auto"; // "auto" | "relay" | "webrtc"
 
   // WebRTC 相关
   #pc = null; // RTCPeerConnection
@@ -57,6 +66,28 @@ export class RemoteUser extends BaseUser {
    */
   get userId() {
     return this.#userId;
+  }
+
+  /**
+   * 获取当前传输模式
+   * @returns {"auto" | "relay" | "webrtc"}
+   */
+  get transportMode() {
+    return this.#transportMode;
+  }
+
+  /**
+   * 设置传输模式
+   * - "auto"：优先 WebRTC，不可用时回退 relay（默认）
+   * - "relay"：始终使用服务端 relay 转发
+   * - "webrtc"：仅使用 WebRTC，DataChannel 不可用时 send() 抛出错误
+   * @param {"auto" | "relay" | "webrtc"} mode
+   */
+  setTransportMode(mode) {
+    if (mode !== "auto" && mode !== "relay" && mode !== "webrtc") {
+      throw new Error(`Invalid transport mode: ${mode}`);
+    }
+    this.#transportMode = mode;
   }
 
   /**
@@ -403,15 +434,41 @@ export class RemoteUser extends BaseUser {
 
   /**
    * 发送数据给对方
-   * - WebRTC DataChannel 可用时优先走 P2P
-   * - 不可用时回退到服务端 relay
-   * - 二进制数据始终走 relay（DataChannel 信封使用 JSON 格式）
+   * 根据当前 transportMode 选择传输方式：
+   * - "auto"（默认）：WebRTC DataChannel 可用时优先走 P2P，否则回退 relay
+   * - "relay"：始终走服务端 relay
+   * - "webrtc"：仅走 WebRTC，DataChannel 不可用时抛出错误
+   *
+   * 二进制数据在 "auto" 模式下始终走 relay（DataChannel 信封使用 JSON 格式）。
    * @param {string} sessionId - 目标会话 ID（走 WebRTC 时仅用于事件 detail）
    * @param {*} data - 要发送的数据（JSON 可序列化值或二进制数据）
    * @returns {Promise<Object>} 发送结果
    */
   async send(sessionId, data) {
-    // 优先走 WebRTC DataChannel（仅限 JSON 可序列化数据）
+    // "relay" 模式：始终走服务端转发
+    if (this.#transportMode === "relay") {
+      return this.#localUser.server.sendToUser(this.#userId, sessionId, data);
+    }
+
+    // "webrtc" 模式：仅走 WebRTC，不可用则抛错
+    if (this.#transportMode === "webrtc") {
+      if (!this.#isDataChannelOpen) {
+        throw new Error("WebRTC DataChannel is not open");
+      }
+      if (this.#isBinaryData(data)) {
+        throw new Error("Binary data is not supported in webrtc-only mode");
+      }
+      const envelope = JSON.stringify({
+        type: "__webrtc_data",
+        fromUserId: this.#localUser.userId,
+        fromSessionId: this.#localUser.sessionId,
+        data,
+      });
+      this.#dc.send(envelope);
+      return { status: "ok", via: "webrtc" };
+    }
+
+    // "auto" 模式：优先 WebRTC DataChannel（仅限 JSON 可序列化数据）
     if (this.#isDataChannelOpen && !this.#isBinaryData(data)) {
       try {
         const envelope = JSON.stringify({

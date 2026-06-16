@@ -252,20 +252,31 @@ export class LocalUser extends BaseUser {
    * 连接远程用户，返回对应的 RemoteUser 实例
    * 会查询已连接的服务器确认对方是否在线
    * @param {string} userId - 目标用户的 userId
+   * @param {Object} [options] - 连接选项
+   * @param {boolean} [options.webrtc=true] - 是否启用 WebRTC P2P 连接。
+   *   设为 false 时仅使用服务端 relay 转发，不发起 WebRTC 信令。
+   *   实例化后仍可通过 RemoteUser.setTransportMode() 自由切换传输模式。
    * @returns {Promise<RemoteUser>}
    */
-  async connectUser(userId) {
+  async connectUser(userId, options = {}) {
     if (!userId) {
       throw new Error("userId is required");
     }
 
+    const { webrtc = true } = options;
+
     // 已有缓存（进行中的 Promise 或已完成的 RemoteUser）
     if (this.#remoteUserCache.has(userId)) {
-      return this.#remoteUserCache.get(userId);
+      const cached = await this.#remoteUserCache.get(userId);
+      // 若缓存实例的 WebRTC 启用状态与本次请求不一致，按本次请求调整
+      if (!webrtc && cached.transportMode === "auto") {
+        cached.setTransportMode("relay");
+      }
+      return cached;
     }
 
     // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
-    const promise = this.#doConnectUser(userId);
+    const promise = this.#doConnectUser(userId, webrtc);
     this.#remoteUserCache.set(userId, promise);
 
     try {
@@ -277,7 +288,7 @@ export class LocalUser extends BaseUser {
     }
   }
 
-  async #doConnectUser(userId) {
+  async #doConnectUser(userId, webrtc) {
     // 查询已连接服务器，确认目标用户至少在一台服务器上在线
     const urls = this.#server.connectedUrls;
     let found = false;
@@ -295,8 +306,13 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    // 创建 RemoteUser 作为 WebRTC initiator，构造函数中会自动发起 WebRTC 连接
-    return new RemoteUser(userId, this, true);
+    // webrtc === true 时作为 initiator 创建 RemoteUser，构造函数中会自动发起 WebRTC 连接
+    // webrtc === false 时仅创建 RemoteUser 并强制使用 relay 模式
+    const remoteUser = new RemoteUser(userId, this, webrtc === true);
+    if (!webrtc) {
+      remoteUser.setTransportMode("relay");
+    }
+    return remoteUser;
   }
 
   /**
