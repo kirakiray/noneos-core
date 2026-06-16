@@ -51,6 +51,10 @@ export class LocalUser extends BaseUser {
   /**
    * 设置 relay 消息分发：当本地用户收到 relay 消息时，
    * 解析后分发给缓存的 RemoteUser 实例
+   *
+   * 同时处理 WebRTC 信令消息（data.type === "__webrtc"）：
+   * - 若缓存中已有对应 RemoteUser，分派信令给该实例
+   * - 若没有，自动创建 RemoteUser（作为 answerer）并加入缓存
    */
   #setupRelayDispatch() {
     this.bind("message", (event) => {
@@ -76,7 +80,23 @@ export class LocalUser extends BaseUser {
       const fromUserId = parsed.from_user_id;
       if (!fromUserId) return;
 
-      // 查找缓存的 RemoteUser 实例
+      const innerData = parsed.data;
+
+      // WebRTC 信令消息：分派给对应 RemoteUser 处理
+      if (
+        innerData &&
+        typeof innerData === "object" &&
+        innerData.type === "__webrtc"
+      ) {
+        this.#dispatchWebRTCSignal(
+          fromUserId,
+          parsed.from_session_id,
+          innerData,
+        );
+        return;
+      }
+
+      // 普通 relay 消息：查找缓存的 RemoteUser 实例并触发 message 事件
       if (this.#remoteUserCache.has(fromUserId)) {
         const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
         // Promise 已完成才能拿到 RemoteUser
@@ -90,6 +110,28 @@ export class LocalUser extends BaseUser {
         });
       }
     });
+  }
+
+  /**
+   * 分派 WebRTC 信令给对应的 RemoteUser 实例
+   * 若缓存中不存在则自动创建（作为 answerer，非 initiator）
+   * @param {string} fromUserId - 信令发送方的 userId
+   * @param {string} fromSessionId - 信令发送方的 sessionId
+   * @param {Object} signal - 信令数据
+   */
+  async #dispatchWebRTCSignal(fromUserId, fromSessionId, signal) {
+    let remoteUser;
+
+    if (this.#remoteUserCache.has(fromUserId)) {
+      const promise = this.#remoteUserCache.get(fromUserId);
+      remoteUser = await promise;
+    } else {
+      // 自动创建 RemoteUser 作为 answerer（非 initiator）
+      remoteUser = new RemoteUser(fromUserId, this, false);
+      this.#remoteUserCache.set(fromUserId, Promise.resolve(remoteUser));
+    }
+
+    remoteUser._handleSignal(signal, fromSessionId);
   }
 
   /**
@@ -253,7 +295,8 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    return new RemoteUser(userId, this);
+    // 创建 RemoteUser 作为 WebRTC initiator，构造函数中会自动发起 WebRTC 连接
+    return new RemoteUser(userId, this, true);
   }
 
   /**

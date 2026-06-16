@@ -232,6 +232,240 @@
       </script>
     </template>
   </sb-test>
+  <sb-test name="WebRTC Direct Communication Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsWrA = "webrtc-test-a";
+        const nsWrB = "webrtc-test-b";
+        const serverUrlWr = "ws://localhost:8081";
+
+        const wrUserA = new LocalUser(nsWrA);
+        const wrUserB = new LocalUser(nsWrB);
+
+        await Promise.all([wrUserA.ready(), wrUserB.ready()]);
+
+        await Promise.all([
+          wrUserA.server.connect(serverUrlWr),
+          wrUserB.server.connect(serverUrlWr),
+        ]);
+
+        // userA 连接 userB（作为 initiator 发起 WebRTC）
+        const wrRemoteB = await wrUserA.connectUser(wrUserB.userId);
+
+        // 等待 WebRTC 连接建立（最多 15 秒）
+        let webrtcConnected = false;
+        const webrtcConnectPromise = new Promise((resolve) => {
+          wrRemoteB.bind("webrtc_state", (event) => {
+            if (event.detail.state === "connected") {
+              webrtcConnected = true;
+              resolve();
+            }
+          });
+        });
+
+        await Promise.race([
+          webrtcConnectPromise,
+          new Promise((resolve) => setTimeout(resolve, 15000)),
+        ]);
+
+        // 获取 userB 端自动创建的 RemoteUser(A)（通过 connectUser 复用缓存）
+        const wrRemoteA = await wrUserB.connectUser(wrUserA.userId);
+
+        // 监听 userB 端 RemoteUser(A) 的 message 事件
+        let wrReceivedMessage = null;
+        let wrReceivedDetail = null;
+        wrRemoteA.bind("message", (event) => {
+          wrReceivedDetail = event.detail;
+          wrReceivedMessage = event.detail.data;
+        });
+
+        // 通过 WebRTC DataChannel 发送消息
+        const wrSendResult = await wrRemoteB.send(
+          wrUserB.sessionId,
+          "hello via webrtc",
+        );
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const wrMessageReceived = wrReceivedMessage === "hello via webrtc";
+        const wrSentViaWebrtc = wrSendResult && wrSendResult.via === "webrtc";
+        const wrFromUserMatch =
+          wrReceivedDetail && wrReceivedDetail.fromUserId === wrUserA.userId;
+
+        return {
+          assert: webrtcConnected && wrSentViaWebrtc && wrMessageReceived && wrFromUserMatch,
+          content: {
+            message: "WebRTC 直接通信测试成功，send() 走 DataChannel",
+            webrtcConnected,
+            sentViaWebrtc: wrSentViaWebrtc,
+            messageReceived: wrMessageReceived,
+            fromUserMatch: wrFromUserMatch,
+            sendResult: wrSendResult,
+            receivedDetail: wrReceivedDetail,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebRTC Not Established - Relay Fallback Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsRlyA = "webrtc-relay-a";
+        const nsRlyB = "webrtc-relay-b";
+        const serverUrlRly = "ws://localhost:8081";
+
+        const rlyUserA = new LocalUser(nsRlyA);
+        const rlyUserB = new LocalUser(nsRlyB);
+
+        await Promise.all([rlyUserA.ready(), rlyUserB.ready()]);
+
+        await Promise.all([
+          rlyUserA.server.connect(serverUrlRly),
+          rlyUserB.server.connect(serverUrlRly),
+        ]);
+
+        // userA 连接 userB（发起 WebRTC，但立即发送消息，此时 WebRTC 尚未建立）
+        const rlyRemoteB = await rlyUserA.connectUser(rlyUserB.userId);
+
+        // 立即发送消息（WebRTC 尚未建立，应走 relay）
+        let rlyReceivedMessage = null;
+        rlyUserB.bind("message", (event) => {
+          const rawData =
+            typeof event.detail.data === "string"
+              ? event.detail.data
+              : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (
+              parsed.type === "relay" &&
+              parsed.from_user_id === rlyUserA.userId &&
+              parsed.data !== "__webrtc" &&
+              (typeof parsed.data !== "object" || parsed.data.type !== "__webrtc")
+            ) {
+              rlyReceivedMessage = parsed.data;
+            }
+          } catch {}
+        });
+
+        const rlySendResult = await rlyRemoteB.send(
+          rlyUserB.sessionId,
+          "hello via relay (before webrtc)",
+        );
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const rlyMessageReceived =
+          rlyReceivedMessage === "hello via relay (before webrtc)";
+        // send() 在 WebRTC 未建立时应走 relay，返回 relay_response
+        const rlySentViaRelay =
+          rlySendResult &&
+          (rlySendResult.via !== "webrtc") &&
+          (rlySendResult.type === "relay_response" || rlySendResult.status === "ok");
+
+        return {
+          assert: rlyMessageReceived && rlySentViaRelay,
+          content: {
+            message: "WebRTC 建立前 send() 通过服务端 relay 通信成功",
+            messageReceived: rlyMessageReceived,
+            sentViaRelay: rlySentViaRelay,
+            sendResult: rlySendResult,
+            receivedMessage: rlyReceivedMessage,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebRTC Message Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsEvtA = "webrtc-evt-a";
+        const nsEvtB = "webrtc-evt-b";
+        const serverUrlEvt = "ws://localhost:8081";
+
+        const evtUserA = new LocalUser(nsEvtA);
+        const evtUserB = new LocalUser(nsEvtB);
+
+        await Promise.all([evtUserA.ready(), evtUserB.ready()]);
+
+        await Promise.all([
+          evtUserA.server.connect(serverUrlEvt),
+          evtUserB.server.connect(serverUrlEvt),
+        ]);
+
+        // userA 连接 userB
+        const evtRemoteB = await evtUserA.connectUser(evtUserB.userId);
+
+        // 等待 WebRTC 建立
+        const evtConnectPromise = new Promise((resolve) => {
+          evtRemoteB.bind("webrtc_state", (event) => {
+            if (event.detail.state === "connected") {
+              resolve();
+            }
+          });
+        });
+
+        await Promise.race([
+          evtConnectPromise,
+          new Promise((resolve) => setTimeout(resolve, 15000)),
+        ]);
+
+        // 获取 userB 端的 RemoteUser(A)
+        const evtRemoteA = await evtUserB.connectUser(evtUserA.userId);
+
+        // 监听 RemoteUser message 事件（P2P 消息）
+        let evtP2PMessage = null;
+        let evtP2PDetail = null;
+        evtRemoteA.bind("message", (event) => {
+          evtP2PDetail = event.detail;
+          evtP2PMessage = event.detail.data;
+        });
+
+        // 通过 WebRTC 发送
+        await evtRemoteB.send(evtUserB.sessionId, "p2p message event");
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const p2pEventReceived =
+          evtP2PMessage === "p2p message event" &&
+          evtP2PDetail !== null &&
+          evtP2PDetail.fromUserId === evtUserA.userId &&
+          evtP2PDetail.fromSessionId === evtUserA.sessionId;
+
+        // 同时验证 relay 消息也能触发 message 事件
+        // userB 通过 RemoteUser(A) 发送消息给 userA（如果 WebRTC 已建立则走 P2P，否则走 relay）
+        let evtReverseMessage = null;
+        evtRemoteB.bind("message", (event) => {
+          evtReverseMessage = event.detail.data;
+        });
+
+        await evtRemoteA.send(evtUserA.sessionId, "reverse message");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const reverseEventReceived = evtReverseMessage === "reverse message";
+
+        return {
+          assert: p2pEventReceived && reverseEventReceived,
+          content: {
+            message: "WebRTC message 事件测试成功（P2P 和反向通信均触发 message 事件）",
+            p2pEventReceived,
+            reverseEventReceived,
+            p2pDetail: evtP2PDetail,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
