@@ -51,6 +51,7 @@ export class LocalUser extends BaseUser {
   /**
    * 设置 relay 消息分发：当本地用户收到 relay 消息时，
    * 解析后分发给缓存的 RemoteUser 实例
+   * WebRTC 信令消息会优先被拦截并分派到对应的 RemoteUser
    */
   #setupRelayDispatch() {
     this.bind("message", (event) => {
@@ -76,6 +77,14 @@ export class LocalUser extends BaseUser {
       const fromUserId = parsed.from_user_id;
       if (!fromUserId) return;
 
+      // WebRTC 信令消息：自动创建 RemoteUser 并分派信令
+      if (parsed.data?.type === "__webrtc") {
+        this.#ensureRemoteUser(fromUserId).then((remoteUser) => {
+          remoteUser._handleSignal(parsed.data, parsed.from_session_id);
+        });
+        return;
+      }
+
       // 查找缓存的 RemoteUser 实例
       if (this.#remoteUserCache.has(fromUserId)) {
         const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
@@ -90,6 +99,22 @@ export class LocalUser extends BaseUser {
         });
       }
     });
+  }
+
+  /**
+   * 获取或创建指定 userId 的 RemoteUser 实例（非主动发起方）
+   * 用于收到 WebRTC 信令时自动创建对端 RemoteUser
+   * @param {string} userId
+   * @returns {Promise<RemoteUser>}
+   */
+  async #ensureRemoteUser(userId) {
+    if (this.#remoteUserCache.has(userId)) {
+      return this.#remoteUserCache.get(userId);
+    }
+
+    const remoteUser = new RemoteUser(userId, this, false);
+    this.#remoteUserCache.set(userId, Promise.resolve(remoteUser));
+    return remoteUser;
   }
 
   /**
@@ -253,7 +278,8 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    return new RemoteUser(userId, this);
+    // 主动 connectUser 的一方作为 WebRTC 连接的 initiator
+    return new RemoteUser(userId, this, true);
   }
 
   /**

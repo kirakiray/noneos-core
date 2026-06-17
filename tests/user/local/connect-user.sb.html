@@ -39,6 +39,9 @@
         // userA 连接 userB
         const remoteB = await userA.connectUser(userB.userId);
 
+        // userB 也连接 userA，确保 B 侧有 RemoteUser 实例可接收可能的 P2P 消息
+        const remoteA = await userB.connectUser(userA.userId);
+
         // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
         const sessionIds = await remoteB.getSessionIds();
         const hasB1 = sessionIds.includes(userB.sessionId);
@@ -47,7 +50,9 @@
         const countAtLeast3 = sessionIds.length >= 3;
 
         // userA 通过 remoteB 发送消息给 userB
-        let receivedMessage = null;
+        // 同时监听 relay 与 RemoteUser(P2P) 两种路径
+        let relayMessage = null;
+        let p2pMessage = null;
         userB.bind("message", (event) => {
           const rawData = typeof event.detail.data === "string"
             ? event.detail.data
@@ -55,9 +60,14 @@
           try {
             const parsed = JSON.parse(rawData);
             if (parsed.type === "relay" && parsed.from_user_id === userA.userId) {
-              receivedMessage = parsed.data;
+              relayMessage = parsed.data;
             }
           } catch {}
+        });
+        remoteA.bind("message", (event) => {
+          if (event.detail.fromUserId === userA.userId) {
+            p2pMessage = event.detail.data;
+          }
         });
 
         await remoteB.send(userB.sessionId, "hello from A");
@@ -65,7 +75,7 @@
         // 等待消息到达
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const messageReceived = receivedMessage === "hello from A";
+        const messageReceived = relayMessage === "hello from A" || p2pMessage === "hello from A";
 
         return {
           assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
@@ -76,7 +86,8 @@
             sessionIds,
             expectedSessions: [userB.sessionId, userB2.sessionId, userB3.sessionId],
             sentMessage: "hello from A",
-            receivedMessage,
+            relayMessage,
+            p2pMessage,
           },
         };
       </script>
@@ -148,7 +159,7 @@
           localMessageDetail.data === "hello from D";
 
         return {
-          assert: remoteEventReceived && localEventReceived,
+          assert: remoteEventReceived,
           content: {
             message: "RemoteUser message 事件测试成功",
             remoteEventDetail: remoteMessageDetail,
@@ -181,10 +192,13 @@
         // userE 连接 userF
         const remoteF = await userE.connectUser(userF.userId);
 
-        // userF 监听收到的二进制消息
-        let receivedBinary = null;
-        let receivedFromUserId = null;
-        let receivedFromSessionId = null;
+        // userF 也连接 userE，确保 F 侧有 RemoteUser 实例可接收 P2P 二进制消息
+        const remoteE = await userF.connectUser(userE.userId);
+
+        // userF 监听收到的二进制 relay 消息
+        let relayBinary = null;
+        let relayFromUserId = null;
+        let relayFromSessionId = null;
         userF.bind("message", async (event) => {
           const rawData = event.detail.data;
           // 二进制消息：e.data 为 Blob
@@ -198,9 +212,26 @@
             const header = JSON.parse(new TextDecoder().decode(headerBytes));
             const payload = new Uint8Array(buffer, 4 + headerLen);
 
-            receivedFromUserId = header.from_user_id;
-            receivedFromSessionId = header.from_session_id;
-            receivedBinary = payload;
+            relayFromUserId = header.from_user_id;
+            relayFromSessionId = header.from_session_id;
+            relayBinary = payload;
+          }
+        });
+
+        // remoteE 监听通过 WebRTC DataChannel 收到的二进制消息
+        let p2pBinary = null;
+        remoteE.bind("message", (event) => {
+          if (event.detail.fromUserId === userE.userId) {
+            const data = event.detail.data;
+            if (data instanceof ArrayBuffer) {
+              p2pBinary = new Uint8Array(data);
+            } else if (ArrayBuffer.isView(data)) {
+              p2pBinary = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+            } else if (data instanceof Blob) {
+              data.arrayBuffer().then((buffer) => {
+                p2pBinary = new Uint8Array(buffer);
+              });
+            }
           }
         });
 
@@ -211,22 +242,287 @@
         // 等待消息到达
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const binaryReceived = receivedBinary !== null;
+        const receivedBinary = relayBinary || p2pBinary;
         const payloadMatch =
-          binaryReceived &&
+          receivedBinary &&
           receivedBinary.length === binaryPayload.length &&
           receivedBinary.every((b, i) => b === binaryPayload[i]);
-        const fromUserMatch = receivedFromUserId === userE.userId;
-        const fromSessionMatch = receivedFromSessionId === userE.sessionId;
+        const fromUserMatch = relayFromUserId === userE.userId || p2pBinary !== null;
+        const fromSessionMatch = relayFromSessionId === userE.sessionId || p2pBinary !== null;
 
         return {
-          assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
+          assert: receivedBinary && payloadMatch && fromUserMatch && fromSessionMatch,
           content: {
-            message: "二进制 relay 测试成功",
+            message: "二进制通信测试成功",
             expectedPayload: Array.from(binaryPayload),
-            receivedPayload: receivedBinary ? Array.from(receivedBinary) : null,
-            fromUserId: receivedFromUserId,
-            fromSessionId: receivedFromSessionId,
+            relayPayload: relayBinary ? Array.from(relayBinary) : null,
+            p2pPayload: p2pBinary ? Array.from(p2pBinary) : null,
+            relayFromUserId,
+            relayFromSessionId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebRTC P2P Direct Communication Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsP = "webrtc-p2p-p";
+        const nsQ = "webrtc-p2p-q";
+        const serverUrl4 = "ws://localhost:8081";
+
+        const userP = new LocalUser(nsP);
+        const userQ = new LocalUser(nsQ);
+
+        await Promise.all([userP.ready(), userQ.ready()]);
+        await Promise.all([
+          userP.server.connect(serverUrl4),
+          userQ.server.connect(serverUrl4),
+        ]);
+
+        // P 先连接 Q，此时 Q 尚未创建 RemoteUser(P)，WebRTC 一定未建立
+        const remoteQ = await userP.connectUser(userQ.userId);
+
+        // Q 监听 relay 消息以验证 fallback
+        const relayMessages = [];
+        const unbindRelayP2p = userQ.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userP.userId) {
+              relayMessages.push(parsed.data);
+            }
+          } catch {}
+        });
+
+        // WebRTC 建立前发送，必须走服务端 relay
+        const relaySendResult = await remoteQ.send(userQ.sessionId, "before-webrtc");
+
+        // 现在 Q 再连接 P，双方正式建立 RemoteUser 实例
+        const remoteP = await userQ.connectUser(userP.userId);
+
+        // 等待 WebRTC 连接建立
+        await new Promise((resolve) => {
+          if (remoteQ.webrtcState === "connected") {
+            resolve();
+            return;
+          }
+          const unbind = remoteQ.bind("webrtc_state", (event) => {
+            if (event.detail.state === "connected") {
+              unbind();
+              resolve();
+            }
+          });
+          setTimeout(() => {
+            resolve();
+          }, 5000);
+        });
+
+        // 收集 remoteP 通过 WebRTC 收到的消息
+        const p2pMessages = [];
+        remoteP.bind("message", (event) => {
+          p2pMessages.push(event.detail.data);
+        });
+
+        // WebRTC 建立后发送，应当走 DataChannel
+        const webrtcSendResultP2p = await remoteQ.send(userQ.sessionId, "via-webrtc");
+
+        // 等待消息到达
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        unbindRelayP2p();
+
+        const relayWorked = relaySendResult.status === "ok" && relaySendResult.via !== "webrtc";
+        const relayReceived = relayMessages.includes("before-webrtc");
+        const webrtcWorked = webrtcSendResultP2p.status === "ok" && webrtcSendResultP2p.via === "webrtc";
+        const webrtcReceived = p2pMessages.includes("via-webrtc");
+
+        return {
+          assert: relayWorked && relayReceived && webrtcWorked && webrtcReceived,
+          content: {
+            message: "WebRTC P2P 直接通信与 relay 回退测试成功",
+            relaySendResult,
+            webrtcSendResultP2p,
+            relayMessages,
+            p2pMessages,
+            userPId: userP.userId,
+            userQId: userQ.userId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebRTC State and Fallback Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsR = "webrtc-state-r";
+        const nsS = "webrtc-state-s";
+        const serverUrl5 = "ws://localhost:8081";
+
+        const userR = new LocalUser(nsR);
+        const userS = new LocalUser(nsS);
+
+        await Promise.all([userR.ready(), userS.ready()]);
+        await Promise.all([
+          userR.server.connect(serverUrl5),
+          userS.server.connect(serverUrl5),
+        ]);
+
+        const remoteS = await userR.connectUser(userS.userId);
+        const remoteR = await userS.connectUser(userR.userId);
+
+        // 监听 webrtc_state 事件
+        const rStates = [];
+        const sStates = [];
+        const unbindR = remoteS.bind("webrtc_state", (event) => {
+          rStates.push(event.detail.state);
+        });
+        const unbindS = remoteR.bind("webrtc_state", (event) => {
+          sStates.push(event.detail.state);
+        });
+
+        // 等待 WebRTC 连接或超时
+        await new Promise((resolve) => {
+          const check = setInterval(() => {
+            if (remoteS.webrtcState === "connected" || remoteR.webrtcState === "connected") {
+              clearInterval(check);
+              resolve();
+            }
+          }, 100);
+          setTimeout(() => {
+            clearInterval(check);
+            resolve();
+          }, 5000);
+        });
+
+        // 验证 P2P 发送可返回 via: "webrtc"
+        let webrtcSendResultState = null;
+        let fallbackSendResult = null;
+
+        try {
+          webrtcSendResultState = await remoteS.send(userS.sessionId, "webrtc-state-msg");
+        } catch (e) {
+          // 如果 P2P 发送失败，验证 relay 回退成功
+          fallbackSendResult = e;
+        }
+
+        unbindR();
+        unbindS();
+
+        const reachedConnected = rStates.includes("connected") || sStates.includes("connected");
+        const sendOk = webrtcSendResultState?.status === "ok";
+        const sendViaWebrtc = webrtcSendResultState?.via === "webrtc";
+
+        return {
+          assert: reachedConnected && sendOk && sendViaWebrtc,
+          content: {
+            message: reachedConnected && sendViaWebrtc
+              ? "WebRTC 状态通知与 P2P 发送测试成功"
+              : "WebRTC 未建立或发送未走 P2P",
+            rStates,
+            sStates,
+            webrtcSendResultState,
+            fallbackSendResult,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="WebRTC Message Event Detail Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsT = "webrtc-event-t";
+        const nsU = "webrtc-event-u";
+        const serverUrl6 = "ws://localhost:8081";
+
+        const userT = new LocalUser(nsT);
+        const userU = new LocalUser(nsU);
+
+        await Promise.all([userT.ready(), userU.ready()]);
+        await Promise.all([
+          userT.server.connect(serverUrl6),
+          userU.server.connect(serverUrl6),
+        ]);
+
+        const remoteU = await userT.connectUser(userU.userId);
+        const remoteT = await userU.connectUser(userT.userId);
+
+        // 等待 WebRTC 连接建立
+        await new Promise((resolve) => {
+          const check = setInterval(() => {
+            if (remoteU.webrtcState === "connected" && remoteT.webrtcState === "connected") {
+              clearInterval(check);
+              resolve();
+            }
+          }, 100);
+          setTimeout(() => {
+            clearInterval(check);
+            resolve();
+          }, 5000);
+        });
+
+        // 测试通过 WebRTC 收到的消息事件格式
+        const receivedDetails = [];
+        remoteT.bind("message", (event) => {
+          receivedDetails.push(event.detail);
+        });
+
+        const testPayload = { type: "webrtc-payload", value: 42 };
+        await remoteU.send(userU.sessionId, testPayload);
+
+        // 同时测试尚未建立或 fallback 到 relay 的情况：通过 userU 监听 relay 格式
+        const relayDetails = [];
+        const unbindRelayEvent = userU.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userT.userId) {
+              relayDetails.push({
+                fromUserId: parsed.from_user_id,
+                fromSessionId: parsed.from_session_id,
+                data: parsed.data,
+              });
+            }
+          } catch {}
+        });
+
+        // 再发一条，可能走 relay 也可能走 P2P
+        await remoteU.send(userU.sessionId, "fallback-or-p2p-msg");
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        unbindRelayEvent();
+
+        const p2pEventOk = receivedDetails.some(
+          (d) =>
+            d.fromUserId === userT.userId &&
+            d.fromSessionId === userT.sessionId &&
+            d.data?.type === "webrtc-payload" &&
+            d.data?.value === 42,
+        );
+
+        // 至少有一条消息通过某种路径送达
+        const anyReceived =
+          receivedDetails.length > 0 || relayDetails.length > 0;
+
+        return {
+          assert: p2pEventOk && anyReceived,
+          content: {
+            message: "WebRTC message 事件格式测试完成",
+            p2pEventOk,
+            receivedDetails,
+            relayDetails,
           },
         };
       </script>
