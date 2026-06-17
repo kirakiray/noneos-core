@@ -167,7 +167,7 @@ export class CardManager {
    * @param {string} userId
    * @returns {Promise<Object | null>}
    */
-  async getCard(userId) {
+  async getDBCard(userId) {
     return getCardFromDb(this.#user.namespace, userId);
   }
 
@@ -188,7 +188,52 @@ export class CardManager {
   }
 
   /**
-   * 向远程用户请求名片
+   * 自动查找远程用户的在线 sessionId
+   * 遍历已连接的所有服务器，返回第一个在线的 sessionId
+   * @param {string} userId
+   * @returns {Promise<string>}
+   */
+  async #findSessionId(userId) {
+    const server = this.#user.server;
+    const urls = server.connectedUrls;
+
+    for (const url of urls) {
+      try {
+        const result = await server.queryUserOnline(url, userId);
+        if (result.online && result.sessions && result.sessions.length > 0) {
+          return result.sessions[0];
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    throw new Error(`User ${userId} is not online on any connected server`);
+  }
+
+  /**
+   * 获取远程用户的名片
+   *
+   * 统一入口：先查本地 DB，没有再通过网路请求获取。
+   * 内部自动连接远程用户并获取 sessionId。
+   *
+   * @param {string} userId - 目标用户的 userId
+   * @returns {Promise<Object>} 名片数据
+   */
+  async getCard(userId) {
+    if (!userId) throw new Error("userId is required");
+
+    const existing = await this.getDBCard(userId);
+    if (existing) return existing;
+
+    // 自动连接远程用户并获取 sessionId
+    const remoteUser = await this.#user.connectUser(userId);
+    const sessionId = await this.#findSessionId(userId);
+    return this.requestCard(remoteUser, sessionId);
+  }
+
+  /**
+   * 向远程用户请求名片（总是发起网络请求）
    *
    * 流程：
    * 1. 先查本地 DB，若有名片则直接返回
@@ -204,7 +249,7 @@ export class CardManager {
     if (!userId) throw new Error("remoteUser.userId is required");
 
     // 1. 先查本地 DB
-    const existing = await this.getCard(userId);
+    const existing = await this.getDBCard(userId);
     if (existing) {
       return existing;
     }

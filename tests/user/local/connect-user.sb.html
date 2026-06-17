@@ -255,11 +255,9 @@
 
         // userG 连接 userH
         const remoteH = await userG.connectUser(userH.userId);
-        const sessionsH = await remoteH.getSessionIds();
-        const sessionH = sessionsH[0];
 
         // 清空 userG 本地可能残留的名片（测试独立性）
-        const existingCard = await userG.card.getCard(userH.userId);
+        const existingCard = await userG.card.getDBCard(userH.userId);
         if (existingCard) {
           await userG.card.deleteCard(userH.userId);
         }
@@ -270,10 +268,11 @@
           cardReceivedEvent = event.detail;
         });
 
-        // userG 向 userH 请求名片
-        const card = await userG.card.requestCard(remoteH, sessionH);
 
-        // 使用 userH 验证名片签名
+        // userG 向 userH 请求名片
+        const card = await userG.card.getCard(userH.userId);
+
+        // 使用 userH 自身的公钥验证名片签名
         const signatureValid = await userH.verify(card);
 
         console.log("card:", card);
@@ -297,11 +296,11 @@
         const eventSaved = cardReceivedEvent && cardReceivedEvent.saved === true;
 
         // 重新从 DB 读取，确认已持久化
-        const storedCard = await userG.card.getCard(userH.userId);
+        const storedCard = await userG.card.getDBCard(userH.userId);
         const storedMatch = storedCard && storedCard.userId === userH.userId;
 
         // 再次请求应返回本地缓存（不再发起网络请求）
-        const cachedCard = await userG.card.requestCard(remoteH, sessionH);
+        const cachedCard = await userG.card.getCard(userH.userId);
         const fromCache = cachedCard.userId === userH.userId;
 
         // 清理
