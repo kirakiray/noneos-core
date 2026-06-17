@@ -1,6 +1,7 @@
 const STORE_NAME = "data";
 const CERT_STORE_NAME = "certs";
-const DB_VERSION = 4;
+const CARD_STORE_NAME = "cards";
+const DB_VERSION = 5;
 
 // 数据库连接缓存池
 const dbCache = new Map();
@@ -53,6 +54,9 @@ function getDb(namespace) {
         certStore.createIndex("role_subject", ["role", "subject"], { unique: false });
         certStore.createIndex("issuer_subject", ["issuer", "subject"], { unique: false });
         certStore.createIndex("role_issuer_subject", ["role", "issuer", "subject"], { unique: false });
+      }
+      if (!db.objectStoreNames.contains(CARD_STORE_NAME)) {
+        db.createObjectStore(CARD_STORE_NAME, { keyPath: "userId" });
       }
     };
   });
@@ -430,6 +434,91 @@ export async function getUserInfo(namespace) {
     request.onsuccess = (event) => {
       resolve(event.target.result || null);
     };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 保存名片
+ * 若已存在同一 userId 的名片，保留 signTime 更大的那张
+ * @param {string} namespace
+ * @param {Object} cardData - 已签名的名片数据（含 userId, signTime 等）
+ * @returns {Promise<boolean>} 是否成功保存（false 表示已有更新或相同时间的名片，未覆盖）
+ */
+export async function saveCardToDb(namespace, cardData) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!cardData.userId) throw new Error("cardData.userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+
+    const getRequest = store.get(cardData.userId);
+    getRequest.onsuccess = (event) => {
+      const existing = event.target.result;
+      if (existing && existing.signTime >= cardData.signTime) {
+        resolve(false);
+        return;
+      }
+      const putRequest = store.put(cardData);
+      putRequest.onsuccess = () => resolve(true);
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 获取名片
+ * @param {string} namespace
+ * @param {string} userId
+ * @returns {Promise<Object | null>}
+ */
+export async function getCardFromDb(namespace, userId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!userId) throw new Error("userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.get(userId);
+    request.onsuccess = (event) => resolve(event.target.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取所有名片
+ * @param {string} namespace
+ * @returns {Promise<Array>}
+ */
+export async function getAllCardsFromDb(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = (event) => resolve(event.target.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 删除名片
+ * @param {string} namespace
+ * @param {string} userId
+ * @returns {Promise}
+ */
+export async function deleteCardFromDb(namespace, userId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!userId) throw new Error("userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.delete(userId);
+    request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 }

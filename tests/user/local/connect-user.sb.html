@@ -36,6 +36,7 @@
           userB3.server.connect(serverUrl1),
         ]);
 
+
         // userA 连接 userB
         const remoteB = await userA.connectUser(userB.userId);
 
@@ -227,6 +228,102 @@
             receivedPayload: receivedBinary ? Array.from(receivedBinary) : null,
             fromUserId: receivedFromUserId,
             fromSessionId: receivedFromSessionId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Card Exchange Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsG = "card-user-g";
+        const nsH = "card-user-h";
+        const serverUrl = "ws://localhost:8081";
+
+        const userG = new LocalUser(nsG);
+        const userH = new LocalUser(nsH);
+
+        await Promise.all([userG.ready(), userH.ready()]);
+
+        await Promise.all([
+          userG.server.connect(serverUrl),
+          userH.server.connect(serverUrl),
+        ]);
+
+        // userG 连接 userH
+        const remoteH = await userG.connectUser(userH.userId);
+        const sessionsH = await remoteH.getSessionIds();
+        const sessionH = sessionsH[0];
+
+        // 清空 userG 本地可能残留的名片（测试独立性）
+        const existingCard = await userG.card.getCard(userH.userId);
+        if (existingCard) {
+          await userG.card.deleteCard(userH.userId);
+        }
+
+        // 监听 card_received 事件
+        let cardReceivedEvent = null;
+        const unbind = userG.bind("card_received", (event) => {
+          cardReceivedEvent = event.detail;
+        });
+
+        // userG 向 userH 请求名片
+        const card = await userG.card.requestCard(remoteH, sessionH);
+
+        // 使用 userH 验证名片签名
+        const signatureValid = await userH.verify(card);
+
+        // 取消事件监听
+        unbind();
+
+        // 验证名片数据完整性
+        const hasUserId = card.userId === userH.userId;
+        const hasPublicKey = typeof card.publicKey === "string" && card.publicKey.length > 0;
+        const hasUsername = typeof card.username === "string" && card.username.length > 0;
+        const hasSignTime = typeof card.signTime === "number" && card.signTime > 0;
+        const hasSignature = typeof card.signature === "string" && card.signature.length > 0;
+
+        // 验证名片中的公钥与 userH 一致（即确认是 userH 签发的）
+        const publicKeyMatch = card.publicKey === userH.publicKey;
+
+        // 验证 card_received 事件已触发
+        const eventTriggered = cardReceivedEvent !== null;
+        const eventUserIdMatch = cardReceivedEvent && cardReceivedEvent.userId === userH.userId;
+        const eventSaved = cardReceivedEvent && cardReceivedEvent.saved === true;
+
+        // 重新从 DB 读取，确认已持久化
+        const storedCard = await userG.card.getCard(userH.userId);
+        const storedMatch = storedCard && storedCard.userId === userH.userId;
+
+        // 再次请求应返回本地缓存（不再发起网络请求）
+        const cachedCard = await userG.card.requestCard(remoteH, sessionH);
+        const fromCache = cachedCard.userId === userH.userId;
+
+        // 清理
+        await userG.card.deleteCard(userH.userId);
+
+        return {
+          assert: hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+            && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
+            && storedMatch && fromCache,
+          content: {
+            message: "名片交换测试成功",
+            card: {
+              userId: card.userId,
+              username: card.username,
+              signTime: card.signTime,
+              hasPublicKey: hasPublicKey,
+              hasSignature: hasSignature,
+            },
+            signatureValid,
+            verification: publicKeyMatch ? "公钥匹配" : "公钥不匹配",
+            eventTriggered,
+            eventDetail: cardReceivedEvent,
+            storedInDb: storedMatch,
+            cachedReturned: fromCache,
           },
         };
       </script>

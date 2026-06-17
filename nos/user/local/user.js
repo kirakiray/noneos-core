@@ -2,6 +2,7 @@ import { BaseUser } from "../base-user.js";
 import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "../db.js";
 import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
+import { CardManager } from "./card.js";
 import { ServerManager } from "./server.js";
 import { RemoteUser } from "./remote-user.js";
 
@@ -16,6 +17,7 @@ export class LocalUser extends BaseUser {
   #namespace;
   #sessionId = "s-" + Math.random().toString(36).substring(2, 10);
   #cert;
+  #card;
   #server;
   #sessionChannel;
   #remoteUserCache = new Map(); // userId -> Promise<RemoteUser>
@@ -31,6 +33,7 @@ export class LocalUser extends BaseUser {
     }
     this.#namespace = namespace;
     this.#cert = new CertManager(this);
+    this.#card = new CardManager(this);
     this.#server = new ServerManager(this);
     // 创建持久化的 BroadcastChannel 监听跨标签页 session 查询
     this.#sessionChannel = new BroadcastChannel(`noneos-sessions-${namespace}`);
@@ -114,6 +117,13 @@ export class LocalUser extends BaseUser {
   }
 
   /**
+   * 获取名片管理器
+   */
+  get card() {
+    return this.#card;
+  }
+
+  /**
    * 获取服务器管理器
    */
   get server() {
@@ -167,6 +177,9 @@ export class LocalUser extends BaseUser {
         "user-" + Math.random().toString(36).substring(2, 10);
       await this.updateInfo({ username: defaultUsername });
     }
+
+    // 启动名片监听
+    this.#card.start();
 
     // 自动连接默认服务器列表，不阻塞 ready()
     this.#server.connectAll().catch(() => {});
