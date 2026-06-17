@@ -4,7 +4,7 @@ import {
   getAllCardsFromDb,
   deleteCardFromDb,
 } from "../db.js";
-import { createVerifier } from "../../crypto/crypto-ecdsa.js";
+import { verifyData } from "../../crypto/crypto-verify.js";
 import { getHash } from "../../util/hash/get-hash.js";
 
 /**
@@ -154,27 +154,12 @@ export class CardManager {
    * @returns {Promise<boolean>}
    */
   async #verifyCard(cardData) {
-    const { signature, ...data } = cardData;
-    if (!signature) return false;
-
-    // 验证公钥与 userId 匹配
-    const keyUserId = await getHash(data.publicKey);
-    if (keyUserId !== data.userId) {
+    const keyUserId = await getHash(cardData.publicKey);
+    if (keyUserId !== cardData.userId) {
       console.warn("[CardManager] publicKey does not match userId");
       return false;
     }
-
-    const msg = JSON.stringify(data);
-    const verifier = await createVerifier(data.publicKey);
-
-    try {
-      const signatureBuffer = new Uint8Array(
-        [...atob(signature)].map((c) => c.charCodeAt(0)),
-      ).buffer;
-      return await verifier(msg, signatureBuffer);
-    } catch {
-      return false;
-    }
+    return verifyData(cardData);
   }
 
   /**

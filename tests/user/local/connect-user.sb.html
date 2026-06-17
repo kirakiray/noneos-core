@@ -276,6 +276,8 @@
         // 使用 userH 验证名片签名
         const signatureValid = await userH.verify(card);
 
+        console.log("card:", card);
+
         // 取消事件监听
         unbind();
 
