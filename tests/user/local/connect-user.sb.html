@@ -39,9 +39,6 @@
         // userA 连接 userB
         const remoteB = await userA.connectUser(userB.userId);
 
-        // userB 也连接 userA，确保 B 侧有 RemoteUser 实例可接收可能的 P2P 消息
-        const remoteA = await userB.connectUser(userA.userId);
-
         // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
         const sessionIds = await remoteB.getSessionIds();
         const hasB1 = sessionIds.includes(userB.sessionId);
@@ -50,9 +47,8 @@
         const countAtLeast3 = sessionIds.length >= 3;
 
         // userA 通过 remoteB 发送消息给 userB
-        // 同时监听 relay 与 RemoteUser(P2P) 两种路径
-        let relayMessage = null;
-        let p2pMessage = null;
+        // 立即发送，此时 WebRTC 尚未建立，应走服务端 relay
+        let receivedMessage = null;
         userB.bind("message", (event) => {
           const rawData = typeof event.detail.data === "string"
             ? event.detail.data
@@ -60,14 +56,9 @@
           try {
             const parsed = JSON.parse(rawData);
             if (parsed.type === "relay" && parsed.from_user_id === userA.userId) {
-              relayMessage = parsed.data;
+              receivedMessage = parsed.data;
             }
           } catch {}
-        });
-        remoteA.bind("message", (event) => {
-          if (event.detail.fromUserId === userA.userId) {
-            p2pMessage = event.detail.data;
-          }
         });
 
         await remoteB.send(userB.sessionId, "hello from A");
@@ -75,7 +66,7 @@
         // 等待消息到达
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const messageReceived = relayMessage === "hello from A" || p2pMessage === "hello from A";
+        const messageReceived = receivedMessage === "hello from A";
 
         return {
           assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
@@ -86,8 +77,7 @@
             sessionIds,
             expectedSessions: [userB.sessionId, userB2.sessionId, userB3.sessionId],
             sentMessage: "hello from A",
-            relayMessage,
-            p2pMessage,
+            receivedMessage,
           },
         };
       </script>
