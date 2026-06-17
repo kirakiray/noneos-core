@@ -1,10 +1,152 @@
 import { BaseUser } from "../base-user.js";
 
-// 公共 STUN 服务器配置
-const ICE_SERVERS = [
+// ICE 服务器候选列表（仅 STUN，TURN 需认证暂不纳入自动探测）
+const ICE_CANDIDATES = [
+  { urls: "stun:stun.qq.com:3478" },
+  { urls: "stun:stun.miwifi.com:3478" },
+  { urls: "stun:stun.chat.bilibili.com:3478" },
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:global.stun.twilio.com:3478" },
+  { urls: "stun:stun.cisco.com:3478" },
+];
+
+// 默认 ICE 服务器（在自动探测完成前/失败时使用）
+const FALLBACK_ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com" },
 ];
+
+// 当前生效的 ICE 服务器配置（可变，自动探测后更新）
+let ICE_SERVERS = [...FALLBACK_ICE_SERVERS];
+
+/**
+ * 等待 ICE 服务器探测完成的 Promise
+ * 外部可通过此 Promise 确保 WebRTC 连接时已使用最优 STUN 服务器
+ */
+export const iceReady = probeBestIceServers().finally(() => {
+  // 探测完成（无论成功或回退），resolve 不抛异常
+});
+
+/**
+ * 探测单个 STUN 服务器的响应延迟
+ * 通过创建 RTCPeerConnection 并测量收到 srflx candidate 的耗时
+ * @param {RTCIceServer} server
+ * @param {number} timeout - 超时毫秒
+ * @returns {Promise<{ server: RTCIceServer, latency: number } | null>}
+ */
+function probeSingleIceServer(server, timeout = 3000) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    let settled = false;
+
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [server] });
+      // 创建 DataChannel 以触发 ICE 流程
+      pc.createDataChannel("probe", { ordered: true });
+
+      const timer = setTimeout(() => {
+        cleanup();
+        if (!settled) {
+          settled = true;
+          resolve(null);
+        }
+      }, timeout);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          const candidate = event.candidate.candidate || "";
+          // srflx 表示 server reflexive 候选，说明 STUN 服务器返回了映射地址
+          if (candidate.includes(" typ srflx ")) {
+            cleanup();
+            if (!settled) {
+              settled = true;
+              resolve({ server, latency: performance.now() - start });
+            }
+          }
+        } else {
+          // null candidate 表示 ICE 流程结束但没找到 srflx
+          cleanup();
+          if (!settled) {
+            settled = true;
+            resolve(null);
+          }
+        }
+      };
+
+      pc.onicecandidateerror = () => {
+        cleanup();
+        if (!settled) {
+          settled = true;
+          resolve(null);
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        pc.onicecandidate = null;
+        pc.onicecandidateerror = null;
+        setTimeout(() => {
+          try {
+            pc.close();
+          } catch {}
+        }, 0);
+      };
+
+      // 创建 offer 以启动 ICE 流程
+      pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .catch(() => {
+          cleanup();
+          if (!settled) {
+            settled = true;
+            resolve(null);
+          }
+        });
+    } catch {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }
+  });
+}
+
+/**
+ * 自动探测最快的 ICE 服务器
+ * 并发测试所有候选，按响应延迟排序，取前 3 个
+ * 结果更新到 ICE_SERVERS 并导出
+ */
+async function probeBestIceServers() {
+  // 并发测试所有 STUN 服务器
+  const results = await Promise.all(
+    ICE_CANDIDATES.map((s) => probeSingleIceServer(s)),
+  );
+
+  // 过滤出成功的，按延迟排序
+  const valid = results
+    .filter((r) => r !== null)
+    .sort((a, b) => a.latency - b.latency);
+
+  if (valid.length >= 1) {
+    // 取最快的前 3 个（或不足 3 个时就取全部）
+    const best = valid.slice(0, 3).map((r) => r.server);
+    ICE_SERVERS = best;
+    console.log(
+      `[ICE] Auto-selected ${best.length} fastest STUN servers:`,
+      best
+        .map(
+          (s) =>
+            `${s.urls} (${valid.find((r) => r.server.urls === s.urls)?.latency.toFixed(0)}ms)`,
+        )
+        .join(", "),
+    );
+  } else {
+    console.warn("[ICE] All STUN servers failed, using fallback");
+    ICE_SERVERS = [...FALLBACK_ICE_SERVERS];
+  }
+}
 
 // WebRTC 重连延迟（毫秒）
 const RECONNECT_DELAY = 3000;
@@ -199,6 +341,9 @@ export class RemoteUser extends BaseUser {
   async #initiateWebRTC() {
     if (this.#destroyed) return;
 
+    // 等待 ICE 服务器探测完成，确保使用最优 STUN 服务器
+    await iceReady;
+
     try {
       this.#setWebRTCState("connecting");
       this.#pc = this.#createPeerConnection();
@@ -286,6 +431,9 @@ export class RemoteUser extends BaseUser {
     }
 
     try {
+      // 等待 ICE 服务器探测完成，确保使用最优 STUN 服务器
+      await iceReady;
+
       if (!this.#pc) {
         this.#setWebRTCState("connecting");
         this.#pc = this.#createPeerConnection();
@@ -359,8 +507,7 @@ export class RemoteUser extends BaseUser {
    */
   #handleDataChannelMessage(rawData) {
     try {
-      const envelope =
-        typeof rawData === "string" ? JSON.parse(rawData) : null;
+      const envelope = typeof rawData === "string" ? JSON.parse(rawData) : null;
       if (envelope && envelope.type === "__webrtc_data") {
         this._trigger("message", {
           fromUserId: envelope.fromUserId,
