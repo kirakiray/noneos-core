@@ -48,17 +48,17 @@ export class CardManager {
   /**
    * 停止名片监听
    */
-  stop() {
-    if (this.#unbind) {
-      this.#unbind();
-      this.#unbind = null;
-    }
-    // 拒绝所有待处理的请求
-    for (const { reject } of this.#requestMap.values()) {
-      reject(new Error("Card manager stopped"));
-    }
-    this.#requestMap.clear();
-  }
+  // stop() {
+  //   if (this.#unbind) {
+  //     this.#unbind();
+  //     this.#unbind = null;
+  //   }
+  //   // 拒绝所有待处理的请求
+  //   for (const { reject } of this.#requestMap.values()) {
+  //     reject(new Error("Card manager stopped"));
+  //   }
+  //   this.#requestMap.clear();
+  // }
 
   /**
    * 处理 relay 消息中的名片协议
@@ -215,7 +215,6 @@ export class CardManager {
    * 获取远程用户的名片
    *
    * 统一入口：先查本地 DB，没有再通过网路请求获取。
-   * 内部自动连接远程用户并获取 sessionId。
    *
    * @param {string} userId - 目标用户的 userId
    * @returns {Promise<Object>} 名片数据
@@ -226,10 +225,7 @@ export class CardManager {
     const existing = await this.getDBCard(userId);
     if (existing) return existing;
 
-    // 自动连接远程用户并获取 sessionId
-    const remoteUser = await this.#user.connectUser(userId);
-    const sessionId = await this.#findSessionId(userId);
-    return this.requestCard(remoteUser, sessionId);
+    return this.requestCard(userId);
   }
 
   /**
@@ -237,16 +233,15 @@ export class CardManager {
    *
    * 流程：
    * 1. 先查本地 DB，若有名片则直接返回
-   * 2. 若没有，向远程用户发送请求并等待响应
-   * 3. 收到响应后验证签名，保存到 DB，返回名片
+   * 2. 若没有，连接远程用户并获取 sessionId
+   * 3. 发送请求并等待响应
+   * 4. 收到响应后验证签名，保存到 DB，返回名片
    *
-   * @param {import("./remote-user.js").RemoteUser} remoteUser - 远程用户实例
-   * @param {string} sessionId - 目标会话 ID
+   * @param {string} userId - 目标用户的 userId
    * @returns {Promise<Object>} 名片数据
    */
-  async requestCard(remoteUser, sessionId) {
-    const userId = remoteUser.userId;
-    if (!userId) throw new Error("remoteUser.userId is required");
+  async requestCard(userId) {
+    if (!userId) throw new Error("userId is required");
 
     // 1. 先查本地 DB
     const existing = await this.getDBCard(userId);
@@ -259,7 +254,11 @@ export class CardManager {
       return this.#requestMap.get(userId).promise;
     }
 
-    // 3. 创建请求 Promise
+    // 3. 连接远程用户并获取 sessionId
+    const remoteUser = await this.#user.connectUser(userId);
+    const sessionId = await this.#findSessionId(userId);
+
+    // 4. 创建请求 Promise
     const promise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#requestMap.delete(userId);
@@ -273,40 +272,7 @@ export class CardManager {
     const entry = this.#requestMap.get(userId);
     entry.promise = promise;
 
-    // 4. 发送请求
-    await remoteUser.send(sessionId, { type: "card", action: "request" });
-
-    return promise;
-  }
-
-  /**
-   * 强制刷新名片：忽略本地缓存，总是向远程请求最新名片
-   *
-   * @param {import("./remote-user.js").RemoteUser} remoteUser - 远程用户实例
-   * @param {string} sessionId - 目标会话 ID
-   * @returns {Promise<Object>} 名片数据
-   */
-  async refreshCard(remoteUser, sessionId) {
-    const userId = remoteUser.userId;
-    if (!userId) throw new Error("remoteUser.userId is required");
-
-    // 检查是否已有进行中的请求
-    if (this.#requestMap.has(userId)) {
-      return this.#requestMap.get(userId).promise;
-    }
-
-    const promise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#requestMap.delete(userId);
-        reject(new Error(`Card request timed out for user ${userId}`));
-      }, 10000);
-
-      this.#requestMap.set(userId, { resolve, reject, timer, promise: null });
-    });
-
-    const entry = this.#requestMap.get(userId);
-    entry.promise = promise;
-
+    // 5. 发送请求
     await remoteUser.send(sessionId, { type: "card", action: "request" });
 
     return promise;
