@@ -522,3 +522,58 @@ export async function deleteCardFromDb(namespace, userId) {
     request.onerror = () => reject(request.error);
   });
 }
+
+/**
+ * 遍历名片
+ * @param {string} namespace
+ * @returns {AsyncIterable}
+ */
+export function iterateCards(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  return {
+    [Symbol.asyncIterator]() {
+      let db = null;
+      let request = null;
+      return {
+        async next() {
+          if (!db) {
+            db = await getDb(namespace);
+            const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+            const store = transaction.objectStore(CARD_STORE_NAME);
+            request = store.openCursor();
+          }
+          return new Promise((resolve, reject) => {
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              if (cursor) {
+                const value = cursor.value;
+                cursor.continue();
+                resolve({ value, done: false });
+              } else {
+                resolve({ value: undefined, done: true });
+              }
+            };
+            request.onerror = () => reject(request.error);
+          });
+        }
+      };
+    }
+  };
+}
+
+/**
+ * 统计名片数量
+ * @param {string} namespace
+ * @returns {Promise<number>}
+ */
+export async function countCards(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.count();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
