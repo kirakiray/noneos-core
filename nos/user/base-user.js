@@ -41,6 +41,14 @@ export class BaseUser extends EventTarget {
   }
 
   /**
+   * 获取私钥（内部使用，用于 ECDH 密钥协商等场景）
+   * @returns {string|undefined} base64 编码的 PKCS8 私钥，公钥模式下返回 undefined
+   */
+  _getPrivateKey() {
+    return this.#privateKey;
+  }
+
+  /**
    * 初始化用户钥匙对
    * 1. 如果已初始化，直接返回
    * 2. 如果只有公钥，则进入只读/验证模式

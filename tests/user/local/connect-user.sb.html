@@ -330,6 +330,94 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="E2EE Encrypted Message Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsI = "e2ee-test-i";
+        const nsJ = "e2ee-test-j";
+        const e2eeUrl = "ws://localhost:8081";
+
+        const userI = new LocalUser(nsI);
+        const userJ = new LocalUser(nsJ);
+
+        await Promise.all([userI.ready(), userJ.ready()]);
+
+        await Promise.all([
+          userI.server.connect(e2eeUrl),
+          userJ.server.connect(e2eeUrl),
+        ]);
+
+        // 双向连接，确保双方都能接收加密消息
+        const remoteJ = await userI.connectUser(userJ.userId);
+        const remoteI = await userJ.connectUser(userI.userId);
+
+        // 清空可能残留的名片，强制触发网络交换
+        const existingJ = await userI.card.getByDB(userJ.userId);
+        if (existingJ) await userI.card.delete(userJ.userId);
+        const existingI = await userJ.card.getByDB(userI.userId);
+        if (existingI) await userJ.card.delete(userI.userId);
+
+        // 交换名片（双方都要持有对方公钥才能 E2EE）
+        const cardJ = await userI.card.get(userJ.userId);
+        const cardI = await userJ.card.get(userI.userId);
+        const haveBothCards = cardJ !== null && cardI !== null;
+        const haveBothKeys = !!(await userI.card.getByDB(userJ.userId))?.publicKey
+          && !!(await userJ.card.getByDB(userI.userId))?.publicKey;
+
+        // 监听 userJ 侧原始消息：检查是否为二进制帧（证明加密）
+        let rawIsBinary = false;
+        const unbindRaw = userJ.bind("message", (event) => {
+          if (event.detail.data instanceof Blob) {
+            rawIsBinary = true;
+          }
+        });
+
+        // 监听解密后的消息到达
+        let receivedData = null;
+        const messagePromise = new Promise((resolve) => {
+          remoteI.bind("message", (event) => {
+            receivedData = event.detail.data;
+            resolve();
+          });
+        });
+
+        // userI 发送一个纯对象（触发 E2EE 加密路径）
+        const sentData = { text: "hello encrypted", num: 42 };
+        await remoteJ.send(userJ.sessionId, sentData);
+
+        // 等待解密后的消息到达或超时
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 3000)
+        );
+        await Promise.race([messagePromise, timeout]);
+
+        unbindRaw();
+
+        const messageCorrect =
+          receivedData !== null &&
+          typeof receivedData === "object" &&
+          receivedData.text === "hello encrypted" &&
+          receivedData.num === 42;
+
+        return {
+          assert: haveBothCards && haveBothKeys && rawIsBinary && messageCorrect,
+          content: {
+            message: messageCorrect
+              ? "E2EE 加密测试成功：原始 relay 为二进制帧，解密后内容正确"
+              : "E2EE 加密测试失败",
+            haveBothCards,
+            haveBothKeys,
+            rawIsBinary,
+            sentData,
+            receivedData,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

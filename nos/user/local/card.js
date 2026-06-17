@@ -235,7 +235,7 @@ export class CardManager {
     const entry = this.#requestMap.get(userId);
     entry.promise = promise;
 
-    await remoteUser.send(sessionId, { type: "card", action: "request" });
+    await remoteUser.send(sessionId, { type: "card", action: "request" }, true);
     return promise;
   }
 

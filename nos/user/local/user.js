@@ -53,45 +53,108 @@ export class LocalUser extends BaseUser {
 
   /**
    * 设置 relay 消息分发：当本地用户收到 relay 消息时，
-   * 解析后分发给缓存的 RemoteUser 实例
+   * 解析后分发给缓存的 RemoteUser 实例。
+   *
+   * 支持两种 relay 格式：
+   * - 文本 relay：JSON 格式，用于明文消息和内部协议（名片等）
+   * - 二进制 relay：帧格式 [4B header_len][header JSON][payload]，用于 E2EE 加密数据
+   *
+   * E2EE 数据自动尝试解密，解密失败则透传原始 Uint8Array。
    */
   #setupRelayDispatch() {
     this.bind("message", (event) => {
-      let rawData;
+      const detail = event.detail;
+      if (typeof detail.data === "string") {
+        this.#handleTextRelay(detail);
+      } else {
+        this.#handleBinaryRelay(detail);
+      }
+    });
+  }
+
+  /**
+   * 处理文本 relay 消息（明文或内部协议）
+   */
+  #handleTextRelay(detail) {
+    let parsed;
+    try {
+      parsed = JSON.parse(detail.data);
+    } catch {
+      return;
+    }
+    if (parsed.type !== "relay") return;
+    const fromUserId = parsed.from_user_id;
+    if (!fromUserId) return;
+
+    this.#dispatchToRemote(fromUserId, parsed.from_session_id, parsed.data, detail.url);
+  }
+
+  /**
+   * 处理二进制 relay 帧
+   *
+   * 帧格式：[4B header_len(u32 BE)][header JSON][payload bytes]
+   * 如果 payload 是 E2EE 格式（长度 > 12），自动尝试解密。
+   */
+  async #handleBinaryRelay(detail) {
+    let buffer;
+    try {
+      buffer = detail.data instanceof Blob ? await detail.data.arrayBuffer() : detail.data;
+    } catch {
+      return;
+    }
+
+    if (buffer.byteLength < 4) return;
+    const view = new DataView(buffer);
+    const headerLen = view.getUint32(0, false); // BE
+
+    if (4 + headerLen > buffer.byteLength) return;
+
+    let header;
+    try {
+      const headerBytes = new Uint8Array(buffer, 4, headerLen);
+      header = JSON.parse(new TextDecoder().decode(headerBytes));
+    } catch {
+      return;
+    }
+
+    if (header.type !== "relay") return;
+    const fromUserId = header.from_user_id;
+    if (!fromUserId) return;
+
+    // 提取 payload 字节
+    const payload = new Uint8Array(buffer, 4 + headerLen);
+
+    // 尝试 E2EE 解密
+    let messageData = payload;
+    if (payload.byteLength > 12) {
       try {
-        rawData =
-          typeof event.detail.data === "string"
-            ? event.detail.data
-            : new TextDecoder().decode(event.detail.data);
+        const { tryDecryptBinary } = await import("../../crypto/crypto-e2ee.js");
+        const decrypted = await tryDecryptBinary(this, fromUserId, payload);
+        if (decrypted !== null) {
+          messageData = decrypted;
+        }
       } catch {
-        return;
+        // 解密失败，透传原始 payload
       }
+    }
 
-      let parsed;
-      try {
-        parsed = JSON.parse(rawData);
-      } catch {
-        return;
-      }
+    this.#dispatchToRemote(fromUserId, header.from_session_id, messageData, detail.url);
+  }
 
-      if (parsed.type !== "relay") return;
+  /**
+   * 将消息分发给缓存的 RemoteUser 实例
+   */
+  #dispatchToRemote(fromUserId, fromSessionId, messageData, viaServer) {
+    if (!this.#remoteUserCache.has(fromUserId)) return;
 
-      const fromUserId = parsed.from_user_id;
-      if (!fromUserId) return;
-
-      // 查找缓存的 RemoteUser 实例
-      if (this.#remoteUserCache.has(fromUserId)) {
-        const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
-        // Promise 已完成才能拿到 RemoteUser
-        Promise.resolve(remoteUserPromise).then((remoteUser) => {
-          remoteUser._trigger("message", {
-            fromUserId,
-            fromSessionId: parsed.from_session_id,
-            data: parsed.data,
-            viaServer: event.detail.url,
-          });
-        });
-      }
+    const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
+    Promise.resolve(remoteUserPromise).then((remoteUser) => {
+      remoteUser._trigger("message", {
+        fromUserId,
+        fromSessionId,
+        data: messageData,
+        viaServer,
+      });
     });
   }
 
