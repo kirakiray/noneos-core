@@ -5,6 +5,7 @@ import { CertManager } from "./cert.js";
 import { CardManager } from "./card.js";
 import { ServerManager } from "./server.js";
 import { RemoteUser } from "./remote-user.js";
+import { RTCManager } from "./rtc.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
@@ -19,6 +20,7 @@ export class LocalUser extends BaseUser {
   #cert;
   #card;
   #server;
+  #rtc;
   #sessionChannel;
   #remoteUserCache = new Map(); // userId -> Promise<RemoteUser>
 
@@ -35,6 +37,7 @@ export class LocalUser extends BaseUser {
     this.#cert = new CertManager(this);
     this.#card = new CardManager(this);
     this.#server = new ServerManager(this);
+    this.#rtc = new RTCManager(this);
     // 创建持久化的 BroadcastChannel 监听跨标签页 session 查询
     this.#sessionChannel = new BroadcastChannel(`noneos-sessions-${namespace}`);
     this.#sessionChannel.addEventListener("message", (event) => {
@@ -47,6 +50,8 @@ export class LocalUser extends BaseUser {
       }
     });
 
+    // 监听 RTC 直连消息并分发给对应的 RemoteUser 实例
+    this.#setupRTCDispatch();
     // 监听 relay 消息并分发给对应的 RemoteUser 实例
     this.#setupRelayDispatch();
   }
@@ -65,7 +70,7 @@ export class LocalUser extends BaseUser {
     this.bind("message", (event) => {
       const detail = event.detail;
       if (typeof detail.data === "string") {
-        this.#handleTextRelay(detail);
+        this.#handleTextRelay(detail, event);
       } else {
         this.#handleBinaryRelay(detail);
       }
@@ -75,7 +80,7 @@ export class LocalUser extends BaseUser {
   /**
    * 处理文本 relay 消息（明文或内部协议）
    */
-  #handleTextRelay(detail) {
+  #handleTextRelay(detail, event) {
     let parsed;
     try {
       parsed = JSON.parse(detail.data);
@@ -86,7 +91,57 @@ export class LocalUser extends BaseUser {
     const fromUserId = parsed.from_user_id;
     if (!fromUserId) return;
 
+    // 拦截 RTC 信令，交由 RTCManager 处理，不透传给 RemoteUser
+    // 同时阻止外部 message 监听器收到内部信令
+    if (parsed.data?.type === "rtc_signal") {
+      event.stopImmediatePropagation();
+      this.#rtc.handleSignal(
+        fromUserId,
+        parsed.from_session_id,
+        parsed.data.signal,
+      );
+      return;
+    }
+
     this.#dispatchToRemote(fromUserId, parsed.from_session_id, parsed.data, detail.url);
+  }
+
+  /**
+   * 设置 RTC 直连消息分发：收到 DataChannel 消息后，
+   * 尝试 E2EE 解密，然后分发给对应的 RemoteUser 实例。
+   */
+  #setupRTCDispatch() {
+    this.bind("rtc_message", async (event) => {
+      const { fromUserId, fromSessionId, data } = event.detail;
+      let messageData = data;
+
+      if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+        const buffer =
+          data instanceof ArrayBuffer
+            ? new Uint8Array(data)
+            : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+
+        if (buffer.byteLength > 12) {
+          try {
+            const { tryDecryptBinary } = await import(
+              "../../crypto/crypto-e2ee.js"
+            );
+            const decrypted = await tryDecryptBinary(
+              this,
+              fromUserId,
+              buffer,
+            );
+            if (decrypted !== null) {
+              messageData = decrypted;
+            }
+          } catch {
+            // 解密失败，透传原始数据
+          }
+        }
+      }
+
+      this.#dispatchToRemote(fromUserId, fromSessionId, messageData, "rtc");
+    });
   }
 
   /**
@@ -191,6 +246,13 @@ export class LocalUser extends BaseUser {
    */
   get server() {
     return this.#server;
+  }
+
+  /**
+   * 获取 RTC 管理器
+   */
+  get rtc() {
+    return this.#rtc;
   }
 
   /**
