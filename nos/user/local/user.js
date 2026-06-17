@@ -51,10 +51,6 @@ export class LocalUser extends BaseUser {
   /**
    * 设置 relay 消息分发：当本地用户收到 relay 消息时，
    * 解析后分发给缓存的 RemoteUser 实例
-   *
-   * 同时处理 WebRTC 信令消息（data.type === "__webrtc"）：
-   * - 若缓存中已有对应 RemoteUser，分派信令给该实例
-   * - 若没有，自动创建 RemoteUser（作为 answerer）并加入缓存
    */
   #setupRelayDispatch() {
     this.bind("message", (event) => {
@@ -80,23 +76,7 @@ export class LocalUser extends BaseUser {
       const fromUserId = parsed.from_user_id;
       if (!fromUserId) return;
 
-      const innerData = parsed.data;
-
-      // WebRTC 信令消息：分派给对应 RemoteUser 处理
-      if (
-        innerData &&
-        typeof innerData === "object" &&
-        innerData.type === "__webrtc"
-      ) {
-        this.#dispatchWebRTCSignal(
-          fromUserId,
-          parsed.from_session_id,
-          innerData,
-        );
-        return;
-      }
-
-      // 普通 relay 消息：查找缓存的 RemoteUser 实例并触发 message 事件
+      // 查找缓存的 RemoteUser 实例
       if (this.#remoteUserCache.has(fromUserId)) {
         const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
         // Promise 已完成才能拿到 RemoteUser
@@ -110,28 +90,6 @@ export class LocalUser extends BaseUser {
         });
       }
     });
-  }
-
-  /**
-   * 分派 WebRTC 信令给对应的 RemoteUser 实例
-   * 若缓存中不存在则自动创建（作为 answerer，非 initiator）
-   * @param {string} fromUserId - 信令发送方的 userId
-   * @param {string} fromSessionId - 信令发送方的 sessionId
-   * @param {Object} signal - 信令数据
-   */
-  async #dispatchWebRTCSignal(fromUserId, fromSessionId, signal) {
-    let remoteUser;
-
-    if (this.#remoteUserCache.has(fromUserId)) {
-      const promise = this.#remoteUserCache.get(fromUserId);
-      remoteUser = await promise;
-    } else {
-      // 自动创建 RemoteUser 作为 answerer（非 initiator）
-      remoteUser = new RemoteUser(fromUserId, this, false);
-      this.#remoteUserCache.set(fromUserId, Promise.resolve(remoteUser));
-    }
-
-    remoteUser._handleSignal(signal, fromSessionId);
   }
 
   /**
@@ -252,36 +210,20 @@ export class LocalUser extends BaseUser {
    * 连接远程用户，返回对应的 RemoteUser 实例
    * 会查询已连接的服务器确认对方是否在线
    * @param {string} userId - 目标用户的 userId
-   * @param {Object} [options] - 连接选项
-   * @param {"auto" | "relay" | "webrtc"} [options.mode="auto"] - 传输模式：
-   *   - "auto"（默认）：发起 WebRTC 连接，DataChannel 可用时优先走 P2P，否则回退 relay
-   *   - "relay"：不发起 WebRTC，仅使用服务端 relay 转发
-   *   - "webrtc"：发起 WebRTC，仅使用 P2P，DataChannel 不可用时 send() 抛出错误
-   *   实例化后仍可通过 RemoteUser.setTransportMode() 自由切换传输模式。
    * @returns {Promise<RemoteUser>}
    */
-  async connectUser(userId, options = {}) {
+  async connectUser(userId) {
     if (!userId) {
       throw new Error("userId is required");
     }
 
-    const { mode = "auto" } = options;
-    if (mode !== "auto" && mode !== "relay" && mode !== "webrtc") {
-      throw new Error(`Invalid transport mode: ${mode}`);
-    }
-
     // 已有缓存（进行中的 Promise 或已完成的 RemoteUser）
     if (this.#remoteUserCache.has(userId)) {
-      const cached = await this.#remoteUserCache.get(userId);
-      // 缓存实例已存在，按本次请求同步传输模式
-      if (cached.transportMode !== mode) {
-        cached.setTransportMode(mode);
-      }
-      return cached;
+      return this.#remoteUserCache.get(userId);
     }
 
     // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
-    const promise = this.#doConnectUser(userId, mode);
+    const promise = this.#doConnectUser(userId);
     this.#remoteUserCache.set(userId, promise);
 
     try {
@@ -293,7 +235,7 @@ export class LocalUser extends BaseUser {
     }
   }
 
-  async #doConnectUser(userId, mode) {
+  async #doConnectUser(userId) {
     // 查询已连接服务器，确认目标用户至少在一台服务器上在线
     const urls = this.#server.connectedUrls;
     let found = false;
@@ -311,12 +253,7 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    // mode !== "relay" 时作为 initiator 创建 RemoteUser，构造函数中会自动发起 WebRTC 连接
-    // mode === "relay" 时不发起 WebRTC，仅创建 RemoteUser 并强制使用 relay 模式
-    const useWebRTC = mode !== "relay";
-    const remoteUser = new RemoteUser(userId, this, useWebRTC);
-    remoteUser.setTransportMode(mode);
-    return remoteUser;
+    return new RemoteUser(userId, this);
   }
 
   /**
