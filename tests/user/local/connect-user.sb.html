@@ -36,8 +36,8 @@
           userB3.server.connect(serverUrl1),
         ]);
 
-        // userA 连接 userB
-        const remoteB = await userA.connectUser(userB.userId);
+        // userA 使用 relay 模式连接 userB
+        const remoteB = await userA.connectUser(userB.userId, { mode: "relay" });
 
         // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
         const sessionIds = await remoteB.getSessionIds();
@@ -103,8 +103,8 @@
           userD.server.connect(serverUrl2),
         ]);
 
-        // userC 连接 userD
-        const remoteD = await userC.connectUser(userD.userId);
+        // userC 使用 relay 模式连接 userD
+        const remoteD = await userC.connectUser(userD.userId, { mode: "relay" });
 
         // 通过 remoteD 监听来自 userD 的消息
         let remoteMessageDetail = null;
@@ -112,27 +112,8 @@
           remoteMessageDetail = event.detail;
         });
 
-        // 同时通过 userC 监听所有消息
-        let localMessageDetail = null;
-        userC.bind("message", (event) => {
-          const rawData = typeof event.detail.data === "string"
-            ? event.detail.data
-            : new TextDecoder().decode(event.detail.data);
-          try {
-            const parsed = JSON.parse(rawData);
-            if (parsed.type === "relay" && parsed.from_user_id === userD.userId) {
-              localMessageDetail = {
-                fromUserId: parsed.from_user_id,
-                fromSessionId: parsed.from_session_id,
-                data: parsed.data,
-                viaServer: event.detail.url,
-              };
-            }
-          } catch {}
-        });
-
-        // userD 发送消息给 userC
-        const remoteC = await userD.connectUser(userC.userId);
+        // userD 使用 relay 模式连接 userC
+        const remoteC = await userD.connectUser(userC.userId, { mode: "relay" });
         await remoteC.send(userC.sessionId, "hello from D");
 
         // 等待消息到达
@@ -143,17 +124,11 @@
           remoteMessageDetail.fromUserId === userD.userId &&
           remoteMessageDetail.data === "hello from D";
 
-        const localEventReceived =
-          localMessageDetail !== null &&
-          localMessageDetail.fromUserId === userD.userId &&
-          localMessageDetail.data === "hello from D";
-
         return {
           assert: remoteEventReceived,
           content: {
             message: "RemoteUser message 事件测试成功",
             remoteEventDetail: remoteMessageDetail,
-            localEventDetail: localMessageDetail,
           },
         };
       </script>

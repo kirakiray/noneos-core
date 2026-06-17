@@ -235,12 +235,16 @@ export class LocalUser extends BaseUser {
    * 连接远程用户，返回对应的 RemoteUser 实例
    * 会查询已连接的服务器确认对方是否在线
    * @param {string} userId - 目标用户的 userId
+   * @param {Object} [options={}] - 连接选项
+   * @param {"auto"|"relay"} [options.mode="auto"] - 连接模式：auto 自动尝试 WebRTC，relay 仅使用服务器转发
    * @returns {Promise<RemoteUser>}
    */
-  async connectUser(userId) {
+  async connectUser(userId, options = {}) {
     if (!userId) {
       throw new Error("userId is required");
     }
+
+    const mode = options.mode === "relay" ? "relay" : "auto";
 
     // 已有缓存（进行中的 Promise 或已完成的 RemoteUser）
     if (this.#remoteUserCache.has(userId)) {
@@ -248,7 +252,7 @@ export class LocalUser extends BaseUser {
     }
 
     // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
-    const promise = this.#doConnectUser(userId);
+    const promise = this.#doConnectUser(userId, mode);
     this.#remoteUserCache.set(userId, promise);
 
     try {
@@ -260,7 +264,7 @@ export class LocalUser extends BaseUser {
     }
   }
 
-  async #doConnectUser(userId) {
+  async #doConnectUser(userId, mode) {
     // 查询已连接服务器，确认目标用户至少在一台服务器上在线
     const urls = this.#server.connectedUrls;
     let found = false;
@@ -278,8 +282,8 @@ export class LocalUser extends BaseUser {
     if (!found) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    // 主动 connectUser 的一方作为 WebRTC 连接的 initiator
-    return new RemoteUser(userId, this, true);
+    // 主动 connectUser 的一方作为 WebRTC 连接的 initiator，relay 模式下不发起
+    return new RemoteUser(userId, this, true, mode);
   }
 
   /**

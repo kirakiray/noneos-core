@@ -26,8 +26,9 @@ export class RemoteUser extends BaseUser {
    * @param {string} userId - 目标用户的 userId
    * @param {import("./user.js").LocalUser} localUser - 本地用户实例
    * @param {boolean} [isInitiator=false] - 是否由当前端主动发起 WebRTC 连接
+   * @param {"auto"|"relay"} [mode="auto"] - 连接模式：auto 自动尝试 WebRTC，relay 仅使用服务器转发
    */
-  constructor(userId, localUser, isInitiator = false) {
+  constructor(userId, localUser, isInitiator = false, mode = "auto") {
     super();
     if (!userId) {
       throw new Error("userId is required");
@@ -36,8 +37,10 @@ export class RemoteUser extends BaseUser {
     this.#localUser = localUser;
     this.#isInitiator = isInitiator;
 
-    if (isInitiator) {
+    if (isInitiator && mode !== "relay") {
       this.#startInitiatorConnections();
+    } else {
+      this.#webrtcState = "disconnected";
     }
   }
 
