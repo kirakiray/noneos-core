@@ -36,8 +36,17 @@
               "usage_percent": 50.0
             },
             "cpu": {
-              "usage_percent": 45.5,
-              "core_count": 8
+              "core_count": 8,
+              "cores": [
+                { "index": 0, "usage_percent": 45.5 },
+                { "index": 1, "usage_percent": 30.2 },
+                { "index": 2, "usage_percent": 10.0 },
+                { "index": 3, "usage_percent": 5.3 },
+                { "index": 4, "usage_percent": 0.0 },
+                { "index": 5, "usage_percent": 0.0 },
+                { "index": 6, "usage_percent": 0.0 },
+                { "index": 7, "usage_percent": 0.0 }
+              ]
             },
             "disks": [
               {
@@ -129,7 +138,11 @@
             && typeof sysInfoResponse.system_info.memory.available === "number"
             && typeof sysInfoResponse.system_info.memory.usage_percent === "number";
           const cpuFields = hasCpu
-            && typeof sysInfoResponse.system_info.cpu.usage_percent === "number"
+            && Array.isArray(sysInfoResponse.system_info.cpu.cores)
+            && sysInfoResponse.system_info.cpu.cores.length > 0
+            && sysInfoResponse.system_info.cpu.cores.every(c =>
+              typeof c.index === "number" && typeof c.usage_percent === "number"
+            )
             && typeof sysInfoResponse.system_info.cpu.core_count === "number";
           const disksValid = hasDisks && sysInfoResponse.system_info.disks.length > 0;
 

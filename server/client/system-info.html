@@ -141,6 +141,14 @@
       background-color: var(--md-sys-color-error);
     }
 
+    .cpu-core-item {
+      padding: 6px 0;
+    }
+
+    .cpu-core-item + .cpu-core-item {
+      border-top: 1px solid var(--md-sys-color-surface-variant);
+    }
+
     .disk-item {
       padding: 10px 0;
       border-bottom: 1px solid var(--md-sys-color-surface-variant);
@@ -222,24 +230,24 @@
 
         <!-- CPU -->
         <div class="info-card">
-          <h2><span class="icon">⚡</span> CPU</h2>
-          <div class="info-row">
-            <span class="info-label">核心数</span>
-            <span class="info-value">{{systemInfo.cpu.core_count}} 核</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">使用率</span>
-            <span class="info-value">{{systemInfo.cpu.usage_percent}}%</span>
-          </div>
-          <div class="progress-bar">
-            <div
-              class="progress-fill"
-              :style.width="clampPercent(systemInfo.cpu.usage_percent) + '%'"
-              class:low="systemInfo.cpu.usage_percent < 60"
-              class:medium="systemInfo.cpu.usage_percent >= 60 && systemInfo.cpu.usage_percent < 85"
-              class:high="systemInfo.cpu.usage_percent >= 85"
-            ></div>
-          </div>
+          <h2><span class="icon">⚡</span> CPU — {{systemInfo.cpu.core_count}} 核</h2>
+          <o-fill :value="systemInfo.cpu.cores">
+            <div class="cpu-core-item">
+              <div class="info-row" style="padding: 4px 0 2px;">
+                <span class="info-label">核心 #{{$data.index + 1}}</span>
+                <span class="info-value">{{$data.usage_percent}}%</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style.width="$host.clampPercent($data.usage_percent) + '%'"
+                  class:low="$data.usage_percent < 60"
+                  class:medium="$data.usage_percent >= 60 && $data.usage_percent < 85"
+                  class:high="$data.usage_percent >= 85"
+                ></div>
+              </div>
+            </div>
+          </o-fill>
         </div>
 
         <!-- 磁盘 -->

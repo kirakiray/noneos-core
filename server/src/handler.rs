@@ -12,6 +12,7 @@ use crate::config::Config;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use sysinfo::{System, Disks};
+use std::sync::OnceLock;
 
 /// 已连接用户的信息
 struct UserSession {
@@ -295,9 +296,17 @@ struct AdminResponse {
 }
 
 /// 收集系统信息（内存、CPU、磁盘使用情况）
+/// CPU 使用率基于两次采样之间的差值计算，因此需要持久化的 System 实例。
 fn collect_system_info() -> serde_json::Value {
-    let mut system = System::new_all();
+    static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
+    let mut system = SYSTEM.get_or_init(|| {
+        std::sync::Mutex::new(System::new_all())
+    }).lock().unwrap();
+
+    // 刷新内存（快照型，一次即可）
     system.refresh_memory();
+    // 刷新 CPU：至少需要两次刷新才能得到有意义的差值
+    system.refresh_cpu_all();
     let disks = Disks::new_with_refreshed_list();
 
     // 内存信息（字节）
@@ -305,9 +314,14 @@ fn collect_system_info() -> serde_json::Value {
     let used_memory = system.used_memory();
     let available_memory = system.available_memory();
 
-    // CPU 信息（new_all 已加载 CPU 信息）
-    let cpu_usage = system.global_cpu_usage();
+    // CPU 信息：返回每个核心的单独占用率
     let cpu_count = system.cpus().len();
+    let cores: Vec<serde_json::Value> = system.cpus().iter().enumerate().map(|(i, cpu)| {
+        serde_json::json!({
+            "index": i,
+            "usage_percent": (cpu.cpu_usage() * 100.0).round() / 100.0,
+        })
+    }).collect();
 
     // 磁盘信息
     let disk_list: Vec<serde_json::Value> = disks.iter().map(|disk| {
@@ -331,8 +345,8 @@ fn collect_system_info() -> serde_json::Value {
             },
         },
         "cpu": {
-            "usage_percent": (cpu_usage * 100.0).round() / 100.0,
             "core_count": cpu_count,
+            "cores": cores,
         },
         "disks": disk_list,
     })
