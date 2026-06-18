@@ -12,6 +12,14 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use sysinfo::{System, Disks};
 
+// ===== 消息大小限制 =====
+// 握手响应最多 1KB（包含 userId、sessionId、username、challenge、签名等字段，正常不超过 1KB）
+const HANDSHAKE_MAX_SIZE: usize = 1024;
+// 文本消息（JSON 命令）最多 1MB
+const TEXT_MESSAGE_MAX_SIZE: usize = 1024 * 1024;
+// 二进制 relay 帧负载最多 1MB
+const BINARY_PAYLOAD_MAX_SIZE: usize = 1024 * 1024;
+
 /// 已连接用户的信息
 struct UserSession {
     username: String,
@@ -272,7 +280,20 @@ pub async fn handle_connection(
 
     // 3. 接收响应 (可配置超时)
     let handshake_data = match timeout(Duration::from_secs(handshake_timeout_secs), ws_receiver.next()).await {
-        Ok(Some(Ok(Message::Text(text)))) => text,
+        Ok(Some(Ok(Message::Text(text)))) => {
+            if text.len() > HANDSHAKE_MAX_SIZE {
+                let resp = HandshakeResponse {
+                    msg_type: "handshake".to_string(),
+                    status: "error".to_string(),
+                    message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), HANDSHAKE_MAX_SIZE),
+                    is_admin: None,
+                };
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let _ = ws_sender.send(Message::Close(None)).await;
+                return Err("Handshake failed: Handshake data too large".into());
+            }
+            text
+        }
         Ok(Some(Ok(_))) => {
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
@@ -439,7 +460,25 @@ pub async fn handle_connection(
                             Some(Ok(msg)) => {
                                 match msg {
                                     Message::Text(text) => {
-                                        println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, text);
+                                        // 检查文本消息大小，防止 OOM
+                                        if text.len() > TEXT_MESSAGE_MAX_SIZE {
+                                            println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
+                                            let resp = serde_json::json!({
+                                                "type": "error",
+                                                "status": "error",
+                                                "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), TEXT_MESSAGE_MAX_SIZE)
+                                            });
+                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                            continue;
+                                        }
+
+                                        // 截断日志输出，避免打印超长消息
+                                        let log_text = if text.len() > 500 {
+                                            format!("{}... ({} bytes total)", &text[..500], text.len())
+                                        } else {
+                                            text.clone()
+                                        };
+                                        println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
 
                                         // 尝试解析为 JSON 命令
                                         if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -763,6 +802,20 @@ pub async fn handle_connection(
                                         // 忽略未知类型的消息
                                     }
                                     Message::Binary(data) => {
+                                        // 检查二进制消息总大小
+                                        let total_binary_max = BINARY_PAYLOAD_MAX_SIZE + 4096; // payload + header 开销
+                                        if data.len() > total_binary_max {
+                                            println!("Oversized binary message ({} bytes) from {}:{} ({}), rejected", data.len(), user_id, session_id, username);
+                                            let resp = serde_json::json!({
+                                                "type": "relay_response",
+                                                "action": "send_data",
+                                                "status": "error",
+                                                "message": format!("Binary message too large: {} bytes (max {} bytes)", data.len(), total_binary_max)
+                                            });
+                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                            continue;
+                                        }
+
                                         // 解析二进制 relay 帧：[4 字节 header JSON 长度 u32 BE] + [header JSON bytes] + [原始 payload]
                                         if data.len() < 4 {
                                             let resp = serde_json::json!({
@@ -818,6 +871,18 @@ pub async fn handle_connection(
                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                             } else {
                                                 let payload = &data[4 + header_len..];
+
+                                                // 检查 relay 负载大小
+                                                if payload.len() > BINARY_PAYLOAD_MAX_SIZE {
+                                                    let resp = serde_json::json!({
+                                                        "type": "relay_response",
+                                                        "action": "send_data",
+                                                        "status": "error",
+                                                        "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), BINARY_PAYLOAD_MAX_SIZE)
+                                                    });
+                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    continue;
+                                                }
 
                                                 let forward_header = serde_json::json!({
                                                     "type": "relay",
