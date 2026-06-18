@@ -35,11 +35,21 @@
       color: var(--md-sys-color-on-error-container);
     }
 
-    .controls {
+    .top-bar {
       display: flex;
-      gap: 10px;
+      align-items: center;
+      gap: 16px;
       margin-bottom: 16px;
       flex-shrink: 0;
+    }
+
+    .top-bar .status-bar {
+      margin-bottom: 0;
+    }
+
+    .top-bar .user-count {
+      margin-bottom: 0;
+      margin-left: auto;
     }
 
     button {
@@ -55,11 +65,6 @@
     button:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-    }
-
-    #refreshBtn {
-      background-color: var(--md-sys-color-tertiary);
-      color: var(--md-sys-color-on-tertiary);
     }
 
     .user-count {
@@ -211,25 +216,27 @@
     }
   </style>
 
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+
   <div class="container">
 
-    <div
-      class="status-bar"
-      class:connected="connected"
-      class:disconnected="!connected"
-    >
-      <span>{{connected ? '已连接' : '未连接'}}</span>
-      <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
-    </div>
+    <div class="top-bar">
+      <div
+        class="status-bar"
+        class:connected="connected"
+        class:disconnected="!connected"
+      >
+        <span>{{connected ? '已连接' : '未连接'}}</span>
+        <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
+      </div>
 
-    <div class="controls">
-      <button id="refreshBtn" on:click="refreshUsers" :disabled="!connected">
+      <p-button variant="outlined" on:click="refreshUsers" :disabled="!connected">
         刷新用户列表
-      </button>
-    </div>
+      </p-button>
 
-    <div class="user-count" :style.display="connected ? '' : 'none'">
-      在线用户：{{users.length}} 人
+      <div class="user-count" :style.display="connected ? '' : 'none'">
+        在线用户：{{users.length}} 人
+      </div>
     </div>
 
     <div class="card-grid">
