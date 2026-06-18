@@ -20,12 +20,6 @@
       flex-direction: column;
     }
 
-    h1 {
-      color: var(--md-sys-color-on-surface);
-      text-align: center;
-      margin: 0 0 16px 0;
-    }
-
     .status-bar {
       display: flex;
       align-items: center;
@@ -66,11 +60,6 @@
     button:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-    }
-
-    #connectBtn {
-      background-color: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
     }
 
     #refreshBtn {
@@ -183,7 +172,6 @@
   </style>
 
   <div class="container">
-    <h1>系统信息</h1>
 
     <div
       class="status-bar"
@@ -195,9 +183,6 @@
     </div>
 
     <div class="controls">
-      <button id="connectBtn" on:click="connect" :disabled="connecting">
-        {{connecting ? '连接中...' : '连接服务器'}}
-      </button>
       <button id="refreshBtn" on:click="fetchSystemInfo" :disabled="!connected">
         刷新系统信息
       </button>
@@ -295,8 +280,7 @@
 
   <script>
     export default async ({ query, load }) => {
-      const ADMIN_JSON_URL = "/tests/user/local/admin.json";
-      const WS_URL = "ws://localhost:8081";
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
 
       return {
         parent: "./layout.html",
@@ -334,26 +318,9 @@
 
             try {
               if (!this._adminUser) {
-                const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
-                const { deleteUser } = await load("/nos/user/main.js");
-                const { AdminUser } = await load("/nos/user/admin-user.js");
-
-                const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
-                const sysNs = "sys-info-console-ns";
-
-                try {
-                  await deleteUser(sysNs, { skipConfirm: true });
-                } catch (e) {
-                  /* ignore */
-                }
-                await saveUserKeys(sysNs, adminData.keys);
-                await saveUserInfo(sysNs, adminData.info);
-
-                const adminUser = new AdminUser(sysNs);
-                await adminUser.ready();
+                const { adminUser } = await getAdmin(load);
                 this._adminUser = adminUser;
 
-                // 监听连接关闭
                 adminUser.addEventListener("close", () => this._onClose());
               }
 
@@ -392,6 +359,7 @@
         },
 
         attached() {
+          this.connect();
           this._refreshTimer = setInterval(() => {
             this.fetchSystemInfo();
           }, 1000);

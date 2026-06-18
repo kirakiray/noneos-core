@@ -1,6 +1,4 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
-
   <style>
     :host {
       display: block;
@@ -10,18 +8,10 @@
 
     .container {
       padding: 24px;
-      max-width: 960px;
-      margin: 0 auto;
       height: 100%;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-    }
-
-    h1 {
-      color: var(--md-sys-color-on-surface);
-      text-align: center;
-      margin: 0 0 16px 0;
     }
 
     .status-bar {
@@ -48,7 +38,8 @@
     .controls {
       display: flex;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
     }
 
     button {
@@ -66,11 +57,6 @@
       cursor: not-allowed;
     }
 
-    #connectBtn {
-      background-color: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-    }
-
     #refreshBtn {
       background-color: var(--md-sys-color-tertiary);
       color: var(--md-sys-color-on-tertiary);
@@ -80,11 +66,32 @@
       margin-bottom: 12px;
       font-size: 14px;
       color: var(--md-sys-color-on-surface-variant);
+      flex-shrink: 0;
     }
 
-    .user-list {
+    .card-grid {
       flex: 1;
       overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 320px);
+      gap: 16px;
+      align-content: start;
+    }
+
+    .user-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .user-avatar {
@@ -106,12 +113,17 @@
       color: var(--md-sys-color-on-tertiary-container);
     }
 
-    .user-session {
-      font-size: 11px;
-      font-family: monospace;
-      color: var(--md-sys-color-on-surface-variant);
-      opacity: 0.8;
-      margin-top: 2px;
+    .card-username {
+      font-weight: bold;
+      font-size: 16px;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .card-badges {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .admin-badge {
@@ -121,6 +133,39 @@
       background-color: var(--md-sys-color-tertiary-container);
       color: var(--md-sys-color-on-tertiary-container);
       font-weight: bold;
+    }
+
+    .card-detail {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+
+    .latency-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .latency-badge.high {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .card-addr {
+      font-family: monospace;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
     }
 
     .kick-btn {
@@ -158,31 +203,15 @@
     }
 
     .empty-state {
+      grid-column: 1 / -1;
       text-align: center;
       padding: 40px;
       color: var(--md-sys-color-on-surface-variant);
       font-size: 14px;
     }
-
-    .latency-badge {
-      display: inline-block;
-      font-size: 11px;
-      font-family: monospace;
-      padding: 1px 6px;
-      border-radius: 4px;
-      margin-left: 8px;
-      background-color: var(--md-sys-color-surface-container-high);
-      color: var(--md-sys-color-on-surface-variant);
-    }
-
-    .latency-badge.high {
-      background-color: var(--md-sys-color-error-container);
-      color: var(--md-sys-color-on-error-container);
-    }
   </style>
 
   <div class="container">
-    <h1>管理员控制台</h1>
 
     <div
       class="status-bar"
@@ -194,9 +223,6 @@
     </div>
 
     <div class="controls">
-      <button id="connectBtn" on:click="connect" :disabled="connecting">
-        {{connecting ? '连接中...' : '连接服务器'}}
-      </button>
       <button id="refreshBtn" on:click="refreshUsers" :disabled="!connected">
         刷新用户列表
       </button>
@@ -206,39 +232,38 @@
       在线用户：{{users.length}} 人
     </div>
 
-    <p-list class="user-list">
+    <div class="card-grid">
       <o-fill :value="users">
-        <p-list-item>
-          <span slot="prefix" class="user-avatar" class:admin="$data.isAdmin"
-            >{{$data.avatar}}</span
-          >
-          <span>{{$data.username}}</span>
-          <div secondary>
-            {{$data.host || $data.addr}}
-            <span
-              class="latency-badge"
-              class:high="$data.latencyMs > 200"
-              :style.display="$data.latencyMs != null ? '' : 'none'"
-              >{{$data.latencyMs}}ms</span
-            >
-            <span style="font-size: 11px; opacity: 0.6; margin-left: 8px"
-              >{{$data.connectedTime}}</span
-            >
+        <div class="user-card">
+          <div class="card-header">
+            <div class="user-avatar" class:admin="$data.isAdmin">{{$data.avatar}}</div>
+            <div>
+              <div class="card-username">{{$data.username}}</div>
+              <div class="card-detail">
+                <span class="card-addr">{{$data.host || $data.addr}}</span>
+                <span
+                  class="latency-badge"
+                  class:high="$data.latencyMs > 200"
+                  :style.display="$data.latencyMs != null ? '' : 'none'"
+                >{{$data.latencyMs}}ms</span>
+              </div>
+            </div>
+            <div class="card-badges">
+              <span
+                class="admin-badge"
+                :style.display="$data.isAdmin ? '' : 'none'"
+              >管理员</span>
+            </div>
           </div>
-          <span
-            slot="suffix"
-            style="display: flex; align-items: center; gap: 4px"
-          >
-            <span
-              class="admin-badge"
-              :style.display="$data.isAdmin ? '' : 'none'"
-              >管理员</span
-            >
+          <div class="card-detail">
+            <span>连接时间：{{$data.connectedTime}}</span>
+            <span>Session：{{$data.sessionId}}</span>
+          </div>
+          <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
             <button
               class="kick-btn"
               on:click="$host.kickSession($data.userId, $data.sessionId)"
               :disabled="$data.isSelf"
-              :style.display="$data.isSelf ? 'none' : ''"
             >
               断开会话
             </button>
@@ -246,14 +271,13 @@
               class="kick-all-btn"
               on:click="$host.kickUser($data.userId)"
               :disabled="$data.isSelf"
-              :style.display="$data.isSelf ? 'none' : ''"
             >
               断开所有
             </button>
-          </span>
-        </p-list-item>
+          </div>
+        </div>
       </o-fill>
-    </p-list>
+    </div>
 
     <div
       class="empty-state"
@@ -265,8 +289,7 @@
 
   <script>
     export default async ({ query, load }) => {
-      const ADMIN_JSON_URL = "/tests/user/local/admin.json";
-      const WS_URL = "ws://localhost:8081";
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
 
       return {
         parent: "./layout.html",
@@ -287,33 +310,11 @@
 
             try {
               if (!this._adminUser) {
-                const { saveUserKeys, saveUserInfo } =
-                  await load("/nos/user/db.js");
-                const { deleteUser } = await load("/nos/user/main.js");
-                const { AdminUser } = await load("/nos/user/admin-user.js");
-
-                const adminData = await fetch(ADMIN_JSON_URL).then((r) =>
-                  r.json(),
-                );
-                const adminNs = "admin-console-ns";
-
-                // 清理旧数据并重新写入
-                try {
-                  await deleteUser(adminNs, { skipConfirm: true });
-                } catch (e) {
-                  /* ignore */
-                }
-                await saveUserKeys(adminNs, adminData.keys);
-                await saveUserInfo(adminNs, adminData.info);
-
-                const adminUser = new AdminUser(adminNs);
-                await adminUser.ready();
+                const { adminUser, adminInfo } = await getAdmin(load);
                 this._adminUser = adminUser;
-                this.adminUserId = adminUser.userId;
-                const adminInfo = await adminUser.getInfo();
-                this.adminUsername = adminInfo.username || "Admin";
+                this.adminUserId = adminInfo.userId;
+                this.adminUsername = adminInfo.username;
 
-                // 监听连接关闭
                 adminUser.addEventListener("close", () => this._onClose());
               }
 
@@ -405,7 +406,15 @@
           },
         },
 
+        attached() {
+          this.connect();
+        },
+
         detached() {
+          if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+          }
           this._adminUser = null;
         },
       };
