@@ -1,6 +1,7 @@
 import { getServerList, saveServerList } from "../db.js";
 
 const DEFAULT_SERVERS = ["ws://localhost:8081", "ws://localhost:8082"];
+const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期
 
 export class ServerManager {
   #wsMap = new Map();
@@ -11,6 +12,7 @@ export class ServerManager {
   #latencyTimer = null;
   #latencyIntervalMs = 30000;
   #latencyCache = new Map();
+  #serverCandidateCache = new Map(); // userId -> { candidates, timestamp }
 
   constructor(user) {
     this.#user = user;
@@ -189,6 +191,7 @@ export class ServerManager {
               // 绑定关闭处理
               ws.onclose = () => {
                 this.#wsMap.delete(url);
+                this.#serverCandidateCache.clear(); // 拓扑变化，清空路由缓存
                 this.#user._trigger("close", { url: url });
                 // 没有活跃连接时自动停止延迟监测
                 if (this.#wsMap.size === 0) {
@@ -349,6 +352,12 @@ export class ServerManager {
    * @returns {Promise<Array<{url: string, sessions: string[], sessionInfo: Array<{sessionId: string, latencyMs: number|null}>, localLatency: number}>>}
    */
   async #getSortedServerCandidates(targetUserId) {
+    // 命中缓存且在 TTL 内，直接返回
+    const cached = this.#serverCandidateCache.get(targetUserId);
+    if (cached && Date.now() - cached.timestamp < CANDIDATE_CACHE_TTL) {
+      return cached.candidates;
+    }
+
     const urls = [...this.#wsMap.keys()];
     if (urls.length === 0) return [];
 
@@ -390,6 +399,12 @@ export class ServerManager {
         Infinity,
       );
       return a.localLatency + aRemoteMin - (b.localLatency + bRemoteMin);
+    });
+
+    // 写入缓存
+    this.#serverCandidateCache.set(targetUserId, {
+      candidates,
+      timestamp: Date.now(),
     });
 
     return candidates;
