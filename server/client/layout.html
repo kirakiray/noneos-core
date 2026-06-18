@@ -26,10 +26,6 @@
     </main>
 
     <p-nav-bar slot="nav">
-      <p-nav-item attr:active="activeChat" on:click="navigateToChat">
-        <span slot="icon">💬</span>
-        <span>普通WS连接</span>
-      </p-nav-item>
       <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
         <span slot="icon">⚙️</span>
         <span>管理员控制台</span>
@@ -45,8 +41,7 @@
     export default () => {
       return {
         data: {
-          activeChat: true,
-          activeAdmin: false,
+          activeAdmin: true,
           activeSysInfo: false,
         },
         routerChange() {
@@ -60,12 +55,8 @@
             const { current } = this.app;
             if (!current) return;
             const path = current.src || "";
-            this.activeChat = path.endsWith("page.html");
             this.activeAdmin = path.endsWith("admin.html");
             this.activeSysInfo = path.endsWith("system-info.html");
-          },
-          navigateToChat() {
-            window.location.hash = "./page.html";
           },
           navigateToAdmin() {
             window.location.hash = "./admin.html";
