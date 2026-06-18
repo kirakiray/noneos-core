@@ -219,7 +219,6 @@
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
 
   <div class="container">
-
     <div class="top-bar">
       <div
         class="status-bar"
@@ -227,10 +226,16 @@
         class:disconnected="!connected"
       >
         <span>{{connected ? '已连接' : '未连接'}}</span>
-        <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
+        <span :style.display="connected ? '' : 'none'"
+          >— {{adminUsername}}</span
+        >
       </div>
 
-      <p-button variant="outlined" on:click="refreshUsers" :disabled="!connected">
+      <p-button
+        variant="outlined"
+        on:click="refreshUsers"
+        attr:disabled="!connected"
+      >
         刷新用户列表
       </p-button>
 
@@ -243,7 +248,9 @@
       <o-fill :value="users">
         <div class="user-card">
           <div class="card-header">
-            <div class="user-avatar" class:admin="$data.isAdmin">{{$data.avatar}}</div>
+            <div class="user-avatar" class:admin="$data.isAdmin">
+              {{$data.avatar}}
+            </div>
             <div>
               <div class="card-username">{{$data.username}}</div>
               <div class="card-detail">
@@ -252,19 +259,22 @@
                   class="latency-badge"
                   class:high="$data.latencyMs > 200"
                   :style.display="$data.latencyMs != null ? '' : 'none'"
-                >{{$data.latencyMs}}ms</span>
+                  >{{$data.latencyMs}}ms</span
+                >
               </div>
-            </div>
-            <div class="card-badges">
-              <span
-                class="admin-badge"
-                :style.display="$data.isAdmin ? '' : 'none'"
-              >管理员</span>
             </div>
           </div>
           <div class="card-detail">
             <span>连接时间：{{$data.connectedTime}}</span>
             <span>Session：{{$data.sessionId}}</span>
+          </div>
+
+          <div class="card-badges">
+            <span
+              class="admin-badge"
+              :style.display="$data.isAdmin ? '' : 'none'"
+              >管理员</span
+            >
           </div>
           <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
             <button
