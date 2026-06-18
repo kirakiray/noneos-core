@@ -41,12 +41,15 @@ export class AdminUser extends LocalUser {
   }
 
   /**
-   * 获取已连接用户列表
+   * 获取已连接用户列表（支持分页）
    * @param {string} url - 服务器 WebSocket 地址
-   * @returns {Promise<Object>} 包含用户列表的响应
+   * @param {Object} [options] - 分页选项
+   * @param {number} [options.page=1] - 页码（从 1 开始）
+   * @param {number} [options.pageSize=20] - 每页数量
+   * @returns {Promise<Object>} 包含用户列表、总数、当前页等信息的响应
    */
-  async listUsers(url) {
-    return this.#adminCommand(url, "list_users");
+  async listUsers(url, { page = 1, pageSize = 20 } = {}) {
+    return this.#adminCommand(url, "list_users", { page, page_size: pageSize });
   }
 
   /**

@@ -33,10 +33,12 @@
 
     管理员可以发送以下 JSON 命令：
 
-    ### 2.1 list_users - 列出所有已连接用户
+    ### 2.1 list_users - 列出已连接用户（支持分页）
 
     发送：
         { "type": "admin", "action": "list_users" }
+        // 可选分页参数（默认 page=1, page_size=20）：
+        { "type": "admin", "action": "list_users", "page": 1, "page_size": 20 }
 
     响应：
         {
@@ -47,7 +49,10 @@
           "users": [
             { "userId": "...", "sessionId": "s-...", "username": "...", "addr": "localhost:54321" },
             ...
-          ]
+          ],
+          "total": 3,        // 总用户数（分页用）
+          "page": 1,         // 当前页码
+          "page_size": 20    // 每页数量
         }
 
     ### 2.2 disconnect_user - 断开指定用户的连接
@@ -183,6 +188,8 @@
           const adminListUrl = "ws://localhost:8081";
 
           const adminListResponse = await adminListUser.listUsers(adminListUrl);
+          // 也测试显式指定分页参数
+          const adminListResponse2 = await adminListUser.listUsers(adminListUrl, { page: 1, pageSize: 10 });
 
           const isListOK = adminListResponse && adminListResponse.status === "ok";
           const hasUsers = isListOK && Array.isArray(adminListResponse.users) && adminListResponse.users.length > 0;
@@ -190,12 +197,26 @@
             u => u.userId === adminListUser.userId
           );
 
+          // 验证分页字段
+          const hasPaginationFields = adminListResponse.total != null
+            && adminListResponse.page === 1
+            && adminListResponse.page_size === 20;
+          // 带分页参数的响应也正确
+          const paginationWithParamsOK = adminListResponse2?.page === 1
+            && adminListResponse2?.page_size === 10;
+
           return {
-            assert: isListOK && selfInList,
+            assert: isListOK && selfInList && hasPaginationFields && paginationWithParamsOK,
             content: {
-              message: selfInList ? `Admin listed ${adminListResponse.users.length} user(s), self included` : "list_users failed",
+              message: selfInList
+                ? `Admin listed ${adminListResponse.users.length} user(s) (total ${adminListResponse.total}), pagination verified`
+                : "list_users failed",
               status: adminListResponse?.status,
               userCount: adminListResponse?.users?.length,
+              totalUsers: adminListResponse?.total,
+              page: adminListResponse?.page,
+              pageSize: adminListResponse?.page_size,
+              paginationWithParamsOK,
               users: adminListResponse?.users,
               responseMessage: adminListResponse?.message,
             },
@@ -531,21 +552,29 @@
           const afterListOK = adminSessAfterList?.status === "ok";
           const onlyOneSessionLeft = afterListOK && Array.isArray(adminSessAfterList.users)
             && adminSessAfterList.users.filter(u => u.userId === sessUser1.userId).length === 1;
+          // 验证分页字段
+          const hasPagination = adminSessListResult.total != null
+            && adminSessListResult.page != null
+            && adminSessListResult.page_size != null;
 
           // 清理
           if (ws2 && ws2.readyState === WebSocket.OPEN) ws2.close();
 
           return {
-            assert: disconnectOK && session1StillConnected && session2Disconnected && onlyOneSessionLeft,
+            assert: disconnectOK && session1StillConnected && session2Disconnected && onlyOneSessionLeft && hasPagination,
             content: {
               message: disconnectOK && session1StillConnected && session2Disconnected
-                ? `Disconnected session2, session1 still alive (remaining: ${onlyOneSessionLeft})`
+                ? `Disconnected session2, session1 still alive (remaining: ${onlyOneSessionLeft}, pagination: ${hasPagination})`
                 : "Disconnect session test failed",
               session1Closed: sess1Closed,
               session2Connected: sess2Connected,
               session2Closed: sess2Closed,
               disconnectResult: adminSessDisconnectResult,
               afterList: adminSessAfterList,
+              hasPagination,
+              initialTotal: adminSessListResult.total,
+              initialPage: adminSessListResult.page,
+              initialPageSize: adminSessListResult.page_size,
             },
           };
         </script>

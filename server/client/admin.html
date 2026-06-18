@@ -214,6 +214,53 @@
       color: var(--md-sys-color-on-surface-variant);
       font-size: 14px;
     }
+
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 12px 0;
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .pagination-bar button {
+      padding: 6px 12px;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      transition: background-color 0.2s;
+    }
+
+    .pagination-bar button:hover:not(:disabled) {
+      background-color: var(--md-sys-color-surface-container-high);
+    }
+
+    .pagination-bar button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .pagination-bar .page-info {
+      min-width: 100px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pagination-bar .page-size-select {
+      margin-left: 12px;
+      padding: 4px 8px;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 6px;
+      font-size: 13px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+    }
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
@@ -240,7 +287,7 @@
       </p-button>
 
       <div class="user-count" :style.display="connected ? '' : 'none'">
-        在线用户：{{users.length}} 人
+        在线用户：{{totalUsers}} 人（本页 {{users.length}} 人）
       </div>
     </div>
 
@@ -302,6 +349,33 @@
     >
       暂无在线用户
     </div>
+
+    <div
+      class="pagination-bar"
+      :style.display="connected && totalPages > 0 ? '' : 'none'"
+    >
+      <button on:click="goFirstPage" :disabled="currentPage <= 1">
+        首页
+      </button>
+      <button on:click="goPrevPage" :disabled="currentPage <= 1">
+        上一页
+      </button>
+      <span class="page-info"
+        >第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 人</span
+      >
+      <button on:click="goNextPage" :disabled="currentPage >= totalPages">
+        下一页
+      </button>
+      <button on:click="goLastPage" :disabled="currentPage >= totalPages">
+        末页
+      </button>
+      <select class="page-size-select" on:change="changePageSize">
+        <option value="10">10条/页</option>
+        <option value="20" selected>20条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+      </select>
+    </div>
   </div>
 
   <script>
@@ -316,6 +390,10 @@
           adminUsername: "",
           adminUserId: "",
           users: [],
+          currentPage: 1,
+          pageSize: 20,
+          totalUsers: 0,
+          totalPages: 0,
           _adminUser: null,
           _refreshTimer: null,
         },
@@ -335,19 +413,17 @@
                 adminUser.addEventListener("close", () => this._onClose());
               }
 
-              // 通过执行 list_users 验证管理员身份并获取初始数据
-              const response = await this._adminUser.listUsers(WS_URL);
+              // 通过执行 list_users 验证管理员身份并获取初始数据（同时加载第一页）
+              this.currentPage = 1;
+              const response = await this._adminUser.listUsers(WS_URL, {
+                page: 1,
+                pageSize: this.pageSize,
+              });
 
               if (response.status === "ok") {
                 this.connected = true;
                 this.connecting = false;
-                this.users = (response.users || []).map((u) => ({
-                  ...u,
-                  avatar: (u.username || "?")[0].toUpperCase(),
-                  isSelf: u.userId === this.adminUserId,
-                  isAdmin: u.userId === this.adminUserId,
-                  connectedTime: this._formatTime(u.connectedAt),
-                }));
+                this._applyUsersResponse(response);
 
                 // 自动每 5 秒刷新用户列表（用于更新延迟等动态数据）
                 this._refreshTimer = setInterval(() => {
@@ -365,19 +441,70 @@
           async refreshUsers() {
             if (!this.connected || !this._adminUser) return;
             try {
-              const response = await this._adminUser.listUsers(WS_URL);
+              const response = await this._adminUser.listUsers(WS_URL, {
+                page: this.currentPage,
+                pageSize: this.pageSize,
+              });
               if (response.status === "ok") {
-                this.users = (response.users || []).map((u) => ({
-                  ...u,
-                  avatar: (u.username || "?")[0].toUpperCase(),
-                  isSelf: u.userId === this.adminUserId,
-                  isAdmin: u.userId === this.adminUserId,
-                  connectedTime: this._formatTime(u.connectedAt),
-                }));
+                this._applyUsersResponse(response);
               }
             } catch (e) {
               console.error("refreshUsers failed:", e);
             }
+          },
+
+          /**
+           * 跳转到指定页
+           */
+          async goToPage(page) {
+            if (!this.connected || !this._adminUser) return;
+            page = Math.max(1, Math.min(page, this.totalPages || 1));
+            if (page === this.currentPage) return;
+            this.currentPage = page;
+            try {
+              const response = await this._adminUser.listUsers(WS_URL, {
+                page: this.currentPage,
+                pageSize: this.pageSize,
+              });
+              if (response.status === "ok") {
+                this._applyUsersResponse(response);
+              }
+            } catch (e) {
+              console.error("goToPage failed:", e);
+            }
+          },
+
+          goFirstPage() { this.goToPage(1); },
+          goPrevPage() { this.goToPage(this.currentPage - 1); },
+          goNextPage() { this.goToPage(this.currentPage + 1); },
+          goLastPage() { this.goToPage(this.totalPages); },
+
+          changePageSize(event) {
+            const newSize = parseInt(event.target.value, 10);
+            if (newSize === this.pageSize) return;
+            this.pageSize = newSize;
+            this.currentPage = 1;
+            this.refreshUsers();
+          },
+
+          /**
+           * 将 listUsers 响应应用到视图状态
+           */
+          _applyUsersResponse(response) {
+            this.totalUsers = response.total || 0;
+            this.currentPage = response.page || 1;
+            this.pageSize = response.page_size || this.pageSize;
+            this.totalPages = Math.max(
+              1,
+              Math.ceil(this.totalUsers / this.pageSize),
+            );
+            this.users = (response.users || []).map((u) => ({
+              ...u,
+              avatar: (u.username || "?")[0].toUpperCase(),
+              isSelf: u.userId === this.adminUserId,
+              isAdmin: u.userId === this.adminUserId,
+              connectedTime: this._formatTime(u.connectedAt),
+            }));
           },
 
           async kickUser(userId) {
@@ -416,6 +543,9 @@
           _onClose() {
             this.connected = false;
             this.users = [];
+            this.currentPage = 1;
+            this.totalUsers = 0;
+            this.totalPages = 0;
             if (this._refreshTimer) {
               clearInterval(this._refreshTimer);
               this._refreshTimer = null;
