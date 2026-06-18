@@ -50,10 +50,12 @@ export class LocalUser extends BaseUser {
       }
     });
 
-    // 监听 RTC 直连消息并分发给对应的 RemoteUser 实例
+    // 设置 RTC 直连消息并分发给对应的 RemoteUser 实例
     this.#setupRTCDispatch();
     // 监听 relay 消息并分发给对应的 RemoteUser 实例
     this.#setupRelayDispatch();
+    // 监听 RTC 建立/断开事件，触发对应 RemoteUser 重新测量 RTT
+    this.#setupRTCStateListener();
   }
 
   /**
@@ -141,6 +143,20 @@ export class LocalUser extends BaseUser {
       }
 
       this.#dispatchToRemote(fromUserId, fromSessionId, messageData, "rtc");
+    });
+  }
+
+  /**
+   * 监听 RTC 状态变化：DataChannel 建立或断开时，
+   * 通知缓存的 RemoteUser 实例重新测量该 session 的 RTT。
+   */
+  #setupRTCStateListener() {
+    this.bind("rtc_state", (event) => {
+      const { userId, sessionId } = event.detail;
+      if (!this.#remoteUserCache.has(userId)) return;
+      Promise.resolve(this.#remoteUserCache.get(userId))
+        .then((remoteUser) => remoteUser.recalcRTT(sessionId))
+        .catch(() => {});
     });
   }
 

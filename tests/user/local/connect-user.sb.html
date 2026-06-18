@@ -418,6 +418,100 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Ping Pong RTT Measurement Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsPingA = "ping-user-a";
+        const nsPingB = "ping-user-b";
+        const pingUrl = "ws://localhost:8081";
+
+        const userPingA = new LocalUser(nsPingA);
+        const userPingB = new LocalUser(nsPingB);
+
+        await Promise.all([userPingA.ready(), userPingB.ready()]);
+
+        await Promise.all([
+          userPingA.server.connect(pingUrl),
+          userPingB.server.connect(pingUrl),
+        ]);
+
+        const remotePingB = await userPingA.connectUser(userPingB.userId);
+        const remotePingA = await userPingB.connectUser(userPingA.userId);
+
+        // ── 测试 1：基础 ping/pong RTT ──
+        const rtt1 = await remotePingB.ping(userPingB.sessionId);
+        const rtt1Valid = typeof rtt1 === "number" && rtt1 >= 0 && rtt1 < 10000;
+
+        // ── 测试 2：getRTT(sessionId) 返回刚测量的值 ──
+        const getRttWithSession = remotePingB.getRTT(userPingB.sessionId);
+        const getRttWithSessionValid = getRttWithSession === rtt1;
+
+        // ── 测试 3：getRTT() 无参返回最佳 RTT ──
+        const bestRtt = remotePingB.getRTT();
+        const bestRttValid = typeof bestRtt === "number" && bestRtt >= 0;
+
+        // ── 测试 4：多 session 情况下 getRTT 正常 ──
+        // userPingB 这边有两个 LocalUser（userPingB 本身和别名），但为了测试
+        // 我们给同一个 RemoteUser 对多个 session 发起 ping
+        await remotePingB.ping(userPingB.sessionId); // 再测一次
+        await remotePingA.ping(userPingA.sessionId); // 反方向也测一次
+        const bestRttBoth = remotePingB.getRTT();
+        const bestRttBothValid = typeof bestRttBoth === "number" && bestRttBoth >= 0;
+
+        // ── 测试 5：rtt_update 事件触发 ──
+        let rttEvent = null;
+        const unbindEvent = userPingA.bind("rtt_update", (event) => {
+          rttEvent = event.detail;
+        });
+        await remotePingB.ping(userPingB.sessionId);
+        unbindEvent();
+
+        const rttEventValid =
+          rttEvent !== null &&
+          rttEvent.userId === userPingB.userId &&
+          rttEvent.sessionId === userPingB.sessionId &&
+          typeof rttEvent.rtt === "number" &&
+          rttEvent.rtt >= 0 &&
+          (rttEvent.via === "server" || rttEvent.via === "rtc" || rttEvent.via === "unknown");
+
+        // ── 测试 6：尚未测量过的 session 返回 null ──
+        const unknownRtt = remotePingB.getRTT("nonexistent-session-xxx");
+        const unknownRttValid = unknownRtt === null;
+
+        const allPassed =
+          rtt1Valid &&
+          getRttWithSessionValid &&
+          bestRttValid &&
+          bestRttBothValid &&
+          rttEventValid &&
+          unknownRttValid;
+
+        return {
+          assert: allPassed,
+          content: {
+            message: allPassed
+              ? `Ping/pong RTT 测试全部通过 — 最新 RTT: ${rtt1}ms, 最佳 RTT: ${bestRtt}ms`
+              : "部分 RTT 测试未通过",
+            rtt1,
+            rtt1Valid,
+            getRttWithSession,
+            getRttWithSessionValid,
+            bestRtt,
+            bestRttValid,
+            bestRttBoth,
+            bestRttBothValid,
+            rttEvent,
+            rttEventValid,
+            unknownRtt,
+            unknownRttValid,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

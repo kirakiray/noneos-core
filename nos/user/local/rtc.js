@@ -169,6 +169,11 @@ export class RTCManager {
     dc.onopen = () => {
       const peer = this.#peers.get(key);
       if (peer) peer.state = "connected";
+      this.#user._trigger("rtc_state", {
+        userId,
+        sessionId,
+        state: "connected",
+      });
     };
 
     dc.onmessage = (event) => {
@@ -181,10 +186,20 @@ export class RTCManager {
 
     dc.onclose = () => {
       this.#peers.delete(key);
+      this.#user._trigger("rtc_state", {
+        userId,
+        sessionId,
+        state: "disconnected",
+      });
     };
 
     dc.onerror = () => {
       this.#peers.delete(key);
+      this.#user._trigger("rtc_state", {
+        userId,
+        sessionId,
+        state: "disconnected",
+      });
     };
   }
 
