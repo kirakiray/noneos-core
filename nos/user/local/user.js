@@ -374,21 +374,9 @@ export class LocalUser extends BaseUser {
   }
 
   async #doConnectUser(userId) {
-    // 查询已连接服务器，确认目标用户至少在一台服务器上在线
-    const urls = this.#server.connectedUrls;
-    let found = false;
-    for (const url of urls) {
-      try {
-        const result = await this.#server.queryUserOnline(url, userId);
-        if (result.online) {
-          found = true;
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
-    if (!found) {
+    // 使用共享算法查询目标用户在线的服务器（按综合延迟排序）
+    const bestServer = await this.#server.findBestServer(userId);
+    if (!bestServer) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
     return new RemoteUser(userId, this);

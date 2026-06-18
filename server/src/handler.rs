@@ -125,14 +125,18 @@ impl AppState {
         }).collect()
     }
 
-    /// 查询指定 userId 是否在线，返回所有 sessionId
-    fn get_user_sessions(&self, user_id: &str) -> Vec<String> {
+    /// 获取指定 userId 的所有 sessionId 及其延迟数据
+    fn get_user_sessions_with_latency(&self, user_id: &str) -> Vec<serde_json::Value> {
         let prefix = format!("{}:", user_id);
-        self.users.keys()
-            .filter(|k| k.starts_with(&prefix))
-            .filter_map(|k| {
+        self.users.iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(k, session)| {
                 let parts: Vec<&str> = k.splitn(2, ':').collect();
-                if parts.len() == 2 { Some(parts[1].to_string()) } else { None }
+                let session_id = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
+                serde_json::json!({
+                    "sessionId": session_id,
+                    "latencyMs": session.latency_ms,
+                })
             })
             .collect()
     }
@@ -653,17 +657,21 @@ pub async fn handle_connection(
                                                         });
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     } else {
-                                                        let sessions = {
+                                                        let session_info = {
                                                             let st = state.lock().await;
-                                                            st.get_user_sessions(target_user_id)
+                                                            st.get_user_sessions_with_latency(target_user_id)
                                                         };
-                                                        let online = !sessions.is_empty();
+                                                        let online = !session_info.is_empty();
+                                                        let sessions: Vec<String> = session_info.iter()
+                                                            .filter_map(|s| s["sessionId"].as_str().map(String::from))
+                                                            .collect();
                                                         let resp = serde_json::json!({
                                                             "type": "query_response",
                                                             "action": "user_online",
                                                             "status": "ok",
                                                             "online": online,
-                                                            "sessions": sessions
+                                                            "sessions": sessions,
+                                                            "sessionInfo": session_info
                                                         });
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     }

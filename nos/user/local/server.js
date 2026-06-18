@@ -317,10 +317,10 @@ export class ServerManager {
   }
 
   /**
-   * 查询指定 userId 是否在线，以及其当前 sessionId 列表
+   * 查询指定 userId 是否在线，以及其当前 sessionId 列表和各 session 延迟
    * @param {string} url - 服务器地址
    * @param {string} targetUserId - 要查询的用户 ID
-   * @returns {Promise<{online: boolean, sessions: string[]}>}
+   * @returns {Promise<{online: boolean, sessions: string[], sessionInfo: Array<{sessionId: string, latencyMs: number|null}>}>}
    */
   async queryUserOnline(url, targetUserId) {
     const result = await this.#sendJsonCommand(
@@ -330,9 +330,97 @@ export class ServerManager {
       "user_online",
     );
     if (result.status === "ok") {
-      return { online: result.online, sessions: result.sessions };
+      return {
+        online: result.online,
+        sessions: result.sessions || [],
+        sessionInfo: result.sessionInfo || [],
+      };
     }
     throw new Error(result.message || "Query failed");
+  }
+
+  /**
+   * 查询目标用户在线的所有服务器候选，按综合延迟升序排列
+   *
+   * 综合延迟 = 本端到服务器单向延迟 + 目标端到服务器单向延迟
+   * 本端延迟优先使用缓存（#latencyCache，每 30s 更新），无缓存则实时测量。
+   *
+   * @param {string} targetUserId - 目标用户 ID
+   * @returns {Promise<Array<{url: string, sessions: string[], sessionInfo: Array<{sessionId: string, latencyMs: number|null}>, localLatency: number}>>}
+   */
+  async #getSortedServerCandidates(targetUserId) {
+    const urls = [...this.#wsMap.keys()];
+    if (urls.length === 0) return [];
+
+    const results = await Promise.allSettled(
+      urls.map(async (url) => {
+        const { online, sessions, sessionInfo } = await this.queryUserOnline(url, targetUserId);
+        if (!online) return null;
+
+        // 获取本端延迟，优先缓存，无缓存则实时测量
+        let localLatency = this.#latencyCache.get(url)?.oneWayLatency ?? null;
+        if (localLatency === null) {
+          try {
+            const result = await this.testLatency(url);
+            localLatency = result.oneWayLatency;
+          } catch {
+            localLatency = 0;
+          }
+        }
+
+        return { url, sessions, sessionInfo, localLatency };
+      }),
+    );
+
+    const candidates = [];
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value !== null) {
+        candidates.push(result.value);
+      }
+    }
+
+    // 按综合延迟升序排序：本端单向 + 目标端最低单向延迟
+    candidates.sort((a, b) => {
+      const aRemoteMin = a.sessionInfo.reduce(
+        (min, s) => Math.min(min, (s.latencyMs ?? 0) / 2),
+        Infinity,
+      );
+      const bRemoteMin = b.sessionInfo.reduce(
+        (min, s) => Math.min(min, (s.latencyMs ?? 0) / 2),
+        Infinity,
+      );
+      return a.localLatency + aRemoteMin - (b.localLatency + bRemoteMin);
+    });
+
+    return candidates;
+  }
+
+  /**
+   * 找到目标用户在线且综合延迟最低的服务器
+   *
+   * 综合延迟 = 本端单向 + 目标端单向，反映 A→Server→B 的完整链路延迟。
+   * 供外部（如 user.js）在 connectUser 时确认用户在线并优先选择低延迟服务器。
+   *
+   * @param {string} targetUserId - 目标用户 ID
+   * @returns {Promise<{url: string, localLatency: number, remoteLatency: number, combinedLatency: number} | null>}
+   */
+  async findBestServer(targetUserId) {
+    const candidates = await this.#getSortedServerCandidates(targetUserId);
+    if (candidates.length === 0) return null;
+
+    // 取综合延迟最低的服务器
+    const best = candidates[0];
+    const remoteMin = best.sessionInfo.reduce(
+      (min, s) => Math.min(min, (s.latencyMs ?? 0) / 2),
+      Infinity,
+    );
+
+    return {
+      url: best.url,
+      localLatency: best.localLatency,
+      remoteLatency: remoteMin,
+      combinedLatency: best.localLatency + remoteMin,
+    };
   }
 
   /**
@@ -468,83 +556,29 @@ export class ServerManager {
    * @returns {Promise<Object>} 发送结果
    */
   async sendToUser(targetUserId, targetSessionId, data) {
-    // 获取所有已连接的服务器
-    const connectedUrls = [...this.#wsMap.keys()];
-    if (connectedUrls.length === 0) {
-      throw new Error("No connected servers available");
-    }
-
-    // 并行查询各服务器上目标用户的在线状态
-    const onlineResults = await Promise.allSettled(
-      connectedUrls.map(async (url) => {
-        const result = await this.queryUserOnline(url, targetUserId);
-        return { url, online: result.online, sessions: result.sessions };
-      }),
-    );
-
-    // 筛选出目标用户在线的服务器
-    const onlineServers = [];
-    for (const result of onlineResults) {
-      if (result.status === "fulfilled" && result.value.online) {
-        onlineServers.push(result.value);
-      }
-    }
-
-    if (onlineServers.length === 0) {
+    // 使用共享算法获取按综合延迟排序的服务器候选
+    const candidates = await this.#getSortedServerCandidates(targetUserId);
+    if (candidates.length === 0) {
       throw new Error(
         `Target user ${targetUserId} is not online on any connected server`,
       );
     }
 
-    // 如果只有一台服务器在线，直接使用
-    if (onlineServers.length === 1) {
-      return this.relayToUserViaServer(
-        onlineServers[0].url,
-        targetUserId,
-        targetSessionId,
-        data,
-      );
-    }
-
-    // 有多台服务器在线，选择延迟最低的
-    // 优先使用缓存延迟数据，无缓存则实时测量
-    const latencyResults = await Promise.allSettled(
-      onlineServers.map(async (server) => {
-        let latency = this.#latencyCache.get(server.url);
-        if (!latency) {
-          latency = await this.testLatency(server.url);
-        }
-        return { url: server.url, latency: latency.oneWayLatency };
-      }),
-    );
-
-    // 筛选出延迟测量成功的服务器
-    const candidates = [];
-    for (const result of latencyResults) {
-      if (result.status === "fulfilled") {
-        candidates.push(result.value);
+    // 找第一个包含目标 session 的服务器（按综合延迟从低到高）
+    for (const candidate of candidates) {
+      if (candidate.sessions.includes(targetSessionId)) {
+        return this.relayToUserViaServer(
+          candidate.url,
+          targetUserId,
+          targetSessionId,
+          data,
+        );
       }
     }
 
-    if (candidates.length === 0) {
-      // 延迟测量全部失败，回退到第一台在线服务器
-      return this.relayToUserViaServer(
-        onlineServers[0].url,
-        targetUserId,
-        targetSessionId,
-        data,
-      );
-    }
-
-    // 按延迟升序排序，选最低的
-    candidates.sort((a, b) => a.latency - b.latency);
-    const bestServer = candidates[0];
-
-    return this.relayToUserViaServer(
-      bestServer.url,
-      targetUserId,
-      targetSessionId,
-      data,
+    // 所有服务器上该 session 都不在线
+    throw new Error(
+      `Session ${targetSessionId} of user ${targetUserId} is not online`,
     );
   }
 
