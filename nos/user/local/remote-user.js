@@ -240,24 +240,25 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * 获取目标 session 的最新 RTT。
-   * 不传 sessionId 时返回所有 session 中的最佳（最低）RTT。
+   * 获取目标 session 的最新 RTT 及传输方式。
+   * 不传 sessionId 时返回所有 session 中的最佳（最低 RTT）结果。
    *
    * @param {string} [sessionId]
-   * @returns {number|null}
+   * @returns {{ rtt: number|null, via: string|null }|null}
    */
   getRTT(sessionId) {
     if (sessionId) {
-      return this.#rttMap.get(sessionId)?.rtt ?? null;
+      const entry = this.#rttMap.get(sessionId);
+      return entry ? { rtt: entry.rtt, via: entry.via } : null;
     }
     // 返回所有 session 中最低的 RTT
     let best = null;
     for (const entry of this.#rttMap.values()) {
-      if (best === null || entry.rtt < best) {
-        best = entry.rtt;
+      if (best === null || entry.rtt < best.rtt) {
+        best = entry;
       }
     }
-    return best;
+    return best ? { rtt: best.rtt, via: best.via } : null;
   }
 
   /**

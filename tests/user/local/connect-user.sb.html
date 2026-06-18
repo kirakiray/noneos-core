@@ -447,11 +447,11 @@
 
         // ── 测试 2：getRTT(sessionId) 返回刚测量的值 ──
         const getRttWithSession = remotePingB.getRTT(userPingB.sessionId);
-        const getRttWithSessionValid = getRttWithSession === rtt1;
+        const getRttWithSessionValid = getRttWithSession?.rtt === rtt1;
 
         // ── 测试 3：getRTT() 无参返回最佳 RTT ──
         const bestRtt = remotePingB.getRTT();
-        const bestRttValid = typeof bestRtt === "number" && bestRtt >= 0;
+        const bestRttValid = typeof bestRtt?.rtt === "number" && bestRtt.rtt >= 0;
 
         // ── 测试 4：多 session 情况下 getRTT 正常 ──
         // userPingB 这边有两个 LocalUser（userPingB 本身和别名），但为了测试
@@ -459,7 +459,7 @@
         await remotePingB.ping(userPingB.sessionId); // 再测一次
         await remotePingA.ping(userPingA.sessionId); // 反方向也测一次
         const bestRttBoth = remotePingB.getRTT();
-        const bestRttBothValid = typeof bestRttBoth === "number" && bestRttBoth >= 0;
+        const bestRttBothValid = typeof bestRttBoth?.rtt === "number" && bestRttBoth.rtt >= 0;
 
         // ── 测试 5：rtt_update 事件触发 ──
         let rttEvent = null;
