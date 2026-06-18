@@ -14,9 +14,9 @@ export class RemoteUser extends BaseUser {
   #localUser;
   #sendCounts = new Map(); // sessionId -> 已发送次数
   #rtcInitiated = new Set(); // 已触发后台 RTC 连接的 sessionId
-  #rttMap = new Map(); // sessionId -> { rtt, via, timestamp }
+  #rttMap = new Map(); // sessionId -> { rtt, via, url, timestamp }
   #pendingPings = new Map(); // pingId -> { sessionId, resolve, reject, timeoutId }
-  #lastSendVia = new Map(); // sessionId -> 'rtc' | 'server'
+  #lastSendVia = new Map(); // sessionId -> { via: 'rtc'|'server', url?: string }
   #pingSeq = 0;
 
   /**
@@ -107,9 +107,9 @@ export class RemoteUser extends BaseUser {
     }
 
     // RTC 未就绪，走服务器中转
-    const result = await this.#sendViaServer(sessionId, data, raw);
-    this.#onSendComplete(sessionId, "server");
-    return result;
+    const { result, url } = await this.#sendViaServer(sessionId, data, raw);
+    this.#onSendComplete(sessionId, "server", url);
+    return { status: "ok", via: "server", url, result };
   }
 
   // ───── 用户间 Ping / Pong ─────
@@ -177,10 +177,12 @@ export class RemoteUser extends BaseUser {
     const dc = this.#localUser.rtc.getChannel(this.#userId, sessionId);
     if (dc?.readyState === "open") {
       dc.send(JSON.stringify(payload));
+      this.#lastSendVia.set(sessionId, { via: "rtc" });
       return { status: "ok", via: "rtc" };
     }
-    await this.#localUser.server.sendToUser(this.#userId, sessionId, payload);
-    return { status: "ok", via: "server" };
+    const { url } = await this.#localUser.server.sendToUser(this.#userId, sessionId, payload);
+    this.#lastSendVia.set(sessionId, { via: "server", url });
+    return { status: "ok", via: "server", url };
   }
 
   /**
@@ -212,13 +214,16 @@ export class RemoteUser extends BaseUser {
       );
     }).then((rtt) => {
       // ping 成功后写入缓存并触发事件
-      const via = this.#lastSendVia.get(sessionId) || "unknown";
-      this.#rttMap.set(sessionId, { rtt, via, timestamp: Date.now() });
+      const record = this.#lastSendVia.get(sessionId);
+      const via = record?.via || "unknown";
+      const url = record?.url;
+      this.#rttMap.set(sessionId, { rtt, via, url, timestamp: Date.now() });
       this.#localUser._trigger("rtt_update", {
         userId: this.#userId,
         sessionId,
         rtt,
         via,
+        url,
       });
       return rtt;
     });
@@ -240,16 +245,16 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * 获取目标 session 的最新 RTT 及传输方式。
+   * 获取目标 session 的最新 RTT、传输方式及服务器 URL（若走服务端）。
    * 不传 sessionId 时返回所有 session 中的最佳（最低 RTT）结果。
    *
    * @param {string} [sessionId]
-   * @returns {{ rtt: number|null, via: string|null }|null}
+   * @returns {{ rtt: number, via: string, url?: string }|null}
    */
   getRTT(sessionId) {
     if (sessionId) {
       const entry = this.#rttMap.get(sessionId);
-      return entry ? { rtt: entry.rtt, via: entry.via } : null;
+      return entry ? { rtt: entry.rtt, via: entry.via, url: entry.url } : null;
     }
     // 返回所有 session 中最低的 RTT
     let best = null;
@@ -258,19 +263,19 @@ export class RemoteUser extends BaseUser {
         best = entry;
       }
     }
-    return best ? { rtt: best.rtt, via: best.via } : null;
+    return best ? { rtt: best.rtt, via: best.via, url: best.url } : null;
   }
 
   /**
-   * send 完成后调用：记录本次 via，若路径发生变化则自动触发 ping
+   * send 完成后调用：记录本次 via 和 url，若路径发生变化则自动触发 ping
    */
-  #onSendComplete(sessionId, via) {
+  #onSendComplete(sessionId, via, url) {
     const lastVia = this.#lastSendVia.get(sessionId);
-    if (lastVia && lastVia !== via) {
+    if (lastVia && lastVia.via !== via) {
       // 传输路径变化（server ↔ rtc），重新测量 RTT
       this.recalcRTT(sessionId);
     }
-    this.#lastSendVia.set(sessionId, via);
+    this.#lastSendVia.set(sessionId, { via, url });
   }
 
   /**

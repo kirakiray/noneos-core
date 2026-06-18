@@ -582,12 +582,13 @@ export class ServerManager {
     // 找第一个包含目标 session 的服务器（按综合延迟从低到高）
     for (const candidate of candidates) {
       if (candidate.sessions.includes(targetSessionId)) {
-        return this.relayToUserViaServer(
+        const result = await this.relayToUserViaServer(
           candidate.url,
           targetUserId,
           targetSessionId,
           data,
         );
+        return { result, url: candidate.url };
       }
     }
 
