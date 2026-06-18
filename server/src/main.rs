@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 3. 创建应用共享状态，存储已连接用户和管理员配置
-    let state = Arc::new(Mutex::new(AppState::new(config.admin_user_id.clone())));
+    let state = Arc::new(Mutex::new(AppState::new(config.admin_user_id.clone(), config.clone())));
 
     // 4. 初始化网络监听
     // 将主机地址和端口拼接并绑定到 TCP 端口

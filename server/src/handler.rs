@@ -8,17 +8,10 @@ use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{accept_hdr_async, tungstenite::{protocol::Message, handshake::server::{Request, Response, ErrorResponse}}};
 use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
+use crate::config::Config;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use sysinfo::{System, Disks};
-
-// ===== 消息大小限制 =====
-// 握手响应最多 1KB（包含 userId、sessionId、username、challenge、签名等字段，正常不超过 1KB）
-const HANDSHAKE_MAX_SIZE: usize = 1024;
-// 文本消息（JSON 命令）最多 1MB
-const TEXT_MESSAGE_MAX_SIZE: usize = 1024 * 1024;
-// 二进制 relay 帧负载最多 1MB
-const BINARY_PAYLOAD_MAX_SIZE: usize = 1024 * 1024;
 
 /// 已连接用户的信息
 struct UserSession {
@@ -29,31 +22,55 @@ struct UserSession {
     data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
     latency_ms: Option<u64>,                  // 最近一次延迟测量的 RTT（毫秒）
     connected_at: u64,                        // 连接建立时的 Unix 时间戳（毫秒）
+    /// 当前 relay 失败计数窗口内，已发生 relay 到不存在 session 的次数
+    relay_fail_count: u32,
+    /// relay 失败计数窗口开始时间（Unix 毫秒）
+    relay_fail_window_start: u64,
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
 /// 用户以 "userId:sessionId" 为 key 存储，同一 userId 的不同 sessionId 可同时连接
 pub struct AppState {
     pub admin_user_id: Option<String>,
+    pub config: Config,
     users: HashMap<String, UserSession>,
 }
 
 impl AppState {
-    pub fn new(admin_user_id: Option<String>) -> Self {
+    pub fn new(admin_user_id: Option<String>, config: Config) -> Self {
         Self {
             admin_user_id,
+            config,
             users: HashMap::new(),
         }
     }
 
-    /// 添加用户连接，如果相同的 conn_key 已存在，踢掉旧连接再替换
-    fn add_user(&mut self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) {
-        // 如果相同 key 已存在，先踢掉旧连接
+    /// 添加用户连接
+    /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换
+    /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
+    fn add_user(&mut self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
+        // 解析 userId
+        let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+
+        // 如果相同 key 已存在，先踢掉旧连接（同一 session 重连）
         if let Some(mut old_session) = self.users.remove(conn_key) {
             if let Some(tx) = old_session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
         }
+
+        // 检查该 userId 的当前 session 数（排除即将被替换的相同 conn_key）
+        let prefix = format!("{}:", user_id);
+        let current_count = self.users.keys()
+            .filter(|k| k.starts_with(&prefix))
+            .count();
+        if current_count >= self.config.max_sessions_per_user {
+            return Err(format!(
+                "User {} has reached the maximum number of concurrent sessions ({}), please disconnect some sessions first",
+                user_id, self.config.max_sessions_per_user
+            ));
+        }
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -66,7 +83,10 @@ impl AppState {
             data_tx,
             latency_ms: None,
             connected_at: now,
+            relay_fail_count: 0,
+            relay_fail_window_start: now,
         });
+        Ok(())
     }
 
     fn remove_user(&mut self, conn_key: &str) -> Option<UserSession> {
@@ -153,6 +173,52 @@ impl AppState {
         if let Some(session) = self.users.get_mut(&conn_key) {
             session.latency_ms = Some(rtt);
         }
+    }
+
+    /// 记录一次 relay 到不存在 session 的失败，返回是否达到踢出阈值
+    ///
+    /// 行为：
+    /// - 在 relay_fail_window_secs 窗口内累加 relay_fail_count
+    /// - 超过窗口时重置窗口和计数
+    /// - 计数达到 config.relay_fail_limit 时返回 true，调用方应踢出该连接
+    fn record_relay_failure(&mut self, conn_key: &str) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let window_ms = self.config.relay_fail_window_secs * 1000;
+
+        if let Some(session) = self.users.get_mut(conn_key) {
+            if now.saturating_sub(session.relay_fail_window_start) >= window_ms {
+                // 窗口已过期，重置
+                session.relay_fail_window_start = now;
+                session.relay_fail_count = 1;
+            } else {
+                session.relay_fail_count = session.relay_fail_count.saturating_add(1);
+            }
+            session.relay_fail_count >= self.config.relay_fail_limit
+        } else {
+            false
+        }
+    }
+
+    /// relay 成功时重置失败计数（目标 session 存在，转发成功）
+    fn reset_relay_failure(&mut self, conn_key: &str) {
+        if let Some(session) = self.users.get_mut(conn_key) {
+            session.relay_fail_count = 0;
+        }
+    }
+
+    /// 处理一次 relay 失败：累加计数，达到踢出阈值时移除 session 并返回 true
+    /// 调用方在返回 true 时应关闭连接（send Close + break 通信循环）
+    fn handle_relay_failure(&mut self, user_id: &str, session_id: &str) -> bool {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        let should_kick = self.record_relay_failure(&conn_key);
+        if should_kick {
+            // 复用 disconnect_session 完成移除 + 通知断开
+            self.disconnect_session(user_id, session_id);
+        }
+        should_kick
     }
 }
 
@@ -285,11 +351,12 @@ pub async fn handle_connection(
     // 3. 接收响应 (可配置超时)
     let handshake_data = match timeout(Duration::from_secs(handshake_timeout_secs), ws_receiver.next()).await {
         Ok(Some(Ok(Message::Text(text)))) => {
-            if text.len() > HANDSHAKE_MAX_SIZE {
+            let handshake_max_size = state.lock().await.config.handshake_max_size;
+            if text.len() > handshake_max_size {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
                     status: "error".to_string(),
-                    message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), HANDSHAKE_MAX_SIZE),
+                    message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), handshake_max_size),
                     is_admin: None,
                 };
                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -431,7 +498,17 @@ pub async fn handle_connection(
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
             {
                 let mut st = state.lock().await;
-                st.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx);
+                if let Err(e) = st.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
+                    let resp = HandshakeResponse {
+                        msg_type: "handshake".to_string(),
+                        status: "error".to_string(),
+                        message: e.clone(),
+                        is_admin: None,
+                    };
+                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    return Err(format!("Handshake rejected: {}", e).into());
+                }
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
@@ -465,12 +542,13 @@ pub async fn handle_connection(
                                 match msg {
                                     Message::Text(text) => {
                                         // 检查文本消息大小，防止 OOM
-                                        if text.len() > TEXT_MESSAGE_MAX_SIZE {
+                                        let text_max_size = state.lock().await.config.text_message_max_size;
+                                        if text.len() > text_max_size {
                                             println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
                                             let resp = serde_json::json!({
                                                 "type": "error",
                                                 "status": "error",
-                                                "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), TEXT_MESSAGE_MAX_SIZE)
+                                                "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), text_max_size)
                                             });
                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                             continue;
@@ -733,7 +811,10 @@ pub async fn handle_connection(
                                                             });
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+                                                            // relay 成功：重置失败计数
+                                                            state.lock().await.reset_relay_failure(&conn_key);
                                                         } else {
+                                                            println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                             let resp = serde_json::json!({
                                                                 "type": "relay_response",
                                                                 "action": "send_data",
@@ -741,6 +822,13 @@ pub async fn handle_connection(
                                                                 "message": "Target session not found or offline"
                                                             });
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
+                                                            let should_kick = state.lock().await.handle_relay_failure(&user_id, &session_id);
+                                                            if should_kick {
+                                                                println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.lock().await.config.relay_fail_limit, state.lock().await.config.relay_fail_window_secs);
+                                                                let _ = ws_sender.send(Message::Close(None)).await;
+                                                                break;
+                                                            }
                                                         }
                                                     }
                                                     continue;
@@ -811,7 +899,8 @@ pub async fn handle_connection(
                                     }
                                     Message::Binary(data) => {
                                         // 检查二进制消息总大小
-                                        let total_binary_max = BINARY_PAYLOAD_MAX_SIZE + 4096; // payload + header 开销
+                                        let binary_max_size = state.lock().await.config.binary_payload_max_size;
+                                        let total_binary_max = binary_max_size + 4096; // payload + header 开销
                                         if data.len() > total_binary_max {
                                             println!("Oversized binary message ({} bytes) from {}:{} ({}), rejected", data.len(), user_id, session_id, username);
                                             let resp = serde_json::json!({
@@ -881,12 +970,12 @@ pub async fn handle_connection(
                                                 let payload = &data[4 + header_len..];
 
                                                 // 检查 relay 负载大小
-                                                if payload.len() > BINARY_PAYLOAD_MAX_SIZE {
+                                                if payload.len() > binary_max_size {
                                                     let resp = serde_json::json!({
                                                         "type": "relay_response",
                                                         "action": "send_data",
                                                         "status": "error",
-                                                        "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), BINARY_PAYLOAD_MAX_SIZE)
+                                                        "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), binary_max_size)
                                                     });
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     continue;
@@ -923,7 +1012,10 @@ pub async fn handle_connection(
                                                     });
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+                                                    // relay 成功：重置失败计数
+                                                    state.lock().await.reset_relay_failure(&conn_key);
                                                 } else {
+                                                    println!("Binary relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                     let resp = serde_json::json!({
                                                         "type": "relay_response",
                                                         "action": "send_data",
@@ -931,6 +1023,13 @@ pub async fn handle_connection(
                                                         "message": "Target session not found or offline"
                                                     });
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
+                                                    let should_kick = state.lock().await.handle_relay_failure(&user_id, &session_id);
+                                                    if should_kick {
+                                                        println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.lock().await.config.relay_fail_limit, state.lock().await.config.relay_fail_window_secs);
+                                                        let _ = ws_sender.send(Message::Close(None)).await;
+                                                        break;
+                                                    }
                                                 }
                                             }
                                         } else {

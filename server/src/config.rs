@@ -15,7 +15,7 @@ pub struct Args {
 
 /// 服务器配置结构体，对应 TOML 配置文件中的字段
 /// 使用 serde 进行反序列化
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     /// 服务器监听的端口号
     /// 如果配置文件中未指定，则使用 default_port() 返回的默认值 8081
@@ -33,6 +33,39 @@ pub struct Config {
     /// 如果配置文件中未指定，默认为 5 秒
     #[serde(default = "default_handshake_timeout")]
     pub handshake_timeout_secs: u64,
+
+    // ===== 消息大小限制（字节）=====
+    /// 握手响应最大字节数（含 userId/sessionId/username/challenge/签名等）
+    /// 正常字段远小于 1KB，默认 1024
+    #[serde(default = "default_handshake_max_size")]
+    pub handshake_max_size: usize,
+    /// 文本消息（JSON 命令）最大字节数
+    /// 默认 256KB
+    #[serde(default = "default_text_message_max_size")]
+    pub text_message_max_size: usize,
+    /// 二进制 relay 帧负载最大字节数
+    /// 默认 256KB
+    #[serde(default = "default_binary_payload_max_size")]
+    pub binary_payload_max_size: usize,
+
+    // ===== 并发连接限制 =====
+    /// 每个 userId 的最大并发 session 数
+    /// 超出限制时新连接会被拒绝（不会踢掉旧 session）
+    /// 默认 5
+    #[serde(default = "default_max_sessions_per_user")]
+    pub max_sessions_per_user: usize,
+
+    // ===== 中继风暴防护 =====
+    /// 单连接在窗口时间内允许 relay 到不存在 session 的最大失败次数
+    /// 超出后该连接会被临时踢出，避免恶意客户端反复打不存在目标
+    /// 默认 10 次
+    #[serde(default = "default_relay_fail_limit")]
+    pub relay_fail_limit: u32,
+    /// relay 失败计数窗口时间（秒）
+    /// 在该窗口内累计失败次数达到 relay_fail_limit 则踢出连接
+    /// 默认 60 秒
+    #[serde(default = "default_relay_fail_window_secs")]
+    pub relay_fail_window_secs: u64,
 }
 
 /// 获取默认端口号的辅助函数
@@ -50,6 +83,36 @@ fn default_handshake_timeout() -> u64 {
     5
 }
 
+/// 默认握手响应大小：1KB
+fn default_handshake_max_size() -> usize {
+    1024
+}
+
+/// 默认文本消息大小：256KB
+fn default_text_message_max_size() -> usize {
+    256 * 1024
+}
+
+/// 默认二进制 relay 负载大小：256KB
+fn default_binary_payload_max_size() -> usize {
+    256 * 1024
+}
+
+/// 默认每用户最大并发 session 数
+fn default_max_sessions_per_user() -> usize {
+    10
+}
+
+/// 默认 relay 失败次数上限
+fn default_relay_fail_limit() -> u32 {
+    10
+}
+
+/// 默认 relay 失败计数窗口（秒）
+fn default_relay_fail_window_secs() -> u64 {
+    60
+}
+
 /// 为 Config 实现 Default trait，方便在未提供配置文件时创建默认配置实例
 impl Default for Config {
     fn default() -> Self {
@@ -58,6 +121,12 @@ impl Default for Config {
             host: default_host(),
             admin_user_id: None,
             handshake_timeout_secs: default_handshake_timeout(),
+            handshake_max_size: default_handshake_max_size(),
+            text_message_max_size: default_text_message_max_size(),
+            binary_payload_max_size: default_binary_payload_max_size(),
+            max_sessions_per_user: default_max_sessions_per_user(),
+            relay_fail_limit: default_relay_fail_limit(),
+            relay_fail_window_secs: default_relay_fail_window_secs(),
         }
     }
 }
