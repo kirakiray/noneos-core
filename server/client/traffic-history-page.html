@@ -86,26 +86,6 @@
       flex-wrap: wrap;
     }
 
-    .pagination-bar button {
-      padding: 6px 12px;
-      border: 1px solid var(--md-sys-color-surface-variant);
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
-      transition: background-color 0.2s;
-    }
-
-    .pagination-bar button:hover:not(:disabled) {
-      background-color: var(--md-sys-color-surface-container-high);
-    }
-
-    .pagination-bar button:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-
     .pagination-bar .page-info {
       min-width: 100px;
       text-align: center;
@@ -135,9 +115,7 @@
     <o-if :value="error">{{error}}</o-if>
     <o-else>该用户暂无流量历史记录</o-else>
   </div>
-  <div
-    :style.display="!loading && records.length > 0 ? '' : 'none'"
-  >
+  <div :style.display="!loading && records.length > 0 ? '' : 'none'">
     <div class="history-summary">
       <div class="history-summary-item">
         <div class="label">入站流量</div>
@@ -162,29 +140,49 @@
           <tr>
             <th>时间</th>
             <th>Session</th>
-            <th style="text-align:right">入站</th>
-            <th style="text-align:right">出站</th>
-            <th style="text-align:right">转发</th>
-            <th style="text-align:right">握手</th>
+            <th style="text-align: right">入站</th>
+            <th style="text-align: right">出站</th>
+            <th style="text-align: right">转发</th>
+            <th style="text-align: right">握手</th>
           </tr>
         </thead>
         <tbody :html="tableHtml"></tbody>
       </table>
     </div>
     <div class="pagination-bar" :style.display="total > 0 ? '' : 'none'">
-      <p-button variant="outlined" size="s" on:click="goFirstPage" attr:disabled="currentPage <= 1">
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goFirstPage"
+        attr:disabled="currentPage <= 1"
+      >
         首页
       </p-button>
-      <p-button variant="outlined" size="s" on:click="goPrevPage" attr:disabled="currentPage <= 1">
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goPrevPage"
+        attr:disabled="currentPage <= 1"
+      >
         上一页
       </p-button>
       <span class="page-info">
         第 {{currentPage}} / {{totalPages}} 页，共 {{total}} 条
       </span>
-      <p-button variant="outlined" size="s" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goNextPage"
+        attr:disabled="currentPage >= totalPages"
+      >
         下一页
       </p-button>
-      <p-button variant="outlined" size="s" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goLastPage"
+        attr:disabled="currentPage >= totalPages"
+      >
         末页
       </p-button>
       <select class="page-size-select" on:change="changePageSize">
@@ -215,8 +213,10 @@
             if (!epochMs) return "";
             const d = new Date(epochMs);
             const pad = (n) => String(n).padStart(2, "0");
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
-              + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            return (
+              `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+              `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+            );
           },
 
           formatBytes(bytes) {
@@ -265,14 +265,16 @@
           get tableHtml() {
             if (!this.records || this.records.length === 0) return "";
             const rows = this.records.map((r) => {
-              return "<tr>"
-                + `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>`
-                + `<td>${this.escapeHtml(r.sessionId)}</td>`
-                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>`
-                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>`
-                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>`
-                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>`
-                + "</tr>";
+              return (
+                "<tr>" +
+                `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>` +
+                `<td>${this.escapeHtml(r.sessionId)}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>` +
+                "</tr>"
+              );
             });
             return rows.join("");
           },
@@ -285,10 +287,18 @@
             await this.loadHistory();
           },
 
-          goFirstPage() { this.goToPage(1); },
-          goPrevPage() { this.goToPage(this.currentPage - 1); },
-          goNextPage() { this.goToPage(this.currentPage + 1); },
-          goLastPage() { this.goToPage(this.totalPages); },
+          goFirstPage() {
+            this.goToPage(1);
+          },
+          goPrevPage() {
+            this.goToPage(this.currentPage - 1);
+          },
+          goNextPage() {
+            this.goToPage(this.currentPage + 1);
+          },
+          goLastPage() {
+            this.goToPage(this.totalPages);
+          },
 
           changePageSize(event) {
             const newSize = parseInt(event.target.value, 10);

@@ -52,20 +52,7 @@
       margin-left: auto;
     }
 
-    button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: bold;
-      transition: opacity 0.2s;
-    }
-
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    
 
     .user-count {
       margin-bottom: 12px;
@@ -173,56 +160,7 @@
       margin-top: 4px;
     }
 
-    .kick-btn {
-      padding: 5px 10px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-      background-color: var(--md-sys-color-error);
-      color: var(--md-sys-color-on-error);
-      white-space: nowrap;
-    }
-
-    .kick-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .kick-all-btn {
-      padding: 5px 10px;
-      border: 1px solid var(--md-sys-color-error);
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-      background-color: transparent;
-      color: var(--md-sys-color-error);
-      white-space: nowrap;
-    }
-
-    .kick-all-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .history-btn {
-      padding: 5px 10px;
-      border: 1px solid var(--md-sys-color-primary);
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-      background-color: transparent;
-      color: var(--md-sys-color-primary);
-      white-space: nowrap;
-    }
-
-    .history-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    
 
     /* 按用户分组视图样式 */
     .user-group-card {
@@ -331,25 +269,7 @@
       color: var(--md-sys-color-on-surface-variant);
     }
 
-    .pagination-bar button {
-      padding: 6px 12px;
-      border: 1px solid var(--md-sys-color-surface-variant);
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
-      transition: background-color 0.2s;
-    }
-
-    .pagination-bar button:hover:not(:disabled) {
-      background-color: var(--md-sys-color-surface-container-high);
-    }
-
-    .pagination-bar button:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
+    
 
     .pagination-bar .page-info {
       min-width: 100px;
@@ -446,20 +366,23 @@
             >
           </div>
           <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
-            <button
-              class="kick-btn"
+            <p-button
+              color="error"
+              size="xs"
               on:click="$host.kickSession($data.userId, $data.sessionId)"
-              :disabled="$data.isSelf"
+              attr:disabled="$data.isSelf"
             >
               断开会话
-            </button>
-            <button
-              class="kick-all-btn"
+            </p-button>
+            <p-button
+              variant="outlined"
+              color="error"
+              size="xs"
               on:click="$host.kickUser($data.userId)"
-              :disabled="$data.isSelf"
+              attr:disabled="$data.isSelf"
             >
               断开所有
-            </button>
+            </p-button>
           </div>
         </div>
       </o-fill>
@@ -505,32 +428,37 @@
                   class="card-actions"
                   :style.display="$data.isSelf ? 'none' : ''"
                 >
-                  <button
-                    class="kick-btn"
+                  <p-button
+                    color="error"
+                    size="xs"
                     on:click="$host.kickSession($data.userId, $data.sessionId)"
-                    :disabled="$data.isSelf"
+                    attr:disabled="$data.isSelf"
                   >
                     断开会话
-                  </button>
+                  </p-button>
                 </div>
               </div>
             </o-fill>
           </div>
           <div class="user-group-actions">
-            <button
-              class="history-btn"
+            <p-button
+              variant="outlined"
+              color="primary"
+              size="xs"
               on:click="$host.showTrafficHistory($data.userId, $data.username)"
-              :disabled="!$host._adminUser"
+              attr:disabled="!$host._adminUser"
             >
               流量历史
-            </button>
-            <button
-              class="kick-all-btn"
+            </p-button>
+            <p-button
+              variant="outlined"
+              color="error"
+              size="xs"
               on:click="$host.kickUser($data.userId)"
-              :disabled="$data.isSelf"
+              attr:disabled="$data.isSelf"
             >
               断开该用户所有会话
-            </button>
+            </p-button>
           </div>
         </div>
       </o-fill>
@@ -547,8 +475,8 @@
       class="pagination-bar"
       :style.display="connected && totalPages > 0 ? '' : 'none'"
     >
-      <p-button variant="outlined" size="s" on:click="goFirstPage" attr:disabled="currentPage <= 1">首页</p-button>
-      <p-button variant="outlined" size="s" on:click="goPrevPage" attr:disabled="currentPage <= 1">上一页</p-button>
+      <p-button variant="outlined" size="xs" on:click="goFirstPage" attr:disabled="currentPage <= 1">首页</p-button>
+      <p-button variant="outlined" size="xs" on:click="goPrevPage" attr:disabled="currentPage <= 1">上一页</p-button>
       <span class="page-info">
         <o-if :value="!groupByUser">
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
@@ -557,10 +485,10 @@
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
         </o-else>
       </span>
-      <p-button variant="outlined" size="s" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
+      <p-button variant="outlined" size="xs" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
         下一页
       </p-button>
-      <p-button variant="outlined" size="s" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
+      <p-button variant="outlined" size="xs" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
         末页
       </p-button>
       <select class="page-size-select" on:change="changePageSize">
