@@ -1,0 +1,244 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-size: 14px;
+    }
+
+    .history-loading,
+    .history-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .history-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .history-summary-item {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .history-summary-item .label {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .history-summary-item .value {
+      font-size: 18px;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+
+    .history-table-wrap {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .history-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--md-sys-color-surface-variant);
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .history-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-table tr:hover td {
+      background-color: var(--md-sys-color-surface-container);
+    }
+
+    .history-time {
+      font-family: monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+  </style>
+
+  <div class="history-loading" :style.display="loading ? '' : 'none'">
+    正在加载流量历史...
+  </div>
+  <div
+    class="history-empty"
+    :style.display="!loading && records.length === 0 ? '' : 'none'"
+  >
+    <o-if :value="error">{{error}}</o-if>
+    <o-else>该用户暂无流量历史记录</o-else>
+  </div>
+  <div
+    :style.display="!loading && records.length > 0 ? '' : 'none'"
+  >
+    <div class="history-summary">
+      <div class="history-summary-item">
+        <div class="label">入站流量</div>
+        <div class="value">{{totalInbound}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">出站流量</div>
+        <div class="value">{{totalOutbound}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">转发流量</div>
+        <div class="value">{{totalRelay}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">记录数</div>
+        <div class="value">{{records.length}}</div>
+      </div>
+    </div>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>Session</th>
+            <th style="text-align:right">入站</th>
+            <th style="text-align:right">出站</th>
+            <th style="text-align:right">转发</th>
+            <th style="text-align:right">握手</th>
+          </tr>
+        </thead>
+        <tbody :html="tableHtml"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+
+      return {
+        data: {
+          loading: false,
+          error: "",
+          records: [],
+        },
+
+        proto: {
+          formatDateTime(epochMs) {
+            if (!epochMs) return "";
+            const d = new Date(epochMs);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+              + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+          },
+
+          formatBytes(bytes) {
+            if (bytes == null || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+
+          escapeHtml(str) {
+            if (str == null) return "";
+            return String(str)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#39;");
+          },
+
+          get totalInbound() {
+            return this.formatBytes(
+              this.records.reduce((sum, r) => sum + (r.inboundBytes || 0), 0),
+            );
+          },
+
+          get totalOutbound() {
+            return this.formatBytes(
+              this.records.reduce((sum, r) => sum + (r.outboundBytes || 0), 0),
+            );
+          },
+
+          get totalRelay() {
+            return this.formatBytes(
+              this.records.reduce(
+                (sum, r) => sum + (r.relayForwardedBytes || 0),
+                0,
+              ),
+            );
+          },
+
+          get tableHtml() {
+            if (!this.records || this.records.length === 0) return "";
+            const rows = [...this.records]
+              .sort((a, b) => (b.recordedAt || 0) - (a.recordedAt || 0))
+              .map((r) => {
+                return "<tr>"
+                  + `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>`
+                  + `<td>${this.escapeHtml(r.sessionId)}</td>`
+                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>`
+                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>`
+                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>`
+                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>`
+                  + "</tr>";
+              });
+            return rows.join("");
+          },
+
+          async loadHistory() {
+            const userId = query.userId;
+            if (!userId) {
+              this.error = "缺少 userId 参数";
+              return;
+            }
+            this.loading = true;
+            this.error = "";
+            this.records = [];
+            try {
+              const { adminUser } = await getAdmin(load);
+              const response = await adminUser.getTrafficHistory(WS_URL, {
+                userId,
+              });
+              if (response.status === "ok") {
+                this.records = (response.history || []).map((r) => ({
+                  recordedAt: Number(r.recordedAt) || 0,
+                  sessionId: r.sessionId || "",
+                  inboundBytes: Number(r.inboundBytes) || 0,
+                  outboundBytes: Number(r.outboundBytes) || 0,
+                  relayForwardedBytes: Number(r.relayForwardedBytes) || 0,
+                  handshakeBytes: Number(r.handshakeBytes) || 0,
+                }));
+              } else {
+                this.error = response.message || "加载流量历史失败";
+              }
+            } catch (e) {
+              console.error("loadHistory failed:", e);
+              this.error = e.message || "加载流量历史失败";
+            } finally {
+              this.loading = false;
+            }
+          },
+        },
+
+        attached() {
+          this.loadHistory();
+        },
+      };
+    };
+  </script>
+</template>
