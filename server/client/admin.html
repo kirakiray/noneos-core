@@ -207,6 +207,89 @@
       cursor: not-allowed;
     }
 
+    .history-btn {
+      padding: 5px 10px;
+      border: 1px solid var(--md-sys-color-primary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      background-color: transparent;
+      color: var(--md-sys-color-primary);
+      white-space: nowrap;
+    }
+
+    .history-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* 流量历史弹窗样式 */
+    .history-loading,
+    .history-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .history-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .history-summary-item {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .history-summary-item .label {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .history-summary-item .value {
+      font-size: 18px;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .history-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--md-sys-color-surface-variant);
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .history-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-table tr:hover td {
+      background-color: var(--md-sys-color-surface-container);
+    }
+
+    .history-time {
+      font-family: monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
     /* 按用户分组视图样式 */
     .user-group-card {
       border: 1px solid var(--md-sys-color-surface-variant);
@@ -493,6 +576,13 @@
           </div>
           <div class="user-group-actions">
             <button
+              class="history-btn"
+              on:click="$host.showTrafficHistory($data.userId, $data.username)"
+              :disabled="!$host._adminUser"
+            >
+              流量历史
+            </button>
+            <button
               class="kick-all-btn"
               on:click="$host.kickUser($data.userId)"
               :disabled="$data.isSelf"
@@ -545,6 +635,60 @@
     </div>
   </div>
 
+  <p-dialog id="traffic-history-dialog" sync:open="historyDialogOpen">
+    <span slot="title">{{historyDialogTitle}}</span>
+    <div class="history-loading" :style.display="historyLoading ? '' : 'none'">
+      正在加载流量历史...
+    </div>
+    <div
+      class="history-empty"
+      :style.display="!historyLoading && historyRecords.length === 0 ? '' : 'none'"
+    >
+      <o-if :value="historyError">{{historyError}}</o-if>
+      <o-else>该用户暂无流量历史记录</o-else>
+    </div>
+    <div
+      :style.display="!historyLoading && historyRecords.length > 0 ? '' : 'none'"
+    >
+      <div class="history-summary">
+        <div class="history-summary-item">
+          <div class="label">入站流量</div>
+          <div class="value">{{historyTotalInbound}}</div>
+        </div>
+        <div class="history-summary-item">
+          <div class="label">出站流量</div>
+          <div class="value">{{historyTotalOutbound}}</div>
+        </div>
+        <div class="history-summary-item">
+          <div class="label">转发流量</div>
+          <div class="value">{{historyTotalRelay}}</div>
+        </div>
+        <div class="history-summary-item">
+          <div class="label">记录数</div>
+          <div class="value">{{historyRecords.length}}</div>
+        </div>
+      </div>
+      <div style="max-height:400px;overflow-y:auto;">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>Session</th>
+              <th style="text-align:right">入站</th>
+              <th style="text-align:right">出站</th>
+              <th style="text-align:right">转发</th>
+              <th style="text-align:right">握手</th>
+            </tr>
+          </thead>
+          <tbody :html="historyTableHtml"></tbody>
+        </table>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button color="primary" on:click="closeTrafficHistory">关闭</p-button>
+    </div>
+  </p-dialog>
+
   <script>
     export default async ({ query, load }) => {
       const { getAdmin, WS_URL } = await load("./admin-shared.js");
@@ -565,6 +709,12 @@
           groupByUser: false,
           _adminUser: null,
           _refreshTimer: null,
+          // 流量历史弹窗状态
+          historyDialogOpen: false,
+          historyLoading: false,
+          historyError: "",
+          historyTarget: null, // { userId, username }
+          historyRecords: [],
         },
 
         proto: {
@@ -774,11 +924,160 @@
             }
           },
 
+          /**
+           * 打开指定用户的流量历史弹窗，并从服务器拉取历史记录
+           * @param {string} userId
+           * @param {string} username
+           */
+          async showTrafficHistory(userId, username) {
+            if (!this.connected || !this._adminUser) return;
+            this.historyTarget = { userId, username };
+            this.historyDialogOpen = true;
+            this.historyLoading = true;
+            this.historyError = "";
+            this.historyRecords = [];
+            try {
+              const response = await this._adminUser.getTrafficHistory(WS_URL, {
+                userId,
+              });
+              if (response.status === "ok") {
+                const raw = response.history || [];
+                this.historyRecords = raw.map((r) => ({
+                  recordedAt: Number(r.recordedAt) || 0,
+                  sessionId: r.sessionId || "",
+                  inboundBytes: Number(r.inboundBytes) || 0,
+                  outboundBytes: Number(r.outboundBytes) || 0,
+                  relayForwardedBytes: Number(r.relayForwardedBytes) || 0,
+                  handshakeBytes: Number(r.handshakeBytes) || 0,
+                }));
+              } else {
+                this.historyError = response.message || "加载流量历史失败";
+              }
+            } catch (e) {
+              console.error("showTrafficHistory failed:", e);
+              this.historyError = e.message || "加载流量历史失败";
+            } finally {
+              this.historyLoading = false;
+            }
+          },
+
+          /**
+           * 关闭流量历史弹窗并清空临时数据
+           */
+          closeTrafficHistory() {
+            this.historyDialogOpen = false;
+            this.historyRecords = [];
+            this.historyError = "";
+            this.historyTarget = null;
+          },
+
           _formatTime(epochMs) {
             if (!epochMs) return "";
             const d = new Date(epochMs);
             const pad = (n) => String(n).padStart(2, "0");
             return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+          },
+
+          /**
+           * 格式化 Unix 毫秒时间戳为完整本地时间字符串
+           */
+          _formatDateTime(epochMs) {
+            if (!epochMs) return "";
+            const d = new Date(epochMs);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+              + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+          },
+
+          /**
+           * 将字节数格式化为带单位的字符串
+           */
+          _formatBytes(bytes) {
+            if (bytes == null || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+
+          /**
+           * HTML 转义，防止表格内容注入
+           */
+          _escapeHtml(str) {
+            if (str == null) return "";
+            return String(str)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#39;");
+          },
+
+          /**
+           * 流量历史弹窗标题
+           */
+          get historyDialogTitle() {
+            if (!this.historyTarget) return "流量历史";
+            const name = this.historyTarget.username || "未命名用户";
+            return `${name} 的流量历史`;
+          },
+
+          /**
+           * 历史入站总流量
+           */
+          get historyTotalInbound() {
+            return this._formatBytes(
+              this.historyRecords.reduce(
+                (sum, r) => sum + (r.inboundBytes || 0),
+                0,
+              ),
+            );
+          },
+
+          /**
+           * 历史出站总流量
+           */
+          get historyTotalOutbound() {
+            return this._formatBytes(
+              this.historyRecords.reduce(
+                (sum, r) => sum + (r.outboundBytes || 0),
+                0,
+              ),
+            );
+          },
+
+          /**
+           * 历史转发总流量
+           */
+          get historyTotalRelay() {
+            return this._formatBytes(
+              this.historyRecords.reduce(
+                (sum, r) => sum + (r.relayForwardedBytes || 0),
+                0,
+              ),
+            );
+          },
+
+          /**
+           * 历史记录表格 HTML（按时间倒序）
+           */
+          get historyTableHtml() {
+            if (!this.historyRecords || this.historyRecords.length === 0) {
+              return "";
+            }
+            const rows = [...this.historyRecords]
+              .sort((a, b) => (b.recordedAt || 0) - (a.recordedAt || 0))
+              .map((r) => {
+                return "<tr>"
+                  + `<td class="history-time">${this._escapeHtml(this._formatDateTime(r.recordedAt))}</td>`
+                  + `<td>${this._escapeHtml(r.sessionId)}</td>`
+                  + `<td style="text-align:right">${this._escapeHtml(this._formatBytes(r.inboundBytes))}</td>`
+                  + `<td style="text-align:right">${this._escapeHtml(this._formatBytes(r.outboundBytes))}</td>`
+                  + `<td style="text-align:right">${this._escapeHtml(this._formatBytes(r.relayForwardedBytes))}</td>`
+                  + `<td style="text-align:right">${this._escapeHtml(this._formatBytes(r.handshakeBytes))}</td>`
+                  + "</tr>";
+              });
+            return rows.join("");
           },
 
           _onClose() {
@@ -799,6 +1098,14 @@
           groupByUser() {
             this.currentPage = 1;
             this.refreshUsers();
+          },
+          historyDialogOpen(open) {
+            if (!open && !this.historyLoading) {
+              // 关闭弹窗时清空数据（但保留加载状态避免闪烁）
+              this.historyRecords = [];
+              this.historyError = "";
+              this.historyTarget = null;
+            }
           },
         },
 
