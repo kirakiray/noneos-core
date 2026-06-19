@@ -142,12 +142,71 @@
       background-color: var(--md-sys-color-error);
     }
 
-    .cpu-core-item {
-      padding: 6px 0;
+    .cpu-cores {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 4px;
     }
 
-    .cpu-core-item + .cpu-core-item {
-      border-top: 1px solid var(--md-sys-color-surface-variant);
+    .cpu-core-block {
+      width: 80px;
+      height: 100px;
+      position: relative;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 8px;
+      overflow: hidden;
+      background-color: var(--md-sys-color-surface-container);
+      flex-shrink: 0;
+    }
+
+    .cpu-core-fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transition: height 0.3s ease;
+      border-radius: 0 0 7px 7px;
+    }
+
+    .cpu-core-fill.low {
+      background-color: var(--md-sys-color-success, #4caf50);
+    }
+
+    .cpu-core-fill.medium {
+      background-color: var(--md-sys-color-primary, #1976d2);
+    }
+
+    .cpu-core-fill.high {
+      background-color: var(--md-sys-color-error, #d32f2f);
+    }
+
+    .cpu-core-label {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .cpu-core-label .core-num {
+      font-size: 10px;
+      font-weight: normal;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-bottom: 2px;
+    }
+
+    .cpu-core-label .core-pct {
+      font-size: 18px;
     }
 
     .disk-item {
@@ -216,7 +275,7 @@
           </div>
           <div class="info-row">
             <span class="info-label">使用率</span>
-            <span class="info-value">{{systemInfo.memory.usage_percent}}%</span>
+            <span class="info-value">{{systemInfo.memory.usage_percent.toFixed(2)}}%</span>
           </div>
           <div class="progress-bar">
             <div
@@ -231,24 +290,24 @@
 
         <!-- CPU -->
         <div class="info-card">
-          <h2><span class="icon">⚡</span> CPU — {{systemInfo.cpu.core_count}} 核</h2>
-          <o-fill :value="systemInfo.cpu.cores">
-            <div class="cpu-core-item">
-              <div class="info-row" style="padding: 4px 0 2px;">
-                <span class="info-label">核心 #{{$data.index + 1}}</span>
-                <span class="info-value">{{$data.usage_percent}}%</span>
-              </div>
-              <div class="progress-bar">
+          <h2><span class="icon">⚡</span> CPU — {{systemInfo.cpu.core_count}} 核 — 总使用率 {{cpuTotalPercent}}%</h2>
+          <div class="cpu-cores">
+            <o-fill :value="systemInfo.cpu.cores">
+              <div class="cpu-core-block">
                 <div
-                  class="progress-fill"
-                  :style.width="$host.clampPercent($data.usage_percent) + '%'"
+                  class="cpu-core-fill"
+                  :style.height="$host.clampPercent($data.usage_percent) + '%'"
                   class:low="$data.usage_percent < 60"
                   class:medium="$data.usage_percent >= 60 && $data.usage_percent < 85"
                   class:high="$data.usage_percent >= 85"
                 ></div>
+                <div class="cpu-core-label">
+                  <span class="core-num">#{{$data.index + 1}}</span>
+                  <span class="core-pct">{{$data.usage_percent.toFixed(2)}}%</span>
+                </div>
               </div>
-            </div>
-          </o-fill>
+            </o-fill>
+          </div>
         </div>
 
         <!-- 磁盘 -->
@@ -336,6 +395,13 @@
             if (!disk || !disk.total_space || disk.total_space === 0) return 0;
             const used = disk.total_space - disk.available_space;
             return this.clampPercent((used / disk.total_space) * 100);
+          },
+
+          get cpuTotalPercent() {
+            if (!this.systemInfo?.cpu?.cores?.length) return "0.00";
+            const cores = this.systemInfo.cpu.cores;
+            const sum = cores.reduce((acc, c) => acc + c.usage_percent, 0);
+            return (sum / cores.length).toFixed(2);
           },
 
           async connect() {
