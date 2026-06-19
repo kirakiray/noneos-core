@@ -123,6 +123,8 @@
     }
   </style>
 
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+
   <div class="history-loading" :style.display="loading ? '' : 'none'">
     正在加载流量历史...
   </div>
@@ -170,21 +172,21 @@
       </table>
     </div>
     <div class="pagination-bar" :style.display="total > 0 ? '' : 'none'">
-      <button on:click="goFirstPage" :disabled="currentPage <= 1">
+      <p-button variant="outlined" size="s" on:click="goFirstPage" attr:disabled="currentPage <= 1">
         首页
-      </button>
-      <button on:click="goPrevPage" :disabled="currentPage <= 1">
+      </p-button>
+      <p-button variant="outlined" size="s" on:click="goPrevPage" attr:disabled="currentPage <= 1">
         上一页
-      </button>
+      </p-button>
       <span class="page-info">
         第 {{currentPage}} / {{totalPages}} 页，共 {{total}} 条
       </span>
-      <button on:click="goNextPage" :disabled="currentPage >= totalPages">
+      <p-button variant="outlined" size="s" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
         下一页
-      </button>
-      <button on:click="goLastPage" :disabled="currentPage >= totalPages">
+      </p-button>
+      <p-button variant="outlined" size="s" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
         末页
-      </button>
+      </p-button>
       <select class="page-size-select" on:change="changePageSize">
         <option value="10">10条/页</option>
         <option value="20" selected>20条/页</option>

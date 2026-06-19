@@ -547,8 +547,8 @@
       class="pagination-bar"
       :style.display="connected && totalPages > 0 ? '' : 'none'"
     >
-      <button on:click="goFirstPage" :disabled="currentPage <= 1">首页</button>
-      <button on:click="goPrevPage" :disabled="currentPage <= 1">上一页</button>
+      <p-button variant="outlined" size="s" on:click="goFirstPage" attr:disabled="currentPage <= 1">首页</p-button>
+      <p-button variant="outlined" size="s" on:click="goPrevPage" attr:disabled="currentPage <= 1">上一页</p-button>
       <span class="page-info">
         <o-if :value="!groupByUser">
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
@@ -557,12 +557,12 @@
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
         </o-else>
       </span>
-      <button on:click="goNextPage" :disabled="currentPage >= totalPages">
+      <p-button variant="outlined" size="s" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
         下一页
-      </button>
-      <button on:click="goLastPage" :disabled="currentPage >= totalPages">
+      </p-button>
+      <p-button variant="outlined" size="s" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
         末页
-      </button>
+      </p-button>
       <select class="page-size-select" on:change="changePageSize">
         <option value="10">10条/页</option>
         <option value="20" selected>20条/页</option>
