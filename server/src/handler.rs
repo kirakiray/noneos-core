@@ -1,9 +1,8 @@
 use futures_util::{SinkExt, StreamExt};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{oneshot, mpsc, Mutex};
+use tokio::sync::{oneshot, mpsc};
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{accept_hdr_async, tungstenite::{protocol::Message, handshake::server::{Request, Response, ErrorResponse}}};
 use serde::{Deserialize, Serialize};
@@ -15,8 +14,10 @@ use rand::distributions::Alphanumeric;
 use sysinfo::{System, Disks};
 use std::sync::OnceLock;
 
+use dashmap::DashMap;
+
 /// 已连接用户的信息
-struct UserSession {
+pub struct UserSession {
     username: String,
     host: String,
     addr: SocketAddr,
@@ -35,39 +36,40 @@ struct UserSession {
 pub struct AppState {
     pub admin_user_id: Option<String>,
     pub config: Config,
-    pub traffic: traffic::TrafficStats,
-    users: HashMap<String, UserSession>,
+    pub traffic: std::sync::Mutex<traffic::TrafficStats>,
+    users: DashMap<String, UserSession>,
 }
 
 impl AppState {
     pub fn new(admin_user_id: Option<String>, config: Config) -> Self {
         Self {
             admin_user_id,
-            traffic: traffic::TrafficStats::new(config.traffic_minute_window),
+            traffic: std::sync::Mutex::new(traffic::TrafficStats::new(config.traffic_minute_window)),
             config,
-            users: HashMap::new(),
+            users: DashMap::new(),
         }
     }
 
     /// 添加用户连接
     /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换
     /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
-    fn add_user(&mut self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
+    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
         // 解析 userId
         let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
 
         // 如果相同 key 已存在，先踢掉旧连接（同一 session 重连）
-        if let Some(mut old_session) = self.users.remove(conn_key) {
+        if let Some((_, mut old_session)) = self.users.remove(conn_key) {
             if let Some(tx) = old_session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
         }
 
-        // 检查该 userId 的当前 session 数（排除即将被替换的相同 conn_key）
+        // 检查该 userId 的当前 session 数
         let prefix = format!("{}:", user_id);
-        let current_count = self.users.keys()
-            .filter(|k| k.starts_with(&prefix))
+        let current_count = self.users.iter()
+            .filter(|r| r.key().starts_with(&prefix))
             .count();
+        
         if current_count >= self.config.max_sessions_per_user {
             return Err(format!(
                 "User {} has reached the maximum number of concurrent sessions ({}), please disconnect some sessions first",
@@ -79,6 +81,7 @@ impl AppState {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
+        
         self.users.insert(conn_key.to_string(), UserSession {
             username: username.to_string(),
             host: host.to_string(),
@@ -93,32 +96,34 @@ impl AppState {
         Ok(())
     }
 
-    fn remove_user(&mut self, conn_key: &str) -> Option<UserSession> {
-        self.users.remove(conn_key)
+    pub fn remove_user(&self, conn_key: &str) -> Option<UserSession> {
+        self.users.remove(conn_key).map(|(_, s)| s)
     }
 
     /// 根据 userId 踢掉该用户的所有连接（用于管理员断开用户）
-    fn disconnect_user_by_id(&mut self, target_user_id: &str) -> usize {
+    pub fn disconnect_user_by_id(&self, target_user_id: &str) -> usize {
         let prefix = format!("{}:", target_user_id);
-        let keys_to_remove: Vec<String> = self.users.keys()
-            .filter(|k| k.starts_with(&prefix))
-            .cloned()
-            .collect();
-        let count = keys_to_remove.len();
-        for key in keys_to_remove {
-            if let Some(mut session) = self.users.remove(&key) {
+        let mut count = 0;
+        
+        // 使用 DashMap 的 retain 来安全地删除并处理
+        self.users.retain(|key, session| {
+            if key.starts_with(&prefix) {
                 if let Some(tx) = session.disconnect_tx.take() {
                     let _ = tx.send(());
                 }
+                count += 1;
+                false // 移除
+            } else {
+                true // 保留
             }
-        }
+        });
         count
     }
 
     /// 断开指定 session（conn_key = userId:sessionId）
-    fn disconnect_session(&mut self, target_user_id: &str, target_session_id: &str) -> bool {
+    pub fn disconnect_session(&self, target_user_id: &str, target_session_id: &str) -> bool {
         let conn_key = format!("{}:{}", target_user_id, target_session_id);
-        if let Some(mut session) = self.users.remove(&conn_key) {
+        if let Some((_, mut session)) = self.users.remove(&conn_key) {
             if let Some(tx) = session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
@@ -128,8 +133,10 @@ impl AppState {
         }
     }
 
-    fn get_all_users(&self) -> Vec<serde_json::Value> {
-        self.users.iter().map(|(conn_key, session)| {
+    pub fn get_all_users(&self) -> Vec<serde_json::Value> {
+        self.users.iter().map(|r| {
+            let conn_key = r.key();
+            let session = r.value();
             // 从 conn_key (userId:sessionId) 中拆分出 userId 和 sessionId
             let parts: Vec<&str> = conn_key.splitn(2, ':').collect();
             let (user_id, session_id) = if parts.len() == 2 {
@@ -151,7 +158,7 @@ impl AppState {
 
     /// 分页获取用户列表
     /// 返回 (分页后的用户列表, 总用户数)
-    fn get_users_paginated(&self, page: u32, page_size: u32) -> (Vec<serde_json::Value>, u32) {
+    pub fn get_users_paginated(&self, page: u32, page_size: u32) -> (Vec<serde_json::Value>, u32) {
         let all_users = self.get_all_users();
         let total = all_users.len() as u32;
         let page = page.max(1) as usize;
@@ -167,12 +174,14 @@ impl AppState {
     /// 按 userId 分组分页获取用户组
     /// 每个用户组包含 userId, username, sessionCount 和 sessions[] 列表
     /// 返回 (分页后的用户组列表, 总用户数（去重后）)
-    fn get_user_groups_paginated(&self, page: u32, page_size: u32) -> (Vec<serde_json::Value>, u32) {
+    pub fn get_user_groups_paginated(&self, page: u32, page_size: u32) -> (Vec<serde_json::Value>, u32) {
         // 按 userId 分组
         use std::collections::BTreeMap;
         let mut user_map: BTreeMap<String, (String, String, Vec<serde_json::Value>)> = BTreeMap::new();
 
-        for (conn_key, session) in &self.users {
+        for r in self.users.iter() {
+            let conn_key = r.key();
+            let session = r.value();
             let parts: Vec<&str> = conn_key.splitn(2, ':').collect();
             let user_id = parts[0].to_string();
             let session_id = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
@@ -214,11 +223,13 @@ impl AppState {
     }
 
     /// 获取指定 userId 的所有 sessionId 及其延迟数据
-    fn get_user_sessions_with_latency(&self, user_id: &str) -> Vec<serde_json::Value> {
+    pub fn get_user_sessions_with_latency(&self, user_id: &str) -> Vec<serde_json::Value> {
         let prefix = format!("{}:", user_id);
         self.users.iter()
-            .filter(|(k, _)| k.starts_with(&prefix))
-            .map(|(k, session)| {
+            .filter(|r| r.key().starts_with(&prefix))
+            .map(|r| {
+                let k = r.key();
+                let session = r.value();
                 let parts: Vec<&str> = k.splitn(2, ':').collect();
                 let session_id = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
                 serde_json::json!({
@@ -230,33 +241,28 @@ impl AppState {
     }
 
     /// 获取指定 session 的 data_tx 通道
-    fn get_session_data_tx(&self, user_id: &str, session_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
+    pub fn get_session_data_tx(&self, user_id: &str, session_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
         let conn_key = format!("{}:{}", user_id, session_id);
         self.users.get(&conn_key).map(|s| s.data_tx.clone())
     }
 
     /// 更新指定 session 的延迟数据
-    fn update_latency(&mut self, user_id: &str, session_id: &str, rtt: u64) {
+    pub fn update_latency(&self, user_id: &str, session_id: &str, rtt: u64) {
         let conn_key = format!("{}:{}", user_id, session_id);
-        if let Some(session) = self.users.get_mut(&conn_key) {
+        if let Some(mut session) = self.users.get_mut(&conn_key) {
             session.latency_ms = Some(rtt);
         }
     }
 
     /// 记录一次 relay 到不存在 session 的失败，返回是否达到踢出阈值
-    ///
-    /// 行为：
-    /// - 在 relay_fail_window_secs 窗口内累加 relay_fail_count
-    /// - 超过窗口时重置窗口和计数
-    /// - 计数达到 config.relay_fail_limit 时返回 true，调用方应踢出该连接
-    fn record_relay_failure(&mut self, conn_key: &str) -> bool {
+    pub fn record_relay_failure(&self, conn_key: &str) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
         let window_ms = self.config.relay_fail_window_secs * 1000;
 
-        if let Some(session) = self.users.get_mut(conn_key) {
+        if let Some(mut session) = self.users.get_mut(conn_key) {
             if now.saturating_sub(session.relay_fail_window_start) >= window_ms {
                 // 窗口已过期，重置
                 session.relay_fail_window_start = now;
@@ -271,19 +277,17 @@ impl AppState {
     }
 
     /// relay 成功时重置失败计数（目标 session 存在，转发成功）
-    fn reset_relay_failure(&mut self, conn_key: &str) {
-        if let Some(session) = self.users.get_mut(conn_key) {
+    pub fn reset_relay_failure(&self, conn_key: &str) {
+        if let Some(mut session) = self.users.get_mut(conn_key) {
             session.relay_fail_count = 0;
         }
     }
 
     /// 处理一次 relay 失败：累加计数，达到踢出阈值时移除 session 并返回 true
-    /// 调用方在返回 true 时应关闭连接（send Close + break 通信循环）
-    fn handle_relay_failure(&mut self, user_id: &str, session_id: &str) -> bool {
+    pub fn handle_relay_failure(&self, user_id: &str, session_id: &str) -> bool {
         let conn_key = format!("{}:{}", user_id, session_id);
         let should_kick = self.record_relay_failure(&conn_key);
         if should_kick {
-            // 复用 disconnect_session 完成移除 + 通知断开
             self.disconnect_session(user_id, session_id);
         }
         should_kick
@@ -351,23 +355,48 @@ struct AdminResponse {
     history: Option<Vec<serde_json::Value>>,
 }
 
-/// 获取当前内存使用率百分比（复用 collect_system_info 中的持久化 System 实例）
+/// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
 fn get_memory_usage_percent() -> f64 {
+    static CACHE: OnceLock<std::sync::Mutex<(f64, std::time::Instant)>> = OnceLock::new();
+    let cache_mutex = CACHE.get_or_init(|| {
+        std::sync::Mutex::new((0.0, std::time::Instant::now() - Duration::from_secs(10)))
+    });
+
+    let mut cache = cache_mutex.lock().unwrap();
+    if cache.1.elapsed() < Duration::from_secs(1) {
+        return cache.0;
+    }
+
     static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
     let mut system = SYSTEM.get_or_init(|| {
         std::sync::Mutex::new(System::new_all())
     }).lock().unwrap();
+
     system.refresh_memory();
     let total = system.total_memory();
-    if total == 0 {
-        return 0.0;
-    }
-    (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
+    let usage = if total == 0 {
+        0.0
+    } else {
+        (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
+    };
+
+    cache.0 = usage;
+    cache.1 = std::time::Instant::now();
+    usage
 }
 
-/// 收集系统信息（内存、CPU、磁盘使用情况）
-/// CPU 使用率基于两次采样之间的差值计算，因此需要持久化的 System 实例。
+/// 收集系统信息（内存、CPU、磁盘使用情况，带 1 秒缓存）
 fn collect_system_info() -> serde_json::Value {
+    static CACHE: OnceLock<std::sync::Mutex<(serde_json::Value, std::time::Instant)>> = OnceLock::new();
+    let cache_mutex = CACHE.get_or_init(|| {
+        std::sync::Mutex::new((serde_json::Value::Null, std::time::Instant::now() - Duration::from_secs(10)))
+    });
+
+    let mut cache = cache_mutex.lock().unwrap();
+    if cache.1.elapsed() < Duration::from_secs(1) {
+        return cache.0.clone();
+    }
+
     static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
     let mut system = SYSTEM.get_or_init(|| {
         std::sync::Mutex::new(System::new_all())
@@ -403,7 +432,7 @@ fn collect_system_info() -> serde_json::Value {
         })
     }).collect();
 
-    serde_json::json!({
+    let info = serde_json::json!({
         "memory": {
             "total": total_memory,
             "used": used_memory,
@@ -419,15 +448,18 @@ fn collect_system_info() -> serde_json::Value {
             "cores": cores,
         },
         "disks": disk_list,
-    })
+    });
+
+    cache.0 = info.clone();
+    cache.1 = std::time::Instant::now();
+    info
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
-#[allow(clippy::result_large_err)]
 pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
-    state: Arc<Mutex<AppState>>,
+    state: Arc<AppState>,
     handshake_timeout_secs: u64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("New WebSocket connection attempt from: {}", addr);
@@ -463,7 +495,7 @@ pub async fn handle_connection(
     // 3. 接收响应 (可配置超时)
     let handshake_data = match timeout(Duration::from_secs(handshake_timeout_secs), ws_receiver.next()).await {
         Ok(Some(Ok(Message::Text(text)))) => {
-            let handshake_max_size = state.lock().await.config.handshake_max_size;
+            let handshake_max_size = state.config.handshake_max_size;
             if text.len() > handshake_max_size {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
@@ -603,17 +635,11 @@ pub async fn handle_connection(
     match verify_signature(&public_key, &signed_message, &signature) {
         Ok(_) => {
             // 判断是否为管理员
-            let is_admin = {
-                let st = state.lock().await;
-                st.admin_user_id.as_deref() == Some(&user_id)
-            };
+            let is_admin = state.admin_user_id.as_deref() == Some(&user_id);
 
             // 内存过载保护：非管理员且内存使用率超过阈值时拒绝连接
             if !is_admin {
-                let threshold = {
-                    let st = state.lock().await;
-                    st.config.max_memory_usage_percent
-                };
+                let threshold = state.config.max_memory_usage_percent;
                 let mem_usage = get_memory_usage_percent();
                 if mem_usage > threshold {
                     let msg = format!(
@@ -633,30 +659,27 @@ pub async fn handle_connection(
                 }
             }
 
-            // 创建 disconnect 通道和 data 转发通道并注册用户（以 userId:sessionId 为 key）
+            // 创建 disconnect 通道 and data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
-            {
-                let mut st = state.lock().await;
-                if let Err(e) = st.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
-                    let resp = HandshakeResponse {
-                        msg_type: "handshake".to_string(),
-                        status: "error".to_string(),
-                        message: e.clone(),
-                        is_admin: None,
-                    };
-                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                    let _ = ws_sender.send(Message::Close(None)).await;
-                    return Err(format!("Handshake rejected: {}", e).into());
-                }
+            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
+                let resp = HandshakeResponse {
+                    msg_type: "handshake".to_string(),
+                    status: "error".to_string(),
+                    message: e.clone(),
+                    is_admin: None,
+                };
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let _ = ws_sender.send(Message::Close(None)).await;
+                return Err(format!("Handshake rejected: {}", e).into());
             }
 
             // 在流量统计中注册该 session
             {
-                let mut st = state.lock().await;
+                let mut tr = state.traffic.lock().unwrap();
                 let now_ms = traffic::now_ms();
-                st.traffic.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
-                st.traffic.add_handshake(&conn_key, handshake_size as u64, now_ms);
+                tr.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
+                tr.add_handshake(&conn_key, handshake_size as u64, now_ms);
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
@@ -684,7 +707,7 @@ pub async fn handle_connection(
                         // 统计出站流量（转发给当前连接的消息）
                         let out_size = traffic::message_byte_size(&forward_msg) as u64;
                         if out_size > 0 {
-                            state.lock().await.traffic.add_outbound(&conn_key, out_size, traffic::now_ms());
+                            state.traffic.lock().unwrap().add_outbound(&conn_key, out_size, traffic::now_ms());
                         }
                         ws_sender.send(forward_msg).await?;
                     }
@@ -695,7 +718,7 @@ pub async fn handle_connection(
                                 match msg {
                                     Message::Text(text) => {
                                         // 检查文本消息大小，防止 OOM
-                                        let text_max_size = state.lock().await.config.text_message_max_size;
+                                        let text_max_size = state.config.text_message_max_size;
                                         if text.len() > text_max_size {
                                             println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
                                             let resp = serde_json::json!({
@@ -717,8 +740,7 @@ pub async fn handle_connection(
 
                                         // 统计入站流量
                                         {
-                                            let mut st = state.lock().await;
-                                            st.traffic.add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                            state.traffic.lock().unwrap().add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
                                         }
 
                                         // 尝试解析为 JSON 命令
@@ -744,10 +766,7 @@ pub async fn handle_connection(
 
                                                     match admin_cmd.action.as_str() {
                                                         "list_users" => {
-                                                            let (users, total) = {
-                                                                let st = state.lock().await;
-                                                                st.get_users_paginated(admin_cmd.page, admin_cmd.page_size)
-                                                            };
+                                                            let (users, total) = state.get_users_paginated(admin_cmd.page, admin_cmd.page_size);
                                                             let count = users.len();
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
@@ -764,10 +783,7 @@ pub async fn handle_connection(
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
                                                         "list_user_groups" => {
-                                                            let (users, total) = {
-                                                                let st = state.lock().await;
-                                                                st.get_user_groups_paginated(admin_cmd.page, admin_cmd.page_size)
-                                                            };
+                                                            let (users, total) = state.get_user_groups_paginated(admin_cmd.page, admin_cmd.page_size);
                                                             let count = users.len();
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
@@ -797,10 +813,7 @@ pub async fn handle_connection(
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             } else {
-                                                                let count = {
-                                                                    let mut st = state.lock().await;
-                                                                    st.disconnect_user_by_id(&target_id)
-                                                                };
+                                                                let count = state.disconnect_user_by_id(&target_id);
                                                                 if count > 0 {
                                                                     let resp = AdminResponse {
                                                                         msg_type: "admin_response".to_string(),
@@ -853,10 +866,7 @@ pub async fn handle_connection(
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             } else {
-                                                                let found = {
-                                                                    let mut st = state.lock().await;
-                                                                    st.disconnect_session(&target_user, &target_session)
-                                                                };
+                                                                let found = state.disconnect_session(&target_user, &target_session);
                                                                 if found {
                                                                     let resp = AdminResponse {
                                                                         msg_type: "admin_response".to_string(),
@@ -897,10 +907,7 @@ pub async fn handle_connection(
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
                                                         "get_traffic_stats" => {
-                                                            let traffic_resp = {
-                                                                let st = state.lock().await;
-                                                                st.traffic.build_response()
-                                                            };
+                                                            let traffic_resp = state.traffic.lock().unwrap().build_response();
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
                                                                 action: "get_traffic_stats".to_string(),
@@ -914,20 +921,24 @@ pub async fn handle_connection(
                                                         "get_traffic_history" => {
                                                             let to_ms = traffic::now_ms() as i64;
                                                             let history_from = admin_cmd.page as i64 * 1000; // page param used as "from timestamp"
-                                                            let db_path = {
-                                                                let st = state.lock().await;
-                                                                st.config.traffic_db_path.clone()
-                                                            };
+                                                            let db_path = state.config.traffic_db_path.clone();
                                                             let history_result: Vec<serde_json::Value> = if let Some(ref path) = db_path {
-                                                                match traffic::query_traffic_history(
-                                                                    &rusqlite::Connection::open(path).unwrap_or_else(|_| panic!("Failed to open traffic db: {}", path)),
-                                                                    if history_from > 0 { history_from } else { to_ms - 3600_000 }, // default last hour
-                                                                    to_ms,
-                                                                    admin_cmd.user_id.as_deref(),
-                                                                ) {
-                                                                    Ok(rows) => rows,
+                                                                match rusqlite::Connection::open(path) {
+                                                                    Ok(conn) => {
+                                                                        match traffic::query_traffic_history(
+                                                                            &conn,
+                                                                            if history_from > 0 { history_from } else { to_ms - 3600_000 }, // default last hour
+                                                                            to_ms,
+                                                                            admin_cmd.user_id.as_deref(),
+                                                                        ) {
+                                                                            Ok(rows) => rows,
+                                                                            Err(e) => {
+                                                                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
+                                                                            }
+                                                                        }
+                                                                    }
                                                                     Err(e) => {
-                                                                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
+                                                                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})]
                                                                     }
                                                                 }
                                                             } else {
@@ -975,10 +986,7 @@ pub async fn handle_connection(
                                                         });
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     } else {
-                                                        let session_info = {
-                                                            let st = state.lock().await;
-                                                            st.get_user_sessions_with_latency(target_user_id)
-                                                        };
+                                                        let session_info = state.get_user_sessions_with_latency(target_user_id);
                                                         let online = !session_info.is_empty();
                                                         let sessions: Vec<String> = session_info.iter()
                                                             .filter_map(|s| s["sessionId"].as_str().map(String::from))
@@ -1034,20 +1042,16 @@ pub async fn handle_connection(
                                                         let forward_text_len = forward_text.len();
 
                                                         // 获取目标的 data_tx 并发送
-                                                        let delivered = {
-                                                            let st = state.lock().await;
-                                                            if let Some(tx) = st.get_session_data_tx(target_user, target_session) {
-                                                                tx.send(Message::Text(forward_text)).is_ok()
-                                                            } else {
-                                                                false
-                                                            }
+                                                        let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+                                                            tx.send(Message::Text(forward_text)).is_ok()
+                                                        } else {
+                                                            false
                                                         };
 
                                                         if delivered {
                                                             // 统计转发流量（计入源连接）
                                                             {
-                                                                let mut st = state.lock().await;
-                                                                st.traffic.add_relay_forwarded(&conn_key, forward_text_len as u64, traffic::now_ms());
+                                                                state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_text_len as u64, traffic::now_ms());
                                                             }
                                                             let resp = serde_json::json!({
                                                                 "type": "relay_response",
@@ -1058,7 +1062,7 @@ pub async fn handle_connection(
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                             // relay 成功：重置失败计数
-                                                            state.lock().await.reset_relay_failure(&conn_key);
+                                                            state.reset_relay_failure(&conn_key);
                                                         } else {
                                                             println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                             let resp = serde_json::json!({
@@ -1069,9 +1073,9 @@ pub async fn handle_connection(
                                                             });
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
-                                                            let should_kick = state.lock().await.handle_relay_failure(&user_id, &session_id);
+                                                            let should_kick = state.handle_relay_failure(&user_id, &session_id);
                                                             if should_kick {
-                                                                println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.lock().await.config.relay_fail_limit, state.lock().await.config.relay_fail_window_secs);
+                                                                println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
                                                                 let _ = ws_sender.send(Message::Close(None)).await;
                                                                 break;
                                                             }
@@ -1123,8 +1127,7 @@ pub async fn handle_connection(
                                                     let one_way_ms = rtt / 2;
                                                     println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
                                                     // 保存延迟到状态
-                                                    let mut st = state.lock().await;
-                                                    st.update_latency(&user_id, &session_id, rtt);
+                                                    state.update_latency(&user_id, &session_id, rtt);
                                                 }
 
                                                 let now_ms = std::time::SystemTime::now()
@@ -1146,12 +1149,11 @@ pub async fn handle_connection(
                                     Message::Binary(data) => {
                                         // 统计入站流量（不论消息大小）
                                         {
-                                            let mut st = state.lock().await;
-                                            st.traffic.add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
+                                            state.traffic.lock().unwrap().add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
                                         }
 
                                         // 检查二进制消息总大小
-                                        let binary_max_size = state.lock().await.config.binary_payload_max_size;
+                                        let binary_max_size = state.config.binary_payload_max_size;
                                         let total_binary_max = binary_max_size + 4096; // payload + header 开销
                                         if data.len() > total_binary_max {
                                             println!("Oversized binary message ({} bytes) from {}:{} ({}), rejected", data.len(), user_id, session_id, username);
@@ -1247,20 +1249,16 @@ pub async fn handle_connection(
                                                 forward_frame.extend_from_slice(payload);
                                                 let forward_frame_size = forward_frame.len();
 
-                                                let delivered = {
-                                                    let st = state.lock().await;
-                                                    if let Some(tx) = st.get_session_data_tx(target_user, target_session) {
-                                                        tx.send(Message::Binary(forward_frame)).is_ok()
-                                                    } else {
-                                                        false
-                                                    }
+                                                let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+                                                    tx.send(Message::Binary(forward_frame)).is_ok()
+                                                } else {
+                                                    false
                                                 };
 
                                                 if delivered {
                                                     // 统计转发流量（计入源连接）
                                                     {
-                                                        let mut st = state.lock().await;
-                                                        st.traffic.add_relay_forwarded(&conn_key, forward_frame_size as u64, traffic::now_ms());
+                                                        state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_frame_size as u64, traffic::now_ms());
                                                     }
                                                     let resp = serde_json::json!({
                                                         "type": "relay_response",
@@ -1271,7 +1269,7 @@ pub async fn handle_connection(
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                     // relay 成功：重置失败计数
-                                                    state.lock().await.reset_relay_failure(&conn_key);
+                                                    state.reset_relay_failure(&conn_key);
                                                 } else {
                                                     println!("Binary relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
                                                     let resp = serde_json::json!({
@@ -1282,9 +1280,9 @@ pub async fn handle_connection(
                                                     });
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
-                                                    let should_kick = state.lock().await.handle_relay_failure(&user_id, &session_id);
+                                                    let should_kick = state.handle_relay_failure(&user_id, &session_id);
                                                     if should_kick {
-                                                        println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.lock().await.config.relay_fail_limit, state.lock().await.config.relay_fail_window_secs);
+                                                        println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
                                                         let _ = ws_sender.send(Message::Close(None)).await;
                                                         break;
                                                     }
@@ -1318,9 +1316,11 @@ pub async fn handle_connection(
 
             // 9. 清理：连接关闭后从状态中移除用户和流量计数
             {
-                let mut st = state.lock().await;
-                st.remove_user(&conn_key);
-                st.traffic.remove_session(&conn_key);
+                state.remove_user(&conn_key);
+                if let Some(session) = state.traffic.lock().unwrap().remove_session(&conn_key) {
+                    // 最终落盘：确保即使是短连接也会被持久化
+                    traffic::save_final_session_stats(&state.config.traffic_db_path, &session);
+                }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
         }

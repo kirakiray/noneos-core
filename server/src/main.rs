@@ -7,7 +7,6 @@ use tokio::net::TcpListener;
 use clap::Parser;
 use std::fs;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use config::{Args, Config};
 use handler::{handle_connection, AppState};
 
@@ -30,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 4. 创建应用共享状态，存储已连接用户和管理员配置
-    let state = Arc::new(Mutex::new(AppState::new(config.admin_user_id.clone(), config.clone())));
+    let state = Arc::new(AppState::new(config.admin_user_id.clone(), config.clone()));
 
     // 5. 初始化流量统计落盘任务（如果配置了数据库路径）
     if let Some(ref db_path) = config.traffic_db_path {
@@ -40,25 +39,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::spawn(async move {
             let conn = match traffic::init_db(&db_path) {
                 Ok(c) => {
-                    println!("Traffic stats flush task started (interval: {}s)", flush_interval);
+                    println!("Traffic stats persistence initialized: {}", db_path);
                     c
                 }
                 Err(e) => {
-                    eprintln!("Failed to init traffic DB for flush task: {}", e);
+                    eprintln!("Failed to init traffic DB: {}", e);
                     return;
                 }
             };
+
+            // 加载初始全局统计数据
+            match traffic::load_global_traffic(&conn) {
+                Ok(global) => {
+                    let mut tr = state_clone.traffic.lock().unwrap();
+                    tr.set_global(global);
+                    println!("Loaded historical global traffic data");
+                }
+                Err(e) => {
+                    eprintln!("Failed to load global traffic data: {}", e);
+                }
+            }
+
+            println!("Traffic stats flush task started (interval: {}s)", flush_interval);
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(flush_interval)).await;
                 let recorded_at = traffic::now_ms();
-                let sessions = {
-                    let st = state_clone.lock().await;
-                    st.traffic.sessions.clone()
+                
+                // 1. 获取会话快照和全局流量
+                let (sessions, global) = {
+                    let tr = state_clone.traffic.lock().unwrap();
+                    (tr.sessions.clone(), tr.global.clone())
                 };
+
+                // 2. 保存会话快照
                 if !sessions.is_empty() {
                     if let Err(e) = traffic::flush_sessions_to_db(&conn, &sessions, recorded_at) {
-                        eprintln!("Failed to flush traffic stats: {}", e);
+                        eprintln!("Failed to flush session traffic snapshots: {}", e);
                     }
+                }
+
+                // 3. 保存全局流量
+                if let Err(e) = traffic::save_global_traffic(&conn, &global) {
+                    eprintln!("Failed to save global traffic stats: {}", e);
                 }
             }
         });

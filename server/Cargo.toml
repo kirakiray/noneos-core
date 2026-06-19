@@ -18,3 +18,4 @@ sha2 = "0.10"
 rand = "0.8"
 sysinfo = "0.33"
 rusqlite = { version = "0.31", features = ["bundled"] }
+dashmap = "6.0"

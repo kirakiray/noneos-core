@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use serde::Serialize;
 use rusqlite::Connection;
 
@@ -58,7 +58,8 @@ pub struct TrafficStatsResponse {
 /// Traffic statistics container — lives inside AppState
 pub struct TrafficStats {
     pub sessions: HashMap<String, SessionTraffic>,
-    pub minute_buckets: Vec<MinuteBucket>,
+    pub minute_buckets: VecDeque<MinuteBucket>,
+    pub global: GlobalTraffic, // Incremental global stats
     current_minute_epoch: u64,
     minute_window: usize,
 }
@@ -67,10 +68,16 @@ impl TrafficStats {
     pub fn new(minute_window: usize) -> Self {
         Self {
             sessions: HashMap::new(),
-            minute_buckets: Vec::with_capacity(minute_window),
+            minute_buckets: VecDeque::with_capacity(minute_window),
+            global: GlobalTraffic::default(),
             current_minute_epoch: 0,
             minute_window,
         }
+    }
+
+    /// Set initial global traffic (usually loaded from DB)
+    pub fn set_global(&mut self, global: GlobalTraffic) {
+        self.global = global;
     }
 
     /// Register a new session's traffic counter
@@ -104,6 +111,7 @@ impl TrafficStats {
     /// Count inbound bytes (client → server)
     pub fn add_inbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, bytes, 0, 0);
+        self.global.inbound_bytes = self.global.inbound_bytes.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.inbound_bytes = s.inbound_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
@@ -113,6 +121,7 @@ impl TrafficStats {
     /// Count outbound bytes (server → client)
     pub fn add_outbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, 0, bytes, 0);
+        self.global.outbound_bytes = self.global.outbound_bytes.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.outbound_bytes = s.outbound_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
@@ -122,6 +131,7 @@ impl TrafficStats {
     /// Count relay-forwarded bytes (this session relayed data TO another session)
     pub fn add_relay_forwarded(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, 0, 0, bytes);
+        self.global.relay_forwarded_bytes = self.global.relay_forwarded_bytes.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.relay_forwarded_bytes = s.relay_forwarded_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
@@ -130,6 +140,7 @@ impl TrafficStats {
 
     /// Count handshake bytes
     pub fn add_handshake(&mut self, conn_key: &str, bytes: u64, _now_ms: u64) {
+        self.global.handshake_bytes = self.global.handshake_bytes.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.handshake_bytes = s.handshake_bytes.saturating_add(bytes);
         }
@@ -140,12 +151,12 @@ impl TrafficStats {
         let minute_epoch = now_ms / 60_000;
         if minute_epoch != self.current_minute_epoch {
             // Fill gap minutes if we skipped multiple minutes
-            if let Some(last) = self.minute_buckets.last() {
+            if let Some(last) = self.minute_buckets.back() {
                 for m in (last.minute_epoch + 1)..minute_epoch {
                     if self.minute_buckets.len() >= self.minute_window {
-                        self.minute_buckets.remove(0);
+                        self.minute_buckets.pop_front();
                     }
-                    self.minute_buckets.push(MinuteBucket {
+                    self.minute_buckets.push_back(MinuteBucket {
                         minute_epoch: m,
                         inbound_bytes: 0,
                         outbound_bytes: 0,
@@ -157,9 +168,11 @@ impl TrafficStats {
         }
 
         // Find or create the bucket for this minute
+        // Since we usually update the last bucket, we search from the back
         if let Some(bucket) = self
             .minute_buckets
             .iter_mut()
+            .rev()
             .find(|b| b.minute_epoch == minute_epoch)
         {
             bucket.inbound_bytes = bucket.inbound_bytes.saturating_add(inbound);
@@ -167,9 +180,9 @@ impl TrafficStats {
             bucket.relay_forwarded_bytes = bucket.relay_forwarded_bytes.saturating_add(relay);
         } else {
             if self.minute_buckets.len() >= self.minute_window {
-                self.minute_buckets.remove(0);
+                self.minute_buckets.pop_front();
             }
-            self.minute_buckets.push(MinuteBucket {
+            self.minute_buckets.push_back(MinuteBucket {
                 minute_epoch,
                 inbound_bytes: inbound,
                 outbound_bytes: outbound,
@@ -178,20 +191,9 @@ impl TrafficStats {
         }
     }
 
-    /// Compute global totals from all active sessions
+    /// Compute global totals (now just returns the cached incremental value)
     pub fn compute_global(&self) -> GlobalTraffic {
-        let mut global = GlobalTraffic::default();
-        for s in self.sessions.values() {
-            global.inbound_bytes =
-                global.inbound_bytes.saturating_add(s.inbound_bytes);
-            global.outbound_bytes =
-                global.outbound_bytes.saturating_add(s.outbound_bytes);
-            global.relay_forwarded_bytes =
-                global.relay_forwarded_bytes.saturating_add(s.relay_forwarded_bytes);
-            global.handshake_bytes =
-                global.handshake_bytes.saturating_add(s.handshake_bytes);
-        }
-        global
+        self.global.clone()
     }
 
     /// Compute per-user aggregated summaries, sorted by inbound desc
@@ -223,16 +225,7 @@ impl TrafficStats {
 
     /// Get the current minute-level time distribution
     pub fn get_time_distribution(&self) -> Vec<MinuteBucket> {
-        self.minute_buckets.clone()
-    }
-
-    /// Get traffic data for a specific user's sessions
-    pub fn get_user_sessions(&self, user_id: &str) -> Vec<SessionTraffic> {
-        self.sessions
-            .values()
-            .filter(|s| s.user_id == user_id)
-            .cloned()
-            .collect()
+        self.minute_buckets.iter().cloned().collect()
     }
 
     /// Build the full response for the admin command
@@ -242,11 +235,6 @@ impl TrafficStats {
             users: self.compute_user_summaries(),
             time_distribution: self.get_time_distribution(),
         }
-    }
-
-    /// Get a count of active sessions being tracked
-    pub fn session_count(&self) -> usize {
-        self.sessions.len()
     }
 }
 
@@ -287,9 +275,61 @@ pub fn init_db(db_path: &str) -> Result<Connection, rusqlite::Error> {
             handshake_bytes INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_ts_recorded ON traffic_snapshots(recorded_at);
-        CREATE INDEX IF NOT EXISTS idx_ts_user ON traffic_snapshots(user_id);",
+        CREATE INDEX IF NOT EXISTS idx_ts_user ON traffic_snapshots(user_id);
+        
+        CREATE TABLE IF NOT EXISTS global_traffic (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            inbound_bytes INTEGER NOT NULL DEFAULT 0,
+            outbound_bytes INTEGER NOT NULL DEFAULT 0,
+            relay_forwarded_bytes INTEGER NOT NULL DEFAULT 0,
+            handshake_bytes INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL
+        );",
     )?;
     Ok(conn)
+}
+
+/// Load global traffic from DB
+pub fn load_global_traffic(conn: &Connection) -> Result<GlobalTraffic, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes FROM global_traffic WHERE id = 1"
+    )?;
+    let res = stmt.query_row([], |row| {
+        Ok(GlobalTraffic {
+            inbound_bytes: row.get::<_, i64>(0)? as u64,
+            outbound_bytes: row.get::<_, i64>(1)? as u64,
+            relay_forwarded_bytes: row.get::<_, i64>(2)? as u64,
+            handshake_bytes: row.get::<_, i64>(3)? as u64,
+        })
+    });
+
+    match res {
+        Ok(g) => Ok(g),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(GlobalTraffic::default()),
+        Err(e) => Err(e),
+    }
+}
+
+/// Persist global traffic to DB
+pub fn save_global_traffic(conn: &Connection, global: &GlobalTraffic) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO global_traffic (id, inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes, updated_at)
+         VALUES (1, ?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+            inbound_bytes = excluded.inbound_bytes,
+            outbound_bytes = excluded.outbound_bytes,
+            relay_forwarded_bytes = excluded.relay_forwarded_bytes,
+            handshake_bytes = excluded.handshake_bytes,
+            updated_at = excluded.updated_at",
+        rusqlite::params![
+            global.inbound_bytes as i64,
+            global.outbound_bytes as i64,
+            global.relay_forwarded_bytes as i64,
+            global.handshake_bytes as i64,
+            now_ms() as i64,
+        ],
+    )?;
+    Ok(())
 }
 
 /// Flush all current session counters to SQLite as a snapshot
@@ -322,6 +362,27 @@ pub fn flush_sessions_to_db(
     }
     tx.commit()?;
     Ok(())
+}
+
+/// Save a final snapshot for a closing session
+pub fn save_final_session_stats(
+    db_path: &Option<String>,
+    session: &SessionTraffic,
+) {
+    if let Some(path) = db_path {
+        let session_clone = session.clone();
+        let path_clone = path.clone();
+        // Spawning a task to avoid blocking the connection handler's cleanup
+        tokio::spawn(async move {
+            if let Ok(conn) = Connection::open(path_clone) {
+                let mut sessions = HashMap::new();
+                sessions.insert(session_clone.conn_key.clone(), session_clone);
+                if let Err(e) = flush_sessions_to_db(&conn, &sessions, now_ms()) {
+                    eprintln!("Failed to save final session stats to DB: {}", e);
+                }
+            }
+        });
+    }
 }
 
 /// Query historical traffic snapshots from SQLite (all users or specific user)
