@@ -417,6 +417,7 @@
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
   <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/tabs/tab-bar.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -431,13 +432,14 @@
         >
       </div>
 
-      <p-button
-        variant="outlined"
-        on:click="toggleGroupByUser"
-        attr:disabled="!connected"
-      >
-        {{groupByUser ? '按会话显示' : '按用户显示'}}
-      </p-button>
+      <p-tab-bar>
+        <p-tab-item attr:active="!groupByUser" on:click="groupByUser = false">
+          <span>按会话</span>
+        </p-tab-item>
+        <p-tab-item attr:active="groupByUser" on:click="groupByUser = true">
+          <span>按用户</span>
+        </p-tab-item>
+      </p-tab-bar>
 
       <p-button
         variant="outlined"
@@ -797,10 +799,6 @@
             this.pageSize = newSize;
             this.currentPage = 1;
             this.refreshUsers();
-          },
-
-          toggleGroupByUser() {
-            this.groupByUser = !this.groupByUser;
           },
 
           /**
