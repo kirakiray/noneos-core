@@ -52,6 +52,10 @@ export class AdminUser extends LocalUser {
     return this.#adminCommand(url, "list_users", { page, page_size: pageSize });
   }
 
+  async listUserGroups(url, { page = 1, pageSize = 20 } = {}) {
+    return this.#adminCommand(url, "list_user_groups", { page, page_size: pageSize });
+  }
+
   /**
    * 断开指定用户的连接
    * @param {string} url - 服务器 WebSocket 地址

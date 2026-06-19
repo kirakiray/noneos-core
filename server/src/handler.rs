@@ -164,6 +164,55 @@ impl AppState {
         (all_users[start..end].to_vec(), total)
     }
 
+    /// 按 userId 分组分页获取用户组
+    /// 每个用户组包含 userId, username, sessionCount 和 sessions[] 列表
+    /// 返回 (分页后的用户组列表, 总用户数（去重后）)
+    fn get_user_groups_paginated(&self, page: u32, page_size: u32) -> (Vec<serde_json::Value>, u32) {
+        // 按 userId 分组
+        use std::collections::BTreeMap;
+        let mut user_map: BTreeMap<String, (String, String, Vec<serde_json::Value>)> = BTreeMap::new();
+
+        for (conn_key, session) in &self.users {
+            let parts: Vec<&str> = conn_key.splitn(2, ':').collect();
+            let user_id = parts[0].to_string();
+            let session_id = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
+
+            let session_json = serde_json::json!({
+                "sessionId": session_id,
+                "host": session.host,
+                "addr": session.addr.to_string(),
+                "latencyMs": session.latency_ms,
+                "connectedAt": session.connected_at,
+            });
+
+            let entry = user_map.entry(user_id.clone()).or_insert_with(|| {
+                (user_id.clone(), session.username.clone(), Vec::new())
+            });
+            entry.2.push(session_json);
+        }
+
+        let total = user_map.len() as u32;
+
+        let all_groups: Vec<serde_json::Value> = user_map.into_iter().map(|(_key, (user_id, username, sessions))| {
+            serde_json::json!({
+                "userId": user_id,
+                "username": username,
+                "sessionCount": sessions.len(),
+                "sessions": sessions,
+            })
+        }).collect();
+
+        // 分页
+        let page = page.max(1) as usize;
+        let page_size = page_size.max(1).min(100) as usize;
+        let start = (page - 1) * page_size;
+        if start >= all_groups.len() {
+            return (Vec::new(), total);
+        }
+        let end = start + page_size.min(all_groups.len() - start);
+        (all_groups[start..end].to_vec(), total)
+    }
+
     /// 获取指定 userId 的所有 sessionId 及其延迟数据
     fn get_user_sessions_with_latency(&self, user_id: &str) -> Vec<serde_json::Value> {
         let prefix = format!("{}:", user_id);
@@ -705,6 +754,26 @@ pub async fn handle_connection(
                                                                 action: "list_users".to_string(),
                                                                 status: "ok".to_string(),
                                                                 message: Some(format!("{} user(s) connected", count)),
+                                                                users: Some(users),
+                                                                system_info: None,
+                                                                total: Some(total),
+                                                                page: Some(admin_cmd.page),
+                                                                page_size: Some(admin_cmd.page_size),
+                                                                ..Default::default()
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        "list_user_groups" => {
+                                                            let (users, total) = {
+                                                                let st = state.lock().await;
+                                                                st.get_user_groups_paginated(admin_cmd.page, admin_cmd.page_size)
+                                                            };
+                                                            let count = users.len();
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "list_user_groups".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some(format!("{} user group(s) connected", count)),
                                                                 users: Some(users),
                                                                 system_info: None,
                                                                 total: Some(total),

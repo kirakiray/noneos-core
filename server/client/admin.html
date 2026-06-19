@@ -462,7 +462,7 @@
           在线会话：{{totalUsers}} 个（本页 {{users.length}} 个）
         </o-if>
         <o-else>
-          在线会话：{{totalUsers}} 个，{{userGroups.length}} 个用户（本页 {{users.length}} 个会话）
+          在线用户：{{totalUsers}} 个（本页 {{userGroupList.length}} 个）
         </o-else>
       </div>
     </div>
@@ -522,7 +522,7 @@
 
     <!-- 按用户显示（分组视图） -->
     <div class="card-grid" :style.display="groupByUser ? '' : 'none'">
-      <o-fill :value="userGroups">
+      <o-fill :value="userGroupList">
         <div class="user-group-card">
           <div class="card-header">
             <div class="user-avatar" class:admin="$data.isAdmin">
@@ -598,7 +598,7 @@
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
         </o-if>
         <o-else>
-          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话（{{userGroups.length}} 个用户）
+          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
         </o-else>
       </span>
       <button on:click="goNextPage" :disabled="currentPage >= totalPages">
@@ -701,6 +701,7 @@
           adminUsername: "",
           adminUserId: "",
           users: [],
+          userGroupList: [],
           currentPage: 1,
           pageSize: 20,
           totalUsers: 0,
@@ -755,12 +756,22 @@
           async refreshUsers() {
             if (!this.connected || !this._adminUser) return;
             try {
-              const response = await this._adminUser.listUsers(WS_URL, {
-                page: this.currentPage,
-                pageSize: this.pageSize,
-              });
-              if (response.status === "ok") {
-                this._applyUsersResponse(response);
+              if (this.groupByUser) {
+                const response = await this._adminUser.listUserGroups(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUserGroupsResponse(response);
+                }
+              } else {
+                const response = await this._adminUser.listUsers(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUsersResponse(response);
+                }
               }
             } catch (e) {
               console.error("refreshUsers failed:", e);
@@ -776,12 +787,22 @@
             if (page === this.currentPage) return;
             this.currentPage = page;
             try {
-              const response = await this._adminUser.listUsers(WS_URL, {
-                page: this.currentPage,
-                pageSize: this.pageSize,
-              });
-              if (response.status === "ok") {
-                this._applyUsersResponse(response);
+              if (this.groupByUser) {
+                const response = await this._adminUser.listUserGroups(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUserGroupsResponse(response);
+                }
+              } else {
+                const response = await this._adminUser.listUsers(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUsersResponse(response);
+                }
               }
             } catch (e) {
               console.error("goToPage failed:", e);
@@ -799,6 +820,33 @@
             this.pageSize = newSize;
             this.currentPage = 1;
             this.refreshUsers();
+          },
+
+          /**
+           * 将 listUserGroups 响应应用到视图状态
+           */
+          _applyUserGroupsResponse(response) {
+            this.totalUsers = response.total || 0;
+            this.currentPage = response.page || 1;
+            this.pageSize = response.page_size || this.pageSize;
+            this.totalPages = Math.max(
+              1,
+              Math.ceil(this.totalUsers / this.pageSize),
+            );
+            this.userGroupList = (response.users || []).map((g) => ({
+              ...g,
+              avatar: (g.username || "?")[0].toUpperCase(),
+              isSelf: g.userId === this.adminUserId,
+              isAdmin: g.userId === this.adminUserId,
+              sessions: (g.sessions || []).map((s) => ({
+                ...s,
+                userId: g.userId,
+                host: s.host || "",
+                connectedTime: this._formatTime(s.connectedAt),
+              })),
+            }));
+            // 在用户模式下，users 也清空以释放内存
+            this.users = [];
           },
 
           /**
@@ -882,6 +930,7 @@
           _onClose() {
             this.connected = false;
             this.users = [];
+            this.userGroupList = [];
             this.currentPage = 1;
             this.totalUsers = 0;
             this.totalPages = 0;
@@ -983,6 +1032,13 @@
             const i = Math.floor(Math.log(bytes) / Math.log(1024));
             const val = bytes / Math.pow(1024, i);
             return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+        },
+
+        watch: {
+          groupByUser() {
+            this.currentPage = 1;
+            this.refreshUsers();
           },
         },
 
