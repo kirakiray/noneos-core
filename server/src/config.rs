@@ -91,7 +91,7 @@ pub struct Config {
 
 /// 默认流量落盘间隔
 fn default_traffic_flush_interval() -> u64 {
-    60
+    30
 }
 
 /// 默认流量分钟窗口大小

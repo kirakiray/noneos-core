@@ -293,9 +293,55 @@ pub fn init_db(db_path: &str) -> Result<Connection, rusqlite::Error> {
             relay_forwarded_bytes INTEGER NOT NULL DEFAULT 0,
             handshake_bytes INTEGER NOT NULL DEFAULT 0,
             updated_at INTEGER NOT NULL
-        );",
+        );
+        
+        CREATE TABLE IF NOT EXISTS system_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recorded_at INTEGER NOT NULL,
+            cpu_usage_percent REAL NOT NULL,
+            memory_usage_percent REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ss_recorded ON system_stats(recorded_at);",
     )?;
     Ok(conn)
+}
+
+/// A single system stats record (CPU + memory snapshot)
+#[derive(Debug, Clone, Serialize)]
+pub struct SystemStatsRecord {
+    pub recorded_at: u64,
+    pub cpu_usage_percent: f64,
+    pub memory_usage_percent: f64,
+}
+
+/// Save one system stats snapshot to DB
+pub fn save_system_stats(conn: &Connection, recorded_at: u64, cpu_percent: f64, mem_percent: f64) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO system_stats (recorded_at, cpu_usage_percent, memory_usage_percent) VALUES (?1, ?2, ?3)",
+        rusqlite::params![recorded_at as i64, cpu_percent, mem_percent],
+    )?;
+    Ok(())
+}
+
+/// Query the most recent system stats records (limited to `limit` rows)
+pub fn query_system_stats_history(conn: &Connection, limit: usize) -> Result<Vec<SystemStatsRecord>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT recorded_at, cpu_usage_percent, memory_usage_percent FROM system_stats ORDER BY recorded_at DESC LIMIT ?1"
+    )?;
+    let rows = stmt.query_map(rusqlite::params![limit as i64], |row| {
+        Ok(SystemStatsRecord {
+            recorded_at: row.get::<_, i64>(0)? as u64,
+            cpu_usage_percent: row.get::<_, f64>(1)?,
+            memory_usage_percent: row.get::<_, f64>(2)?,
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row?);
+    }
+    results.reverse(); // 按时间升序返回，方便前端折线图
+    Ok(results)
 }
 
 /// Load global traffic from DB

@@ -281,13 +281,13 @@
 
         <!-- CPU 趋势图 -->
         <div class="info-card">
-          <h2><span class="icon">📈</span> CPU 使用率趋势（最近 60 秒）</h2>
+          <h2><span class="icon">📈</span> CPU 使用率趋势</h2>
           <n-line-chart :points="cpuHistory" :series="cpuSeries" y-suffix="%" time-mode="ms"></n-line-chart>
         </div>
 
         <!-- 内存趋势图 -->
         <div class="info-card">
-          <h2><span class="icon">📈</span> 内存使用率趋势（最近 60 秒）</h2>
+          <h2><span class="icon">📈</span> 内存使用率趋势</h2>
           <n-line-chart :points="memHistory" :series="memSeries" y-suffix="%" time-mode="ms"></n-line-chart>
         </div>
       </div>
@@ -312,11 +312,11 @@
           lastUpdate: "",
           _adminUser: null,
           _refreshTimer: null,
+          _statsTimer: null,
           cpuHistory: [],
           memHistory: [],
           cpuSeries: [{ key: "value", label: "CPU 使用率", color: "#4caf50" }],
           memSeries: [{ key: "value", label: "内存使用率", color: "#2196f3" }],
-          MAX_HISTORY: 60,
         },
 
         proto: {
@@ -355,6 +355,8 @@
               if (this.systemInfo) {
                 this.connected = true;
                 this.connecting = false;
+                // 连接成功后立即拉取一次历史趋势数据
+                this.fetchSystemStatsHistory();
               } else {
                 throw new Error("Failed to get system info");
               }
@@ -371,23 +373,29 @@
               if (response.status === "ok" && response.system_info) {
                 this.systemInfo = response.system_info;
                 this.lastUpdate = new Date().toLocaleTimeString();
-
-                // 收集 CPU 历史（多核平均）
-                const si = response.system_info;
-                const cpuAvg = si.cpu.cores.reduce((sum, c) => sum + c.usage_percent, 0) / si.cpu.cores.length;
-                this.cpuHistory.push({ time: Date.now(), value: cpuAvg });
-                if (this.cpuHistory.length > this.MAX_HISTORY) {
-                  this.cpuHistory = this.cpuHistory.slice(-this.MAX_HISTORY);
-                }
-
-                // 收集内存历史
-                this.memHistory.push({ time: Date.now(), value: si.memory.usage_percent });
-                if (this.memHistory.length > this.MAX_HISTORY) {
-                  this.memHistory = this.memHistory.slice(-this.MAX_HISTORY);
-                }
               }
             } catch (e) {
               console.error("fetchSystemInfo failed:", e);
+            }
+          },
+
+          async fetchSystemStatsHistory() {
+            if (!this._adminUser) return;
+            try {
+              const response = await this._adminUser.getSystemStatsHistory(WS_URL, { limit: 10 });
+              if (response.status === "ok" && response.system_stats) {
+                const cpu = [];
+                const mem = [];
+                for (const r of response.system_stats) {
+                  const t = r.recordedAt;
+                  cpu.push({ time: t, value: r.cpuUsagePercent });
+                  mem.push({ time: t, value: r.memoryUsagePercent });
+                }
+                this.cpuHistory = cpu;
+                this.memHistory = mem;
+              }
+            } catch (e) {
+              console.error("fetchSystemStatsHistory failed:", e);
             }
           },
 
@@ -403,12 +411,19 @@
           this._refreshTimer = setInterval(() => {
             this.fetchSystemInfo();
           }, 1000);
+          this._statsTimer = setInterval(() => {
+            this.fetchSystemStatsHistory();
+          }, 30000);
         },
 
         detached() {
           if (this._refreshTimer) {
             clearInterval(this._refreshTimer);
             this._refreshTimer = null;
+          }
+          if (this._statsTimer) {
+            clearInterval(this._statsTimer);
+            this._statsTimer = null;
           }
           this._adminUser = null;
         },

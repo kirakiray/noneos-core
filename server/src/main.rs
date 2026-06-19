@@ -9,6 +9,7 @@ use std::fs;
 use std::sync::Arc;
 use config::{Args, Config};
 use handler::{handle_connection, AppState};
+use sysinfo::System;
 
 /// WebSocket 服务器主入口函数
 /// 使用 tokio 运行时驱动异步 IO
@@ -81,6 +82,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // 3. 保存全局流量
                 if let Err(e) = traffic::save_global_traffic(&conn, &global) {
                     eprintln!("Failed to save global traffic stats: {}", e);
+                }
+
+                // 4. 采集系统指标（CPU + 内存使用率）
+                let mut sys = System::new_all();
+                sys.refresh_cpu_all();
+                sys.refresh_memory();
+                // sysinfo 需要两次 refresh 才能获得有意义的 CPU 差值
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                sys.refresh_cpu_all();
+                sys.refresh_memory();
+
+                let cpu_count = sys.cpus().len();
+                let cpu_sum: f64 = sys.cpus().iter().map(|c| c.cpu_usage() as f64).sum();
+                let cpu_avg = if cpu_count > 0 { cpu_sum / cpu_count as f64 } else { 0.0 };
+
+                let total_mem = sys.total_memory();
+                let mem_percent = if total_mem > 0 {
+                    (sys.used_memory() as f64 / total_mem as f64 * 100.0 * 100.0).round() / 100.0
+                } else {
+                    0.0
+                };
+
+                if let Err(e) = traffic::save_system_stats(&conn, recorded_at, cpu_avg, mem_percent) {
+                    eprintln!("Failed to save system stats: {}", e);
                 }
             }
         });

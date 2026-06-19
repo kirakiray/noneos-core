@@ -355,6 +355,8 @@ struct AdminResponse {
     traffic: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     history: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_stats: Option<Vec<serde_json::Value>>,
 }
 
 /// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
@@ -952,6 +954,40 @@ pub async fn handle_connection(
                                                                 status: "ok".to_string(),
                                                                 message: Some(format!("Found {} history record(s)", history_result.len())),
                                                                 history: Some(history_result),
+                                                                ..Default::default()
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        "get_system_stats_history" => {
+                                                            let limit = admin_cmd.limit.unwrap_or(60);
+                                                            let db_path = state.config.traffic_db_path.clone();
+                                                            let stats_result: Vec<serde_json::Value> = if let Some(ref path) = db_path {
+                                                                match rusqlite::Connection::open(path) {
+                                                                    Ok(conn) => {
+                                                                        match traffic::query_system_stats_history(&conn, limit) {
+                                                                            Ok(rows) => rows.iter().map(|r| serde_json::json!({
+                                                                                "recordedAt": r.recorded_at,
+                                                                                "cpuUsagePercent": r.cpu_usage_percent,
+                                                                                "memoryUsagePercent": r.memory_usage_percent,
+                                                                            })).collect(),
+                                                                            Err(e) => {
+                                                                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    Err(e) => {
+                                                                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})]
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                Vec::new()
+                                                            };
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "get_system_stats_history".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some(format!("Found {} system stats record(s)", stats_result.len())),
+                                                                system_stats: Some(stats_result),
                                                                 ..Default::default()
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;

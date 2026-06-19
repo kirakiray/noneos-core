@@ -101,6 +101,18 @@ export class AdminUser extends LocalUser {
   }
 
   /**
+   * 获取系统指标历史数据（CPU + 内存使用率）
+   * 数据由服务器每 30 秒自动采集
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {Object} [options] - 查询选项
+   * @param {number} [options.limit=60] - 返回最近 N 条记录
+   * @returns {Promise<Object>} 包含 systemStats 数组的响应
+   */
+  async getSystemStatsHistory(url, { limit = 60 } = {}) {
+    return this.#adminCommand(url, "get_system_stats_history", { limit });
+  }
+
+  /**
    * 断开指定用户的指定会话
    * @param {string} url - 服务器 WebSocket 地址
    * @param {string} userId - 目标用户 ID
