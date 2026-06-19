@@ -134,6 +134,7 @@
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="./comps/line-chart.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -204,17 +205,7 @@
       <!-- 时间分布 -->
       <o-if :value="hasTrafficTimeDist">
         <div class="section-title">分钟级流量分布（最近 {{trafficTimeDistCount}} 分钟）</div>
-        <table class="traffic-table">
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th style="text-align:right">入站</th>
-              <th style="text-align:right">出站</th>
-              <th style="text-align:right">转发</th>
-            </tr>
-          </thead>
-          <tbody :html="trafficTimeRowsHtml"></tbody>
-        </table>
+        <n-line-chart :points="trafficData.time_distribution"></n-line-chart>
       </o-if>
 
       <div
@@ -313,21 +304,6 @@
                 + '<td style="text-align:right">' + this.formatBytes(u.outbound_bytes) + '</td>'
                 + '<td style="text-align:right">' + this.formatBytes(u.relay_forwarded_bytes) + '</td>'
                 + '<td style="text-align:right">' + this.formatBytes(u.handshake_bytes) + '</td>'
-                + '</tr>';
-            }).join("");
-          },
-
-          get trafficTimeRowsHtml() {
-            if (!this.hasTrafficTimeDist) return "";
-            return this.trafficData.time_distribution.map(b => {
-              const d = new Date(b.minute_epoch * 60 * 1000);
-              const pad2 = (n) => String(n).padStart(2, "0");
-              const time = pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-              return '<tr>'
-                + '<td>' + time + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.inbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.outbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.relay_forwarded_bytes) + '</td>'
                 + '</tr>';
             }).join("");
           },
