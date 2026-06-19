@@ -538,7 +538,7 @@
 
     <div
       class="empty-state"
-      :style.display="users.length === 0 && connected ? '' : 'none'"
+      :style.display="users.length === 0 && connected && !groupByUser ? '' : 'none'"
     >
       暂无在线用户
     </div>
