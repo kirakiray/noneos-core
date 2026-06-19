@@ -112,6 +112,9 @@
             && typeof emptyG.relay_forwarded_bytes === 'number'
             && typeof emptyG.handshake_bytes === 'number';
 
+          // 退出登录：断开连接
+          emptyAdmin.server.disconnect(emptyUrl);
+
           return {
             assert: emptyAllFields && emptyGlobalOK,
             content: {
@@ -176,6 +179,11 @@
 
           // 全局 handshake 应大于 0
           const hsGlobalOK = (hsResult?.traffic?.global?.handshake_bytes || 0) > 0;
+
+          // 退出登录：断开所有连接
+          hsAdmin.server.disconnect(hsUrl);
+          hsUserA.server.disconnect(hsUrl);
+          hsUserB.server.disconnect(hsUrl);
 
           return {
             assert: hsHasThree && hsAllHandshake && hsGlobalOK,
@@ -249,6 +257,11 @@
           const relayGlobalForward = (relayResult?.traffic?.global?.relay_forwarded_bytes || 0) > 0;
           const relayGlobalOut = (relayResult?.traffic?.global?.outbound_bytes || 0) > 0;
 
+          // 退出登录：断开所有连接
+          relayAdmin.server.disconnect(relayUrl);
+          relayUserA.server.disconnect(relayUrl);
+          relayUserB.server.disconnect(relayUrl);
+
           return {
             assert: relayOk && relayAForwarded && relayGlobalForward && relayGlobalOut,
             content: {
@@ -308,6 +321,10 @@
             && typeof b.inbound_bytes === 'number'
             && typeof b.outbound_bytes === 'number'
           );
+
+          // 退出登录：断开连接
+          tdAdmin.server.disconnect(tdUrl);
+          tdUser.server.disconnect(tdUrl);
 
           return {
             assert: tdHasDist && tdBucketsValid,
@@ -374,6 +391,10 @@
 
           const corrAllSessions = corrUsers.every(u => u.session_count > 0);
 
+          // 退出登录：断开连接
+          corrAdmin.server.disconnect(corrUrl);
+          corrUser.server.disconnect(corrUrl);
+
           return {
             assert: corrConsistent && corrAllSessions,
             content: {
@@ -430,6 +451,10 @@
           });
 
           const histHasHistory = Array.isArray(histResult?.history);
+
+          // 退出登录：断开连接
+          histAdmin.server.disconnect(histUrl);
+          histUser.server.disconnect(histUrl);
 
           // 如果数据库未配置，history 将为空数组
           return {
