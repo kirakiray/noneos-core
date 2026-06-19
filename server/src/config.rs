@@ -66,6 +66,18 @@ pub struct Config {
     /// 默认 60 秒
     #[serde(default = "default_relay_fail_window_secs")]
     pub relay_fail_window_secs: u64,
+
+    // ===== 内存过载保护 =====
+    /// 最大内存使用率百分比，超过此值拒绝新的非管理员连接
+    /// 管理员始终可以接入，确保紧急情况下仍可管理服务器
+    /// 默认 95%
+    #[serde(default = "default_max_memory_usage_percent")]
+    pub max_memory_usage_percent: f64,
+}
+
+/// 默认最大内存使用率
+fn default_max_memory_usage_percent() -> f64 {
+    95.0
 }
 
 /// 获取默认端口号的辅助函数
@@ -127,6 +139,7 @@ impl Default for Config {
             max_sessions_per_user: default_max_sessions_per_user(),
             relay_fail_limit: default_relay_fail_limit(),
             relay_fail_window_secs: default_relay_fail_window_secs(),
+            max_memory_usage_percent: default_max_memory_usage_percent(),
         }
     }
 }

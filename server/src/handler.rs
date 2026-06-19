@@ -295,6 +295,20 @@ struct AdminResponse {
     page_size: Option<u32>,
 }
 
+/// 获取当前内存使用率百分比（复用 collect_system_info 中的持久化 System 实例）
+fn get_memory_usage_percent() -> f64 {
+    static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
+    let mut system = SYSTEM.get_or_init(|| {
+        std::sync::Mutex::new(System::new_all())
+    }).lock().unwrap();
+    system.refresh_memory();
+    let total = system.total_memory();
+    if total == 0 {
+        return 0.0;
+    }
+    (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
+}
+
 /// 收集系统信息（内存、CPU、磁盘使用情况）
 /// CPU 使用率基于两次采样之间的差值计算，因此需要持久化的 System 实例。
 fn collect_system_info() -> serde_json::Value {
@@ -534,6 +548,31 @@ pub async fn handle_connection(
                 let st = state.lock().await;
                 st.admin_user_id.as_deref() == Some(&user_id)
             };
+
+            // 内存过载保护：非管理员且内存使用率超过阈值时拒绝连接
+            if !is_admin {
+                let threshold = {
+                    let st = state.lock().await;
+                    st.config.max_memory_usage_percent
+                };
+                let mem_usage = get_memory_usage_percent();
+                if mem_usage > threshold {
+                    let msg = format!(
+                        "Server memory usage is too high ({}% > {}%), connection rejected. Please try again later.",
+                        mem_usage, threshold
+                    );
+                    println!("Rejected connection from {}:{} ({}) — {}", user_id, session_id, username, msg);
+                    let resp = HandshakeResponse {
+                        msg_type: "handshake".to_string(),
+                        status: "error".to_string(),
+                        message: msg,
+                        is_admin: None,
+                    };
+                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    return Err("Handshake rejected: server memory overload".into());
+                }
+            }
 
             // 创建 disconnect 通道和 data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
