@@ -2,7 +2,7 @@
   <l-m
     src="https://punch-ui-v2.pages.dev/packages/list/list.html"
   ></l-m>
-  <l-m src="./comps/sys-chart.html"></l-m>
+  <l-m src="./comps/line-chart.html"></l-m>
 
   <style>
     :host {
@@ -282,13 +282,13 @@
         <!-- CPU 趋势图 -->
         <div class="info-card">
           <h2><span class="icon">📈</span> CPU 使用率趋势（最近 60 秒）</h2>
-          <n-sys-chart :points="cpuHistory" label="CPU 使用率" color="#4caf50" y-suffix="%"></n-sys-chart>
+          <n-line-chart :points="cpuHistory" :series="cpuSeries" y-suffix="%" time-mode="ms"></n-line-chart>
         </div>
 
         <!-- 内存趋势图 -->
         <div class="info-card">
           <h2><span class="icon">📈</span> 内存使用率趋势（最近 60 秒）</h2>
-          <n-sys-chart :points="memHistory" label="内存使用率" color="#2196f3" y-suffix="%"></n-sys-chart>
+          <n-line-chart :points="memHistory" :series="memSeries" y-suffix="%" time-mode="ms"></n-line-chart>
         </div>
       </div>
     </o-if>
@@ -314,6 +314,8 @@
           _refreshTimer: null,
           cpuHistory: [],
           memHistory: [],
+          cpuSeries: [{ key: "value", label: "CPU 使用率", color: "#4caf50" }],
+          memSeries: [{ key: "value", label: "内存使用率", color: "#2196f3" }],
           MAX_HISTORY: 60,
         },
 

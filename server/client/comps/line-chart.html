@@ -42,31 +42,33 @@
 
   <div class="chart-wrapper">
     <svg id="chart" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div class="legend">
-      <span class="legend-item">
-        <span class="legend-dot" style="background:#4caf50"></span>
-        入站
-      </span>
-      <span class="legend-item">
-        <span class="legend-dot" style="background:#2196f3"></span>
-        出站
-      </span>
-      <span class="legend-item">
-        <span class="legend-dot" style="background:#ff9800"></span>
-        转发
-      </span>
-    </div>
+    <div class="legend" :html="legendHtml"></div>
   </div>
 
   <script>
     export default async () => {
+      // 默认系列（流量页使用）
+      const TRAFFIC_SERIES = [
+        { key: "inbound_bytes", label: "入站", color: "#4caf50" },
+        { key: "outbound_bytes", label: "出站", color: "#2196f3" },
+        { key: "relay_forwarded_bytes", label: "转发", color: "#ff9800" },
+      ];
+
       return {
         tag: "n-line-chart",
+        attrs: {
+          "y-suffix": "",
+          "time-mode": "epoch",
+        },
         data: {
           points: [],
+          series: null,
         },
         watch: {
           points() {
+            this.drawChart();
+          },
+          series() {
             this.drawChart();
           },
         },
@@ -90,6 +92,24 @@
           }
         },
         proto: {
+          get legendHtml() {
+            const seriesList = this.series || TRAFFIC_SERIES;
+            return seriesList.map(s =>
+              '<span class="legend-item">'
+                + '<span class="legend-dot" style="background:' + s.color + '"></span>'
+                + s.label
+              + '</span>'
+            ).join("");
+          },
+
+          _resolveTime(point) {
+            if (this["time-mode"] === "ms") {
+              return point.time;
+            }
+            // epoch 模式：minute_epoch 是分钟级秒数，转毫秒
+            return point.minute_epoch * 60 * 1000;
+          },
+
           drawChart() {
             const svg = this.shadow.$("#chart").ele;
             svg.innerHTML = "";
@@ -102,32 +122,39 @@
             const points = this.points || [];
             if (!points || points.length === 0) return;
 
-            // 将分钟级 epoch 转为毫秒时间戳
+            const seriesList = this.series || TRAFFIC_SERIES;
+
             const margin = { top: 16, right: 16, bottom: 32, left: 56 };
             const width = displayWidth - margin.left - margin.right;
             const height = displayHeight - margin.top - margin.bottom;
 
-            // 提取三个数据序列
-            const series = points.map(p => ({
-              time: p.minute_epoch * 60 * 1000,
-              inbound: p.inbound_bytes || 0,
-              outbound: p.outbound_bytes || 0,
-              relay: p.relay_forwarded_bytes || 0,
-            }));
+            // 将原始数据归一化为 { time, values: { key: val } }
+            const dataPoints = points.map(p => {
+              const dp = { time: this._resolveTime(p), values: {} };
+              for (const s of seriesList) {
+                dp.values[s.key] = p[s.key] || 0;
+              }
+              return dp;
+            });
 
-            const minTime = series[0].time;
-            const maxTime = series[series.length - 1].time;
+            const minTime = dataPoints[0].time;
+            const maxTime = dataPoints[dataPoints.length - 1].time;
             const timeRange = maxTime - minTime || 1;
 
-            // 计算 Y 轴最大值（取三个序列中的最大值，向上取整）
-            let maxBytes = 0;
-            for (const s of series) {
-              maxBytes = Math.max(maxBytes, s.inbound, s.outbound, s.relay);
+            // 计算 Y 轴范围
+            const useBytes = !this["y-suffix"];
+            let yMax = 0;
+            for (const dp of dataPoints) {
+              for (const s of seriesList) {
+                yMax = Math.max(yMax, dp.values[s.key]);
+              }
             }
-            // 确保至少显示 1KB 范围
-            if (maxBytes === 0) maxBytes = 1024;
-            // 向上取整到合适的刻度
-            const yMax = this._ceilBytes(maxBytes);
+            if (useBytes) {
+              if (yMax === 0) yMax = 1024;
+              yMax = this._ceilBytes(yMax);
+            } else {
+              if (yMax === 0) yMax = 100;
+            }
             const yMin = 0;
             const yRange = yMax - yMin;
 
@@ -153,7 +180,9 @@
 
               const val = yMin + (yMax - yMin) * (i / yTicks);
               const label = this._createSvgElement("text");
-              label.textContent = this._formatBytesShort(val);
+              label.textContent = useBytes
+                ? this._formatBytesShort(val)
+                : val.toFixed(0) + this["y-suffix"];
               label.setAttribute("x", margin.left - 6);
               label.setAttribute("y", y + 3);
               label.setAttribute("text-anchor", "end");
@@ -168,15 +197,17 @@
             xTickGroup.setAttribute("font-size", "10");
             xTickGroup.setAttribute("fill", "#888");
 
-            const xTicks = Math.min(6, points.length);
+            const xTicks = Math.min(6, dataPoints.length);
             for (let i = 0; i <= xTicks; i++) {
-              const idx = Math.round((i / xTicks) * (series.length - 1));
-              const s = series[idx];
-              const x = margin.left + ((s.time - minTime) / timeRange) * width;
+              const idx = Math.round((i / xTicks) * (dataPoints.length - 1));
+              const dp = dataPoints[idx];
+              const x = margin.left + ((dp.time - minTime) / timeRange) * width;
 
               const label = this._createSvgElement("text");
-              const d = new Date(s.time);
-              label.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+              const d = new Date(dp.time);
+              label.textContent = useBytes
+                ? String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")
+                : String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
               label.setAttribute("x", x);
               label.setAttribute("y", margin.top + height + 16);
               label.setAttribute("text-anchor", "middle");
@@ -184,20 +215,14 @@
             }
             svg.appendChild(xTickGroup);
 
-            // ── 绘制三条折线 ──
-            const lineConfigs = [
-              { key: "inbound", color: "#4caf50" },
-              { key: "outbound", color: "#2196f3" },
-              { key: "relay", color: "#ff9800" },
-            ];
-
-            for (const cfg of lineConfigs) {
+            // ── 绘制折线 ──
+            for (const cfg of seriesList) {
               const pathGroup = this._createSvgElement("g");
               let prevX = null, prevY = null;
 
-              for (const s of series) {
-                const x = margin.left + ((s.time - minTime) / timeRange) * width;
-                const y = margin.top + height - ((s[cfg.key] - yMin) / yRange) * height;
+              for (const dp of dataPoints) {
+                const x = margin.left + ((dp.time - minTime) / timeRange) * width;
+                const y = margin.top + height - ((dp.values[cfg.key] - yMin) / yRange) * height;
 
                 if (prevX !== null && prevY !== null) {
                   const line = this._createSvgElement("line");
@@ -212,7 +237,6 @@
                   pathGroup.appendChild(line);
                 }
 
-                // 数据点
                 const dot = this._createSvgElement("circle");
                 dot.setAttribute("cx", x);
                 dot.setAttribute("cy", y);
@@ -234,11 +258,9 @@
           },
 
           _ceilBytes(bytes) {
-            // 向上取整到合适的刻度：1K, 10K, 100K, 1M, 10M...
             if (bytes <= 0) return 1024;
             const log = Math.floor(Math.log(bytes) / Math.log(1024));
             const base = bytes / Math.pow(1024, log);
-            // 向上取整到 1, 2, 5, 10 的倍数
             const roundTo = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
             let rounded = 1;
             for (const r of roundTo) {
