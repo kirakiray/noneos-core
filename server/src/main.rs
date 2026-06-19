@@ -1,6 +1,7 @@
 mod config;
 mod crypto;
 mod handler;
+mod traffic;
 
 use tokio::net::TcpListener;
 use clap::Parser;
@@ -28,10 +29,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Config::default()
     };
 
-    // 3. 创建应用共享状态，存储已连接用户和管理员配置
+    // 4. 创建应用共享状态，存储已连接用户和管理员配置
     let state = Arc::new(Mutex::new(AppState::new(config.admin_user_id.clone(), config.clone())));
 
-    // 4. 初始化网络监听
+    // 5. 初始化流量统计落盘任务（如果配置了数据库路径）
+    if let Some(ref db_path) = config.traffic_db_path {
+        let db_path = db_path.clone();
+        let state_clone = Arc::clone(&state);
+        let flush_interval = config.traffic_flush_interval_secs;
+        tokio::spawn(async move {
+            let conn = match traffic::init_db(&db_path) {
+                Ok(c) => {
+                    println!("Traffic stats flush task started (interval: {}s)", flush_interval);
+                    c
+                }
+                Err(e) => {
+                    eprintln!("Failed to init traffic DB for flush task: {}", e);
+                    return;
+                }
+            };
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(flush_interval)).await;
+                let recorded_at = traffic::now_ms();
+                let sessions = {
+                    let st = state_clone.lock().await;
+                    st.traffic.sessions.clone()
+                };
+                if !sessions.is_empty() {
+                    if let Err(e) = traffic::flush_sessions_to_db(&conn, &sessions, recorded_at) {
+                        eprintln!("Failed to flush traffic stats: {}", e);
+                    }
+                }
+            }
+        });
+    }
+
+    // 6. 初始化网络监听
     // 将主机地址和端口拼接并绑定到 TCP 端口
     let addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&addr).await?;
@@ -41,7 +74,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Admin user configured: {}", admin_id);
     }
 
-    // 5. 服务器主循环：持续接受新的连接请求
+    if config.traffic_db_path.is_some() {
+        println!("Traffic stats persistence enabled (flush interval: {}s)", config.traffic_flush_interval_secs);
+    } else {
+        println!("Traffic stats persistence disabled (in-memory only)");
+    }
+
+    // 7. 服务器主循环：持续接受新的连接请求
     while let Ok((stream, addr)) = listener.accept().await {
         let state = Arc::clone(&state);
         // 为每一个新连接创建一个独立的 tokio 任务（轻量级线程）进行处理

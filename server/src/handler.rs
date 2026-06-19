@@ -9,6 +9,7 @@ use tokio_tungstenite::{accept_hdr_async, tungstenite::{protocol::Message, hands
 use serde::{Deserialize, Serialize};
 use crate::crypto::verify_signature;
 use crate::config::Config;
+use crate::traffic;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use sysinfo::{System, Disks};
@@ -34,6 +35,7 @@ struct UserSession {
 pub struct AppState {
     pub admin_user_id: Option<String>,
     pub config: Config,
+    pub traffic: traffic::TrafficStats,
     users: HashMap<String, UserSession>,
 }
 
@@ -41,6 +43,7 @@ impl AppState {
     pub fn new(admin_user_id: Option<String>, config: Config) -> Self {
         Self {
             admin_user_id,
+            traffic: traffic::TrafficStats::new(config.traffic_minute_window),
             config,
             users: HashMap::new(),
         }
@@ -293,6 +296,10 @@ struct AdminResponse {
     page: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     page_size: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    traffic: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    history: Option<Vec<serde_json::Value>>,
 }
 
 /// 获取当前内存使用率百分比（复用 collect_system_info 中的持久化 System 实例）
@@ -450,6 +457,9 @@ pub async fn handle_connection(
         }
     };
 
+    // 捕获握手数据大小（用于流量统计）
+    let handshake_size = handshake_data.len();
+
     // 4. 数据解析
     let mut handshake_obj: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&handshake_data) {
         Ok(serde_json::Value::Object(v)) => v,
@@ -592,6 +602,14 @@ pub async fn handle_connection(
                 }
             }
 
+            // 在流量统计中注册该 session
+            {
+                let mut st = state.lock().await;
+                let now_ms = traffic::now_ms();
+                st.traffic.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
+                st.traffic.add_handshake(&conn_key, handshake_size as u64, now_ms);
+            }
+
             let role_str = if is_admin { " (ADMIN)" } else { "" };
             println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
 
@@ -614,6 +632,11 @@ pub async fn handle_connection(
                     }
                     // 接收转发消息（其他用户通过 relay 发送过来的数据）
                     Some(forward_msg) = data_rx.recv() => {
+                        // 统计出站流量（转发给当前连接的消息）
+                        let out_size = traffic::message_byte_size(&forward_msg) as u64;
+                        if out_size > 0 {
+                            state.lock().await.traffic.add_outbound(&conn_key, out_size, traffic::now_ms());
+                        }
                         ws_sender.send(forward_msg).await?;
                     }
                     // 接收客户端消息
@@ -642,6 +665,12 @@ pub async fn handle_connection(
                                             text.clone()
                                         };
                                         println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
+
+                                        // 统计入站流量
+                                        {
+                                            let mut st = state.lock().await;
+                                            st.traffic.add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                        }
 
                                         // 尝试解析为 JSON 命令
                                         if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -681,6 +710,7 @@ pub async fn handle_connection(
                                                                 total: Some(total),
                                                                 page: Some(admin_cmd.page),
                                                                 page_size: Some(admin_cmd.page_size),
+                                                                ..Default::default()
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
@@ -797,6 +827,53 @@ pub async fn handle_connection(
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
+                                                        "get_traffic_stats" => {
+                                                            let traffic_resp = {
+                                                                let st = state.lock().await;
+                                                                st.traffic.build_response()
+                                                            };
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "get_traffic_stats".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some(format!("Traffic stats: {} active session(s)", traffic_resp.users.len())),
+                                                                traffic: Some(serde_json::to_value(traffic_resp).unwrap_or_default()),
+                                                                ..Default::default()
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        "get_traffic_history" => {
+                                                            let to_ms = traffic::now_ms() as i64;
+                                                            let history_from = admin_cmd.page as i64 * 1000; // page param used as "from timestamp"
+                                                            let db_path = {
+                                                                let st = state.lock().await;
+                                                                st.config.traffic_db_path.clone()
+                                                            };
+                                                            let history_result: Vec<serde_json::Value> = if let Some(ref path) = db_path {
+                                                                match traffic::query_traffic_history(
+                                                                    &rusqlite::Connection::open(path).unwrap_or_else(|_| panic!("Failed to open traffic db: {}", path)),
+                                                                    if history_from > 0 { history_from } else { to_ms - 3600_000 }, // default last hour
+                                                                    to_ms,
+                                                                    admin_cmd.user_id.as_deref(),
+                                                                ) {
+                                                                    Ok(rows) => rows,
+                                                                    Err(e) => {
+                                                                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                Vec::new()
+                                                            };
+                                                            let resp = AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: "get_traffic_history".to_string(),
+                                                                status: "ok".to_string(),
+                                                                message: Some(format!("Found {} history record(s)", history_result.len())),
+                                                                history: Some(history_result),
+                                                                ..Default::default()
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
                                                         _ => {
                                                             let action_name = admin_cmd.action.clone();
                                                             let resp = AdminResponse {
@@ -885,6 +962,7 @@ pub async fn handle_connection(
                                                             "data": relay_data
                                                         });
                                                         let forward_text = serde_json::to_string(&forward_msg)?;
+                                                        let forward_text_len = forward_text.len();
 
                                                         // 获取目标的 data_tx 并发送
                                                         let delivered = {
@@ -897,6 +975,11 @@ pub async fn handle_connection(
                                                         };
 
                                                         if delivered {
+                                                            // 统计转发流量（计入源连接）
+                                                            {
+                                                                let mut st = state.lock().await;
+                                                                st.traffic.add_relay_forwarded(&conn_key, forward_text_len as u64, traffic::now_ms());
+                                                            }
                                                             let resp = serde_json::json!({
                                                                 "type": "relay_response",
                                                                 "action": "send_data",
@@ -992,6 +1075,12 @@ pub async fn handle_connection(
                                         // 忽略未知类型的消息
                                     }
                                     Message::Binary(data) => {
+                                        // 统计入站流量（不论消息大小）
+                                        {
+                                            let mut st = state.lock().await;
+                                            st.traffic.add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
+                                        }
+
                                         // 检查二进制消息总大小
                                         let binary_max_size = state.lock().await.config.binary_payload_max_size;
                                         let total_binary_max = binary_max_size + 4096; // payload + header 开销
@@ -1087,6 +1176,7 @@ pub async fn handle_connection(
                                                 forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
                                                 forward_frame.extend_from_slice(&forward_header_bytes);
                                                 forward_frame.extend_from_slice(payload);
+                                                let forward_frame_size = forward_frame.len();
 
                                                 let delivered = {
                                                     let st = state.lock().await;
@@ -1098,6 +1188,11 @@ pub async fn handle_connection(
                                                 };
 
                                                 if delivered {
+                                                    // 统计转发流量（计入源连接）
+                                                    {
+                                                        let mut st = state.lock().await;
+                                                        st.traffic.add_relay_forwarded(&conn_key, forward_frame_size as u64, traffic::now_ms());
+                                                    }
                                                     let resp = serde_json::json!({
                                                         "type": "relay_response",
                                                         "action": "send_data",
@@ -1152,12 +1247,13 @@ pub async fn handle_connection(
                 }
             }
 
-            // 9. 清理：连接关闭后从状态中移除用户
+            // 9. 清理：连接关闭后从状态中移除用户和流量计数
             {
                 let mut st = state.lock().await;
                 st.remove_user(&conn_key);
+                st.traffic.remove_session(&conn_key);
             }
-            println!("User {}:{} ({}) removed from state", user_id, session_id, username);
+            println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
         }
         Err(e) => {
             eprintln!("Handshake: User {}:{} authentication FAILED: {}", user_id, session_id, e);

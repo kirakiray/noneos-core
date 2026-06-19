@@ -72,6 +72,31 @@ export class AdminUser extends LocalUser {
   }
 
   /**
+   * 获取服务器流量统计数据
+   * 返回全局总流量、各用户流量汇总、分钟级时间分布
+   * @param {string} url - 服务器 WebSocket 地址
+   * @returns {Promise<Object>} 流量统计信息
+   */
+  async getTrafficStats(url) {
+    return this.#adminCommand(url, "get_traffic_stats");
+  }
+
+  /**
+   * 查询历史流量数据
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {Object} [options] - 查询选项
+   * @param {number} [options.fromMs] - 起始时间戳（毫秒），默认 1 小时前
+   * @param {string} [options.userId] - 按用户 ID 筛选（可选）
+   * @returns {Promise<Object>} 历史流量数据
+   */
+  async getTrafficHistory(url, { fromMs, userId } = {}) {
+    return this.#adminCommand(url, "get_traffic_history", {
+      page: fromMs ? Math.floor(fromMs / 1000) : 0,
+      user_id: userId,
+    });
+  }
+
+  /**
    * 断开指定用户的指定会话
    * @param {string} url - 服务器 WebSocket 地址
    * @param {string} userId - 目标用户 ID

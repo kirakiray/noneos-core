@@ -73,6 +73,30 @@ pub struct Config {
     /// 默认 95%
     #[serde(default = "default_max_memory_usage_percent")]
     pub max_memory_usage_percent: f64,
+
+    // ===== 流量统计 =====
+    /// SQLite 数据库文件路径，用于持久化流量统计数据
+    /// 如果未指定，则不启用持久化（仅内存统计）
+    #[serde(default)]
+    pub traffic_db_path: Option<String>,
+    /// 流量统计数据落盘间隔（秒）
+    /// 默认 60 秒
+    #[serde(default = "default_traffic_flush_interval")]
+    pub traffic_flush_interval_secs: u64,
+    /// 流量统计分钟级分布保留窗口（分钟）
+    /// 默认 60 分钟
+    #[serde(default = "default_traffic_minute_window")]
+    pub traffic_minute_window: usize,
+}
+
+/// 默认流量落盘间隔
+fn default_traffic_flush_interval() -> u64 {
+    60
+}
+
+/// 默认流量分钟窗口大小
+fn default_traffic_minute_window() -> usize {
+    60
 }
 
 /// 默认最大内存使用率
@@ -140,6 +164,9 @@ impl Default for Config {
             relay_fail_limit: default_relay_fail_limit(),
             relay_fail_window_secs: default_relay_fail_window_secs(),
             max_memory_usage_percent: default_max_memory_usage_percent(),
+            traffic_db_path: None,
+            traffic_flush_interval_secs: default_traffic_flush_interval(),
+            traffic_minute_window: default_traffic_minute_window(),
         }
     }
 }

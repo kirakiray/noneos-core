@@ -20,3 +20,9 @@ relay_fail_limit = 10
 
 # relay 失败计数窗口时间（秒，默认 60）
 relay_fail_window_secs = 60
+
+# 流量统计数据库文件路径（不配置则仅内存统计，重启丢失）
+traffic_db_path = "config.example.db"
+
+# 流量统计数据落盘间隔（秒，默认 60）
+traffic_flush_interval_secs = 60
