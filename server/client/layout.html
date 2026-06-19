@@ -34,6 +34,10 @@
         <span slot="icon">📊</span>
         <span>系统信息</span>
       </p-nav-item>
+      <p-nav-item attr:active="activeTraffic" on:click="navigateToTraffic">
+        <span slot="icon">📈</span>
+        <span>流量统计</span>
+      </p-nav-item>
     </p-nav-bar>
   </p-nav-layout>
 
@@ -43,6 +47,7 @@
         data: {
           activeAdmin: true,
           activeSysInfo: false,
+          activeTraffic: false,
         },
         routerChange() {
           this.refreshActive();
@@ -57,12 +62,16 @@
             const path = current.src || "";
             this.activeAdmin = path.endsWith("admin.html");
             this.activeSysInfo = path.endsWith("system-info.html");
+            this.activeTraffic = path.endsWith("traffic.html");
           },
           navigateToAdmin() {
             window.location.hash = "./admin.html";
           },
           navigateToSysInfo() {
             window.location.hash = "./system-info.html";
+          },
+          navigateToTraffic() {
+            window.location.hash = "./traffic.html";
           },
         },
       };

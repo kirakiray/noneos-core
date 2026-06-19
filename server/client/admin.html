@@ -350,69 +350,6 @@
       color: var(--md-sys-color-on-surface);
     }
 
-    /* 流量统计内容样式 */
-    .traffic-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-    }
-
-    .traffic-card {
-      background-color: var(--md-sys-color-surface-container);
-      border-radius: 10px;
-      padding: 12px 16px;
-    }
-
-    .traffic-card .label {
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface-variant);
-    }
-
-    .traffic-card .value {
-      font-size: 18px;
-      font-weight: bold;
-      font-variant-numeric: tabular-nums;
-      margin-top: 4px;
-    }
-
-    .traffic-section-title {
-      font-size: 14px;
-      font-weight: bold;
-      margin-top: 8px;
-      color: var(--md-sys-color-on-surface);
-    }
-
-    .traffic-user-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    .traffic-user-table th {
-      text-align: left;
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--md-sys-color-surface-variant);
-      font-weight: bold;
-      color: var(--md-sys-color-on-surface-variant);
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .traffic-user-table td {
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--md-sys-color-surface-variant);
-      font-variant-numeric: tabular-nums;
-    }
-
-    .traffic-user-table tr:hover td {
-      background-color: var(--md-sys-color-surface-container);
-    }
-
-    .traffic-scroll {
-      min-width: 60vw;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
@@ -447,14 +384,6 @@
         attr:disabled="!connected"
       >
         刷新用户列表
-      </p-button>
-
-      <p-button
-        variant="outlined"
-        on:click="showTraffic"
-        attr:disabled="!connected"
-      >
-        流量统计
       </p-button>
 
       <div class="user-count" :style.display="connected ? '' : 'none'">
@@ -614,79 +543,6 @@
         <option value="100">100条/页</option>
       </select>
     </div>
-
-    <!-- 流量统计弹窗 -->
-    <p-dialog auto-close sync:open="trafficOpen">
-      <span slot="title">流量统计</span>
-
-      <div class="traffic-scroll">
-        <!-- 全局流量 -->
-        <o-if :value="trafficData">
-          <div class="traffic-section-title">全局流量</div>
-          <div class="traffic-grid">
-            <div class="traffic-card">
-              <div class="label">入站流量</div>
-              <div class="value">{{trafficInbound}}</div>
-            </div>
-            <div class="traffic-card">
-              <div class="label">出站流量</div>
-              <div class="value">{{trafficOutbound}}</div>
-            </div>
-            <div class="traffic-card">
-              <div class="label">转发流量</div>
-              <div class="value">{{trafficRelayForwarded}}</div>
-            </div>
-            <div class="traffic-card">
-              <div class="label">握手明文</div>
-              <div class="value">{{trafficHandshake}}</div>
-            </div>
-          </div>
-        </o-if>
-
-        <!-- 用户流量明细 -->
-        <o-if :value="hasTrafficUsers">
-          <div class="traffic-section-title">用户流量明细</div>
-          <table class="traffic-user-table">
-            <thead>
-              <tr>
-                <th>用户</th>
-                <th style="text-align:right">Session</th>
-                <th style="text-align:right">入站</th>
-                <th style="text-align:right">出站</th>
-                <th style="text-align:right">转发</th>
-                <th style="text-align:right">握手</th>
-              </tr>
-            </thead>
-            <tbody :html="trafficUserRowsHtml"></tbody>
-          </table>
-        </o-if>
-
-        <!-- 时间分布 -->
-        <o-if :value="hasTrafficTimeDist">
-          <div class="traffic-section-title">分钟级流量分布（最近 {{trafficTimeDistCount}} 分钟）</div>
-          <table class="traffic-user-table">
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th style="text-align:right">入站</th>
-                <th style="text-align:right">出站</th>
-                <th style="text-align:right">转发</th>
-              </tr>
-            </thead>
-            <tbody :html="trafficTimeRowsHtml"></tbody>
-          </table>
-        </o-if>
-
-        <div :style.display="trafficData ? 'none' : ''" style="text-align:center;padding:20px;color:var(--md-sys-color-on-surface-variant)">
-          正在加载流量数据...
-        </div>
-      </div>
-
-      <div slot="bottom">
-        <p-button color="primary" on:click="refreshTraffic">刷新</p-button>
-        <p-button variant="text" on:click="trafficOpen = false">关闭</p-button>
-      </div>
-    </p-dialog>
   </div>
 
   <script>
@@ -706,8 +562,6 @@
           pageSize: 20,
           totalUsers: 0,
           totalPages: 0,
-          trafficOpen: false,
-          trafficData: null,
           groupByUser: false,
           _adminUser: null,
           _refreshTimer: null,
@@ -934,104 +788,10 @@
             this.currentPage = 1;
             this.totalUsers = 0;
             this.totalPages = 0;
-            this.trafficOpen = false;
-            this.trafficData = null;
             if (this._refreshTimer) {
               clearInterval(this._refreshTimer);
               this._refreshTimer = null;
             }
-          },
-
-          // ───── 流量统计 ─────
-
-          get hasTrafficUsers() {
-            return this.trafficData && this.trafficData.users && this.trafficData.users.length > 0;
-          },
-
-          get hasTrafficTimeDist() {
-            return this.trafficData && this.trafficData.time_distribution && this.trafficData.time_distribution.length > 0;
-          },
-
-          get trafficTimeDistCount() {
-            return this.trafficData && this.trafficData.time_distribution ? this.trafficData.time_distribution.length : 0;
-          },
-
-          get trafficInbound() {
-            return this.formatBytes(this.trafficData?.global?.inbound_bytes);
-          },
-
-          get trafficOutbound() {
-            return this.formatBytes(this.trafficData?.global?.outbound_bytes);
-          },
-
-          get trafficRelayForwarded() {
-            return this.formatBytes(this.trafficData?.global?.relay_forwarded_bytes);
-          },
-
-          get trafficHandshake() {
-            return this.formatBytes(this.trafficData?.global?.handshake_bytes);
-          },
-
-          get trafficUserRowsHtml() {
-            if (!this.hasTrafficUsers) return "";
-            const pad = (n) => String(n).padStart(2, "0");
-            return this.trafficData.users.map(u => {
-              const name = u.username || (u.user_id ? u.user_id.slice(0, 8) : "?");
-              return '<tr>'
-                + '<td>' + this._escapeHtml(name) + '</td>'
-                + '<td style="text-align:right">' + u.session_count + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(u.inbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(u.outbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(u.relay_forwarded_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(u.handshake_bytes) + '</td>'
-                + '</tr>';
-            }).join("");
-          },
-
-          get trafficTimeRowsHtml() {
-            if (!this.hasTrafficTimeDist) return "";
-            const pad = (n) => String(n).padStart(2, "0");
-            return this.trafficData.time_distribution.map(b => {
-              const d = new Date(b.minute_epoch * 60 * 1000);
-              const time = pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-              return '<tr>'
-                + '<td>' + time + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.inbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.outbound_bytes) + '</td>'
-                + '<td style="text-align:right">' + this.formatBytes(b.relay_forwarded_bytes) + '</td>'
-                + '</tr>';
-            }).join("");
-          },
-
-          _escapeHtml(str) {
-            if (typeof str !== 'string') return String(str || '');
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-          },
-
-          async showTraffic() {
-            this.trafficOpen = true;
-            this.trafficData = null;
-            await this.refreshTraffic();
-          },
-
-          async refreshTraffic() {
-            if (!this.connected || !this._adminUser) return;
-            try {
-              const result = await this._adminUser.getTrafficStats(WS_URL);
-              if (result.status === "ok") {
-                this.trafficData = result.traffic;
-              }
-            } catch (e) {
-              console.error("refreshTraffic failed:", e);
-            }
-          },
-
-          formatBytes(bytes) {
-            if (bytes == null || bytes === 0) return "0 B";
-            const units = ["B", "KB", "MB", "GB", "TB"];
-            const i = Math.floor(Math.log(bytes) / Math.log(1024));
-            const val = bytes / Math.pow(1024, i);
-            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
           },
         },
 

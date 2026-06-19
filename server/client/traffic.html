@@ -1,0 +1,361 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .top-bar .status-bar {
+      margin-bottom: 0;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .traffic-content {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .traffic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 220px);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .traffic-card {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+
+    .traffic-card .label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .traffic-card .value {
+      font-size: 24px;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+      margin-top: 6px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin: 20px 0 12px;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .traffic-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .traffic-table th {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 2px solid var(--md-sys-color-surface-variant);
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .traffic-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .traffic-table tr:hover td {
+      background-color: var(--md-sys-color-surface-container);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+  </style>
+
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+
+  <div class="container">
+    <div class="top-bar">
+      <div
+        class="status-bar"
+        class:connected="connected"
+        class:disconnected="!connected"
+      >
+        <span>{{connected ? '已连接' : '未连接'}}</span>
+        <span :style.display="connected ? '' : 'none'"
+          >— {{adminUsername}}</span
+        >
+      </div>
+
+      <p-button
+        variant="outlined"
+        on:click="refreshTraffic"
+        attr:disabled="!connected"
+      >
+        刷新
+      </p-button>
+    </div>
+
+    <div class="traffic-content">
+      <!-- 全局流量 -->
+      <o-if :value="trafficData">
+        <div class="section-title">全局流量</div>
+        <div class="traffic-grid">
+          <div class="traffic-card">
+            <div class="label">入站流量</div>
+            <div class="value">{{trafficInbound}}</div>
+          </div>
+          <div class="traffic-card">
+            <div class="label">出站流量</div>
+            <div class="value">{{trafficOutbound}}</div>
+          </div>
+          <div class="traffic-card">
+            <div class="label">转发流量</div>
+            <div class="value">{{trafficRelayForwarded}}</div>
+          </div>
+          <div class="traffic-card">
+            <div class="label">握手明文</div>
+            <div class="value">{{trafficHandshake}}</div>
+          </div>
+        </div>
+      </o-if>
+
+      <!-- 用户流量明细 -->
+      <o-if :value="hasTrafficUsers">
+        <div class="section-title">用户流量明细</div>
+        <table class="traffic-table">
+          <thead>
+            <tr>
+              <th>用户</th>
+              <th style="text-align:right">Session</th>
+              <th style="text-align:right">入站</th>
+              <th style="text-align:right">出站</th>
+              <th style="text-align:right">转发</th>
+              <th style="text-align:right">握手</th>
+            </tr>
+          </thead>
+          <tbody :html="trafficUserRowsHtml"></tbody>
+        </table>
+      </o-if>
+
+      <!-- 时间分布 -->
+      <o-if :value="hasTrafficTimeDist">
+        <div class="section-title">分钟级流量分布（最近 {{trafficTimeDistCount}} 分钟）</div>
+        <table class="traffic-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th style="text-align:right">入站</th>
+              <th style="text-align:right">出站</th>
+              <th style="text-align:right">转发</th>
+            </tr>
+          </thead>
+          <tbody :html="trafficTimeRowsHtml"></tbody>
+        </table>
+      </o-if>
+
+      <div
+        class="loading"
+        :style.display="trafficData ? 'none' : ''"
+      >
+        <o-if :value="!connected">请先连接到服务器</o-if>
+        <o-else>正在加载流量数据...</o-else>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connectedOnce: false,
+          adminUsername: "",
+          adminUserId: "",
+          trafficData: null,
+          _adminUser: null,
+        },
+
+        proto: {
+          async connect() {
+            if (this.connectedOnce) return;
+
+            try {
+              if (!this._adminUser) {
+                const { adminUser, adminInfo } = await getAdmin(load);
+                this._adminUser = adminUser;
+                this.adminUserId = adminInfo.userId;
+                this.adminUsername = adminInfo.username;
+              }
+
+              // 先尝试连接（如果尚未连接）
+              await this._adminUser.server.connect(WS_URL);
+              this.connected = true;
+              this.connectedOnce = true;
+
+              // 自动加载流量数据
+              await this.refreshTraffic();
+            } catch (e) {
+              console.error("Traffic page connect failed:", e);
+            }
+          },
+
+          get hasTrafficUsers() {
+            return this.trafficData && this.trafficData.users && this.trafficData.users.length > 0;
+          },
+
+          get hasTrafficTimeDist() {
+            return this.trafficData && this.trafficData.time_distribution && this.trafficData.time_distribution.length > 0;
+          },
+
+          get trafficTimeDistCount() {
+            return this.trafficData && this.trafficData.time_distribution ? this.trafficData.time_distribution.length : 0;
+          },
+
+          get trafficInbound() {
+            return this.formatBytes(this.trafficData?.global?.inbound_bytes);
+          },
+
+          get trafficOutbound() {
+            return this.formatBytes(this.trafficData?.global?.outbound_bytes);
+          },
+
+          get trafficRelayForwarded() {
+            return this.formatBytes(this.trafficData?.global?.relay_forwarded_bytes);
+          },
+
+          get trafficHandshake() {
+            return this.formatBytes(this.trafficData?.global?.handshake_bytes);
+          },
+
+          get trafficUserRowsHtml() {
+            if (!this.hasTrafficUsers) return "";
+            return this.trafficData.users.map(u => {
+              const name = u.username || (u.user_id ? u.user_id.slice(0, 8) : "?");
+              return '<tr>'
+                + '<td>' + this._escapeHtml(name) + '</td>'
+                + '<td style="text-align:right">' + u.session_count + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(u.inbound_bytes) + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(u.outbound_bytes) + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(u.relay_forwarded_bytes) + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(u.handshake_bytes) + '</td>'
+                + '</tr>';
+            }).join("");
+          },
+
+          get trafficTimeRowsHtml() {
+            if (!this.hasTrafficTimeDist) return "";
+            return this.trafficData.time_distribution.map(b => {
+              const d = new Date(b.minute_epoch * 60 * 1000);
+              const pad2 = (n) => String(n).padStart(2, "0");
+              const time = pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+              return '<tr>'
+                + '<td>' + time + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(b.inbound_bytes) + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(b.outbound_bytes) + '</td>'
+                + '<td style="text-align:right">' + this.formatBytes(b.relay_forwarded_bytes) + '</td>'
+                + '</tr>';
+            }).join("");
+          },
+
+          _escapeHtml(str) {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          },
+
+          async refreshTraffic() {
+            if (!this.connected || !this._adminUser) return;
+            try {
+              const result = await this._adminUser.getTrafficStats(WS_URL);
+              if (result.status === "ok") {
+                this.trafficData = result.traffic;
+              }
+            } catch (e) {
+              console.error("refreshTraffic failed:", e);
+            }
+          },
+
+          formatBytes(bytes) {
+            if (bytes == null || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+        },
+
+        attached() {
+          this.connect();
+        },
+
+        detached() {
+          this._adminUser = null;
+        },
+      };
+    };
+  </script>
+</template>
