@@ -81,8 +81,8 @@ export class AdminUser extends LocalUser {
    * @param {string} url - 服务器 WebSocket 地址
    * @returns {Promise<Object>} 流量统计信息
    */
-  async getTrafficStats(url) {
-    return this.#adminCommand(url, "get_traffic_stats");
+  async getTrafficStats(url, { limit } = {}) {
+    return this.#adminCommand(url, "get_traffic_stats", { limit });
   }
 
   /**

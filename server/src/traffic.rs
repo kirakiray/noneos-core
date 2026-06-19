@@ -53,6 +53,7 @@ pub struct TrafficStatsResponse {
     pub global: GlobalTraffic,
     pub users: Vec<UserTrafficSummary>,
     pub time_distribution: Vec<MinuteBucket>,
+    pub user_count: usize, // total number of unique online users (before limit)
 }
 
 /// Traffic statistics container — lives inside AppState
@@ -228,12 +229,20 @@ impl TrafficStats {
         self.minute_buckets.iter().cloned().collect()
     }
 
-    /// Build the full response for the admin command
-    pub fn build_response(&self) -> TrafficStatsResponse {
+    /// Build the full response for the admin command, optionally limited to top N users
+    pub fn build_response(&self, limit: Option<usize>) -> TrafficStatsResponse {
+        let all_users = self.compute_user_summaries();
+        let user_count = all_users.len();
+        let users = if let Some(l) = limit {
+            all_users.into_iter().take(l).collect()
+        } else {
+            all_users
+        };
         TrafficStatsResponse {
             global: self.compute_global(),
-            users: self.compute_user_summaries(),
+            users,
             time_distribution: self.get_time_distribution(),
+            user_count,
         }
     }
 }

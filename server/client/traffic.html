@@ -183,7 +183,9 @@
 
       <!-- 用户流量明细 -->
       <o-if :value="hasTrafficUsers">
-        <div class="section-title">用户流量明细</div>
+        <div class="section-title">
+          流量最多 TOP {{trafficUsersLimit}}（共 {{trafficUserCount}} 个在线用户）
+        </div>
         <table class="traffic-table">
           <thead>
             <tr>
@@ -276,6 +278,14 @@
             return this.trafficData && this.trafficData.time_distribution ? this.trafficData.time_distribution.length : 0;
           },
 
+          get trafficUsersLimit() {
+            return this.trafficData?.users?.length || 0;
+          },
+
+          get trafficUserCount() {
+            return this.trafficData?.user_count || 0;
+          },
+
           get trafficInbound() {
             return this.formatBytes(this.trafficData?.global?.inbound_bytes);
           },
@@ -330,7 +340,7 @@
           async refreshTraffic() {
             if (!this.connected || !this._adminUser) return;
             try {
-              const result = await this._adminUser.getTrafficStats(WS_URL);
+              const result = await this._adminUser.getTrafficStats(WS_URL, { limit: 20 });
               if (result.status === "ok") {
                 this.trafficData = result.traffic;
               }

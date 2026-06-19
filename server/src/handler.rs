@@ -325,6 +325,8 @@ struct AdminCommand {
     page: u32,
     #[serde(default = "default_page_size")]
     page_size: u32,
+    #[serde(default)]
+    limit: Option<usize>,
 }
 
 fn default_page() -> u32 { 1 }
@@ -907,7 +909,7 @@ pub async fn handle_connection(
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
                                                         "get_traffic_stats" => {
-                                                            let traffic_resp = state.traffic.lock().unwrap().build_response();
+                                                            let traffic_resp = state.traffic.lock().unwrap().build_response(admin_cmd.limit);
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
                                                                 action: "get_traffic_stats".to_string(),
