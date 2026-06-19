@@ -39,7 +39,7 @@
     }
 
     .history-table-wrap {
-      max-height: 400px;
+      max-height: 360px;
       overflow-y: auto;
     }
 
@@ -73,6 +73,53 @@
       font-family: monospace;
       font-size: 12px;
       white-space: nowrap;
+    }
+
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 0 4px;
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      flex-wrap: wrap;
+    }
+
+    .pagination-bar button {
+      padding: 6px 12px;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      transition: background-color 0.2s;
+    }
+
+    .pagination-bar button:hover:not(:disabled) {
+      background-color: var(--md-sys-color-surface-container-high);
+    }
+
+    .pagination-bar button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .pagination-bar .page-info {
+      min-width: 100px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pagination-bar .page-size-select {
+      margin-left: 12px;
+      padding: 4px 8px;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 6px;
+      font-size: 13px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
     }
   </style>
 
@@ -122,6 +169,29 @@
         <tbody :html="tableHtml"></tbody>
       </table>
     </div>
+    <div class="pagination-bar" :style.display="total > 0 ? '' : 'none'">
+      <button on:click="goFirstPage" :disabled="currentPage <= 1">
+        首页
+      </button>
+      <button on:click="goPrevPage" :disabled="currentPage <= 1">
+        上一页
+      </button>
+      <span class="page-info">
+        第 {{currentPage}} / {{totalPages}} 页，共 {{total}} 条
+      </span>
+      <button on:click="goNextPage" :disabled="currentPage >= totalPages">
+        下一页
+      </button>
+      <button on:click="goLastPage" :disabled="currentPage >= totalPages">
+        末页
+      </button>
+      <select class="page-size-select" on:change="changePageSize">
+        <option value="10">10条/页</option>
+        <option value="20" selected>20条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+      </select>
+    </div>
   </div>
 
   <script>
@@ -133,6 +203,9 @@
           loading: false,
           error: "",
           records: [],
+          currentPage: 1,
+          pageSize: 20,
+          total: 0,
         },
 
         proto: {
@@ -183,21 +256,44 @@
             );
           },
 
+          get totalPages() {
+            return Math.max(1, Math.ceil(this.total / this.pageSize));
+          },
+
           get tableHtml() {
             if (!this.records || this.records.length === 0) return "";
-            const rows = [...this.records]
-              .sort((a, b) => (b.recordedAt || 0) - (a.recordedAt || 0))
-              .map((r) => {
-                return "<tr>"
-                  + `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>`
-                  + `<td>${this.escapeHtml(r.sessionId)}</td>`
-                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>`
-                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>`
-                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>`
-                  + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>`
-                  + "</tr>";
-              });
+            const rows = this.records.map((r) => {
+              return "<tr>"
+                + `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>`
+                + `<td>${this.escapeHtml(r.sessionId)}</td>`
+                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>`
+                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>`
+                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>`
+                + `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>`
+                + "</tr>";
+            });
             return rows.join("");
+          },
+
+          async goToPage(page) {
+            if (this.loading) return;
+            const target = Math.max(1, Math.min(page, this.totalPages || 1));
+            if (target === this.currentPage) return;
+            this.currentPage = target;
+            await this.loadHistory();
+          },
+
+          goFirstPage() { this.goToPage(1); },
+          goPrevPage() { this.goToPage(this.currentPage - 1); },
+          goNextPage() { this.goToPage(this.currentPage + 1); },
+          goLastPage() { this.goToPage(this.totalPages); },
+
+          changePageSize(event) {
+            const newSize = parseInt(event.target.value, 10);
+            if (!newSize || newSize === this.pageSize) return;
+            this.pageSize = newSize;
+            this.currentPage = 1;
+            this.loadHistory();
           },
 
           async loadHistory() {
@@ -208,11 +304,12 @@
             }
             this.loading = true;
             this.error = "";
-            this.records = [];
             try {
               const { adminUser } = await getAdmin(load);
               const response = await adminUser.getTrafficHistory(WS_URL, {
                 userId,
+                page: this.currentPage,
+                pageSize: this.pageSize,
               });
               if (response.status === "ok") {
                 this.records = (response.history || []).map((r) => ({
@@ -223,12 +320,19 @@
                   relayForwardedBytes: Number(r.relayForwardedBytes) || 0,
                   handshakeBytes: Number(r.handshakeBytes) || 0,
                 }));
+                this.total = Number(response.total) || 0;
+                this.currentPage = Number(response.page) || this.currentPage;
+                this.pageSize = Number(response.pageSize) || this.pageSize;
               } else {
                 this.error = response.message || "加载流量历史失败";
+                this.records = [];
+                this.total = 0;
               }
             } catch (e) {
               console.error("loadHistory failed:", e);
               this.error = e.message || "加载流量历史失败";
+              this.records = [];
+              this.total = 0;
             } finally {
               this.loading = false;
             }

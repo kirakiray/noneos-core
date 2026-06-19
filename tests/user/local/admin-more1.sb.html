@@ -60,16 +60,19 @@
 
     ## get_traffic_history 命令
 
-    查询历史流量数据（需配置 traffic_db_path）：
+    查询历史流量数据（需配置 traffic_db_path），支持分页：
 
     发送：
-      { "type": "admin", "action": "get_traffic_history", "page": 1718000, "user_id": "可选" }
+      { "type": "admin", "action": "get_traffic_history", "page": 1, "page_size": 20, "from_ms": "可选，毫秒", "user_id": "可选" }
 
     响应：
       {
         "type": "admin_response",
         "action": "get_traffic_history",
         "status": "ok",
+        "total": 123,
+        "page": 1,
+        "page_size": 20,
         "history": [ ... ]
       }
     -->

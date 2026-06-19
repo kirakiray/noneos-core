@@ -86,16 +86,20 @@ export class AdminUser extends LocalUser {
   }
 
   /**
-   * 查询历史流量数据
+   * 查询历史流量数据（支持分页）
    * @param {string} url - 服务器 WebSocket 地址
    * @param {Object} [options] - 查询选项
-   * @param {number} [options.fromMs] - 起始时间戳（毫秒），默认 1 小时前
+   * @param {number} [options.fromMs] - 起始时间戳（毫秒），不传则服务器默认查最近 1 小时
    * @param {string} [options.userId] - 按用户 ID 筛选（可选）
-   * @returns {Promise<Object>} 历史流量数据
+   * @param {number} [options.page=1] - 页码（从 1 开始）
+   * @param {number} [options.pageSize=20] - 每页数量
+   * @returns {Promise<Object>} 历史流量数据（含 total/page/pageSize 字段）
    */
-  async getTrafficHistory(url, { fromMs, userId } = {}) {
+  async getTrafficHistory(url, { fromMs, userId, page = 1, pageSize = 20 } = {}) {
     return this.#adminCommand(url, "get_traffic_history", {
-      page: fromMs ? Math.floor(fromMs / 1000) : 0,
+      from_ms: fromMs,
+      page,
+      page_size: pageSize,
       user_id: userId,
     });
   }

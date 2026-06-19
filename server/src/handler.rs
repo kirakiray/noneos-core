@@ -327,6 +327,9 @@ struct AdminCommand {
     page_size: u32,
     #[serde(default)]
     limit: Option<usize>,
+    /// 可选：流量历史查询的起始时间戳（毫秒）。不传则默认查最近 1 小时。
+    #[serde(default)]
+    from_ms: Option<i64>,
 }
 
 fn default_page() -> u32 { 1 }
@@ -924,36 +927,44 @@ pub async fn handle_connection(
                                                         }
                                                         "get_traffic_history" => {
                                                             let to_ms = traffic::now_ms() as i64;
-                                                            let history_from = admin_cmd.page as i64 * 1000; // page param used as "from timestamp"
+                                                            // from_ms 由客户端明确传入；不传则默认查最近 1 小时
+                                                            let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3600_000);
                                                             let db_path = state.config.traffic_db_path.clone();
-                                                            let history_result: Vec<serde_json::Value> = if let Some(ref path) = db_path {
+                                                            let (history_result, total) = if let Some(ref path) = db_path {
                                                                 match rusqlite::Connection::open(path) {
                                                                     Ok(conn) => {
-                                                                        match traffic::query_traffic_history(
+                                                                        match traffic::query_traffic_history_paginated(
                                                                             &conn,
-                                                                            if history_from > 0 { history_from } else { to_ms - 3600_000 }, // default last hour
+                                                                            from_ms,
                                                                             to_ms,
                                                                             admin_cmd.user_id.as_deref(),
+                                                                            admin_cmd.page,
+                                                                            admin_cmd.page_size,
                                                                         ) {
-                                                                            Ok(rows) => rows,
-                                                                            Err(e) => {
-                                                                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
-                                                                            }
+                                                                            Ok((rows, total)) => (rows, total),
+                                                                            Err(e) => (
+                                                                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})],
+                                                                                0,
+                                                                            ),
                                                                         }
                                                                     }
-                                                                    Err(e) => {
-                                                                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})]
-                                                                    }
+                                                                    Err(e) => (
+                                                                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})],
+                                                                        0,
+                                                                    ),
                                                                 }
                                                             } else {
-                                                                Vec::new()
+                                                                (Vec::new(), 0)
                                                             };
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
                                                                 action: "get_traffic_history".to_string(),
                                                                 status: "ok".to_string(),
-                                                                message: Some(format!("Found {} history record(s)", history_result.len())),
+                                                                message: Some(format!("Found {} history record(s) in range [{} ~ {}]", history_result.len(), from_ms, to_ms)),
                                                                 history: Some(history_result),
+                                                                total: Some(total),
+                                                                page: Some(admin_cmd.page),
+                                                                page_size: Some(admin_cmd.page_size),
                                                                 ..Default::default()
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;

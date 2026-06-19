@@ -440,23 +440,16 @@ pub fn save_final_session_stats(
     }
 }
 
-/// Query historical traffic snapshots from SQLite (all users or specific user)
-pub fn query_traffic_history(
+/// 查询指定时间范围内的流量历史记录数量
+pub fn count_traffic_history(
     conn: &Connection,
     from_ms: i64,
     to_ms: i64,
     user_id: Option<&str>,
-) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-    let (sql, params): (
-        &str,
-        Vec<Box<dyn rusqlite::types::ToSql>>,
-    ) = if let Some(uid) = user_id {
+) -> Result<u32, rusqlite::Error> {
+    let (where_clause, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
         (
-            "SELECT recorded_at, user_id, session_id, username,
-                    inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes
-             FROM traffic_snapshots
-             WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3
-             ORDER BY recorded_at ASC",
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
             vec![
                 Box::new(from_ms),
                 Box::new(to_ms),
@@ -465,16 +458,69 @@ pub fn query_traffic_history(
         )
     } else {
         (
-            "SELECT recorded_at, user_id, session_id, username,
-                    inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes
-             FROM traffic_snapshots
-             WHERE recorded_at >= ?1 AND recorded_at <= ?2
-             ORDER BY recorded_at ASC",
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
             vec![Box::new(from_ms), Box::new(to_ms)],
         )
     };
 
-    let mut stmt = conn.prepare(sql)?;
+    let sql = format!(
+        "SELECT COUNT(*) FROM traffic_snapshots {}",
+        where_clause
+    );
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    let count: i64 = conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
+    Ok(count.max(0) as u32)
+}
+
+/// 分页查询历史流量快照
+/// 返回 (rows, total) 其中 total 是符合条件（时间范围 + 用户）的总记录数
+pub fn query_traffic_history_paginated(
+    conn: &Connection,
+    from_ms: i64,
+    to_ms: i64,
+    user_id: Option<&str>,
+    page: u32,
+    page_size: u32,
+) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
+    let total = count_traffic_history(conn, from_ms, to_ms, user_id)?;
+    let page = page.max(1) as i64;
+    let page_size = page_size.max(1).min(500) as i64;
+    let offset = (page - 1) * page_size;
+    if offset >= total as i64 {
+        return Ok((Vec::new(), total));
+    }
+
+    let (where_clause, mut params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
+        (
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
+            vec![
+                Box::new(from_ms),
+                Box::new(to_ms),
+                Box::new(uid.to_string()),
+            ],
+        )
+    } else {
+        (
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
+            vec![Box::new(from_ms), Box::new(to_ms)],
+        )
+    };
+
+    let sql = format!(
+        "SELECT recorded_at, user_id, session_id, username,
+                inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes
+         FROM traffic_snapshots
+         {}
+         ORDER BY recorded_at DESC, id DESC
+         LIMIT ?{} OFFSET ?{}",
+        where_clause,
+        params.len() + 1,
+        params.len() + 2,
+    );
+    params.push(Box::new(page_size));
+    params.push(Box::new(offset));
+
+    let mut stmt = conn.prepare(&sql)?;
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
         Ok(serde_json::json!({
@@ -493,5 +539,5 @@ pub fn query_traffic_history(
     for row in rows {
         results.push(row?);
     }
-    Ok(results)
+    Ok((results, total))
 }
