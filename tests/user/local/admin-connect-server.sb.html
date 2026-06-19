@@ -153,6 +153,9 @@
 
           const isAdminAuth = listResult?.status === "ok" && Array.isArray(listResult?.users);
 
+          // 退出登录：断开服务器连接
+          adminConUser.server.disconnect(adminConUrl);
+
           return {
             assert: isAdminAuth,
             content: {
@@ -204,6 +207,9 @@
           // 带分页参数的响应也正确
           const paginationWithParamsOK = adminListResponse2?.page === 1
             && adminListResponse2?.page_size === 10;
+
+          // 退出登录：断开服务器连接
+          adminListUser.server.disconnect(adminListUrl);
 
           return {
             assert: isListOK && selfInList && hasPaginationFields && paginationWithParamsOK,
@@ -359,6 +365,9 @@
           const isDenied = norm2AdminResp?.status === "error"
             && norm2AdminResp?.message?.includes("Permission denied");
 
+          // 退出登录：断开连接
+          norm2User.server.disconnect(norm2Url);
+
           return {
             assert: isDenied,
             content: {
@@ -413,6 +422,9 @@
 
           const isDisconnectOK = adminDiscResult?.status === "ok"
             && adminDiscResult?.action === "disconnect_user";
+
+          // 退出登录：断开管理员的连接
+          adminDiscUser.server.disconnect(discUrl);
 
           return {
             assert: isDisconnectOK && victimClosed,
@@ -557,8 +569,11 @@
             && adminSessListResult.page != null
             && adminSessListResult.page_size != null;
 
-          // 清理
+          // 清理：关闭原始 WebSocket 连接
           if (ws2 && ws2.readyState === WebSocket.OPEN) ws2.close();
+          // 退出登录：断开管理员和普通用户的连接
+          adminSessUser.server.disconnect(sessUrl);
+          sessUser1.server.disconnect(sessUrl);
 
           return {
             assert: disconnectOK && session1StillConnected && session2Disconnected && onlyOneSessionLeft && hasPagination,

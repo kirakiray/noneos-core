@@ -758,6 +758,32 @@ export class ServerManager {
   }
 
   /**
+   * 断开指定服务器的连接
+   * @param {string} url - 服务器 WebSocket 地址
+   */
+  disconnect(url) {
+    const ws = this.#wsMap.get(url);
+    if (ws) {
+      this.#wsMap.delete(url);
+      ws.close();
+      this.#serverCandidateCache.clear();
+      if (this.#wsMap.size === 0) {
+        this.stopLatencyMonitor();
+      }
+    }
+  }
+
+  /**
+   * 断开所有已连接服务器
+   */
+  disconnectAll() {
+    const urls = [...this.#wsMap.keys()];
+    for (const url of urls) {
+      this.disconnect(url);
+    }
+  }
+
+  /**
    * 获取延迟监测当前是否活跃
    * @returns {boolean}
    */
