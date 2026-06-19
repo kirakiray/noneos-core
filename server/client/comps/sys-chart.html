@@ -1,0 +1,211 @@
+<template component>
+  <style>
+    :host {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    svg {
+      width: 100%;
+      min-height: 180px;
+      display: block;
+    }
+
+    .legend {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      padding: 4px 0 0;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+  </style>
+
+  <div class="chart-wrapper">
+    <svg id="chart" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="legend">
+      <span class="legend-item">
+        <span class="legend-dot" :style.background="color"></span>
+        {{label}}
+      </span>
+    </div>
+  </div>
+
+  <script>
+    export default async () => {
+      return {
+        tag: "n-sys-chart",
+        attrs: {
+          title: "",
+          label: "",
+          color: "#4caf50",
+          "y-suffix": "",
+        },
+        data: {
+          points: [],
+        },
+        watch: {
+          points() {
+            this.drawChart();
+          },
+        },
+        attached() {
+          this.debounceTimer = null;
+          this.resizeObserver = new ResizeObserver(() => {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => this.drawChart(), 100);
+          });
+          this.resizeObserver.observe(this.shadow.$("#chart").ele.parentElement);
+          this.drawChart();
+        },
+        detached() {
+          if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+          }
+          if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+          }
+        },
+        proto: {
+          drawChart() {
+            const svg = this.shadow.$("#chart").ele;
+            svg.innerHTML = "";
+
+            const displayWidth = svg.parentElement.clientWidth || 600;
+            const displayHeight = 180;
+            svg.setAttribute("viewBox", `0 0 ${displayWidth} ${displayHeight}`);
+            svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+            const points = this.points || [];
+            if (points.length < 2) return;
+
+            const margin = { top: 16, right: 16, bottom: 32, left: 56 };
+            const width = displayWidth - margin.left - margin.right;
+            const height = displayHeight - margin.top - margin.bottom;
+
+            const yMin = 0;
+            const yMax = 100;
+            const yRange = yMax - yMin;
+
+            const minTime = points[0].time;
+            const maxTime = points[points.length - 1].time;
+            const timeRange = maxTime - minTime || 1;
+
+            // ── 网格线和 Y 轴标签 ──
+            const gridGroup = this._createSvgElement("g");
+            gridGroup.setAttribute("stroke", "#e0e0e0");
+            gridGroup.setAttribute("stroke-width", "1");
+
+            const yTickGroup = this._createSvgElement("g");
+            yTickGroup.setAttribute("font-family", "monospace");
+            yTickGroup.setAttribute("font-size", "10");
+            yTickGroup.setAttribute("fill", "#888");
+
+            const yTicks = 4;
+            for (let i = 0; i <= yTicks; i++) {
+              const y = margin.top + height - (i * height) / yTicks;
+              const line = this._createSvgElement("line");
+              line.setAttribute("x1", margin.left);
+              line.setAttribute("y1", y);
+              line.setAttribute("x2", margin.left + width);
+              line.setAttribute("y2", y);
+              gridGroup.appendChild(line);
+
+              const val = yMin + (yMax - yMin) * (i / yTicks);
+              const label = this._createSvgElement("text");
+              label.textContent = val.toFixed(0) + this["y-suffix"];
+              label.setAttribute("x", margin.left - 6);
+              label.setAttribute("y", y + 3);
+              label.setAttribute("text-anchor", "end");
+              yTickGroup.appendChild(label);
+            }
+            svg.appendChild(gridGroup);
+            svg.appendChild(yTickGroup);
+
+            // ── X 轴时间标签 ──
+            const xTickGroup = this._createSvgElement("g");
+            xTickGroup.setAttribute("font-family", "monospace");
+            xTickGroup.setAttribute("font-size", "10");
+            xTickGroup.setAttribute("fill", "#888");
+
+            const xTicks = Math.min(5, points.length - 1);
+            for (let i = 0; i <= xTicks; i++) {
+              const idx = Math.round((i / xTicks) * (points.length - 1));
+              const p = points[idx];
+              const x = margin.left + ((p.time - minTime) / timeRange) * width;
+
+              const label = this._createSvgElement("text");
+              const d = new Date(p.time);
+              label.textContent = String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+              label.setAttribute("x", x);
+              label.setAttribute("y", margin.top + height + 16);
+              label.setAttribute("text-anchor", "middle");
+              xTickGroup.appendChild(label);
+            }
+            svg.appendChild(xTickGroup);
+
+            // ── 绘制折线 ──
+            const pathGroup = this._createSvgElement("g");
+            let prevX = null;
+            let prevY = null;
+
+            for (const p of points) {
+              const x = margin.left + ((p.time - minTime) / timeRange) * width;
+              const y = margin.top + height - ((p.value - yMin) / yRange) * height;
+
+              if (prevX !== null && prevY !== null) {
+                const line = this._createSvgElement("line");
+                line.setAttribute("x1", prevX);
+                line.setAttribute("y1", prevY);
+                line.setAttribute("x2", x);
+                line.setAttribute("y2", y);
+                line.setAttribute("stroke", this.color);
+                line.setAttribute("stroke-width", "2");
+                line.setAttribute("stroke-linejoin", "round");
+                line.setAttribute("opacity", "0.85");
+                pathGroup.appendChild(line);
+              }
+
+              const dot = this._createSvgElement("circle");
+              dot.setAttribute("cx", x);
+              dot.setAttribute("cy", y);
+              dot.setAttribute("r", "2");
+              dot.setAttribute("fill", this.color);
+              dot.setAttribute("opacity", "0.7");
+              pathGroup.appendChild(dot);
+
+              prevX = x;
+              prevY = y;
+            }
+
+            svg.appendChild(pathGroup);
+          },
+
+          _createSvgElement(tag) {
+            return document.createElementNS("http://www.w3.org/2000/svg", tag);
+          },
+        },
+      };
+    };
+  </script>
+</template>

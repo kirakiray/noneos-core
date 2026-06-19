@@ -2,6 +2,7 @@
   <l-m
     src="https://punch-ui-v2.pages.dev/packages/list/list.html"
   ></l-m>
+  <l-m src="./comps/sys-chart.html"></l-m>
 
   <style>
     :host {
@@ -277,6 +278,18 @@
             </div>
           </o-fill>
         </div>
+
+        <!-- CPU 趋势图 -->
+        <div class="info-card">
+          <h2><span class="icon">📈</span> CPU 使用率趋势（最近 60 秒）</h2>
+          <n-sys-chart :points="cpuHistory" label="CPU 使用率" color="#4caf50" y-suffix="%"></n-sys-chart>
+        </div>
+
+        <!-- 内存趋势图 -->
+        <div class="info-card">
+          <h2><span class="icon">📈</span> 内存使用率趋势（最近 60 秒）</h2>
+          <n-sys-chart :points="memHistory" label="内存使用率" color="#2196f3" y-suffix="%"></n-sys-chart>
+        </div>
       </div>
     </o-if>
     <o-else>
@@ -299,6 +312,9 @@
           lastUpdate: "",
           _adminUser: null,
           _refreshTimer: null,
+          cpuHistory: [],
+          memHistory: [],
+          MAX_HISTORY: 60,
         },
 
         proto: {
@@ -353,6 +369,20 @@
               if (response.status === "ok" && response.system_info) {
                 this.systemInfo = response.system_info;
                 this.lastUpdate = new Date().toLocaleTimeString();
+
+                // 收集 CPU 历史（多核平均）
+                const si = response.system_info;
+                const cpuAvg = si.cpu.cores.reduce((sum, c) => sum + c.usage_percent, 0) / si.cpu.cores.length;
+                this.cpuHistory.push({ time: Date.now(), value: cpuAvg });
+                if (this.cpuHistory.length > this.MAX_HISTORY) {
+                  this.cpuHistory = this.cpuHistory.slice(-this.MAX_HISTORY);
+                }
+
+                // 收集内存历史
+                this.memHistory.push({ time: Date.now(), value: si.memory.usage_percent });
+                if (this.memHistory.length > this.MAX_HISTORY) {
+                  this.memHistory = this.memHistory.slice(-this.MAX_HISTORY);
+                }
               }
             } catch (e) {
               console.error("fetchSystemInfo failed:", e);
