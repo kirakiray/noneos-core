@@ -207,6 +207,94 @@
       cursor: not-allowed;
     }
 
+    /* 按用户分组视图样式 */
+    .user-group-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .user-group-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-group-info .card-detail {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .session-count-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 4px;
+    }
+
+    .session-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-surface-container-low);
+      font-size: 13px;
+    }
+
+    .session-item-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .session-id-label {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .session-time {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .session-item-addr {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      width: 100%;
+    }
+
+    .session-item .card-actions {
+      margin-top: 0;
+      margin-left: auto;
+    }
+
+    .user-group-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px solid var(--md-sys-color-surface-variant);
+    }
+
     .empty-state {
       grid-column: 1 / -1;
       text-align: center;
@@ -345,6 +433,14 @@
 
       <p-button
         variant="outlined"
+        on:click="toggleGroupByUser"
+        attr:disabled="!connected"
+      >
+        {{groupByUser ? '按会话显示' : '按用户显示'}}
+      </p-button>
+
+      <p-button
+        variant="outlined"
         on:click="refreshUsers"
         attr:disabled="!connected"
       >
@@ -360,11 +456,17 @@
       </p-button>
 
       <div class="user-count" :style.display="connected ? '' : 'none'">
-        在线用户：{{totalUsers}} 人（本页 {{users.length}} 人）
+        <o-if :value="!groupByUser">
+          在线会话：{{totalUsers}} 个（本页 {{users.length}} 个）
+        </o-if>
+        <o-else>
+          在线会话：{{totalUsers}} 个，{{userGroups.length}} 个用户（本页 {{users.length}} 个会话）
+        </o-else>
       </div>
     </div>
 
-    <div class="card-grid">
+    <!-- 按会话显示（原有视图） -->
+    <div class="card-grid" :style.display="groupByUser ? 'none' : ''">
       <o-fill :value="users">
         <div class="user-card">
           <div class="card-header">
@@ -416,11 +518,67 @@
       </o-fill>
     </div>
 
+    <!-- 按用户显示（分组视图） -->
+    <div class="card-grid" :style.display="groupByUser ? '' : 'none'">
+      <o-fill :value="userGroups">
+        <div class="user-group-card">
+          <div class="card-header">
+            <div class="user-avatar" class:admin="$data.isAdmin">
+              {{$data.avatar}}
+            </div>
+            <div class="user-group-info">
+              <div class="card-username">{{$data.username}}</div>
+              <div class="card-detail">
+                <span>用户ID：{{$data.userId}}</span>
+                <span class="session-count-badge">{{$data.sessionCount}} 个会话</span>
+              </div>
+            </div>
+          </div>
+          <div class="session-list">
+            <o-fill :value="$data.sessions">
+              <div class="session-item">
+                <div class="session-item-main">
+                  <span class="session-id-label">Session：{{$data.sessionId}}</span>
+                  <span
+                    class="latency-badge"
+                    class:high="$data.latencyMs > 200"
+                    :style.display="$data.latencyMs != null ? '' : 'none'"
+                    >{{$data.latencyMs}}ms</span
+                  >
+                  <span class="session-time">{{$data.connectedTime}}</span>
+                </div>
+                <div class="session-item-addr">{{$data.host || $data.addr}}</div>
+                <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
+                  <button
+                    class="kick-btn"
+                    on:click="$host.kickSession($data.userId, $data.sessionId)"
+                    :disabled="$data.isSelf"
+                  >
+                    断开会话
+                  </button>
+                </div>
+              </div>
+            </o-fill>
+          </div>
+          <div class="user-group-actions">
+            <button
+              class="kick-all-btn"
+              on:click="$host.kickUser($data.userId)"
+              :disabled="$data.isSelf"
+            >
+              断开该用户所有会话
+            </button>
+          </div>
+        </div>
+      </o-fill>
+    </div>
+
     <div
       class="empty-state"
       :style.display="users.length === 0 && connected ? '' : 'none'"
     >
-      暂无在线用户
+      <o-if :value="!groupByUser">暂无在线会话</o-if>
+      <o-else>暂无在线用户</o-else>
     </div>
 
     <div
@@ -433,9 +591,14 @@
       <button on:click="goPrevPage" :disabled="currentPage <= 1">
         上一页
       </button>
-      <span class="page-info"
-        >第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 人</span
-      >
+      <span class="page-info">
+        <o-if :value="!groupByUser">
+          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
+        </o-if>
+        <o-else>
+          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话（{{userGroups.length}} 个用户）
+        </o-else>
+      </span>
       <button on:click="goNextPage" :disabled="currentPage >= totalPages">
         下一页
       </button>
@@ -542,6 +705,7 @@
           totalPages: 0,
           trafficOpen: false,
           trafficData: null,
+          groupByUser: false,
           _adminUser: null,
           _refreshTimer: null,
         },
@@ -633,6 +797,35 @@
             this.pageSize = newSize;
             this.currentPage = 1;
             this.refreshUsers();
+          },
+
+          toggleGroupByUser() {
+            this.groupByUser = !this.groupByUser;
+          },
+
+          /**
+           * 按 userId 分组计算属性
+           * 将扁平的 session 列表按用户分组，返回用户数组
+           * 每个用户包含：userId, username, avatar, isAdmin, isSelf, sessionCount, sessions[]
+           */
+          get userGroups() {
+            const groups = {};
+            for (const u of this.users) {
+              if (!groups[u.userId]) {
+                groups[u.userId] = {
+                  userId: u.userId,
+                  username: u.username,
+                  avatar: u.avatar,
+                  isAdmin: u.isAdmin,
+                  isSelf: u.isSelf,
+                  sessions: [],
+                  sessionCount: 0,
+                };
+              }
+              groups[u.userId].sessions.push(u);
+              groups[u.userId].sessionCount++;
+            }
+            return Object.values(groups);
           },
 
           /**
