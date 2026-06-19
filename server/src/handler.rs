@@ -359,6 +359,14 @@ struct AdminResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     history: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    total_inbound_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_outbound_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_relay_forwarded_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_handshake_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     system_stats: Option<Vec<serde_json::Value>>,
 }
 
@@ -930,10 +938,10 @@ pub async fn handle_connection(
                                                             // from_ms 由客户端明确传入；不传则默认查最近 1 小时
                                                             let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3600_000);
                                                             let db_path = state.config.traffic_db_path.clone();
-                                                            let (history_result, total) = if let Some(ref path) = db_path {
+                                                            let (history_result, total, total_inbound, total_outbound, total_relay, total_handshake) = if let Some(ref path) = db_path {
                                                                 match rusqlite::Connection::open(path) {
                                                                     Ok(conn) => {
-                                                                        match traffic::query_traffic_history_paginated(
+                                                                        let history = match traffic::query_traffic_history_paginated(
                                                                             &conn,
                                                                             from_ms,
                                                                             to_ms,
@@ -946,15 +954,22 @@ pub async fn handle_connection(
                                                                                 vec![serde_json::json!({"error": format!("Query failed: {}", e)})],
                                                                                 0,
                                                                             ),
-                                                                        }
+                                                                        };
+                                                                        let totals = traffic::query_traffic_history_totals(
+                                                                            &conn,
+                                                                            from_ms,
+                                                                            to_ms,
+                                                                            admin_cmd.user_id.as_deref(),
+                                                                        ).unwrap_or((0, 0, 0, 0));
+                                                                        (history.0, history.1, totals.0, totals.1, totals.2, totals.3)
                                                                     }
                                                                     Err(e) => (
                                                                         vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})],
-                                                                        0,
+                                                                        0, 0, 0, 0, 0,
                                                                     ),
                                                                 }
                                                             } else {
-                                                                (Vec::new(), 0)
+                                                                (Vec::new(), 0, 0, 0, 0, 0)
                                                             };
                                                             let resp = AdminResponse {
                                                                 msg_type: "admin_response".to_string(),
@@ -965,6 +980,10 @@ pub async fn handle_connection(
                                                                 total: Some(total),
                                                                 page: Some(admin_cmd.page),
                                                                 page_size: Some(admin_cmd.page_size),
+                                                                total_inbound_bytes: Some(total_inbound),
+                                                                total_outbound_bytes: Some(total_outbound),
+                                                                total_relay_forwarded_bytes: Some(total_relay),
+                                                                total_handshake_bytes: Some(total_handshake),
                                                                 ..Default::default()
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;

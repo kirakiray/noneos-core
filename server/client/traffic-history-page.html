@@ -92,18 +92,13 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .pagination-bar .page-size-select {
+    .pagination-bar p-select {
       margin-left: 12px;
-      padding: 4px 8px;
-      border: 1px solid var(--md-sys-color-surface-variant);
-      border-radius: 6px;
-      font-size: 13px;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
     }
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
 
   <div class="history-loading" :style.display="loading ? '' : 'none'">
     正在加载流量历史...
@@ -185,12 +180,12 @@
       >
         末页
       </p-button>
-      <select class="page-size-select" on:change="changePageSize">
-        <option value="10">10条/页</option>
-        <option value="20" selected>20条/页</option>
-        <option value="50">50条/页</option>
-        <option value="100">100条/页</option>
-      </select>
+      <p-select size="s" on:change="changePageSize" sync:value="pageSize">
+        <p-option value="10">10条/页</p-option>
+        <p-option value="20">20条/页</p-option>
+        <p-option value="50">50条/页</p-option>
+        <p-option value="100">100条/页</p-option>
+      </p-select>
     </div>
   </div>
 
@@ -206,6 +201,10 @@
           currentPage: 1,
           pageSize: 20,
           total: 0,
+          totalInboundBytes: 0,
+          totalOutboundBytes: 0,
+          totalRelayForwardedBytes: 0,
+          totalHandshakeBytes: 0,
         },
 
         proto: {
@@ -238,24 +237,15 @@
           },
 
           get totalInbound() {
-            return this.formatBytes(
-              this.records.reduce((sum, r) => sum + (r.inboundBytes || 0), 0),
-            );
+            return this.formatBytes(this.totalInboundBytes);
           },
 
           get totalOutbound() {
-            return this.formatBytes(
-              this.records.reduce((sum, r) => sum + (r.outboundBytes || 0), 0),
-            );
+            return this.formatBytes(this.totalOutboundBytes);
           },
 
           get totalRelay() {
-            return this.formatBytes(
-              this.records.reduce(
-                (sum, r) => sum + (r.relayForwardedBytes || 0),
-                0,
-              ),
-            );
+            return this.formatBytes(this.totalRelayForwardedBytes);
           },
 
           get totalPages() {
@@ -301,9 +291,6 @@
           },
 
           changePageSize(event) {
-            const newSize = parseInt(event.target.value, 10);
-            if (!newSize || newSize === this.pageSize) return;
-            this.pageSize = newSize;
             this.currentPage = 1;
             this.loadHistory();
           },
@@ -321,7 +308,7 @@
               const response = await adminUser.getTrafficHistory(WS_URL, {
                 userId,
                 page: this.currentPage,
-                pageSize: this.pageSize,
+                pageSize: parseInt(this.pageSize),
               });
               if (response.status === "ok") {
                 this.records = (response.history || []).map((r) => ({
@@ -334,7 +321,11 @@
                 }));
                 this.total = Number(response.total) || 0;
                 this.currentPage = Number(response.page) || this.currentPage;
-                this.pageSize = Number(response.pageSize) || this.pageSize;
+                this.pageSize = Number(response.page_size) || this.pageSize;
+                this.totalInboundBytes = Number(response.total_inbound_bytes) || 0;
+                this.totalOutboundBytes = Number(response.total_outbound_bytes) || 0;
+                this.totalRelayForwardedBytes = Number(response.total_relay_forwarded_bytes) || 0;
+                this.totalHandshakeBytes = Number(response.total_handshake_bytes) || 0;
               } else {
                 this.error = response.message || "加载流量历史失败";
                 this.records = [];

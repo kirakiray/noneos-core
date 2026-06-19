@@ -52,8 +52,6 @@
       margin-left: auto;
     }
 
-    
-
     .user-count {
       margin-bottom: 12px;
       font-size: 14px;
@@ -159,8 +157,6 @@
       gap: 8px;
       margin-top: 4px;
     }
-
-    
 
     /* 按用户分组视图样式 */
     .user-group-card {
@@ -269,28 +265,21 @@
       color: var(--md-sys-color-on-surface-variant);
     }
 
-    
-
     .pagination-bar .page-info {
       min-width: 100px;
       text-align: center;
       font-variant-numeric: tabular-nums;
     }
 
-    .pagination-bar .page-size-select {
+    .pagination-bar p-select {
       margin-left: 12px;
-      padding: 4px 8px;
-      border: 1px solid var(--md-sys-color-surface-variant);
-      border-radius: 6px;
-      font-size: 13px;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
     }
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
   <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
   <l-m src="https://punch-ui-v2.pages.dev/packages/tabs/tab-bar.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -475,8 +464,20 @@
       class="pagination-bar"
       :style.display="connected && totalPages > 0 ? '' : 'none'"
     >
-      <p-button variant="outlined" size="xs" on:click="goFirstPage" attr:disabled="currentPage <= 1">首页</p-button>
-      <p-button variant="outlined" size="xs" on:click="goPrevPage" attr:disabled="currentPage <= 1">上一页</p-button>
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goFirstPage"
+        attr:disabled="currentPage <= 1"
+        >首页</p-button
+      >
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goPrevPage"
+        attr:disabled="currentPage <= 1"
+        >上一页</p-button
+      >
       <span class="page-info">
         <o-if :value="!groupByUser">
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
@@ -485,18 +486,28 @@
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
         </o-else>
       </span>
-      <p-button variant="outlined" size="xs" on:click="goNextPage" attr:disabled="currentPage >= totalPages">
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goNextPage"
+        attr:disabled="currentPage >= totalPages"
+      >
         下一页
       </p-button>
-      <p-button variant="outlined" size="xs" on:click="goLastPage" attr:disabled="currentPage >= totalPages">
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goLastPage"
+        attr:disabled="currentPage >= totalPages"
+      >
         末页
       </p-button>
-      <select class="page-size-select" on:change="changePageSize">
-        <option value="10">10条/页</option>
-        <option value="20" selected>20条/页</option>
-        <option value="50">50条/页</option>
-        <option value="100">100条/页</option>
-      </select>
+      <p-select size="s" on:change="changePageSize" :value="20">
+        <p-option value="10">10条/页</p-option>
+        <p-option value="20">20条/页</p-option>
+        <p-option value="50">50条/页</p-option>
+        <p-option value="100">100条/页</p-option>
+      </p-select>
     </div>
   </div>
 
@@ -646,7 +657,7 @@
           },
 
           changePageSize(event) {
-            const newSize = parseInt(event.target.value, 10);
+            const newSize = parseInt($(event.target).value, 10);
             if (newSize === this.pageSize) return;
             this.pageSize = newSize;
             this.currentPage = 1;

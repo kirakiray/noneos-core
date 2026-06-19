@@ -541,3 +541,46 @@ pub fn query_traffic_history_paginated(
     }
     Ok((results, total))
 }
+
+/// Query aggregated traffic totals for a user within a time range
+pub fn query_traffic_history_totals(
+    conn: &Connection,
+    from_ms: i64,
+    to_ms: i64,
+    user_id: Option<&str>,
+) -> Result<(u64, u64, u64, u64), rusqlite::Error> {
+    let (where_clause, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
+        (
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
+            vec![
+                Box::new(from_ms),
+                Box::new(to_ms),
+                Box::new(uid.to_string()),
+            ],
+        )
+    } else {
+        (
+            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
+            vec![Box::new(from_ms), Box::new(to_ms)],
+        )
+    };
+
+    let sql = format!(
+        "SELECT COALESCE(SUM(inbound_bytes), 0), COALESCE(SUM(outbound_bytes), 0),
+                COALESCE(SUM(relay_forwarded_bytes), 0), COALESCE(SUM(handshake_bytes), 0)
+         FROM traffic_snapshots {}",
+        where_clause,
+    );
+
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    let result = conn.query_row(&sql, param_refs.as_slice(), |row| {
+        Ok((
+            row.get::<_, i64>(0)? as u64,
+            row.get::<_, i64>(1)? as u64,
+            row.get::<_, i64>(2)? as u64,
+            row.get::<_, i64>(3)? as u64,
+        ))
+    })?;
+
+    Ok(result)
+}
