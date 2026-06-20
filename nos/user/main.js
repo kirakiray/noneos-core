@@ -1,10 +1,19 @@
 import { LocalUser } from "./local/user.js";
-import { getUserKeys, getUserInfo, saveUserKeys, saveUserInfo, closeDbByNamespace } from "./db.js";
-import { encryptWithPassword, decryptWithPassword } from "../crypto/crypto-aes.js";
+import {
+  getUserKeys,
+  getUserInfo,
+  saveUserKeys,
+  saveUserInfo,
+  closeDbByNamespace,
+} from "./db.js";
+import {
+  encryptWithPassword,
+  decryptWithPassword,
+} from "../crypto/crypto-aes.js";
 
 const users = new Map();
 
-export const getUser = async (namespace) => {
+export const getUser = async (namespace = "default") => {
   let user = null;
   if (users.has(namespace)) {
     user = users.get(namespace);
@@ -43,7 +52,7 @@ export const exportUser = async (namespace, password) => {
     namespace,
     keys,
     info,
-    exportTime: Date.now()
+    exportTime: Date.now(),
   };
 
   const jsonData = JSON.stringify(exportData);
@@ -79,7 +88,11 @@ export const importUser = async (namespace, encryptedData, password) => {
   const importData = JSON.parse(jsonData);
 
   // 验证数据格式
-  if (!importData.keys || !importData.keys.publicKey || !importData.keys.privateKey) {
+  if (
+    !importData.keys ||
+    !importData.keys.publicKey ||
+    !importData.keys.privateKey
+  ) {
     throw new Error("Invalid import data: missing keys");
   }
 
@@ -117,12 +130,12 @@ export const deleteUser = async (namespace, options = {}) => {
   if (!skipConfirm) {
     // 获取用户语言
     const lang = navigator.language || navigator.userLanguage;
-    const isZh = lang.startsWith('zh');
-    const isJa = lang.startsWith('ja');
+    const isZh = lang.startsWith("zh");
+    const isJa = lang.startsWith("ja");
 
     // 根据语言选择提示文本
     let confirm1Msg, confirm2Msg;
-    
+
     if (isZh) {
       confirm1Msg = `确定要删除用户 "${namespace}" 吗？\n\n警告：此操作不可恢复，所有用户数据将被永久删除！`;
       confirm2Msg = `再次确认：您真的要删除用户 "${namespace}" 吗？\n\n此操作将永久删除：\n- 用户密钥对\n- 用户信息\n- 所有证书\n\n删除后无法恢复，请谨慎操作！`;
@@ -170,7 +183,11 @@ export const deleteUser = async (namespace, options = {}) => {
       };
 
       request.onblocked = () => {
-        reject(new Error(`Database deletion blocked for user "${namespace}". Please close all connections and try again.`));
+        reject(
+          new Error(
+            `Database deletion blocked for user "${namespace}". Please close all connections and try again.`,
+          ),
+        );
       };
     };
 
