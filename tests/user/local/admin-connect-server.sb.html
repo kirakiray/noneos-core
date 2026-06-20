@@ -423,8 +423,9 @@
           const isDisconnectOK = adminDiscResult?.status === "ok"
             && adminDiscResult?.action === "disconnect_user";
 
-          // 退出登录：断开管理员的连接
+          // 退出登录：断开管理员的连接和 victim 的连接
           adminDiscUser.server.disconnect(discUrl);
+          victimUser.server.disconnect(discUrl);
 
           return {
             assert: isDisconnectOK && victimClosed,
