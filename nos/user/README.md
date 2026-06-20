@@ -149,6 +149,219 @@ const hasCert = await user.cert.has({ role: "editor" });
 console.log(hasCert); // false
 ```
 
+## 远程用户与消息收发
+
+本地用户可以通过 `connectUser(userId)` 连接到另一个在线用户，获得一个 `RemoteUser` 实例，用于发送消息、测量延迟等。
+
+### 连接远程用户
+
+```javascript
+const user = await getUser("my-namespace");
+await user.server.connect("ws://localhost:8081");
+
+const remoteUser = await user.connectUser(targetUserId);
+console.log(remoteUser.userId); // 目标用户的 userId
+```
+
+`connectUser` 会查询所有已连接的服务器，确认目标用户在线后返回 `RemoteUser`。同一 userId 多次调用会复用缓存实例。
+
+### 获取对方 Session 列表
+
+```javascript
+const sessionIds = await remoteUser.getSessionIds();
+```
+
+### 发送消息
+
+```javascript
+// 发送普通对象（若双方已交换名片，会自动启用 E2EE 加密）
+await remoteUser.send(sessionIds[0], { text: "hello", num: 42 });
+
+// 发送二进制数据
+const binary = new Uint8Array([0x01, 0x02, 0x03]);
+await remoteUser.send(sessionIds[0], binary);
+
+// 发送纯文本
+await remoteUser.send(sessionIds[0], "hello");
+```
+
+**返回值：** `{ status: "ok", via: "rtc"|"server", url?: string, result?: object }`
+
+- 默认对纯对象启用 E2EE 加密（需双方先通过 `user.card.get()` 交换名片）
+- 第一次发送走服务器中转；第二次开始后台静默尝试 WebRTC 直连
+- 若 WebRTC DataChannel 已就绪，优先走 RTC
+- `raw=true` 为内部参数，跳过 E2EE（如名片协议自身）
+
+### 接收消息
+
+监听 `RemoteUser` 的 `message` 事件：
+
+```javascript
+remoteUser.bind("message", (event) => {
+  const { fromUserId, fromSessionId, data, viaServer } = event.detail;
+  console.log("收到来自", fromUserId, "的消息:", data);
+});
+```
+
+也可直接监听 `LocalUser` 的 `message` 事件获取所有 relay 消息。
+
+### 延迟测量
+
+```javascript
+const rtt = await remoteUser.ping(sessionIds[0]);
+console.log("RTT:", rtt, "ms");
+
+// 获取最近一次测量结果
+console.log(remoteUser.getRTT(sessionIds[0]));
+// { rtt: 23, via: "server", url: "ws://localhost:8081" }
+
+// 不传 sessionId 返回所有 session 中最佳 RTT
+console.log(remoteUser.getRTT());
+```
+
+`rtt_update` 事件会在每次 ping 成功后触发：
+
+```javascript
+user.bind("rtt_update", (event) => {
+  console.log(event.detail); // { userId, sessionId, rtt, via, url }
+});
+```
+
+---
+
+## 用户导出/导入/删除
+
+用户模块提供完整生命周期管理函数。
+
+### 导出用户
+
+```javascript
+import { exportUser } from "/nos/user/main.js";
+
+const encrypted = await exportUser("my-namespace", "password");
+// 返回 base64 加密的字符串，包含密钥对和用户信息
+```
+
+### 导入用户
+
+```javascript
+import { importUser } from "/nos/user/main.js";
+
+const user = await importUser("new-namespace", encrypted, "password");
+// 若目标 namespace 已存在会抛出错误
+```
+
+### 删除用户
+
+```javascript
+import { deleteUser } from "/nos/user/main.js";
+
+// 默认弹出两次确认对话框
+await deleteUser("my-namespace");
+
+// 跳过确认（适合脚本/测试）
+await deleteUser("my-namespace", { skipConfirm: true });
+```
+
+删除会永久清除该 namespace 对应的 IndexedDB 数据库、内存缓存和所有本地数据。
+
+---
+
+## LocalUser 事件总览
+
+`LocalUser` 继承自 `EventTarget`，可通过 `bind(eventName, callback)` 监听以下事件：
+
+| 事件名 | 触发时机 | `event.detail` |
+|--------|---------|----------------|
+| `handshake` | 服务器握手完成或失败 | `{ url, status: "success"|"error", isAdmin?, version?, message? }` |
+| `message` | 收到服务器或 RTC 转发消息 | `{ url, data, originalEvent }` |
+| `close` | 服务器连接断开 | `{ url }` |
+| `ws_error` | WebSocket 连接错误 | `{ url, error }` |
+| `latency_test` | 单次延迟测试完成 | `{ url, rtt, oneWayLatency, clientTime, serverRecvTime, serverSendTime, clientRecvTime }` |
+| `latency_monitor` | 延迟监测启动 | `{ status: "started", intervalMs }` |
+| `rtt_update` | 用户间 ping 完成 | `{ userId, sessionId, rtt, via, url }` |
+| `rtc_state` | WebRTC 连接状态变化 | `{ userId, sessionId, state: "connected"|"disconnected" }` |
+| `card_received` | 收到并验证远程用户名片 | `{ userId, card, saved }` |
+
+示例：
+
+```javascript
+const user = await getUser("my-namespace");
+
+user.bind("handshake", (e) => {
+  console.log("握手:", e.detail.url, e.detail.status, e.detail.version);
+});
+
+user.bind("message", (e) => {
+  console.log("收到消息:", e.detail.url, e.detail.data);
+});
+```
+
+---
+
+## 服务器连接与延迟监测
+
+每个 `LocalUser` 实例内置 `ServerManager`，通过 `user.server` 访问。`ready()` 完成后会自动尝试连接默认服务器列表。
+
+### 连接服务器
+
+```javascript
+const user = await getUser("my-namespace");
+
+// 连接指定服务器
+const result = await user.server.connect("ws://localhost:8081");
+console.log(result.success, result.version);
+
+// 连接列表中所有服务器
+await user.server.connectAll();
+```
+
+连接成功后服务器地址会被持久化。默认服务器列表为 `["ws://localhost:8081", "ws://localhost:8082"]`。
+
+### 服务器列表管理
+
+```javascript
+const servers = await user.server.getServers();
+await user.server.addServer("ws://example.com:8081");
+await user.server.removeServer("ws://example.com:8081");
+```
+
+### 延迟测试与监测
+
+```javascript
+// 单次测试
+const latency = await user.server.testLatency("ws://localhost:8081");
+console.log(latency.rtt, latency.oneWayLatency);
+
+// 启动周期性监测（默认 30 秒）
+user.server.startLatencyMonitor();
+
+// 停止
+user.server.stopLatencyMonitor();
+```
+
+`testLatency` 返回：
+
+```javascript
+{
+  rtt,              // 往返延迟（ms）
+  oneWayLatency,    // 单向延迟估算（ms）
+  clientTime,       // 客户端发送时间
+  serverRecvTime,   // 服务器接收时间
+  serverSendTime,   // 服务器发送时间
+  clientRecvTime    // 客户端接收时间
+}
+```
+
+连接成功后会自动启动静默延迟监测；所有连接断开后自动停止。
+
+### 断开连接
+
+```javascript
+user.server.disconnect("ws://localhost:8081");
+user.server.disconnectAll();
+```
+
 ## 完整示例
 
 ```javascript
@@ -413,6 +626,11 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 
 查看测试文件了解更多用法：
 
+- [基础用户测试](../../tests/user/base-user.sb.html)
 - [基本功能测试](../../tests/user/local/local-user.sb.html)
 - [证书管理测试](../../tests/user/local/local-user-cert.sb.html)
 - [个人信息测试](../../tests/user/local/local-user-info.sb.html)
+- [服务器连接测试](../../tests/user/local/connect-server.sb.html)
+- [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
+- [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
+- [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
