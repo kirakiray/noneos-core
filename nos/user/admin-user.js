@@ -154,12 +154,15 @@ export class AdminUser extends LocalUser {
   }
 
   /**
-   * 获取用户的转发流量额度
+   * 获取用户的转发流量额度（支持单个或批量获取）
    * @param {string} url - 服务器 WebSocket 地址
-   * @param {string} userId - 目标用户 ID
-   * @returns {Promise<Object>} 包含额度信息的响应
+   * @param {string|string[]} userId - 目标用户 ID 或 ID 数组
+   * @returns {Promise<Object>} 包含额度信息的响应。如果是批量查询，结果在 quotas 字段中；单个查询在 quota 字段中。
    */
   async getUserRelayQuota(url, userId) {
+    if (Array.isArray(userId)) {
+      return this.#adminCommand(url, "get_user_relay_quota", { user_ids: userId });
+    }
     return this.#adminCommand(url, "get_user_relay_quota", { user_id: userId });
   }
 }

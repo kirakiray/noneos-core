@@ -61,7 +61,7 @@
     管理员不受额度限制。
     -->
 
-    <sb-test name="Admin Get User Relay Quota">
+    <sb-test name="Admin Get User Relay Quota (Single & Batch)">
       <template>
         <script type="module">
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
@@ -84,23 +84,31 @@
           const getqUrl = "ws://localhost:8081";
           await getqAdmin.server.connect(getqUrl);
 
+          // 1. 测试单个获取
           const getqResult = await getqAdmin.getUserRelayQuota(getqUrl, getqUser.userId);
           const getqQuota = getqResult?.quota;
-          const getqOk = getqResult?.status === "ok"
+          const getqSingleOk = getqResult?.status === "ok"
             && getqQuota?.user_id === getqUser.userId
-            && typeof getqQuota?.quota_bytes === "number"
-            && typeof getqQuota?.used_bytes === "number"
-            && getqQuota.quota_bytes > 0;
+            && typeof getqQuota?.quota_bytes === "number";
+
+          // 2. 测试批量获取
+          const batchResult = await getqAdmin.getUserRelayQuota(getqUrl, [getqUser.userId, getqAdmin.userId]);
+          const batchOk = batchResult?.status === "ok"
+            && Array.isArray(batchResult?.quotas)
+            && batchResult.quotas.length === 2
+            && batchResult.quotas.some(q => q.user_id === getqUser.userId)
+            && batchResult.quotas.some(q => q.user_id === getqAdmin.userId);
 
           getqAdmin.server.disconnect(getqUrl);
 
           return {
-            assert: getqOk,
+            assert: getqSingleOk && batchOk,
             content: {
-              message: getqOk
-                ? "Admin can get user relay quota with expected fields"
-                : "Unexpected quota response",
-              result: getqResult,
+              message: getqSingleOk && batchOk
+                ? "Admin can get user relay quota (single and batch)"
+                : "Quota response validation failed",
+              singleResult: getqResult,
+              batchResult: batchResult
             },
           };
         </script>

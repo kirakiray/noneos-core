@@ -398,6 +398,8 @@ struct AdminCommand {
     #[serde(default)]
     user_id: Option<String>,
     #[serde(default)]
+    user_ids: Option<Vec<String>>,
+    #[serde(default)]
     session_id: Option<String>,
     #[serde(default = "default_page")]
     page: u32,
@@ -451,6 +453,8 @@ struct AdminResponse {
     system_stats: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     quota: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quotas: Option<Vec<serde_json::Value>>,
 }
 
 /// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
@@ -1224,27 +1228,44 @@ pub async fn handle_connection(
                                                             }
                                                         }
                                                         "get_user_relay_quota" => {
-                                                            let target_user = admin_cmd.user_id.clone().unwrap_or_default();
-                                                            if target_user.is_empty() {
-                                                                let resp = AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: "get_user_relay_quota".to_string(),
-                                                                    status: "error".to_string(),
-                                                                    message: Some("Missing user_id".to_string()),
-                                                                    ..Default::default()
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            } else {
-                                                                let quota = state.get_or_create_user_quota(&target_user);
+                                                            if let Some(user_ids) = admin_cmd.user_ids {
+                                                                let mut quotas = Vec::new();
+                                                                for tid in user_ids {
+                                                                    let q = state.get_or_create_user_quota(&tid);
+                                                                    quotas.push(serde_json::to_value(q).unwrap_or_default());
+                                                                }
                                                                 let resp = AdminResponse {
                                                                     msg_type: "admin_response".to_string(),
                                                                     action: "get_user_relay_quota".to_string(),
                                                                     status: "ok".to_string(),
-                                                                    message: Some(format!("User {} relay quota", target_user)),
-                                                                    quota: Some(serde_json::to_value(quota).unwrap_or_default()),
+                                                                    message: Some(format!("Fetched {} user relay quota(s)", quotas.len())),
+                                                                    quotas: Some(quotas),
                                                                     ..Default::default()
                                                                 };
                                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let target_user = admin_cmd.user_id.clone().unwrap_or_default();
+                                                                if target_user.is_empty() {
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "get_user_relay_quota".to_string(),
+                                                                        status: "error".to_string(),
+                                                                        message: Some("Missing user_id or user_ids".to_string()),
+                                                                        ..Default::default()
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                } else {
+                                                                    let quota = state.get_or_create_user_quota(&target_user);
+                                                                    let resp = AdminResponse {
+                                                                        msg_type: "admin_response".to_string(),
+                                                                        action: "get_user_relay_quota".to_string(),
+                                                                        status: "ok".to_string(),
+                                                                        message: Some(format!("User {} relay quota", target_user)),
+                                                                        quota: Some(serde_json::to_value(quota).unwrap_or_default()),
+                                                                        ..Default::default()
+                                                                    };
+                                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                }
                                                             }
                                                         }
                                                         _ => {

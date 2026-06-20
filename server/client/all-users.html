@@ -1,0 +1,539 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .user-count {
+      margin-left: auto;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .card-grid {
+      flex: 1;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      align-content: start;
+    }
+
+    .user-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .online-indicator {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-outline-variant);
+      border: 2px solid var(--md-sys-color-surface);
+    }
+
+    .online-indicator.online {
+      background-color: #4caf50;
+    }
+
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .username {
+      font-weight: bold;
+      font-size: 16px;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-id {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      word-break: break-all;
+    }
+
+    .admin-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .card-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .quota-info {
+      padding: 10px;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-surface-container-low);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .quota-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 11px;
+      color: var(--md-sys-color-primary);
+      text-transform: uppercase;
+    }
+
+    .quota-values {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .quota-bar {
+      height: 4px;
+      background-color: var(--md-sys-color-surface-variant);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .quota-progress {
+      height: 100%;
+      background-color: var(--md-sys-color-primary);
+      transition: width 0.3s;
+    }
+
+    .quota-progress.exceeded {
+      background-color: var(--md-sys-color-error);
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 0;
+      flex-shrink: 0;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    /* 弹窗样式 */
+    .dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 300px;
+    }
+
+    .dialog-body label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .dialog-body input {
+      padding: 10px 12px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: 8px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+
+  <div class="container">
+    <div class="top-bar">
+      <div
+        class="status-bar"
+        class:connected="connected"
+        class:disconnected="!connected"
+      >
+        <span>{{connected ? '已连接' : '未连接'}}</span>
+        <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
+      </div>
+
+      <p-button
+        variant="outlined"
+        on:click="refreshUsers"
+        attr:disabled="!connected"
+      >
+        刷新
+      </p-button>
+
+      <div class="user-count" :style.display="connected ? '' : 'none'">
+        总计历史用户：{{totalUsers}}
+      </div>
+    </div>
+
+    <div class="card-grid">
+      <o-fill :value="userList">
+        <div class="user-card">
+          <div class="card-header">
+            <div class="user-avatar">
+              {{$data.avatar}}
+              <div class="online-indicator" class:online="$data.isOnline"></div>
+            </div>
+            <div class="user-info">
+              <div class="username">
+                {{$data.username}}
+                <o-if :value="$data.isAdmin">
+                  <span class="admin-badge">管理员</span>
+                </o-if>
+              </div>
+              <div class="user-id">{{$data.userId}}</div>
+            </div>
+          </div>
+
+          <div class="card-details">
+            <div>
+              <div style="font-weight:bold">首次出现</div>
+              <div>{{$data.firstSeenText}}</div>
+            </div>
+            <div>
+              <div style="font-weight:bold">最后上线</div>
+              <div>{{$data.lastSeenText}}</div>
+            </div>
+          </div>
+
+          <!-- 额度信息 -->
+          <div class="quota-info">
+            <div class="quota-header">
+              <span>转发额度</span>
+              <o-if :value="$data.isAdmin">
+                <span>无限制</span>
+              </o-if>
+              <o-else-if :value="$data.quota">
+                <span>{{$host.getQuotaStatusText($data.quota)}}</span>
+              </o-else-if>
+              <o-else>
+                <span>未设置</span>
+              </o-else>
+            </div>
+            <div class="quota-values" :style.display="$data.isAdmin ? 'none' : ''">
+              <o-if :value="$data.quota">
+                <span>已用: {{$host.formatBytes($data.quota.used_bytes)}}</span>
+                <span>总量: {{$host.formatBytes($data.quota.quota_bytes)}}</span>
+              </o-if>
+              <o-else>
+                <span>-</span>
+                <span>默认: 500MB</span>
+              </o-else>
+            </div>
+            <div class="quota-bar" :style.display="$data.isAdmin ? 'none' : ''">
+              <div 
+                class="quota-progress" 
+                class:exceeded="$data.quota && $data.quota.used_bytes >= $data.quota.quota_bytes"
+                :style.width="$host.getQuotaPercent($data.quota) + '%'"
+              ></div>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <p-button
+              variant="outlined"
+              size="s"
+              color="primary"
+              on:click="$host.openQuotaDialog($data)"
+              attr:disabled="$data.isAdmin || !$host.connected"
+            >
+              设置额度
+            </p-button>
+          </div>
+        </div>
+      </o-fill>
+
+      <div class="empty-state" :style.display="connected && userList.length === 0 ? '' : 'none'">
+        暂无用户记录
+      </div>
+      <div class="empty-state" :style.display="!connected ? '' : 'none'">
+        请先连接到服务器
+      </div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination-bar" :style.display="connected && totalPages > 1 ? '' : 'none'">
+      <p-button variant="outlined" size="s" on:click="prevPage" attr:disabled="currentPage <= 1">上一页</p-button>
+      <span>第 {{currentPage}} / {{totalPages}} 页</span>
+      <p-button variant="outlined" size="s" on:click="nextPage" attr:disabled="currentPage >= totalPages">下一页</p-button>
+    </div>
+  </div>
+
+  <!-- 额度设置弹窗 -->
+  <p-dialog id="quota-dialog" sync:open="dialogOpen">
+    <span slot="title">设置转发额度 — {{dialogTarget?.username}}</span>
+    <div class="dialog-body" :style.display="dialogOpen ? '' : 'none'">
+      <label>额度（字节）</label>
+      <input type="number" min="0" step="1024" sync:value="dialogQuotaBytes" />
+      <div class="quick-buttons">
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0 (禁止)</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="outlined" on:click="dialogOpen = false">取消</p-button>
+      <p-button color="primary" on:click="confirmQuota">保存设置</p-button>
+    </div>
+  </p-dialog>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+      const { toast } = await import("https://punch-ui-v2.pages.dev/packages/util.js");
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          adminUsername: "",
+          adminUserId: "",
+          userList: [],
+          currentPage: 1,
+          pageSize: 12,
+          totalUsers: 0,
+          totalPages: 0,
+          _adminUser: null,
+
+          // 弹窗状态
+          dialogOpen: false,
+          dialogTarget: null,
+          dialogQuotaBytes: 0
+        },
+
+        proto: {
+          async connect() {
+            try {
+              if (!this._adminUser) {
+                const { adminUser, adminInfo } = await getAdmin(load);
+                this._adminUser = adminUser;
+                this.adminUserId = adminInfo.userId;
+                this.adminUsername = adminInfo.username;
+              }
+              await this._adminUser.server.connect(WS_URL);
+              this.connected = true;
+              await this.refreshUsers();
+            } catch (e) {
+              console.error("Connect failed:", e);
+            }
+          },
+
+          async refreshUsers() {
+            if (!this.connected || !this._adminUser) return;
+            try {
+              const resp = await this._adminUser.listAllUsers(WS_URL, {
+                page: this.currentPage,
+                pageSize: this.pageSize
+              });
+
+              if (resp.status === "ok") {
+                this.totalUsers = resp.total || 0;
+                this.totalPages = Math.ceil(this.totalUsers / this.pageSize);
+                
+                // 批量获取当前页所有用户的额度信息
+                const userIds = (resp.users || []).map(u => u.userId);
+                let quotaMap = {};
+                if (userIds.length > 0) {
+                  try {
+                    const qResp = await this._adminUser.getUserRelayQuota(WS_URL, userIds);
+                    if (qResp.status === "ok" && qResp.quotas) {
+                      qResp.quotas.forEach(q => {
+                        quotaMap[q.user_id] = q;
+                      });
+                    }
+                  } catch (e) {
+                    console.error("Batch fetch quotas failed:", e);
+                  }
+                }
+
+                this.userList = (resp.users || []).map(u => {
+                  return {
+                    ...u,
+                    avatar: (u.username || "?")[0].toUpperCase(),
+                    isAdmin: u.userId === this.adminUserId,
+                    firstSeenText: this.formatDate(u.firstSeenAt),
+                    lastSeenText: this.formatDate(u.lastSeenAt),
+                    quota: quotaMap[u.userId] || null
+                  };
+                });
+              }
+            } catch (e) {
+              console.error("Refresh users failed:", e);
+            }
+          },
+
+          formatDate(ms) {
+            if (!ms) return "-";
+            const date = new Date(ms);
+            return date.toLocaleString();
+          },
+
+          formatBytes(bytes) {
+            if (bytes === undefined || bytes === null) return "0 B";
+            if (bytes === 0) return "0 B";
+            const k = 1024;
+            const sizes = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+          },
+
+          getQuotaPercent(quota) {
+            if (!quota || quota.quota_bytes === 0) return 0;
+            return Math.min(100, (quota.used_bytes / quota.quota_bytes) * 100);
+          },
+
+          getQuotaStatusText(quota) {
+            if (!quota) return "正常";
+            if (quota.used_bytes >= quota.quota_bytes) return "已超额";
+            return "正常";
+          },
+
+          prevPage() {
+            if (this.currentPage > 1) {
+              this.currentPage--;
+              this.refreshUsers();
+            }
+          },
+
+          nextPage() {
+            if (this.currentPage < this.totalPages) {
+              this.currentPage++;
+              this.refreshUsers();
+            }
+          },
+
+          openQuotaDialog(user) {
+            this.dialogTarget = user;
+            this.dialogQuotaBytes = user.quota ? user.quota.quota_bytes : 524288000; // 默认 500MB
+            this.dialogOpen = true;
+          },
+
+          setQuickQuota(val) {
+            this.dialogQuotaBytes = val;
+          },
+
+          async confirmQuota() {
+            if (!this._adminUser || !this.dialogTarget) return;
+            try {
+              const resp = await this._adminUser.setUserRelayQuota(
+                WS_URL, 
+                this.dialogTarget.userId, 
+                parseInt(this.dialogQuotaBytes)
+              );
+              if (resp.status === "ok") {
+                toast("额度设置成功");
+                this.dialogOpen = false;
+                this.refreshUsers();
+              } else {
+                toast("设置失败: " + resp.message);
+              }
+            } catch (e) {
+              toast("请求失败: " + e.message);
+            }
+          }
+        },
+
+        attached() {
+          this.connect();
+        }
+      };
+    };
+  </script>
+</template>
