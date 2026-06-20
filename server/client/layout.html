@@ -159,16 +159,16 @@
             this.activeTraffic = path.endsWith("traffic.html");
           },
           navigateToAdmin() {
-            window.location.hash = "./admin.html";
+            this.goto("./admin.html");
           },
           navigateToAllUsers() {
-            window.location.hash = "./all-users.html";
+            this.goto("./all-users.html");
           },
           navigateToSysInfo() {
-            window.location.hash = "./system-info.html";
+            this.goto("./system-info.html");
           },
           navigateToTraffic() {
-            window.location.hash = "./traffic.html";
+            this.goto("./traffic.html");
           },
           openServerDialog() {
             this.savedUrls = getServerHistory();
