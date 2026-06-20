@@ -1,0 +1,431 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .top-bar .status-bar {
+      margin-bottom: 0;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+
+    .quota-content {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .quota-list {
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+    }
+
+    .quota-header {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 90px 110px;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--md-sys-color-surface-variant);
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 12px;
+    }
+
+    .quota-row {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 90px 110px;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      align-items: center;
+    }
+
+    .quota-row:hover {
+      background-color: var(--md-sys-color-surface-container);
+    }
+
+    .quota-header .col-quota,
+    .quota-header .col-used,
+    .quota-header .col-status,
+    .quota-row .col-quota,
+    .quota-row .col-used,
+    .quota-row .col-status {
+      text-align: right;
+    }
+
+    .quota-row .col-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .user-name {
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .user-id {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .quota-status {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .quota-status.normal {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .quota-status.exceeded {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .quota-status.admin {
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 280px;
+    }
+
+    .dialog-body label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .dialog-body input {
+      padding: 10px 12px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: 8px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+
+  <div class="container">
+    <div class="top-bar">
+      <div
+        class="status-bar"
+        class:connected="connected"
+        class:disconnected="!connected"
+      >
+        <span>{{connected ? '已连接' : '未连接'}}</span>
+        <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
+      </div>
+
+      <p-button
+        variant="outlined"
+        on:click="refreshQuota"
+        attr:disabled="!connected"
+      >
+        刷新
+      </p-button>
+    </div>
+
+    <div class="hint">
+      默认额度 500MB，超额后仅允许转发 ≤1KB 的小消息。管理员不受额度限制。
+    </div>
+
+    <div class="quota-content">
+      <o-if :value="quotaList.length > 0">
+        <div class="quota-list">
+          <div class="quota-header">
+            <div class="col-user">用户</div>
+            <div class="col-quota">额度</div>
+            <div class="col-used">已用</div>
+            <div class="col-status">状态</div>
+            <div class="col-actions">操作</div>
+          </div>
+          <o-fill :value="quotaList">
+            <div class="quota-row">
+              <div class="col-user">
+                <div class="user-name">{{$data.username}}</div>
+                <div class="user-id">{{$data.userId}}</div>
+              </div>
+              <div class="col-quota">{{$host.formatBytes($data.quotaBytes)}}</div>
+              <div class="col-used">{{$host.formatBytes($data.usedBytes)}}</div>
+              <div class="col-status">
+                <span
+                  class="quota-status"
+                  class:normal="$data.status === 'normal'"
+                  class:exceeded="$data.status === 'exceeded'"
+                  class:admin="$data.status === 'admin'"
+                >{{$data.statusText}}</span>
+              </div>
+              <div class="col-actions">
+                <p-button
+                  size="xs"
+                  variant="outlined"
+                  on:click="$host.openQuotaDialog($data)"
+                  attr:disabled="$data.isAdmin"
+                >
+                  设置额度
+                </p-button>
+              </div>
+            </div>
+          </o-fill>
+        </div>
+      </o-if>
+
+      <div
+        class="empty-state"
+        :style.display="quotaList.length === 0 && connected ? '' : 'none'"
+      >
+        暂无在线用户
+      </div>
+
+      <div
+        class="empty-state"
+        :style.display="!connected ? '' : 'none'"
+      >
+        请先连接到服务器
+      </div>
+    </div>
+  </div>
+
+  <p-dialog id="quota-dialog" sync:open="dialogOpen">
+    <span slot="title">设置额度 — {{dialogTarget?.username}}</span>
+    <div class="dialog-body" :style.display="dialogOpen ? '' : 'none'">
+      <label>额度（字节）</label>
+      <input
+        type="number"
+        min="0"
+        step="1024"
+        sync:value="dialogQuotaBytes"
+      />
+      <div class="quick-buttons">
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)">1MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="outlined" on:click="closeDialog">取消</p-button>
+      <p-button color="primary" on:click="confirmQuota">确定</p-button>
+    </div>
+  </p-dialog>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connectedOnce: false,
+          adminUsername: "",
+          adminUserId: "",
+          quotaList: [],
+          _adminUser: null,
+          // 弹窗状态
+          dialogOpen: false,
+          dialogTarget: null,
+          dialogQuotaBytes: "0",
+        },
+
+        proto: {
+          async connect() {
+            if (this.connectedOnce) return;
+
+            try {
+              if (!this._adminUser) {
+                const { adminUser, adminInfo } = await getAdmin(load);
+                this._adminUser = adminUser;
+                this.adminUserId = adminInfo.userId;
+                this.adminUsername = adminInfo.username;
+              }
+
+              await this._adminUser.server.connect(WS_URL);
+              this.connected = true;
+              this.connectedOnce = true;
+
+              await this.refreshQuota();
+            } catch (e) {
+              console.error("Quota page connect failed:", e);
+            }
+          },
+
+          async refreshQuota() {
+            if (!this.connected || !this._adminUser) return;
+            try {
+              const usersResp = await this._adminUser.listUsers(WS_URL, {
+                page: 1,
+                pageSize: 1000,
+              });
+              if (usersResp.status !== "ok") return;
+
+              const users = usersResp.users || [];
+              const list = [];
+              for (const u of users) {
+                const isAdmin = u.userId === this.adminUserId;
+                let quotaResp;
+                try {
+                  quotaResp = await this._adminUser.getUserRelayQuota(WS_URL, u.userId);
+                } catch (e) {
+                  console.error("getUserRelayQuota failed:", e);
+                  continue;
+                }
+                const quota = quotaResp?.quota || {};
+                const quotaBytes = quota.quota_bytes ?? 0;
+                const usedBytes = quota.used_bytes ?? 0;
+                let status = "normal";
+                let statusText = "正常";
+                if (isAdmin) {
+                  status = "admin";
+                  statusText = "管理员";
+                } else if (usedBytes >= quotaBytes) {
+                  status = "exceeded";
+                  statusText = "已超额";
+                }
+                list.push({
+                  userId: u.userId,
+                  username: u.username || (u.userId ? u.userId.slice(0, 8) : "?"),
+                  quotaBytes,
+                  usedBytes,
+                  status,
+                  statusText,
+                  isAdmin,
+                });
+              }
+              this.quotaList = list;
+            } catch (e) {
+              console.error("refreshQuota failed:", e);
+            }
+          },
+
+          openQuotaDialog(item) {
+            if (item.isAdmin) return;
+            this.dialogTarget = item;
+            this.dialogQuotaBytes = String(item.quotaBytes);
+            this.dialogOpen = true;
+          },
+
+          closeDialog() {
+            this.dialogOpen = false;
+            this.dialogTarget = null;
+            this.dialogQuotaBytes = "0";
+          },
+
+          setQuickQuota(bytes) {
+            this.dialogQuotaBytes = String(bytes);
+          },
+
+          async confirmQuota() {
+            if (!this.dialogTarget || !this._adminUser) return;
+            const bytes = parseInt(this.dialogQuotaBytes, 10);
+            if (Number.isNaN(bytes) || bytes < 0) return;
+            try {
+              const result = await this._adminUser.setUserRelayQuota(
+                WS_URL,
+                this.dialogTarget.userId,
+                bytes,
+              );
+              if (result.status === "ok") {
+                await this.refreshQuota();
+                this.closeDialog();
+              }
+            } catch (e) {
+              console.error("setUserRelayQuota failed:", e);
+            }
+          },
+
+          formatBytes(bytes) {
+            if (bytes == null || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+        },
+
+        attached() {
+          this.connect();
+        },
+
+        detached() {
+          this._adminUser = null;
+        },
+      };
+    };
+  </script>
+</template>

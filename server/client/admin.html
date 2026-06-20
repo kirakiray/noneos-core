@@ -441,6 +441,15 @@
             </p-button>
             <p-button
               variant="outlined"
+              color="primary"
+              size="xs"
+              on:click="$host.openQuotaDialog($data)"
+              attr:disabled="$data.isSelf"
+            >
+              设置额度
+            </p-button>
+            <p-button
+              variant="outlined"
               color="error"
               size="xs"
               on:click="$host.kickUser($data.userId)"
@@ -521,6 +530,53 @@
     </div>
   </p-dialog>
 
+  <p-dialog id="quota-dialog" sync:open="quotaDialogOpen">
+    <span slot="title">设置额度 — {{quotaDialogTarget?.username}}</span>
+    <div class="quota-dialog-body" :style.display="quotaDialogOpen ? '' : 'none'">
+      <label>额度（字节）</label>
+      <input type="number" min="0" step="1024" sync:value="quotaDialogBytes" />
+      <div class="quota-quick-buttons">
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)">1MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="outlined" on:click="closeQuotaDialog">取消</p-button>
+      <p-button color="primary" on:click="confirmQuota">确定</p-button>
+    </div>
+  </p-dialog>
+
+  <style>
+    .quota-dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 280px;
+    }
+    .quota-dialog-body label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .quota-dialog-body input {
+      padding: 10px 12px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: 8px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .quota-quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+
   <script>
     export default async ({ query, load }) => {
       const { getAdmin, WS_URL } = await load("./admin-shared.js");
@@ -545,6 +601,10 @@
           historyDialogOpen: false,
           historyPageSrc: "",
           historyTarget: null, // { userId, username }
+          // 额度设置弹窗状态
+          quotaDialogOpen: false,
+          quotaDialogTarget: null, // { userId, username }
+          quotaDialogBytes: "0",
         },
 
         proto: {
@@ -786,6 +846,53 @@
             this.historyTarget = null;
           },
 
+          /**
+           * 打开设置额度弹窗
+           */
+          openQuotaDialog(group) {
+            if (!this.connected || !this._adminUser || group.isSelf) return;
+            this.quotaDialogTarget = { userId: group.userId, username: group.username };
+            this.quotaDialogBytes = "0";
+            this.quotaDialogOpen = true;
+          },
+
+          /**
+           * 关闭额度设置弹窗
+           */
+          closeQuotaDialog() {
+            this.quotaDialogOpen = false;
+            this.quotaDialogTarget = null;
+            this.quotaDialogBytes = "0";
+          },
+
+          /**
+           * 设置快速额度
+           */
+          setQuickQuota(bytes) {
+            this.quotaDialogBytes = String(bytes);
+          },
+
+          /**
+           * 确认设置额度
+           */
+          async confirmQuota() {
+            if (!this.quotaDialogTarget || !this._adminUser) return;
+            const bytes = parseInt(this.quotaDialogBytes, 10);
+            if (Number.isNaN(bytes) || bytes < 0) return;
+            try {
+              const result = await this._adminUser.setUserRelayQuota(
+                WS_URL,
+                this.quotaDialogTarget.userId,
+                bytes,
+              );
+              if (result.status === "ok") {
+                this.closeQuotaDialog();
+              }
+            } catch (e) {
+              console.error("confirmQuota failed:", e);
+            }
+          },
+
           _formatTime(epochMs) {
             if (!epochMs) return "";
             const d = new Date(epochMs);
@@ -826,6 +933,12 @@
               // 关闭弹窗时清空 src 释放子页面实例
               this.historyPageSrc = "";
               this.historyTarget = null;
+            }
+          },
+          quotaDialogOpen(open) {
+            if (!open) {
+              this.quotaDialogTarget = null;
+              this.quotaDialogBytes = "0";
             }
           },
         },

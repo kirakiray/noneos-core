@@ -38,6 +38,10 @@
         <span slot="icon">📈</span>
         <span>流量统计</span>
       </p-nav-item>
+      <p-nav-item attr:active="activeQuota" on:click="navigateToQuota">
+        <span slot="icon">💳</span>
+        <span>额度管理</span>
+      </p-nav-item>
     </p-nav-bar>
   </p-nav-layout>
 
@@ -48,6 +52,7 @@
           activeAdmin: true,
           activeSysInfo: false,
           activeTraffic: false,
+          activeQuota: false,
         },
         routerChange() {
           this.refreshActive();
@@ -63,6 +68,7 @@
             this.activeAdmin = path.endsWith("admin.html");
             this.activeSysInfo = path.endsWith("system-info.html");
             this.activeTraffic = path.endsWith("traffic.html");
+            this.activeQuota = path.endsWith("quota.html");
           },
           navigateToAdmin() {
             window.location.hash = "./admin.html";
@@ -72,6 +78,9 @@
           },
           navigateToTraffic() {
             window.location.hash = "./traffic.html";
+          },
+          navigateToQuota() {
+            window.location.hash = "./quota.html";
           },
         },
       };
