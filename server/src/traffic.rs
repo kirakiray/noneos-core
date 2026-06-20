@@ -301,9 +301,93 @@ pub fn init_db(db_path: &str) -> Result<Connection, rusqlite::Error> {
             cpu_usage_percent REAL NOT NULL,
             memory_usage_percent REAL NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_ss_recorded ON system_stats(recorded_at);",
+        CREATE INDEX IF NOT EXISTS idx_ss_recorded ON system_stats(recorded_at);
+        
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            public_key TEXT NOT NULL,
+            first_seen_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at);",
     )?;
     Ok(conn)
+}
+
+/// User record for management
+#[derive(Debug, Clone, Serialize)]
+pub struct UserRecord {
+    pub user_id: String,
+    pub username: String,
+    pub public_key: String,
+    pub first_seen_at: u64,
+    pub last_seen_at: u64,
+}
+
+/// Save or update a user record in the DB
+pub fn save_user(conn: &Connection, user: &UserRecord) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO users (user_id, username, public_key, first_seen_at, last_seen_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(user_id) DO UPDATE SET
+            username = excluded.username,
+            public_key = excluded.public_key,
+            last_seen_at = excluded.last_seen_at",
+        rusqlite::params![
+            user.user_id,
+            user.username,
+            user.public_key,
+            user.first_seen_at as i64,
+            user.last_seen_at as i64,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Count total number of users in the DB
+pub fn count_users(conn: &Connection) -> Result<u32, rusqlite::Error> {
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
+    Ok(count as u32)
+}
+
+/// Query all users from the DB with pagination
+pub fn query_users_paginated(
+    conn: &Connection,
+    page: u32,
+    page_size: u32,
+) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
+    let total = count_users(conn)?;
+    let page = page.max(1) as i64;
+    let page_size = page_size.max(1).min(500) as i64;
+    let offset = (page - 1) * page_size;
+
+    if offset >= total as i64 {
+        return Ok((Vec::new(), total));
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT user_id, username, public_key, first_seen_at, last_seen_at
+         FROM users
+         ORDER BY last_seen_at DESC
+         LIMIT ?1 OFFSET ?2"
+    )?;
+
+    let rows = stmt.query_map(rusqlite::params![page_size, offset], |row| {
+        Ok(serde_json::json!({
+            "userId": row.get::<_, String>(0)?,
+            "username": row.get::<_, String>(1)?,
+            "publicKey": row.get::<_, String>(2)?,
+            "firstSeenAt": row.get::<_, i64>(3)?,
+            "lastSeenAt": row.get::<_, i64>(4)?,
+        }))
+    })?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row?);
+    }
+    Ok((results, total))
 }
 
 /// A single system stats record (CPU + memory snapshot)

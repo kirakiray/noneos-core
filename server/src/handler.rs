@@ -780,6 +780,25 @@ pub async fn handle_connection(
                 tr.add_handshake(&conn_key, handshake_size as u64, now_ms);
             }
 
+            // 持久化用户信息到数据库（异步，不阻塞连接）
+            if let Some(ref db_path) = state.config.traffic_db_path {
+                let db_path_clone = db_path.clone();
+                let user_record = traffic::UserRecord {
+                    user_id: user_id.clone(),
+                    username: username.clone(),
+                    public_key: public_key.clone(),
+                    first_seen_at: traffic::now_ms(),
+                    last_seen_at: traffic::now_ms(),
+                };
+                tokio::spawn(async move {
+                    if let Ok(conn) = rusqlite::Connection::open(db_path_clone) {
+                        if let Err(e) = traffic::save_user(&conn, &user_record) {
+                            eprintln!("Failed to persist user {} to DB: {}", user_record.user_id, e);
+                        }
+                    }
+                });
+            }
+
             let role_str = if is_admin { " (ADMIN)" } else { "" };
             println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
 
@@ -896,6 +915,71 @@ pub async fn handle_connection(
                                                                 ..Default::default()
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        }
+                                                        "list_all_users" => {
+                                                            // 从数据库查询所有用户（包括离线的）
+                                                            if let Some(ref db_path) = state.config.traffic_db_path {
+                                                                match rusqlite::Connection::open(db_path) {
+                                                                    Ok(conn) => {
+                                                                        match traffic::query_users_paginated(&conn, admin_cmd.page, admin_cmd.page_size) {
+                                                                            Ok((mut users, total)) => {
+                                                                                // 为查询结果添加在线状态标记
+                                                                                for user in users.iter_mut() {
+                                                                                    if let Some(user_id_val) = user.get("userId").and_then(|v| v.as_str()) {
+                                                                                        let prefix = format!("{}:", user_id_val);
+                                                                                        let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
+                                                                                        if let Some(obj) = user.as_object_mut() {
+                                                                                            obj.insert("isOnline".to_string(), serde_json::Value::Bool(is_online));
+                                                                                        }
+                                                                                    }
+                                                                                }
+
+                                                                                let resp = AdminResponse {
+                                                                                    msg_type: "admin_response".to_string(),
+                                                                                    action: "list_all_users".to_string(),
+                                                                                    status: "ok".to_string(),
+                                                                                    message: Some(format!("Found {} total user(s) in database", total)),
+                                                                                    users: Some(users),
+                                                                                    total: Some(total),
+                                                                                    page: Some(admin_cmd.page),
+                                                                                    page_size: Some(admin_cmd.page_size),
+                                                                                    ..Default::default()
+                                                                                };
+                                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                            }
+                                                                            Err(e) => {
+                                                                                let resp = AdminResponse {
+                                                                                    msg_type: "admin_response".to_string(),
+                                                                                    action: "list_all_users".to_string(),
+                                                                                    status: "error".to_string(),
+                                                                                    message: Some(format!("Database query error: {}", e)),
+                                                                                    ..Default::default()
+                                                                                };
+                                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    Err(e) => {
+                                                                        let resp = AdminResponse {
+                                                                            msg_type: "admin_response".to_string(),
+                                                                            action: "list_all_users".to_string(),
+                                                                            status: "error".to_string(),
+                                                                            message: Some(format!("Failed to open database: {}", e)),
+                                                                            ..Default::default()
+                                                                        };
+                                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "list_all_users".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Traffic database is not configured".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            }
                                                         }
                                                         "disconnect_user" => {
                                                             let target_id = admin_cmd.user_id.clone().unwrap_or_default();

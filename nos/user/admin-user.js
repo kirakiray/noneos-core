@@ -57,6 +57,18 @@ export class AdminUser extends LocalUser {
   }
 
   /**
+   * 获取所有历史用户列表（包括离线用户，支持分页）
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {Object} [options] - 分页选项
+   * @param {number} [options.page=1] - 页码
+   * @param {number} [options.pageSize=20] - 每页数量
+   * @returns {Promise<Object>} 包含用户列表及在线状态的响应
+   */
+  async listAllUsers(url, { page = 1, pageSize = 20 } = {}) {
+    return this.#adminCommand(url, "list_all_users", { page, page_size: pageSize });
+  }
+
+  /**
    * 断开指定用户的连接
    * @param {string} url - 服务器 WebSocket 地址
    * @param {string} userId - 目标用户 ID
