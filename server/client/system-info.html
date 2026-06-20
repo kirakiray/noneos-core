@@ -360,7 +360,8 @@
 
   <script>
     export default async ({ query, load }) => {
-      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+      const { getAdmin, getCurrentServerUrl } = await load("./admin-shared.js");
+      const WS_URL = getCurrentServerUrl();
 
       return {
         parent: "./layout.html",

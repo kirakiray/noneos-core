@@ -5,7 +5,70 @@ let _promise = null;
 const ADMIN_JSON_URL = "/tests/user/local/admin.json";
 const ADMIN_NS = "admin-shared-ns";
 
-export const WS_URL = "ws://localhost:8081";
+const DEFAULT_SERVER_URL = "ws://localhost:8081";
+const SERVER_URL_KEY = "noneos-admin-server-url";
+const SERVER_HISTORY_KEY = "noneos-admin-server-history";
+const MAX_HISTORY = 10;
+
+/**
+ * 获取当前管理员应用连接的服务器地址
+ * 优先从 localStorage 读取，否则返回默认值
+ * @returns {string}
+ */
+export function getCurrentServerUrl() {
+  try {
+    const url = localStorage.getItem(SERVER_URL_KEY);
+    if (url) return url;
+  } catch {
+    // localStorage 不可用则回退默认值
+  }
+  return DEFAULT_SERVER_URL;
+}
+
+/**
+ * 设置当前管理员应用连接的服务器地址
+ * @param {string} url
+ */
+export function setCurrentServerUrl(url) {
+  try {
+    localStorage.setItem(SERVER_URL_KEY, url);
+  } catch {
+    // 忽略写入失败
+  }
+}
+
+/**
+ * 获取保存的服务器地址历史列表
+ * @returns {string[]}
+ */
+export function getServerHistory() {
+  try {
+    const raw = localStorage.getItem(SERVER_HISTORY_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list) && list.length > 0) return list;
+    }
+  } catch {
+    // 回退默认值
+  }
+  return [DEFAULT_SERVER_URL];
+}
+
+/**
+ * 将地址加入历史列表，去重并限制数量
+ * @param {string} url
+ */
+export function addServerHistory(url) {
+  if (!url) return;
+  let list = getServerHistory().filter((u) => u !== url);
+  list.unshift(url);
+  if (list.length > MAX_HISTORY) list = list.slice(0, MAX_HISTORY);
+  try {
+    localStorage.setItem(SERVER_HISTORY_KEY, JSON.stringify(list));
+  } catch {
+    // 忽略写入失败
+  }
+}
 
 export async function getAdmin(load) {
   if (_adminUser) return { adminUser: _adminUser, adminInfo: _adminInfo };

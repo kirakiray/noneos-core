@@ -376,7 +376,8 @@
 
   <script>
     export default async ({ query, load }) => {
-      const { getAdmin, WS_URL } = await load("./admin-shared.js");
+      const { getAdmin, getCurrentServerUrl } = await load("./admin-shared.js");
+      const WS_URL = getCurrentServerUrl();
       const { toast } = await import("https://punch-ui-v2.pages.dev/packages/util.js");
 
       return {

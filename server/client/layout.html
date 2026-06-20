@@ -11,6 +11,47 @@
       box-sizing: border-box;
       overflow: auto;
     }
+
+    .server-avatar {
+      margin-top: auto;
+      align-self: center;
+      margin-bottom: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .server-avatar:hover {
+      background-color: var(--md-sys-color-primary-fixed-dim);
+    }
+
+    .dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 320px;
+    }
+
+    .dialog-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dialog-row label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
   </style>
 
   <l-m
@@ -19,6 +60,32 @@
   <l-m
     src="https://punch-ui-v2.pages.dev/packages/navigation/nav-bar.html"
   ></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+
+  <p-dialog id="server-dialog" sync:open="serverDialogOpen" auto-close>
+    <span slot="title">切换服务器地址</span>
+    <div class="dialog-body">
+      <div class="dialog-row">
+        <label>已保存的服务器</label>
+        <p-select size="s" sync:value="selectedUrl">
+          <o-fill :value="savedUrls">
+            <p-option attr:value="$data">{{$data}}</p-option>
+          </o-fill>
+        </p-select>
+      </div>
+      <div class="dialog-row">
+        <label>新的服务器地址</label>
+        <p-input placeholder="ws://localhost:8081" sync:value="newUrl"></p-input>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="text" on:click="closeServerDialog">取消</p-button>
+      <p-button color="primary" on:click="confirmServerSwitch">连接</p-button>
+    </div>
+  </p-dialog>
 
   <p-nav-layout>
     <main>
@@ -42,16 +109,30 @@
         <span slot="icon">📈</span>
         <span>流量统计</span>
       </p-nav-item>
+
+      <div class="server-avatar" on:click="openServerDialog" attr:title="currentUrl">🌐</div>
     </p-nav-bar>
 
   <script>
-    export default () => {
+    export default async ({ load }) => {
+      const {
+        getCurrentServerUrl,
+        getServerHistory,
+        setCurrentServerUrl,
+        addServerHistory,
+      } = await load("./admin-shared.js");
+
       return {
         data: {
           activeAdmin: true,
           activeAllUsers: false,
           activeSysInfo: false,
           activeTraffic: false,
+          currentUrl: getCurrentServerUrl(),
+          serverDialogOpen: false,
+          savedUrls: getServerHistory(),
+          selectedUrl: getCurrentServerUrl(),
+          newUrl: "",
         },
         routerChange() {
           this.refreshActive();
@@ -80,6 +161,27 @@
           },
           navigateToTraffic() {
             window.location.hash = "./traffic.html";
+          },
+          openServerDialog() {
+            this.savedUrls = getServerHistory();
+            this.selectedUrl = this.currentUrl;
+            this.newUrl = "";
+            this.serverDialogOpen = true;
+          },
+          closeServerDialog() {
+            this.serverDialogOpen = false;
+          },
+          confirmServerSwitch() {
+            const url = (this.newUrl || this.selectedUrl || "").trim();
+            if (!url) return;
+            if (!/^wss?:\/\//i.test(url)) {
+              alert("服务器地址必须以 ws:// 或 wss:// 开头");
+              return;
+            }
+            setCurrentServerUrl(url);
+            addServerHistory(url);
+            this.serverDialogOpen = false;
+            window.location.reload();
           },
         },
       };
