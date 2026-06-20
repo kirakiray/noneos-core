@@ -59,7 +59,8 @@
           await new Promise(resolve => setTimeout(resolve, 1000));
 
           // 验证已连接到 8081（该服务器应运行中）
-          const d2Connected = await d2User.server.connect("ws://localhost:8081");
+          const d2Result = await d2User.server.connect("ws://localhost:8081");
+          const d2Connected = d2Result && d2Result.success === true;
 
           return {
             assert: d2Connected === true,
@@ -67,6 +68,7 @@
               message: d2Connected
                 ? "Auto-connect to default server succeeded"
                 : "Auto-connect failed",
+              version: d2Result ? d2Result.version : null,
             },
           };
         </script>

@@ -23,29 +23,62 @@
 
           await user1.ready();
 
-          let success = false;
-          let error;
+          let connectResult1 = null;
+          let connectError1;
           const url = "ws://localhost:8081";
           try {
-            success = await user1.server.connect(url);
+            connectResult1 = await user1.server.connect(url);
           } catch (e) {
-            error = e;
+            connectError1 = e;
           }
 
+          const isConnected1 = connectResult1 && connectResult1.success === true;
+
           return {
-            assert: success === true,
+            assert: isConnected1 === true,
             content: {
-              message: success
-                ? "Successfully connected and returned true"
+              message: isConnected1
+                ? "Successfully connected"
                 : "Connection failed",
               userId: user1.userId,
-              error: error ? error.message : null,
+              version: connectResult1 ? connectResult1.version : null,
+              error: connectError1 ? connectError1.message : null,
             },
           };
         </script>
       </template>
     </sb-test>
 
+    <sb-test name="Server Version Retrieval Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const namespaceVersion = "test-version";
+          const userVersion = new LocalUser(namespaceVersion);
+          await userVersion.ready();
+
+          const versionUrl = "ws://localhost:8081";
+          const versionResult = await userVersion.server.connect(versionUrl);
+
+          const hasVersion =
+            versionResult &&
+            versionResult.success === true &&
+            typeof versionResult.version === "string" &&
+            versionResult.version.length > 0;
+
+          return {
+            assert: hasVersion === true,
+            content: {
+              message: hasVersion
+                ? `Server version retrieved: ${versionResult.version}`
+                : "Failed to retrieve server version",
+              version: versionResult ? versionResult.version : null,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
 
     <sb-test name="WebSocket Persistence and Reuse Test">
       <template>
@@ -61,11 +94,12 @@
           // 第一次连接
           const firstResult = await user3.server.connect(url3);
 
-          // 第二次连接（应该直接返回 true）
+          // 第二次连接（应该直接返回已缓存的结果）
           const secondResult = await user3.server.connect(url3);
 
           return {
-            assert: firstResult === true && secondResult === true,
+            assert:
+              firstResult.success === true && secondResult.success === true,
             content: {
               message: "Successfully reused existing connection",
               firstResult,

@@ -5,6 +5,7 @@ const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期
 
 export class ServerManager {
   #wsMap = new Map();
+  #serverVersions = new Map(); // url -> version
   #connectPromises = new Map();
   #user;
   #servers = [];
@@ -106,7 +107,7 @@ export class ServerManager {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
-   * @returns {Promise<boolean>} 连接成功返回 true
+   * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
   async connect(url) {
     // 检查是否已有可用连接
@@ -116,9 +117,10 @@ export class ServerManager {
         existingWs.readyState === WebSocket.OPEN ||
         existingWs.readyState === WebSocket.CONNECTING
       ) {
-        return true;
+        return { success: true, version: this.#serverVersions.get(url) || null };
       }
       this.#wsMap.delete(url);
+      this.#serverVersions.delete(url);
     }
 
     const userInfo = await this.#user.getInfo();
@@ -170,13 +172,16 @@ export class ServerManager {
             if (data.type === "handshake" && data.status === "success") {
               clearTimeout(timeout);
               isHandshaked = true;
+              const version = data.version || null;
               this.#wsMap.set(url, ws);
+              this.#serverVersions.set(url, version);
 
               // 触发握手成功事件
               this.#user._trigger("handshake", {
                 url,
                 status: "success",
                 isAdmin: data.is_admin,
+                version,
               });
 
               // 绑定后续消息处理
@@ -191,6 +196,7 @@ export class ServerManager {
               // 绑定关闭处理
               ws.onclose = () => {
                 this.#wsMap.delete(url);
+                this.#serverVersions.delete(url);
                 this.#serverCandidateCache.clear(); // 拓扑变化，清空路由缓存
                 this.#user._trigger("close", { url: url });
                 // 没有活跃连接时自动停止延迟监测
@@ -199,7 +205,7 @@ export class ServerManager {
                 }
               };
 
-              resolve(true);
+              resolve({ success: true, version });
 
               // 连接成功后自动启动静默延迟监测
               this.#ensureLatencyMonitor();

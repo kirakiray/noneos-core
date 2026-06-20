@@ -381,6 +381,8 @@ struct HandshakeResponse {
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
 }
 
 /// 挑战信息格式
@@ -604,6 +606,7 @@ pub async fn handle_connection(
                     status: "error".to_string(),
                     message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), handshake_max_size),
                     is_admin: None,
+                    version: None,
                 };
                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                 let _ = ws_sender.send(Message::Close(None)).await;
@@ -617,6 +620,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: "Expected text message during handshake".to_string(),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             let _ = ws_sender.send(Message::Close(None)).await;
@@ -629,6 +633,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: format!("Handshake timeout: no response within {} seconds", handshake_timeout_secs),
                 is_admin: None,
+                version: None,
             };
             let _ = ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await;
             let _ = ws_sender.send(Message::Close(None)).await;
@@ -652,6 +657,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: "Invalid JSON format or not an object".to_string(),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             return Err("Handshake failed: Invalid JSON".into());
@@ -667,6 +673,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: "Missing 'challenge' field".to_string(),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             return Err("Handshake failed: Missing challenge".into());
@@ -679,6 +686,7 @@ pub async fn handle_connection(
             status: "error".to_string(),
             message: "Challenge mismatch".to_string(),
             is_admin: None,
+            version: None,
         };
         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
         return Err("Handshake failed: Challenge mismatch".into());
@@ -693,6 +701,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: "Missing 'signature' field".to_string(),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             return Err("Handshake failed: Missing signature".into());
@@ -707,6 +716,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: "Missing 'publicKey' field".to_string(),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             return Err("Handshake failed: Missing publicKey".into());
@@ -754,6 +764,7 @@ pub async fn handle_connection(
                         status: "error".to_string(),
                         message: msg,
                         is_admin: None,
+                        version: None,
                     };
                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                     let _ = ws_sender.send(Message::Close(None)).await;
@@ -770,6 +781,7 @@ pub async fn handle_connection(
                     status: "error".to_string(),
                     message: e.clone(),
                     is_admin: None,
+                    version: None,
                 };
                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                 let _ = ws_sender.send(Message::Close(None)).await;
@@ -811,6 +823,7 @@ pub async fn handle_connection(
                 status: "success".to_string(),
                 message: "Authentication successful".to_string(),
                 is_admin: Some(is_admin),
+                version: Some(env!("CARGO_PKG_VERSION").to_string()),
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
 
@@ -1674,6 +1687,7 @@ pub async fn handle_connection(
                 status: "error".to_string(),
                 message: format!("Verification failed: {}", e),
                 is_admin: None,
+                version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
             let _ = ws_sender.send(Message::Close(None)).await;
