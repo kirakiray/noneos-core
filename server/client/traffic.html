@@ -220,7 +220,7 @@
 
   <script>
     export default async ({ query, load }) => {
-      const { getAdmin, getCurrentServerUrl } = await load("./admin-shared.js");
+      const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
       const WS_URL = getCurrentServerUrl();
 
       return {
@@ -255,6 +255,7 @@
               await this.refreshTraffic();
             } catch (e) {
               console.error("Traffic page connect failed:", e);
+              showServerError(WS_URL, e);
             }
           },
 

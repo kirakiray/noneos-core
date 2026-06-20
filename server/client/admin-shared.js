@@ -1,3 +1,5 @@
+import toast from "https://punch-ui-v2.pages.dev/packages/util/toast.js";
+
 let _adminUser = null;
 let _adminInfo = null;
 let _promise = null;
@@ -81,6 +83,20 @@ export function removeServerHistory(url) {
   } catch {
     // 忽略写入失败
   }
+}
+
+/**
+ * 显示服务器连接失败的 Toast 提示
+ * @param {string} url
+ * @param {Error} [error]
+ */
+export function showServerError(url, error) {
+  const message = error?.message || "无法连接服务器";
+  toast({
+    message: `连接失败：${message}（${url}）`,
+    color: "error",
+    duration: 5000,
+  });
 }
 
 export async function getAdmin(load) {

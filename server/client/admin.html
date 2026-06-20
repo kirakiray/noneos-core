@@ -579,7 +579,7 @@
 
   <script>
     export default async ({ query, load }) => {
-      const { getAdmin, getCurrentServerUrl } = await load("./admin-shared.js");
+      const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
       const WS_URL = getCurrentServerUrl();
 
       return {
@@ -644,6 +644,7 @@
               }
             } catch (e) {
               console.error("Connect failed:", e);
+              showServerError(WS_URL, e);
               this.connecting = false;
             }
           },
