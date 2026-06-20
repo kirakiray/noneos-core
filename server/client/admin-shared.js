@@ -70,6 +70,19 @@ export function addServerHistory(url) {
   }
 }
 
+/**
+ * 从历史列表中移除指定地址
+ * @param {string} url
+ */
+export function removeServerHistory(url) {
+  const list = getServerHistory().filter((u) => u !== url);
+  try {
+    localStorage.setItem(SERVER_HISTORY_KEY, JSON.stringify(list));
+  } catch {
+    // 忽略写入失败
+  }
+}
+
 export async function getAdmin(load) {
   if (_adminUser) return { adminUser: _adminUser, adminInfo: _adminInfo };
   if (_promise) return _promise;
