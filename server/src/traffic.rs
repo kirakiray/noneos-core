@@ -584,3 +584,109 @@ pub fn query_traffic_history_totals(
 
     Ok(result)
 }
+
+// ===== User Relay Quota =====
+
+/// Per-user relay quota and lifetime usage.
+#[derive(Debug, Clone, Serialize)]
+pub struct UserRelayQuota {
+    pub user_id: String,
+    pub quota_bytes: u64,
+    pub used_bytes: u64,
+    pub updated_at: u64,
+}
+
+/// Initialize the user relay quota table.
+pub fn init_user_quota_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_relay_quotas (
+            user_id TEXT PRIMARY KEY,
+            quota_bytes INTEGER NOT NULL DEFAULT 0,
+            used_bytes INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        );",
+        [],
+    )?;
+    Ok(())
+}
+
+/// Load all user relay quotas from DB.
+pub fn load_user_relay_quotas(conn: &Connection) -> Result<HashMap<String, UserRelayQuota>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT user_id, quota_bytes, used_bytes, updated_at FROM user_relay_quotas"
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(UserRelayQuota {
+            user_id: row.get(0)?,
+            quota_bytes: row.get::<_, i64>(1)? as u64,
+            used_bytes: row.get::<_, i64>(2)? as u64,
+            updated_at: row.get::<_, i64>(3)? as u64,
+        })
+    })?;
+
+    let mut result = HashMap::new();
+    for row in rows {
+        let quota = row?;
+        result.insert(quota.user_id.clone(), quota);
+    }
+    Ok(result)
+}
+
+/// Save (upsert) all user relay quotas to DB.
+pub fn save_user_relay_quotas(
+    conn: &Connection,
+    quotas: &HashMap<String, UserRelayQuota>,
+) -> Result<(), rusqlite::Error> {
+    if quotas.is_empty() {
+        return Ok(());
+    }
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO user_relay_quotas (user_id, quota_bytes, used_bytes, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(user_id) DO UPDATE SET
+                quota_bytes = excluded.quota_bytes,
+                used_bytes = excluded.used_bytes,
+                updated_at = excluded.updated_at"
+        )?;
+        for q in quotas.values() {
+            stmt.execute(rusqlite::params![
+                q.user_id,
+                q.quota_bytes as i64,
+                q.used_bytes as i64,
+                q.updated_at as i64,
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Save a single user relay quota to DB.
+pub fn save_user_relay_quota(
+    conn: &Connection,
+    quota: &UserRelayQuota,
+) -> Result<(), rusqlite::Error> {
+    let mut quotas = HashMap::new();
+    quotas.insert(quota.user_id.clone(), quota.clone());
+    save_user_relay_quotas(conn, &quotas)
+}
+
+/// Save final quota snapshot for a closing session's user.
+pub fn save_final_user_quota(
+    db_path: &Option<String>,
+    quota: &UserRelayQuota,
+) {
+    if let Some(path) = db_path {
+        let quota_clone = quota.clone();
+        let path_clone = path.clone();
+        tokio::spawn(async move {
+            if let Ok(conn) = Connection::open(path_clone) {
+                if let Err(e) = save_user_relay_quota(&conn, &quota_clone) {
+                    eprintln!("Failed to save final user quota to DB: {}", e);
+                }
+            }
+        });
+    }
+}

@@ -61,6 +61,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
+            // 初始化并加载用户转发额度
+            if let Err(e) = traffic::init_user_quota_table(&conn) {
+                eprintln!("Failed to init user quota table: {}", e);
+            } else {
+                match traffic::load_user_relay_quotas(&conn) {
+                    Ok(quotas) => {
+                        for (user_id, quota) in quotas {
+                            state_clone.user_quotas.insert(user_id, quota);
+                        }
+                        println!("Loaded {} user relay quota record(s)", state_clone.user_quotas.len());
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to load user relay quotas: {}", e);
+                    }
+                }
+            }
+
             println!("Traffic stats flush task started (interval: {}s)", flush_interval);
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(flush_interval)).await;
@@ -84,7 +101,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Failed to save global traffic stats: {}", e);
                 }
 
-                // 4. 采集系统指标（CPU + 内存使用率）
+                // 4. 保存用户转发额度快照
+                let quotas = {
+                    let mut map = std::collections::HashMap::new();
+                    for q in state_clone.user_quotas.iter() {
+                        map.insert(q.key().clone(), q.value().clone());
+                    }
+                    map
+                };
+                if !quotas.is_empty() {
+                    if let Err(e) = traffic::save_user_relay_quotas(&conn, &quotas) {
+                        eprintln!("Failed to flush user relay quotas: {}", e);
+                    }
+                }
+
+                // 5. 采集系统指标（CPU + 内存使用率）
                 let mut sys = System::new_all();
                 sys.refresh_cpu_all();
                 sys.refresh_memory();

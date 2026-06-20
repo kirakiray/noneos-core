@@ -74,6 +74,16 @@ pub struct Config {
     #[serde(default = "default_max_memory_usage_percent")]
     pub max_memory_usage_percent: f64,
 
+    // ===== 转发流量额度 =====
+    /// 每个用户的默认转发流量额度（字节）
+    /// 如果未指定，默认为 500MB
+    #[serde(default = "default_default_relay_quota_bytes")]
+    pub default_relay_quota_bytes: u64,
+    /// 超额后仍允许转发的单条消息最大字节数
+    /// 如果未指定，默认为 1KB
+    #[serde(default = "default_relay_small_message_max_bytes")]
+    pub relay_small_message_max_bytes: u64,
+
     // ===== 流量统计 =====
     /// SQLite 数据库文件路径，用于持久化流量统计数据
     /// 如果未指定，则不启用持久化（仅内存统计）
@@ -149,6 +159,16 @@ fn default_relay_fail_window_secs() -> u64 {
     60
 }
 
+/// 默认用户转发流量额度：500MB
+fn default_default_relay_quota_bytes() -> u64 {
+    500 * 1024 * 1024
+}
+
+/// 超额后仍允许转发的单条消息最大字节数：1KB
+fn default_relay_small_message_max_bytes() -> u64 {
+    1024
+}
+
 /// 为 Config 实现 Default trait，方便在未提供配置文件时创建默认配置实例
 impl Default for Config {
     fn default() -> Self {
@@ -164,6 +184,8 @@ impl Default for Config {
             relay_fail_limit: default_relay_fail_limit(),
             relay_fail_window_secs: default_relay_fail_window_secs(),
             max_memory_usage_percent: default_max_memory_usage_percent(),
+            default_relay_quota_bytes: default_default_relay_quota_bytes(),
+            relay_small_message_max_bytes: default_relay_small_message_max_bytes(),
             traffic_db_path: None,
             traffic_flush_interval_secs: default_traffic_flush_interval(),
             traffic_minute_window: default_traffic_minute_window(),

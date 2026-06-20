@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin More Tests — Relay Quota</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Admin More Tests — Relay Quota</h1>
+
+    <!-- ============================================================ -->
+    <!-- Relay Quota 说明                                              -->
+    <!-- ============================================================ -->
+    <!--
+    ## set_user_relay_quota 命令
+
+    管理员可以设置任意用户的转发流量额度（字节）：
+
+    发送：
+      { "type": "admin", "action": "set_user_relay_quota", "user_id": "...", "quota_bytes": 0 }
+
+    响应：
+      {
+        "type": "admin_response",
+        "action": "set_user_relay_quota",
+        "status": "ok",
+        "quota": {
+          "user_id": "...",
+          "quota_bytes": 0,
+          "used_bytes": 0,
+          "updated_at": 1234567890
+        }
+      }
+
+    ## get_user_relay_quota 命令
+
+    管理员可以查询用户的当前额度：
+
+    发送：
+      { "type": "admin", "action": "get_user_relay_quota", "user_id": "..." }
+
+    响应：
+      {
+        "type": "admin_response",
+        "action": "get_user_relay_quota",
+        "status": "ok",
+        "quota": { ... }
+      }
+
+    ## 额度超限后的 relay 行为
+
+    当用户已用额度 >= 额度上限时：
+    - 单条消息 > 1024 字节：返回 status="quota_exceeded"
+    - 单条消息 <= 1024 字节：正常转发
+
+    管理员不受额度限制。
+    -->
+
+    <sb-test name="Admin Get User Relay Quota">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const getqAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const getqAdminNs = "admin-quota-get-ns";
+          try { await deleteUser(getqAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(getqAdminNs, getqAdminData.keys);
+          await saveUserInfo(getqAdminNs, getqAdminData.info);
+          const getqAdmin = new AdminUser(getqAdminNs);
+          await getqAdmin.ready();
+
+          const getqUserNs = "quota-target-ns";
+          const getqUser = new LocalUser(getqUserNs);
+          await getqUser.ready();
+
+          const getqUrl = "ws://localhost:8081";
+          await getqAdmin.server.connect(getqUrl);
+
+          const getqResult = await getqAdmin.getUserRelayQuota(getqUrl, getqUser.userId);
+          const getqQuota = getqResult?.quota;
+          const getqOk = getqResult?.status === "ok"
+            && getqQuota?.user_id === getqUser.userId
+            && typeof getqQuota?.quota_bytes === "number"
+            && typeof getqQuota?.used_bytes === "number"
+            && getqQuota.quota_bytes > 0;
+
+          getqAdmin.server.disconnect(getqUrl);
+
+          return {
+            assert: getqOk,
+            content: {
+              message: getqOk
+                ? "Admin can get user relay quota with expected fields"
+                : "Unexpected quota response",
+              result: getqResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin Set User Relay Quota To Zero">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const setzAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const setzAdminNs = "admin-quota-set-ns";
+          try { await deleteUser(setzAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(setzAdminNs, setzAdminData.keys);
+          await saveUserInfo(setzAdminNs, setzAdminData.info);
+          const setzAdmin = new AdminUser(setzAdminNs);
+          await setzAdmin.ready();
+
+          const setzUserNs = "quota-zero-target-ns";
+          const setzUser = new LocalUser(setzUserNs);
+          await setzUser.ready();
+
+          const setzUrl = "ws://localhost:8081";
+          await setzAdmin.server.connect(setzUrl);
+
+          const setzResult = await setzAdmin.setUserRelayQuota(setzUrl, setzUser.userId, 0);
+          const setzOk = setzResult?.status === "ok"
+            && setzResult?.quota?.user_id === setzUser.userId
+            && setzResult?.quota?.quota_bytes === 0;
+
+          setzAdmin.server.disconnect(setzUrl);
+
+          return {
+            assert: setzOk,
+            content: {
+              message: setzOk
+                ? "Admin can set user relay quota to 0"
+                : "Failed to set quota to 0",
+              result: setzResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Big Message Rejected When Quota Exceeded">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const bigrAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const bigrAdminNs = "admin-quota-big-ns";
+          try { await deleteUser(bigrAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(bigrAdminNs, bigrAdminData.keys);
+          await saveUserInfo(bigrAdminNs, bigrAdminData.info);
+          const bigrAdmin = new AdminUser(bigrAdminNs);
+          await bigrAdmin.ready();
+
+          const bigrUserANs = "quota-big-a-ns";
+          const bigrUserBNs = "quota-big-b-ns";
+          const bigrUserA = new LocalUser(bigrUserANs);
+          const bigrUserB = new LocalUser(bigrUserBNs);
+          await bigrUserA.ready();
+          await bigrUserB.ready();
+
+          const bigrUrl = "ws://localhost:8081";
+          await bigrAdmin.server.connect(bigrUrl);
+          await bigrUserA.server.connect(bigrUrl);
+          await bigrUserB.server.connect(bigrUrl);
+
+          // 先把 bigrUserA 的额度设为 0
+          await bigrAdmin.setUserRelayQuota(bigrUrl, bigrUserA.userId, 0);
+
+          // 查询 bigrUserB 的 sessionId
+          const bigrQuery = await bigrAdmin.server.queryUserOnline(bigrUrl, bigrUserB.userId);
+          const bigrTargetSession = bigrQuery.sessions[0];
+
+          // 构造一条大于 1024 字节的消息
+          const bigrPayload = { text: "x".repeat(1500) };
+          const bigrResult = await bigrUserA.server.relayToUserViaServer(
+            bigrUrl,
+            bigrUserB.userId,
+            bigrTargetSession,
+            bigrPayload,
+          );
+
+          const bigrRejected = bigrResult?.status === "quota_exceeded";
+
+          bigrAdmin.server.disconnect(bigrUrl);
+          bigrUserA.server.disconnect(bigrUrl);
+          bigrUserB.server.disconnect(bigrUrl);
+
+          return {
+            assert: bigrRejected,
+            content: {
+              message: bigrRejected
+                ? "Big message rejected due to quota exceeded"
+                : "Big message was not rejected",
+              bigResult: bigrResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Small Message Allowed When Quota Exceeded">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const smallaAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const smallaAdminNs = "admin-quota-small-ns";
+          try { await deleteUser(smallaAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(smallaAdminNs, smallaAdminData.keys);
+          await saveUserInfo(smallaAdminNs, smallaAdminData.info);
+          const smallaAdmin = new AdminUser(smallaAdminNs);
+          await smallaAdmin.ready();
+
+          const smallaUserANs = "quota-small-a-ns";
+          const smallaUserBNs = "quota-small-b-ns";
+          const smallaUserA = new LocalUser(smallaUserANs);
+          const smallaUserB = new LocalUser(smallaUserBNs);
+          await smallaUserA.ready();
+          await smallaUserB.ready();
+
+          const smallaUrl = "ws://localhost:8081";
+          await smallaAdmin.server.connect(smallaUrl);
+          await smallaUserA.server.connect(smallaUrl);
+          await smallaUserB.server.connect(smallaUrl);
+
+          // 把 smallaUserA 的额度设为 0
+          await smallaAdmin.setUserRelayQuota(smallaUrl, smallaUserA.userId, 0);
+
+          const smallaQuery = await smallaAdmin.server.queryUserOnline(smallaUrl, smallaUserB.userId);
+          const smallaTargetSession = smallaQuery.sessions[0];
+
+          // 小消息应被放行
+          const smallaResult = await smallaUserA.server.relayToUserViaServer(
+            smallaUrl,
+            smallaUserB.userId,
+            smallaTargetSession,
+            { ping: true },
+          );
+
+          const smallaAllowed = smallaResult?.status === "ok";
+
+          smallaAdmin.server.disconnect(smallaUrl);
+          smallaUserA.server.disconnect(smallaUrl);
+          smallaUserB.server.disconnect(smallaUrl);
+
+          return {
+            assert: smallaAllowed,
+            content: {
+              message: smallaAllowed
+                ? "Small message allowed even when quota exceeded"
+                : "Small message was rejected",
+              smallResult: smallaResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin User Not Limited By Relay Quota">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const adminnlAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const adminnlAdminNs = "admin-quota-admin-ns";
+          try { await deleteUser(adminnlAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(adminnlAdminNs, adminnlAdminData.keys);
+          await saveUserInfo(adminnlAdminNs, adminnlAdminData.info);
+          const adminnlAdmin = new AdminUser(adminnlAdminNs);
+          await adminnlAdmin.ready();
+
+          const adminnlUserNs = "quota-admin-target-ns";
+          const adminnlUser = new LocalUser(adminnlUserNs);
+          await adminnlUser.ready();
+
+          const adminnlUrl = "ws://localhost:8081";
+          await adminnlAdmin.server.connect(adminnlUrl);
+          await adminnlUser.server.connect(adminnlUrl);
+
+          // 把管理员自己的额度也设为 0
+          await adminnlAdmin.setUserRelayQuota(adminnlUrl, adminnlAdmin.userId, 0);
+
+          const adminnlQuery = await adminnlAdmin.server.queryUserOnline(adminnlUrl, adminnlUser.userId);
+          const adminnlTargetSession = adminnlQuery.sessions[0];
+
+          // 管理员发送大消息不应被拒绝
+          const adminnlPayload = { text: "x".repeat(1500) };
+          const adminnlResult = await adminnlAdmin.server.relayToUserViaServer(
+            adminnlUrl,
+            adminnlUser.userId,
+            adminnlTargetSession,
+            adminnlPayload,
+          );
+
+          const adminnlAllowed = adminnlResult?.status === "ok";
+
+          adminnlAdmin.server.disconnect(adminnlUrl);
+          adminnlUser.server.disconnect(adminnlUrl);
+
+          return {
+            assert: adminnlAllowed,
+            content: {
+              message: adminnlAllowed
+                ? "Admin user bypasses relay quota"
+                : "Admin user was incorrectly quota-limited",
+              result: adminnlResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Raise Quota Allows Big Message Again">
+      <template>
+        <script type="module">
+          import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
+          import { deleteUser } from "/nos/user/main.js";
+          import { AdminUser } from "/nos/user/admin-user.js";
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const raiseqAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
+          const raiseqAdminNs = "admin-quota-raise-ns";
+          try { await deleteUser(raiseqAdminNs, { skipConfirm: true }); } catch (e) {}
+          await saveUserKeys(raiseqAdminNs, raiseqAdminData.keys);
+          await saveUserInfo(raiseqAdminNs, raiseqAdminData.info);
+          const raiseqAdmin = new AdminUser(raiseqAdminNs);
+          await raiseqAdmin.ready();
+
+          const raiseqUserANs = "quota-raise-a-ns";
+          const raiseqUserBNs = "quota-raise-b-ns";
+          const raiseqUserA = new LocalUser(raiseqUserANs);
+          const raiseqUserB = new LocalUser(raiseqUserBNs);
+          await raiseqUserA.ready();
+          await raiseqUserB.ready();
+
+          const raiseqUrl = "ws://localhost:8081";
+          await raiseqAdmin.server.connect(raiseqUrl);
+          await raiseqUserA.server.connect(raiseqUrl);
+          await raiseqUserB.server.connect(raiseqUrl);
+
+          // 先设为 0，确认大消息被拒绝
+          await raiseqAdmin.setUserRelayQuota(raiseqUrl, raiseqUserA.userId, 0);
+          const raiseqQuery = await raiseqAdmin.server.queryUserOnline(raiseqUrl, raiseqUserB.userId);
+          const raiseqTargetSession = raiseqQuery.sessions[0];
+
+          const raiseqPayload = { text: "x".repeat(1500) };
+          const raiseqBlockedResult = await raiseqUserA.server.relayToUserViaServer(
+            raiseqUrl,
+            raiseqUserB.userId,
+            raiseqTargetSession,
+            raiseqPayload,
+          );
+          const raiseqWasBlocked = raiseqBlockedResult?.status === "quota_exceeded";
+
+          // 再提高额度，大消息应被放行
+          await raiseqAdmin.setUserRelayQuota(raiseqUrl, raiseqUserA.userId, 10 * 1024 * 1024);
+          const raiseqAllowedResult = await raiseqUserA.server.relayToUserViaServer(
+            raiseqUrl,
+            raiseqUserB.userId,
+            raiseqTargetSession,
+            raiseqPayload,
+          );
+          const raiseqAllowed = raiseqAllowedResult?.status === "ok";
+
+          raiseqAdmin.server.disconnect(raiseqUrl);
+          raiseqUserA.server.disconnect(raiseqUrl);
+          raiseqUserB.server.disconnect(raiseqUrl);
+
+          return {
+            assert: raiseqWasBlocked && raiseqAllowed,
+            content: {
+              message: raiseqWasBlocked && raiseqAllowed
+                ? "Raising quota allows big messages again"
+                : "Quota adjustment did not behave as expected",
+              blockedResult: raiseqBlockedResult,
+              allowedResult: raiseqAllowedResult,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

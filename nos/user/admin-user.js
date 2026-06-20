@@ -126,4 +126,28 @@ export class AdminUser extends LocalUser {
   async disconnectSession(url, userId, sessionId) {
     return this.#adminCommand(url, "disconnect_session", { user_id: userId, session_id: sessionId });
   }
+
+  /**
+   * 设置用户的转发流量额度（字节）
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {string} userId - 目标用户 ID
+   * @param {number} quotaBytes - 额度字节数
+   * @returns {Promise<Object>} 包含更新后额度信息的响应
+   */
+  async setUserRelayQuota(url, userId, quotaBytes) {
+    return this.#adminCommand(url, "set_user_relay_quota", {
+      user_id: userId,
+      quota_bytes: quotaBytes,
+    });
+  }
+
+  /**
+   * 获取用户的转发流量额度
+   * @param {string} url - 服务器 WebSocket 地址
+   * @param {string} userId - 目标用户 ID
+   * @returns {Promise<Object>} 包含额度信息的响应
+   */
+  async getUserRelayQuota(url, userId) {
+    return this.#adminCommand(url, "get_user_relay_quota", { user_id: userId });
+  }
 }

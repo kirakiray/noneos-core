@@ -37,17 +37,95 @@ pub struct AppState {
     pub admin_user_id: Option<String>,
     pub config: Config,
     pub traffic: std::sync::Mutex<traffic::TrafficStats>,
+    pub user_quotas: DashMap<String, traffic::UserRelayQuota>,
     users: DashMap<String, UserSession>,
 }
 
 impl AppState {
     pub fn new(admin_user_id: Option<String>, config: Config) -> Self {
         Self {
-            admin_user_id,
+            admin_user_id: admin_user_id.clone(),
             traffic: std::sync::Mutex::new(traffic::TrafficStats::new(config.traffic_minute_window)),
             config,
             users: DashMap::new(),
+            user_quotas: DashMap::new(),
         }
+    }
+
+    /// 判断指定用户是否为管理员
+    pub fn is_admin(&self, user_id: &str) -> bool {
+        self.admin_user_id.as_deref() == Some(user_id)
+    }
+
+    /// 获取或创建用户的转发额度（内存中）
+    pub fn get_or_create_user_quota(&self, user_id: &str) -> traffic::UserRelayQuota {
+        if let Some(q) = self.user_quotas.get(user_id) {
+            return q.clone();
+        }
+        let quota = traffic::UserRelayQuota {
+            user_id: user_id.to_string(),
+            quota_bytes: self.config.default_relay_quota_bytes,
+            used_bytes: 0,
+            updated_at: traffic::now_ms(),
+        };
+        self.user_quotas.insert(user_id.to_string(), quota.clone());
+        quota
+    }
+
+    /// 检查用户是否允许转发指定大小的消息。
+    /// 管理员始终允许；未超额允许；超额后仅允许 <= small_message_max_bytes 的消息。
+    pub fn check_relay_quota(&self, user_id: &str, msg_size: u64) -> bool {
+        if self.is_admin(user_id) {
+            return true;
+        }
+        let quota = self.get_or_create_user_quota(user_id);
+        if quota.used_bytes < quota.quota_bytes {
+            return true;
+        }
+        msg_size <= self.config.relay_small_message_max_bytes
+    }
+
+    /// 记录用户转发用量
+    pub fn record_relay_usage(&self, user_id: &str, bytes: u64) {
+        if self.is_admin(user_id) {
+            return;
+        }
+        let now = traffic::now_ms();
+        self.user_quotas
+            .entry(user_id.to_string())
+            .and_modify(|q| {
+                q.used_bytes = q.used_bytes.saturating_add(bytes);
+                q.updated_at = now;
+            })
+            .or_insert_with(|| traffic::UserRelayQuota {
+                user_id: user_id.to_string(),
+                quota_bytes: self.config.default_relay_quota_bytes,
+                used_bytes: bytes,
+                updated_at: now,
+            });
+    }
+
+    /// 设置用户转发额度（admin 用），并立即持久化到 DB（如果配置了 DB）
+    pub fn set_user_relay_quota(&self, user_id: &str, quota_bytes: u64) -> traffic::UserRelayQuota {
+        let now = traffic::now_ms();
+        let mut quota = self.get_or_create_user_quota(user_id);
+        quota.quota_bytes = quota_bytes;
+        quota.updated_at = now;
+        self.user_quotas.insert(user_id.to_string(), quota.clone());
+
+        if let Some(ref db_path) = self.config.traffic_db_path {
+            let quota_clone = quota.clone();
+            let path_clone = db_path.clone();
+            tokio::spawn(async move {
+                if let Ok(conn) = rusqlite::Connection::open(path_clone) {
+                    if let Err(e) = traffic::save_user_relay_quota(&conn, &quota_clone) {
+                        eprintln!("Failed to save user quota to DB: {}", e);
+                    }
+                }
+            });
+        }
+
+        quota
     }
 
     /// 添加用户连接
@@ -330,6 +408,9 @@ struct AdminCommand {
     /// 可选：流量历史查询的起始时间戳（毫秒）。不传则默认查最近 1 小时。
     #[serde(default)]
     from_ms: Option<i64>,
+    /// 可选：设置用户转发额度（字节）
+    #[serde(default)]
+    quota_bytes: Option<u64>,
 }
 
 fn default_page() -> u32 { 1 }
@@ -368,6 +449,8 @@ struct AdminResponse {
     total_handshake_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     system_stats: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quota: Option<serde_json::Value>,
 }
 
 /// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
@@ -1022,6 +1105,64 @@ pub async fn handle_connection(
                                                             };
                                                             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         }
+                                                        "set_user_relay_quota" => {
+                                                            let target_user = admin_cmd.user_id.clone().unwrap_or_default();
+                                                            if target_user.is_empty() {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "set_user_relay_quota".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Missing user_id".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else if let Some(quota_bytes) = admin_cmd.quota_bytes {
+                                                                let quota = state.set_user_relay_quota(&target_user, quota_bytes);
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "set_user_relay_quota".to_string(),
+                                                                    status: "ok".to_string(),
+                                                                    message: Some(format!("User {} relay quota set to {} bytes", target_user, quota_bytes)),
+                                                                    quota: Some(serde_json::to_value(quota).unwrap_or_default()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                                println!("Admin {} set user {} relay quota to {} bytes", user_id, target_user, quota_bytes);
+                                                            } else {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "set_user_relay_quota".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Missing quota_bytes".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            }
+                                                        }
+                                                        "get_user_relay_quota" => {
+                                                            let target_user = admin_cmd.user_id.clone().unwrap_or_default();
+                                                            if target_user.is_empty() {
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "get_user_relay_quota".to_string(),
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Missing user_id".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let quota = state.get_or_create_user_quota(&target_user);
+                                                                let resp = AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: "get_user_relay_quota".to_string(),
+                                                                    status: "ok".to_string(),
+                                                                    message: Some(format!("User {} relay quota", target_user)),
+                                                                    quota: Some(serde_json::to_value(quota).unwrap_or_default()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            }
+                                                        }
                                                         _ => {
                                                             let action_name = admin_cmd.action.clone();
                                                             let resp = AdminResponse {
@@ -1107,7 +1248,19 @@ pub async fn handle_connection(
                                                             "data": relay_data
                                                         });
                                                         let forward_text = serde_json::to_string(&forward_msg)?;
-                                                        let forward_text_len = forward_text.len();
+                                                        let forward_text_len = forward_text.len() as u64;
+
+                                                        // 检查转发额度
+                                                        if !state.check_relay_quota(&user_id, forward_text_len) {
+                                                            let resp = serde_json::json!({
+                                                                "type": "relay_response",
+                                                                "action": "send_data",
+                                                                "status": "quota_exceeded",
+                                                                "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed", state.get_or_create_user_quota(&user_id).used_bytes, state.get_or_create_user_quota(&user_id).quota_bytes, state.config.relay_small_message_max_bytes)
+                                                            });
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            continue;
+                                                        }
 
                                                         // 获取目标的 data_tx 并发送
                                                         let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
@@ -1117,10 +1270,11 @@ pub async fn handle_connection(
                                                         };
 
                                                         if delivered {
-                                                            // 统计转发流量（计入源连接）
+                                                            // 统计转发流量（计入源连接）并记录额度用量
                                                             {
-                                                                state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_text_len as u64, traffic::now_ms());
+                                                                state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_text_len, traffic::now_ms());
                                                             }
+                                                            state.record_relay_usage(&user_id, forward_text_len);
                                                             let resp = serde_json::json!({
                                                                 "type": "relay_response",
                                                                 "action": "send_data",
@@ -1315,7 +1469,19 @@ pub async fn handle_connection(
                                                 forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
                                                 forward_frame.extend_from_slice(&forward_header_bytes);
                                                 forward_frame.extend_from_slice(payload);
-                                                let forward_frame_size = forward_frame.len();
+                                                let forward_frame_size = forward_frame.len() as u64;
+
+                                                // 检查转发额度
+                                                if !state.check_relay_quota(&user_id, forward_frame_size) {
+                                                    let resp = serde_json::json!({
+                                                        "type": "relay_response",
+                                                        "action": "send_data",
+                                                        "status": "quota_exceeded",
+                                                        "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed", state.get_or_create_user_quota(&user_id).used_bytes, state.get_or_create_user_quota(&user_id).quota_bytes, state.config.relay_small_message_max_bytes)
+                                                    });
+                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                    continue;
+                                                }
 
                                                 let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
                                                     tx.send(Message::Binary(forward_frame)).is_ok()
@@ -1324,10 +1490,11 @@ pub async fn handle_connection(
                                                 };
 
                                                 if delivered {
-                                                    // 统计转发流量（计入源连接）
+                                                    // 统计转发流量（计入源连接）并记录额度用量
                                                     {
-                                                        state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_frame_size as u64, traffic::now_ms());
+                                                        state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_frame_size, traffic::now_ms());
                                                     }
+                                                    state.record_relay_usage(&user_id, forward_frame_size);
                                                     let resp = serde_json::json!({
                                                         "type": "relay_response",
                                                         "action": "send_data",
@@ -1382,12 +1549,15 @@ pub async fn handle_connection(
                 }
             }
 
-            // 9. 清理：连接关闭后从状态中移除用户和流量计数
+            // 9. 清理：连接关闭后从状态中移除用户和流量计数，并保存额度快照
             {
                 state.remove_user(&conn_key);
                 if let Some(session) = state.traffic.lock().unwrap().remove_session(&conn_key) {
                     // 最终落盘：确保即使是短连接也会被持久化
                     traffic::save_final_session_stats(&state.config.traffic_db_path, &session);
+                }
+                if let Some(quota) = state.user_quotas.get(&user_id) {
+                    traffic::save_final_user_quota(&state.config.traffic_db_path, &quota);
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
