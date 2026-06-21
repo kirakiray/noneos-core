@@ -157,7 +157,8 @@ console.log(hasCert); // false
 
 ```javascript
 const user = await getUser("my-namespace");
-await user.server.connect("ws://localhost:8081");
+// getUser() 已自动连接默认服务器，通常无需手动 connect
+// 如需连接非默认服务器：await user.server.connect("ws://example.com:8081");
 
 const remoteUser = await user.connectUser(targetUserId);
 console.log(remoteUser.userId); // 目标用户的 userId
@@ -317,6 +318,8 @@ await user.server.connectAll();
 ```
 
 连接成功后服务器地址会被持久化。默认服务器列表为 `["ws://localhost:8081", "ws://localhost:8082"]`。
+
+> **通常不需要手动连接**：`getUser()` 内部会调用 `ready()`，`ready()` 会自动执行 `connectAll()`，因此多数场景下直接 `await getUser("namespace")` 即可。只有需要连接非默认服务器时，才显式调用 `connect(url)`。
 
 ### 服务器列表管理
 
