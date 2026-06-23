@@ -10,141 +10,80 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust toolchain
+
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo build artifacts
-        uses: actions/cache@v4
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            server/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Build handshake server (debug)
+          workspaces: server
+
+      - name: Build handshake server
         working-directory: server
         run: cargo build
-      - name: Start handshake server on port 8081
+
+      - name: Start handshake server 8081
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+
+      - name: Start handshake server 8082
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+
+      - name: Wait for handshake servers
         run: |
-          setsid ./server/target/debug/noneos-handshake \
-            --config server/test-space/config.example.toml \
-            > /tmp/handshake-8081.log 2>&1 < /dev/null &
-          echo $! > /tmp/handshake-8081.pid
-          echo "Started handshake server (8081), pid=$(cat /tmp/handshake-8081.pid)"
-      - name: Start handshake server on port 8082
-        run: |
-          setsid ./server/target/debug/noneos-handshake \
-            --config server/test-space/config2.toml \
-            > /tmp/handshake-8082.log 2>&1 < /dev/null &
-          echo $! > /tmp/handshake-8082.pid
-          echo "Started handshake server (8082), pid=$(cat /tmp/handshake-8082.pid)"
-      - name: Wait for handshake servers to be ready
-        run: |
-          for port in 8081 8082; do
-            ready=0
-            for i in $(seq 1 30); do
-              if (echo > /dev/tcp/localhost/$port) 2>/dev/null; then
-                echo "Handshake server on port $port is ready"
-                ready=1
-                break
-              fi
-              sleep 1
-            done
-            if [ "$ready" != "1" ]; then
-              echo "::error::Handshake server on port $port failed to start within 30s"
-              [ -f /tmp/handshake-$port.log ] && cat /tmp/handshake-$port.log
-              exit 1
+          for i in {1..30}; do
+            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
+              echo "Handshake servers are ready"
+              exit 0
             fi
+            sleep 1
           done
+          echo "Handshake servers did not start in time"
+          exit 1
+
       - uses: ofajs/sibyl-test@v1
         with:
           browsers: 'chrome,firefox'
-      - name: Stop handshake servers
-        if: always()
-        run: |
-          for f in /tmp/handshake-8081.pid /tmp/handshake-8082.pid; do
-            if [ -f "$f" ]; then
-              pid=$(cat "$f")
-              echo "Stopping pid $pid ($f)"
-              kill "$pid" 2>/dev/null || true
-            fi
-          done
-      - name: Dump server logs on failure
-        if: failure()
-        run: |
-          for port in 8081 8082; do
-            echo "---- handshake-$port.log ----"
-            [ -f /tmp/handshake-$port.log ] && cat /tmp/handshake-$port.log || echo "(no log)"
-          done
+
   test-webkit:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust toolchain
+
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo build artifacts
-        uses: actions/cache@v4
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            server/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Build handshake server (debug)
+          workspaces: server
+
+      - name: Build handshake server
         working-directory: server
         run: cargo build
-      - name: Start handshake server on port 8081
+
+      - name: Start handshake server 8081
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+
+      - name: Start handshake server 8082
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+
+      - name: Wait for handshake servers
         run: |
-          setsid ./server/target/debug/noneos-handshake \
-            --config server/test-space/config.example.toml \
-            > /tmp/handshake-8081.log 2>&1 < /dev/null &
-          echo $! > /tmp/handshake-8081.pid
-          echo "Started handshake server (8081), pid=$(cat /tmp/handshake-8081.pid)"
-      - name: Start handshake server on port 8082
-        run: |
-          setsid ./server/target/debug/noneos-handshake \
-            --config server/test-space/config2.toml \
-            > /tmp/handshake-8082.log 2>&1 < /dev/null &
-          echo $! > /tmp/handshake-8082.pid
-          echo "Started handshake server (8082), pid=$(cat /tmp/handshake-8082.pid)"
-      - name: Wait for handshake servers to be ready
-        run: |
-          for port in 8081 8082; do
-            ready=0
-            for i in $(seq 1 30); do
-              if (echo > /dev/tcp/localhost/$port) 2>/dev/null; then
-                echo "Handshake server on port $port is ready"
-                ready=1
-                break
-              fi
-              sleep 1
-            done
-            if [ "$ready" != "1" ]; then
-              echo "::error::Handshake server on port $port failed to start within 30s"
-              [ -f /tmp/handshake-$port.log ] && cat /tmp/handshake-$port.log
-              exit 1
+          for i in {1..30}; do
+            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
+              echo "Handshake servers are ready"
+              exit 0
             fi
+            sleep 1
           done
+          echo "Handshake servers did not start in time"
+          exit 1
+
       - uses: ofajs/sibyl-test@v1
         with:
           browsers: 'webkit'
-      - name: Stop handshake servers
-        if: always()
-        run: |
-          for f in /tmp/handshake-8081.pid /tmp/handshake-8082.pid; do
-            if [ -f "$f" ]; then
-              pid=$(cat "$f")
-              echo "Stopping pid $pid ($f)"
-              kill "$pid" 2>/dev/null || true
-            fi
-          done
-      - name: Dump server logs on failure
-        if: failure()
-        run: |
-          for port in 8081 8082; do
-            echo "---- handshake-$port.log ----"
-            [ -f /tmp/handshake-$port.log ] && cat /tmp/handshake-$port.log || echo "(no log)"
-          done
