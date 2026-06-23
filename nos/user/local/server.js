@@ -310,6 +310,7 @@ export class ServerManager {
     return new Promise((resolve, reject) => {
       let resolved = false;
       const handler = (e) => {
+        if (e.detail.url !== url) return;
         let data;
         try {
           data =
@@ -531,7 +532,9 @@ export class ServerManager {
     frame.set(payloadBytes, 4 + headerLen);
 
     return new Promise((resolve, reject) => {
+      let resolved = false;
       const handler = (e) => {
+        if (e.detail.url !== url) return;
         if (typeof e.detail.data !== "string") {
           return;
         }
@@ -542,6 +545,7 @@ export class ServerManager {
           return;
         }
         if (resp?.type === "relay_response" && resp?.action === "send_data") {
+          resolved = true;
           unbind();
           resolve(resp);
         }
@@ -551,8 +555,10 @@ export class ServerManager {
       this.sendToServer(url, frame);
 
       setTimeout(() => {
-        unbind();
-        reject(new Error("Command timed out (type: relay_response)"));
+        if (!resolved) {
+          unbind();
+          reject(new Error("Command timed out (type: relay_response)"));
+        }
       }, 5000);
     });
   }
@@ -606,21 +612,33 @@ export class ServerManager {
     }
 
     // 找第一个包含目标 session 的服务器（按综合延迟从低到高）
+    let lastError;
     for (const candidate of candidates) {
       if (candidate.sessions.includes(targetSessionId)) {
-        const result = await this.relayToUserViaServer(
-          candidate.url,
-          targetUserId,
-          targetSessionId,
-          data,
-        );
-        return { result, url: candidate.url };
+        try {
+          const result = await this.relayToUserViaServer(
+            candidate.url,
+            targetUserId,
+            targetSessionId,
+            data,
+          );
+          if (result.status === "ok") {
+            return { result, url: candidate.url };
+          }
+          lastError = new Error(result.message || "Relay failed");
+        } catch (err) {
+          lastError = err;
+        }
       }
     }
 
-    // 所有服务器上该 session 都不在线
-    throw new Error(
-      `Session ${targetSessionId} of user ${targetUserId} is not online`,
+    // 候选缓存可能已过期，清除以便下次重试
+    this.#serverCandidateCache.delete(targetUserId);
+    throw (
+      lastError ||
+      new Error(
+        `Session ${targetSessionId} of user ${targetUserId} is not online`,
+      )
     );
   }
 
