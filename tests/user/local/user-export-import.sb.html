@@ -39,6 +39,11 @@
             namespace: exportNs,
             userId: exportUserId,
             exportedDataLength: exportedData.length,
+            checks: {
+              isExportedString,
+              isExportedNotEmpty,
+              dataLength: exportedData.length,
+            },
           },
         };
       </script>
@@ -92,6 +97,10 @@
             targetNamespace: importTargetNs,
             userIdMatched: isUserIdMatched,
             usernameMatched: isUsernameMatched,
+            checks: {
+              isUserIdMatched,
+              isUsernameMatched,
+            },
           },
         };
       </script>
@@ -124,6 +133,9 @@
           content: {
             message: "错误密码测试成功",
             errorCaught: wrongPassErrorCaught,
+            checks: {
+              wrongPassErrorCaught,
+            },
           },
         };
       </script>
@@ -157,6 +169,9 @@
           content: {
             message: "重复命名空间测试成功",
             errorCaught: dupErrorCaught,
+            checks: {
+              dupErrorCaught,
+            },
           },
         };
       </script>
@@ -184,6 +199,9 @@
           content: {
             message: "导出不存在的用户测试成功",
             errorCaught: nonExistErrorCaught,
+            checks: {
+              nonExistErrorCaught,
+            },
           },
         };
       </script>
@@ -214,6 +232,10 @@
             message: "跳过确认删除用户测试成功",
             namespace: skipDeleteNs,
             result: skipDeleteResult,
+            checks: {
+              isDeleted,
+              resultIsTrue: skipDeleteResult === true,
+            },
           },
         };
       </script>
@@ -240,6 +262,9 @@
           content: {
             message: "删除不存在的用户测试成功",
             errorCaught: deleteNonExistErrorCaught,
+            checks: {
+              deleteNonExistErrorCaught,
+            },
           },
         };
       </script>
@@ -289,6 +314,10 @@
             message: "特殊字符导出导入测试成功",
             usernameMatched: isSpecialUsernameMatched,
             bioMatched: isSpecialBioMatched,
+            checks: {
+              isSpecialUsernameMatched,
+              isSpecialBioMatched,
+            },
           },
         };
       </script>
@@ -340,6 +369,12 @@
           content: {
             message: "导出数据解密成功，以下是解密后的明文内容",
             decryptedData: decryptedObj,
+            checks: {
+              hasNamespace,
+              hasKeys,
+              hasInfo,
+              hasExportTime,
+            },
           },
         };
       </script>

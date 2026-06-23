@@ -30,13 +30,21 @@
           const d1Has8081 = d1Servers.includes("ws://localhost:8081");
           const d1Has8082 = d1Servers.includes("ws://localhost:8082");
 
+          const d1AllOk = d1Has8081 && d1Has8082 && d1Servers.length === 2;
+
           return {
-            assert: d1Has8081 && d1Has8082 && d1Servers.length === 2,
+            assert: d1AllOk,
             content: {
-              message: d1Has8081 && d1Has8082
+              message: d1AllOk
                 ? "Default server list contains both preset URLs"
                 : "Default server list missing expected URLs",
               servers: d1Servers,
+              checks: {
+                d1Has8081,
+                d1Has8082,
+                expectedCount: 2,
+                actualCount: d1Servers.length,
+              },
             },
           };
         </script>
@@ -69,6 +77,11 @@
                 ? "Auto-connect to default server succeeded"
                 : "Auto-connect failed",
               version: d2Result ? d2Result.version : null,
+              checks: {
+                d2Connected,
+                d2ResultSuccess: d2Result?.success === true,
+                actualSuccess: d2Result?.success,
+              },
             },
           };
         </script>
@@ -97,14 +110,23 @@
           const d3HasDefault8082 = d3Servers.includes("ws://localhost:8082");
           const d3Count = d3Servers.length === 3;
 
+          const d3AllOk = d3HasCustom && d3HasDefault8081 && d3HasDefault8082 && d3Count;
+
           return {
-            assert: d3HasCustom && d3HasDefault8081 && d3HasDefault8082 && d3Count,
+            assert: d3AllOk,
             content: {
-              message: d3HasCustom && d3HasDefault8081 && d3HasDefault8082 && d3Count
+              message: d3AllOk
                 ? "Custom server added successfully"
                 : "Add server failed",
               servers: d3Servers,
               added: d3CustomUrl,
+              checks: {
+                d3HasCustom,
+                d3HasDefault8081,
+                d3HasDefault8082,
+                d3Count,
+                actualCount: d3Servers.length,
+              },
             },
           };
         </script>
@@ -138,14 +160,24 @@
           const d4HasDefault8082 = d4Servers.includes("ws://localhost:8082");
           const d4Count = d4Servers.length === 2;
 
+          const d4AllOk = d4HadCustom && d4NoCustom && d4HasDefault8081 && d4HasDefault8082 && d4Count;
+
           return {
-            assert: d4HadCustom && d4NoCustom && d4HasDefault8081 && d4HasDefault8082 && d4Count,
+            assert: d4AllOk,
             content: {
-              message: d4HadCustom && d4NoCustom && d4HasDefault8081 && d4HasDefault8082 && d4Count
+              message: d4AllOk
                 ? "Custom server removed successfully"
                 : "Remove server failed",
               servers: d4Servers,
               removed: d4CustomUrl,
+              checks: {
+                d4HadCustom,
+                d4NoCustom,
+                d4HasDefault8081,
+                d4HasDefault8082,
+                d4Count,
+                actualCount: d4Servers.length,
+              },
             },
           };
         </script>
@@ -181,15 +213,23 @@
           const d5Has8081 = d5ServersB.includes("ws://localhost:8081");
           const d5Has8082 = d5ServersB.includes("ws://localhost:8082");
 
+          const d5AllOk = d5HasCustomA && d5HasCustomB && d5Has8081 && d5Has8082;
+
           return {
-            assert: d5HasCustomA && d5HasCustomB && d5Has8081 && d5Has8082,
+            assert: d5AllOk,
             content: {
-              message: d5HasCustomA && d5HasCustomB && d5Has8081 && d5Has8082
+              message: d5AllOk
                 ? "Server list correctly persists across instances"
                 : "Server list persistence failed",
               instanceAServers: d5ServersA,
               instanceBServers: d5ServersB,
               addedUrl: d5CustomUrl,
+              checks: {
+                d5HasCustomA,
+                d5HasCustomB,
+                d5Has8081,
+                d5Has8082,
+              },
             },
           };
         </script>
@@ -225,6 +265,10 @@
                 : "Duplicate server was added",
               servers: d6Servers,
               count8081: d6Count8081,
+              checks: {
+                expectedUniqueCount: 1,
+                actualUniqueCount: d6Count8081,
+              },
             },
           };
         </script>

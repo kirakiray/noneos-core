@@ -43,6 +43,11 @@
               userId: user1.userId,
               version: connectResult1 ? connectResult1.version : null,
               error: connectError1 ? connectError1.message : null,
+              checks: {
+                isConnected1,
+                successFlag: connectResult1?.success,
+                hasVersion: !!connectResult1?.version,
+              },
             },
           };
         </script>
@@ -74,6 +79,12 @@
                 ? `Server version retrieved: ${versionResult.version}`
                 : "Failed to retrieve server version",
               version: versionResult ? versionResult.version : null,
+              checks: {
+                hasVersion,
+                successFlag: versionResult?.success,
+                versionType: typeof versionResult?.version,
+                versionLength: versionResult?.version?.length,
+              },
             },
           };
         </script>
@@ -104,6 +115,10 @@
               message: "Successfully reused existing connection",
               firstResult,
               secondResult,
+              checks: {
+                firstSuccess: firstResult.success === true,
+                secondSuccess: secondResult.success === true,
+              },
             },
           };
         </script>
@@ -213,6 +228,12 @@
                 ? "Server correctly rejected tampered data"
                 : "Server failed to detect tampering",
               response: handshakeResult4,
+              checks: {
+                isRejected4,
+                actualStatus: handshakeResult4.status,
+                actualMessage: handshakeResult4.message,
+                messageContainsVerificationFailed: handshakeResult4.message?.includes("Verification failed"),
+              },
             },
           };
         </script>
@@ -323,6 +344,12 @@
                 ? "Server correctly rejected wrong signature"
                 : "Server failed to detect wrong signature",
               response: handshakeResult5,
+              checks: {
+                isRejected5,
+                actualStatus: handshakeResult5.status,
+                actualMessage: handshakeResult5.message,
+                messageContainsVerificationFailed: handshakeResult5.message?.includes("Verification failed"),
+              },
             },
           };
         </script>
@@ -407,6 +434,13 @@
                 : "Server did not handle timeout as expected",
               serverResponse: serverResponse6,
               result: handshakeResult6,
+              checks: {
+                isTimeoutHandled,
+                serverResponseNotNull: serverResponse6 !== null,
+                responseType: serverResponse6?.type,
+                responseStatus: serverResponse6?.status,
+                messageContainsTimeout: serverResponse6?.message?.includes("timeout"),
+              },
             },
           };
         </script>
@@ -458,6 +492,15 @@
               serverRecvTime: result.serverRecvTime,
               serverSendTime: result.serverSendTime,
               clientRecvTime: result.clientRecvTime,
+              checks: {
+                allValid,
+                hasValidRtt,
+                rttValue: result.rtt,
+                hasValidOneWay,
+                oneWayValue: result.oneWayLatency,
+                timestampsValid,
+                rttPositive,
+              },
             },
           };
         </script>
@@ -519,6 +562,11 @@
                 : "Some measurements were invalid",
               count: measurements.length,
               samples: measurements,
+              checks: {
+                allValid8,
+                countAtLeast2: measurements.length >= 2,
+                actualCount: measurements.length,
+              },
             },
           };
         </script>

@@ -99,16 +99,30 @@
             && batchResult.quotas.some(q => q.user_id === getqUser.userId)
             && batchResult.quotas.some(q => q.user_id === getqAdmin.userId);
 
+          const getqAllOk = getqSingleOk && batchOk;
+
           getqAdmin.server.disconnect(getqUrl);
 
           return {
-            assert: getqSingleOk && batchOk,
+            assert: getqAllOk,
             content: {
-              message: getqSingleOk && batchOk
+              message: getqAllOk
                 ? "Admin can get user relay quota (single and batch)"
                 : "Quota response validation failed",
               singleResult: getqResult,
-              batchResult: batchResult
+              batchResult: batchResult,
+              checks: {
+                getqSingleOk,
+                getqStatusOk: getqResult?.status === "ok",
+                getqUserIdMatch: getqResult?.quota?.user_id === getqUser.userId,
+                getqQuotaType: typeof getqResult?.quota?.quota_bytes,
+                batchOk,
+                batchStatusOk: batchResult?.status === "ok",
+                batchIsArray: Array.isArray(batchResult?.quotas),
+                batchLength: batchResult?.quotas?.length,
+                batchHasUser: batchResult?.quotas?.some(q => q.user_id === getqUser.userId),
+                batchHasAdmin: batchResult?.quotas?.some(q => q.user_id === getqAdmin.userId),
+              },
             },
           };
         </script>
@@ -152,6 +166,13 @@
                 ? "Admin can set user relay quota to 0"
                 : "Failed to set quota to 0",
               result: setzResult,
+              checks: {
+                setzOk,
+                setzStatusOk: setzResult?.status === "ok",
+                setzUserIdMatch: setzResult?.quota?.user_id === setzUser.userId,
+                setzQuotaIsZero: setzResult?.quota?.quota_bytes === 0,
+                actualQuota: setzResult?.quota?.quota_bytes,
+              },
             },
           };
         </script>
@@ -200,16 +221,28 @@
           const getResult = await offAdmin.getUserRelayQuota(offUrl, targetUserId);
           const getOk = getResult?.status === "ok" && getResult?.quota?.quota_bytes === 5000;
 
+          const offAllOk = offOk && getOk;
+
           offAdmin.server.disconnect(offUrl);
 
           return {
-            assert: offOk && getOk,
+            assert: offAllOk,
             content: {
-              message: offOk && getOk
+              message: offAllOk
                 ? "Admin successfully set and verified quota for offline user"
                 : "Offline quota setting failed",
               offResult,
-              getResult
+              getResult,
+              checks: {
+                offOk,
+                offStatusOk: offResult?.status === "ok",
+                offUserIdMatch: offResult?.quota?.user_id === targetUserId,
+                offQuotaMatch: offResult?.quota?.quota_bytes === 5000,
+                getOk,
+                getStatusOk: getResult?.status === "ok",
+                getUserIdMatch: getResult?.quota?.user_id === targetUserId,
+                getQuotaMatch: getResult?.quota?.quota_bytes === 5000,
+              },
             },
           };
         </script>
@@ -273,6 +306,10 @@
                 ? "Big message rejected due to quota exceeded"
                 : "Big message was not rejected",
               bigResult: bigrResult,
+              checks: {
+                bigrRejected,
+                bigrActualStatus: bigrResult?.status,
+              },
             },
           };
         </script>
@@ -334,6 +371,10 @@
                 ? "Small message allowed even when quota exceeded"
                 : "Small message was rejected",
               smallResult: smallaResult,
+              checks: {
+                smallaAllowed,
+                smallaActualStatus: smallaResult?.status,
+              },
             },
           };
         </script>
@@ -391,6 +432,10 @@
                 ? "Admin user bypasses relay quota"
                 : "Admin user was incorrectly quota-limited",
               result: adminnlResult,
+              checks: {
+                adminnlAllowed,
+                adminnlActualStatus: adminnlResult?.status,
+              },
             },
           };
         </script>
@@ -449,18 +494,26 @@
           );
           const raiseqAllowed = raiseqAllowedResult?.status === "ok";
 
+          const raiseqAllOk = raiseqWasBlocked && raiseqAllowed;
+
           raiseqAdmin.server.disconnect(raiseqUrl);
           raiseqUserA.server.disconnect(raiseqUrl);
           raiseqUserB.server.disconnect(raiseqUrl);
 
           return {
-            assert: raiseqWasBlocked && raiseqAllowed,
+            assert: raiseqAllOk,
             content: {
-              message: raiseqWasBlocked && raiseqAllowed
+              message: raiseqAllOk
                 ? "Raising quota allows big messages again"
                 : "Quota adjustment did not behave as expected",
               blockedResult: raiseqBlockedResult,
               allowedResult: raiseqAllowedResult,
+              checks: {
+                raiseqWasBlocked,
+                raiseqBlockedStatus: raiseqBlockedResult?.status,
+                raiseqAllowed,
+                raiseqAllowedStatus: raiseqAllowedResult?.status,
+              },
             },
           };
         </script>

@@ -97,6 +97,10 @@
               expectedUserId: sysData.info.userId,
               importedUsername: sysImportedInfo.username,
               expectedUsername: sysData.info.username,
+              checks: {
+                sysIsUserIdMatch,
+                sysIsUsernameMatch,
+              },
             },
           };
         </script>
@@ -158,6 +162,17 @@
               status: sysInfoResponse?.status,
               system_info: sysInfoResponse?.system_info,
               responseMessage: sysInfoResponse?.message,
+              checks: {
+                sysIsOk,
+                hasSystemInfo,
+                hasMemory,
+                hasCpu,
+                hasDisks,
+                memoryFields,
+                cpuFields,
+                disksValid,
+                diskCount: sysInfoResponse?.system_info?.disks?.length,
+              },
             },
           };
         </script>
@@ -211,6 +226,13 @@
             content: {
               message: sysIsDenied ? "Non-admin correctly denied for get_system_info" : "Permission check failed",
               response: sysNormAdminResp,
+              checks: {
+                sysIsDenied,
+                statusIsError: sysNormAdminResp?.status === "error",
+                messageContainsDenied: sysNormAdminResp?.message?.includes("Permission denied"),
+                actualStatus: sysNormAdminResp?.status,
+                actualMessage: sysNormAdminResp?.message,
+              },
             },
           };
         </script>

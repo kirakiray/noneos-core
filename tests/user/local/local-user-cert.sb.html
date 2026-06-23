@@ -61,7 +61,14 @@
             message: "证书签发与保存验证通过",
             certId: issuedCert.id,
             adminHasIt,
-            normalHasCert
+            normalHasCert,
+            checks: {
+              hasCertId,
+              isIssuerAdmin,
+              isSubjectNormal,
+              adminHasIt,
+              normalHasCert,
+            },
           },
         };
       </script>
@@ -94,7 +101,11 @@
           content: {
             message: "证书删除测试通过",
             hasBeforeDelete,
-            hasAfterDelete
+            hasAfterDelete,
+            checks: {
+              hasBeforeDelete,
+              hasAfterDelete,
+            },
           },
         };
       </script>
@@ -132,7 +143,10 @@
           assert: catchError,
           content: {
             message: "篡改证书验证拦截成功",
-            catchError
+            catchError,
+            checks: {
+              catchError,
+            },
           },
         };
       </script>
@@ -175,7 +189,13 @@
             initialCount,
             totalCount,
             adminCount,
-            editorCount
+            editorCount,
+            checks: {
+              initialCountIsZero: initialCount === 0,
+              totalCountIs3: totalCount === 3,
+              adminCountIs2: adminCount === 2,
+              editorCountIs1: editorCount === 1,
+            },
           },
         };
       </script>
@@ -223,7 +243,16 @@
             message: "证书遍历测试通过",
             allCertsCount: iteratedCerts.length,
             adminCertsCount: adminCerts.length,
-            allHaveLevel
+            allHaveLevel,
+            checks: {
+              hasAllCerts,
+              expectedAllCount: 3,
+              actualAllCount: iteratedCerts.length,
+              hasAdminCerts,
+              expectedAdminCount: 2,
+              actualAdminCount: adminCerts.length,
+              allHaveLevel,
+            },
           },
         };
       </script>

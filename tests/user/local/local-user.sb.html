@@ -35,6 +35,12 @@
             namespace: localUser.namespace,
             userId: localUser.userId,
             publicKeyLength: localUser.publicKey.length,
+            checks: {
+              hasInitUserId,
+              hasInitPublicKey,
+              hasInitPrivateKey,
+              isNamespaceMatched,
+            },
           },
         };
       </script>
@@ -69,6 +75,10 @@
             namespace: ns2,
             userIdMatched: isUserIdMatched,
             publicKeyMatched: isPublicKeyMatched,
+            checks: {
+              isUserIdMatched,
+              isPublicKeyMatched,
+            },
           },
         };
       </script>
@@ -115,6 +125,14 @@
             originalMessage: originalData.message,
             signatureValid: isSignatureValid,
             tamperedMessageValid: isTamperedValid,
+            checks: {
+              hasSignature,
+              hasSignTime,
+              hasSignedPublicKey,
+              isSignatureValid,
+              isTamperedValid,
+              tamperedMessageDetected: !isTamperedValid,
+            },
           },
         };
       </script>
@@ -166,6 +184,15 @@
             ],
             discoveredSessionIds: sessionIds,
             count: sessionIds.length,
+            checks: {
+              isArray,
+              contains1,
+              contains2,
+              contains3,
+              allStrings,
+              countAtLeast3: sessionIds.length >= 3,
+              actualCount: sessionIds.length,
+            },
           },
         };
       </script>

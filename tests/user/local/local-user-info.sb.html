@@ -42,6 +42,15 @@
             userId: info_default.userId,
             hasSignature: hasSignature_default,
             hasSignTime: hasSignTime_default,
+            checks: {
+              hasInfo_default,
+              hasUsername_default,
+              usernameFormatValid_default,
+              hasUserId_default,
+              hasSignature_default,
+              hasSignTime_default,
+              hasPublicKey_default,
+            },
           },
         };
       </script>
@@ -85,6 +94,15 @@
             email: updatedInfo.email,
             hasSignature: hasSignature_update,
             isNicknamePersisted,
+            checks: {
+              hasNickname_update,
+              hasAge_update,
+              hasEmail_update,
+              hasUserId_update,
+              hasSignature_update,
+              isNicknamePersisted,
+              isAgePersisted,
+            },
           },
         };
       </script>
@@ -130,6 +148,14 @@
             city: mergedInfo.city,
             hobby: mergedInfo.hobby,
             isSignatureValid: isSignatureValid_merge,
+            checks: {
+              isNicknameUpdated_merge,
+              isCityRetained_merge,
+              isHobbyAdded_merge,
+              hasUserId_merge,
+              hasSignature_merge,
+              isSignatureValid_merge,
+            },
           },
         };
       </script>
@@ -169,6 +195,13 @@
             isSignatureValid: isSignatureValid_verify,
             isTamperedValid: isTamperedValid_verify,
             isLevelTamperedValid: isLevelTamperedValid_verify,
+            checks: {
+              isSignatureValid_verify,
+              isTamperedValid_verify,
+              isLevelTamperedValid_verify,
+              tamperedNameDetected: !isTamperedValid_verify,
+              tamperedLevelDetected: !isLevelTamperedValid_verify,
+            },
           },
         };
       </script>

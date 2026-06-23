@@ -115,19 +115,32 @@
             && typeof emptyG.relay_forwarded_bytes === 'number'
             && typeof emptyG.handshake_bytes === 'number';
 
+          const emptyAllOk = emptyAllFields && emptyGlobalOK;
+
           // 退出登录：断开连接
           emptyAdmin.server.disconnect(emptyUrl);
 
           return {
-            assert: emptyAllFields && emptyGlobalOK,
+            assert: emptyAllOk,
             content: {
-              message: emptyAllFields && emptyGlobalOK
+              message: emptyAllOk
                 ? "Traffic stats response has all expected fields"
                 : "Missing some traffic stats fields",
               status: emptyResult.status,
               global: emptyResult.traffic.global,
               userCount: emptyResult.traffic.users.length,
               distCount: emptyResult.traffic.time_distribution.length,
+              checks: {
+                emptyAllFields,
+                emptyHasGlobal,
+                emptyHasUsers,
+                emptyHasTimeDist,
+                emptyGlobalOK,
+                inboundType: typeof emptyG?.inbound_bytes,
+                outboundType: typeof emptyG?.outbound_bytes,
+                relayType: typeof emptyG?.relay_forwarded_bytes,
+                handshakeType: typeof emptyG?.handshake_bytes,
+              },
             },
           };
         </script>
@@ -183,20 +196,30 @@
           // 全局 handshake 应大于 0
           const hsGlobalOK = (hsResult?.traffic?.global?.handshake_bytes || 0) > 0;
 
+          const hsAllOk = hsHasThree && hsAllHandshake && hsGlobalOK;
+
           // 退出登录：断开所有连接
           hsAdmin.server.disconnect(hsUrl);
           hsUserA.server.disconnect(hsUrl);
           hsUserB.server.disconnect(hsUrl);
 
           return {
-            assert: hsHasThree && hsAllHandshake && hsGlobalOK,
+            assert: hsAllOk,
             content: {
-              message: hsHasThree
+              message: hsAllOk
                 ? `Traffic stats shows ${hsUserCount} user(s), all have handshake data`
                 : "Traffic stats missing expected users",
               userCount: hsUserCount,
               users: hsResult?.traffic?.users,
               global: hsResult?.traffic?.global,
+              checks: {
+                hsHasThree,
+                expectedMinUsers: 3,
+                actualUserCount: hsUserCount,
+                hsAllHandshake,
+                hsGlobalOK,
+                globalHandshakeBytes: hsResult?.traffic?.global?.handshake_bytes,
+              },
             },
           };
         </script>
@@ -260,21 +283,33 @@
           const relayGlobalForward = (relayResult?.traffic?.global?.relay_forwarded_bytes || 0) > 0;
           const relayGlobalOut = (relayResult?.traffic?.global?.outbound_bytes || 0) > 0;
 
+          const relayAllOk = relayOk && relayAForwarded && relayGlobalForward && relayGlobalOut;
+
           // 退出登录：断开所有连接
           relayAdmin.server.disconnect(relayUrl);
           relayUserA.server.disconnect(relayUrl);
           relayUserB.server.disconnect(relayUrl);
 
           return {
-            assert: relayOk && relayAForwarded && relayGlobalForward && relayGlobalOut,
+            assert: relayAllOk,
             content: {
-              message: relayOk
+              message: relayAllOk
                 ? `Relay forwarding traffic recorded: userA forwarded=${relayUserAStats?.relay_forwarded_bytes} bytes`
                 : "Relay failed or traffic not recorded",
               relaySuccess: relayOk,
               userAStats: relayUserAStats,
               global: relayResult?.traffic?.global,
               sendResult: relaySendResult,
+              checks: {
+                relayOk,
+                relaySendStatus: relaySendResult?.status,
+                relayAForwarded,
+                relayAForwardedBytes: relayUserAStats?.relay_forwarded_bytes,
+                relayGlobalForward,
+                relayGlobalForwardBytes: relayResult?.traffic?.global?.relay_forwarded_bytes,
+                relayGlobalOut,
+                relayGlobalOutBytes: relayResult?.traffic?.global?.outbound_bytes,
+              },
             },
           };
         </script>
@@ -325,19 +360,26 @@
             && typeof b.outbound_bytes === 'number'
           );
 
+          const tdAllOk = tdHasDist && tdBucketsValid;
+
           // 退出登录：断开连接
           tdAdmin.server.disconnect(tdUrl);
           tdUser.server.disconnect(tdUrl);
 
           return {
-            assert: tdHasDist && tdBucketsValid,
+            assert: tdAllOk,
             content: {
-              message: tdHasDist && tdBucketsValid
+              message: tdAllOk
                 ? `Time distribution has ${tdDist.length} bucket(s) with valid fields`
                 : "Time distribution missing or invalid",
               bucketCount: tdDist.length,
               sample: tdDist.slice(0, 3),
               allValid: tdBucketsValid,
+              checks: {
+                tdHasDist,
+                tdBucketsValid,
+                bucketCount: tdDist.length,
+              },
             },
           };
         </script>
@@ -394,14 +436,16 @@
 
           const corrAllSessions = corrUsers.every(u => u.session_count > 0);
 
+          const corrOk = corrConsistent && corrAllSessions;
+
           // 退出登录：断开连接
           corrAdmin.server.disconnect(corrUrl);
           corrUser.server.disconnect(corrUrl);
 
           return {
-            assert: corrConsistent && corrAllSessions,
+            assert: corrOk,
             content: {
-              message: corrConsistent && corrAllSessions
+              message: corrOk
                 ? "Traffic stats are consistent across global/user levels"
                 : "Traffic stats inconsistency detected",
               global: corrGlobal,
@@ -410,6 +454,19 @@
                 userInbound: corrUserInbound,
                 userOutbound: corrUserOutbound,
                 userRelay: corrUserRelay,
+              },
+              checks: {
+                corrInOK,
+                corrOutOK,
+                corrRelayOK,
+                corrConsistent,
+                corrAllSessions,
+                globalInbound: corrGlobal?.inbound_bytes,
+                globalOutbound: corrGlobal?.outbound_bytes,
+                globalRelay: corrGlobal?.relay_forwarded_bytes,
+                sumUserInbound: corrUserInbound,
+                sumUserOutbound: corrUserOutbound,
+                sumUserRelay: corrUserRelay,
               },
             },
           };
@@ -469,6 +526,11 @@
               status: histResult.status,
               count: histResult.history?.length || 0,
               records: histResult.history,
+              checks: {
+                histHasHistory,
+                historyExists: Array.isArray(histResult?.history),
+                historyLength: histResult?.history?.length,
+              },
             },
           };
         </script>
