@@ -138,19 +138,30 @@ export class CardManager {
 
   /**
    * 自动查找远程用户的在线 sessionId
+   *
+   * 因并发握手/状态同步可能存在短暂窗口，
+   * 这里复用 connectUser 的策略做少量重试，避免瞬时查询失败。
    */
   async #findSessionId(userId) {
     const server = this.#user.server;
-    const urls = server.connectedUrls;
+    const maxRetries = 5;
 
-    for (const url of urls) {
-      try {
-        const result = await server.queryUserOnline(url, userId);
-        if (result.online && result.sessions && result.sessions.length > 0) {
-          return result.sessions[0];
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const urls = server.connectedUrls;
+
+      for (const url of urls) {
+        try {
+          const result = await server.queryUserOnline(url, userId);
+          if (result.online && result.sessions && result.sessions.length > 0) {
+            return result.sessions[0];
+          }
+        } catch {
+          continue;
         }
-      } catch {
-        continue;
+      }
+
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
 
@@ -220,22 +231,35 @@ export class CardManager {
       return this.#requestMap.get(userId).promise;
     }
 
-    const remoteUser = await this.#user.connectUser(userId);
-    const sessionId = await this.#findSessionId(userId);
-
-    const promise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#requestMap.delete(userId);
-        reject(new Error(`Card request timed out for user ${userId}`));
-      }, 10000);
-
-      this.#requestMap.set(userId, { resolve, reject, timer, promise: null });
+    // 先把请求占位放入 #requestMap，再异步执行 connectUser/findSessionId/send，
+    // 避免响应在请求发送完成前到达却找不到对应占位的情况
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
     });
 
-    const entry = this.#requestMap.get(userId);
-    entry.promise = promise;
+    const timer = setTimeout(() => {
+      this.#requestMap.delete(userId);
+      reject(new Error(`Card request timed out for user ${userId}`));
+    }, 10000);
 
-    await remoteUser.send(sessionId, { type: "card", action: "request" }, true);
+    this.#requestMap.set(userId, { resolve, reject, timer, promise });
+
+    try {
+      const remoteUser = await this.#user.connectUser(userId);
+      const sessionId = await this.#findSessionId(userId);
+      await remoteUser.send(
+        sessionId,
+        { type: "card", action: "request" },
+        true,
+      );
+    } catch (err) {
+      clearTimeout(timer);
+      this.#requestMap.delete(userId);
+      reject(err);
+    }
+
     return promise;
   }
 

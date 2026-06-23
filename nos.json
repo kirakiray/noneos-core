@@ -1,7 +1,7 @@
 {
   "version": "4.1.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782227505246,
+  "signTime": 1782228313871,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -160,8 +160,8 @@
     },
     {
       "path": "user/local/card.js",
-      "hash": "4a402621f199b4e372643d04a56957a7474949d78dce57709bef7bd3f2a66e3c",
-      "size": 6946
+      "hash": "684dfa3bab966c4add4b86fd233a3bedfb1bbc4bc5963e2f22f5ba8aaaae785b",
+      "size": 7631
     },
     {
       "path": "user/local/cert.js",
@@ -239,5 +239,5 @@
       "size": 2117
     }
   ],
-  "signature": "zZoCzf1umS/xG3f/pa0ROyJq6UNlGz7iU5WFE0L6Qq5rg/o5t29mx5OY7rM4w26HR94wLUzUScBw33xyN8aehQ=="
+  "signature": "W36GMOMEWcV0zFynTkl7EiGUn/XrD73iQVUmvZN3xgYPc8FXafUI3hA2ORwNmnrI6p5fIBz6ggZuAw3R//takA=="
 }
