@@ -1,7 +1,7 @@
 {
-  "version": "4.0.22",
+  "version": "4.1.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1781446823286,
+  "signTime": 1782193917159,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -17,6 +17,11 @@
       "path": "crypto/crypto-aes.js",
       "hash": "88e0cfb98ae0af34e7795770a1e68c9d7878d5012c3c1457cdaaa1df491ddbc5",
       "size": 2242
+    },
+    {
+      "path": "crypto/crypto-e2ee.js",
+      "hash": "4c4ab79cde6f7dc01d9cd1bb6f22ee7962cb36f08c171386ecb8e9a866ac6909",
+      "size": 5220
     },
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -135,23 +140,28 @@
     },
     {
       "path": "user/README.md",
-      "hash": "ce3f6a5f5051f728da1f3a580aba6010f0cfa4a35cad97007d66f9312d928d62",
-      "size": 9803
+      "hash": "0a69564108089bcb7a2c18035f3d20533c32eac76a3f800fe9b0afa02f5658fa",
+      "size": 16698
     },
     {
       "path": "user/admin-user.js",
-      "hash": "532758caa1e624ca951434e1151fa614d583df7de335ab475ab2feafec5720d4",
-      "size": 2509
+      "hash": "a1d78aa94d0a9946406637144015d39695cec82889c64f9f6c11c3aa0df0b333",
+      "size": 6143
     },
     {
       "path": "user/base-user.js",
-      "hash": "a842c868ae65127c04e70824d7708a32831255b0dce04cf7990cdc5aeea592b7",
-      "size": 4991
+      "hash": "bff7411500e79328f40862a33c1ba013ee1fd7e60d4c70f08192201b96cd18ca",
+      "size": 5760
     },
     {
       "path": "user/db.js",
-      "hash": "faba0ff70079d2cbfceb16ee1890cf6215d31fe270928237aa6c29056191ec37",
-      "size": 12088
+      "hash": "722724473b04f1293baef7507c3cd1109d49ccbcca7a614c6c20773a6569136b",
+      "size": 18189
+    },
+    {
+      "path": "user/local/card.js",
+      "hash": "4a402621f199b4e372643d04a56957a7474949d78dce57709bef7bd3f2a66e3c",
+      "size": 6946
     },
     {
       "path": "user/local/cert.js",
@@ -159,19 +169,29 @@
       "size": 4306
     },
     {
+      "path": "user/local/remote-user.js",
+      "hash": "dc505b10c606a14f01dc07c082fb0f71c28a3b148ba1b5adaa87c369c3538b6a",
+      "size": 10881
+    },
+    {
+      "path": "user/local/rtc.js",
+      "hash": "ef95c471e77db9a2b49aa990ccc17f4e32f46bf4fa22ba5f9a2da9e9735392ac",
+      "size": 6021
+    },
+    {
       "path": "user/local/server.js",
-      "hash": "f3411dbc2d02ec5f76b6c6892bd5b5a4780bfa39e942435fa29c917d27d617af",
-      "size": 6313
+      "hash": "07910a49e2064af8fd333393e982dba8c256c578530539f7a2084e2a89426100",
+      "size": 24454
     },
     {
       "path": "user/local/user.js",
-      "hash": "491f68f962b84b0faaca4b71e00bd8a54b42a8d755a6090594e8eeffb16abca0",
-      "size": 3862
+      "hash": "4f39e5d08fdd955a772244463cf7778c2d1f7ca7ecf275b9718b127008333c47",
+      "size": 12846
     },
     {
       "path": "user/main.js",
-      "hash": "673b5f3b56be4370f8bc1aa320825731758e8ea0fa4da780ab8aade3aa330f6c",
-      "size": 5809
+      "hash": "f1ff9359701e45a2665954cb6c7e42d617699cc2204f1760648f5cb5f612e60b",
+      "size": 5896
     },
     {
       "path": "util/async-pool.js",
@@ -219,5 +239,5 @@
       "size": 2117
     }
   ],
-  "signature": "2289u/QmwMKmUB408incadf4YoY06gGWAZm7kJNNyytinDuTxKvgbF3URvFU15M97AozqnnlhUnXI0if4957Eg=="
+  "signature": "LkMXBMesmTIGsL+H0hY6bsbZ05FKAXCZ8mW+3144QgQmI4P6bvJEiSeKuxSA/MY1cedFJrToni7VfFsokDWOpw=="
 }
