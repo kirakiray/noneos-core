@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connect User Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Connect User Tests</h1>
+
+  <sb-test name="Connect to Remote User and Send Message Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsA = "connect-user-a";
+        const nsB = "connect-user-b";
+        const serverUrl1 = "ws://localhost:8081";
+
+        // 创建多个 LocalUser：userA 和 userB（含多个 session）
+        const userA = new LocalUser(nsA);
+        const userB = new LocalUser(nsB);
+        const userB2 = new LocalUser(nsB);
+        const userB3 = new LocalUser(nsB);
+
+        await Promise.all([userA.ready(), userB.ready(), userB2.ready(), userB3.ready()]);
+
+        // 所有用户都连接到同一台服务器
+        await Promise.all([
+          userA.server.connect(serverUrl1),
+          userB.server.connect(serverUrl1),
+          userB2.server.connect(serverUrl1),
+          userB3.server.connect(serverUrl1),
+        ]);
+
+
+        // userA 连接 userB
+        const remoteB = await userA.connectUser(userB.userId);
+
+        // 获取 userB 的所有 sessionId 列表（应该包含 userB / userB2 / userB3 的三个 sessionId）
+        const sessionIds = await remoteB.getSessionIds();
+        const hasB1 = sessionIds.includes(userB.sessionId);
+        const hasB2 = sessionIds.includes(userB2.sessionId);
+        const hasB3 = sessionIds.includes(userB3.sessionId);
+        const countAtLeast3 = sessionIds.length >= 3;
+
+        // userA 通过 remoteB 发送消息给 userB
+        let receivedMessage = null;
+        userB.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userA.userId) {
+              receivedMessage = parsed.data;
+            }
+          } catch {}
+        });
+
+        await remoteB.send(userB.sessionId, "hello from A");
+
+        // 轮询等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedMessage !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const messageReceived = receivedMessage === "hello from A";
+
+        return {
+          assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
+          content: {
+            message: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived
+              ? "connectUser 测试成功，发现同用户多个 session 并成功发送消息"
+              : "connectUser 测试失败",
+            userAId: userA.userId,
+            userBId: userB.userId,
+            sessionIds,
+            expectedSessions: [userB.sessionId, userB2.sessionId, userB3.sessionId],
+            sentMessage: "hello from A",
+            receivedMessage,
+            // 错误诊断字段
+            checks: {
+              hasB1,
+              hasB2,
+              hasB3,
+              countAtLeast3,
+              sessionCount: sessionIds.length,
+              messageReceived,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="RemoteUser Message Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsC = "connect-user-c";
+        const nsD = "connect-user-d";
+        const serverUrl2 = "ws://localhost:8081";
+
+        const userC = new LocalUser(nsC);
+        const userD = new LocalUser(nsD);
+
+        await Promise.all([userC.ready(), userD.ready()]);
+
+        await Promise.all([
+          userC.server.connect(serverUrl2),
+          userD.server.connect(serverUrl2),
+        ]);
+
+        // userC 连接 userD
+        const remoteD = await userC.connectUser(userD.userId);
+
+        // 通过 remoteD 监听来自 userD 的消息
+        let remoteMessageDetail = null;
+        remoteD.bind("message", (event) => {
+          remoteMessageDetail = event.detail;
+        });
+
+        // 同时通过 userC 监听所有消息
+        let localMessageDetail = null;
+        userC.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === userD.userId) {
+              localMessageDetail = {
+                fromUserId: parsed.from_user_id,
+                fromSessionId: parsed.from_session_id,
+                data: parsed.data,
+                viaServer: event.detail.url,
+              };
+            }
+          } catch {}
+        });
+
+        // userD 发送消息给 userC
+        const remoteC = await userD.connectUser(userC.userId);
+        await remoteC.send(userC.sessionId, "hello from D");
+
+        // 轮询等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (remoteMessageDetail !== null && localMessageDetail !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const remoteEventReceived =
+          remoteMessageDetail !== null &&
+          remoteMessageDetail.fromUserId === userD.userId &&
+          remoteMessageDetail.data === "hello from D";
+
+        const localEventReceived =
+          localMessageDetail !== null &&
+          localMessageDetail.fromUserId === userD.userId &&
+          localMessageDetail.data === "hello from D";
+
+        return {
+          assert: remoteEventReceived && localEventReceived,
+          content: {
+            message: remoteEventReceived && localEventReceived
+              ? "RemoteUser message 事件测试成功"
+              : "RemoteUser message 事件测试失败",
+            remoteEventDetail: remoteMessageDetail,
+            localEventDetail: localMessageDetail,
+            // 错误诊断字段
+            checks: {
+              remoteEventReceived,
+              remoteEventNotNull: remoteMessageDetail !== null,
+              remoteFromUserIdMatch: remoteMessageDetail?.fromUserId === userD.userId,
+              remoteDataMatch: remoteMessageDetail?.data === "hello from D",
+              localEventReceived,
+              localEventNotNull: localMessageDetail !== null,
+              localFromUserIdMatch: localMessageDetail?.fromUserId === userD.userId,
+              localDataMatch: localMessageDetail?.data === "hello from D",
+              expectedRemoteFromUserId: userD.userId,
+              expectedData: "hello from D",
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Binary Relay Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsE = "connect-user-e";
+        const nsF = "connect-user-f";
+        const serverUrl3 = "ws://localhost:8081";
+
+        const userE = new LocalUser(nsE);
+        const userF = new LocalUser(nsF);
+
+        await Promise.all([userE.ready(), userF.ready()]);
+
+        await Promise.all([
+          userE.server.connect(serverUrl3),
+          userF.server.connect(serverUrl3),
+        ]);
+
+        // userE 连接 userF
+        const remoteF = await userE.connectUser(userF.userId);
+
+        // userF 监听收到的二进制消息
+        let receivedBinary = null;
+        let receivedFromUserId = null;
+        let receivedFromSessionId = null;
+        userF.bind("message", async (event) => {
+          const rawData = event.detail.data;
+          // 二进制消息：e.data 为 Blob
+          if (rawData instanceof Blob) {
+            const buffer = await rawData.arrayBuffer();
+            const view = new DataView(buffer);
+
+            // 解析帧：[4 字节 header 长度 u32 BE] + [header JSON] + [payload]
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = new Uint8Array(buffer, 4, headerLen);
+            const header = JSON.parse(new TextDecoder().decode(headerBytes));
+            const payload = new Uint8Array(buffer, 4 + headerLen);
+
+            receivedFromUserId = header.from_user_id;
+            receivedFromSessionId = header.from_session_id;
+            receivedBinary = payload;
+          }
+        });
+
+        // userE 发送二进制数据给 userF
+        const binaryPayload = new Uint8Array([0x00, 0x01, 0x02, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc]);
+        await remoteF.send(userF.sessionId, binaryPayload);
+
+        // 轮询等待二进制消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedBinary !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const binaryReceived = receivedBinary !== null;
+        const payloadMatch =
+          binaryReceived &&
+          receivedBinary.length === binaryPayload.length &&
+          receivedBinary.every((b, i) => b === binaryPayload[i]);
+        const fromUserMatch = receivedFromUserId === userE.userId;
+        const fromSessionMatch = receivedFromSessionId === userE.sessionId;
+
+        return {
+          assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
+          content: {
+            message: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch
+              ? "二进制 relay 测试成功"
+              : "二进制 relay 测试失败",
+            expectedPayload: Array.from(binaryPayload),
+            receivedPayload: receivedBinary ? Array.from(receivedBinary) : null,
+            fromUserId: receivedFromUserId,
+            fromSessionId: receivedFromSessionId,
+            // 错误诊断字段
+            checks: {
+              binaryReceived,
+              payloadMatch,
+              payloadLengthMatch: receivedBinary?.length === binaryPayload.length,
+              expectedLength: binaryPayload.length,
+              receivedLength: receivedBinary?.length,
+              payloadElementsMatch: binaryReceived && receivedBinary.every((b, i) => b === binaryPayload[i]),
+              fromUserMatch,
+              expectedFromUserId: userE.userId,
+              actualFromUserId: receivedFromUserId,
+              fromSessionMatch,
+              expectedFromSessionId: userE.sessionId,
+              actualFromSessionId: receivedFromSessionId,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Card Exchange Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsG = "card-user-g";
+        const nsH = "card-user-h";
+        const serverUrl = "ws://localhost:8081";
+
+        const userG = new LocalUser(nsG);
+        const userH = new LocalUser(nsH);
+
+        await Promise.all([userG.ready(), userH.ready()]);
+
+        await Promise.all([
+          userG.server.connect(serverUrl),
+          userH.server.connect(serverUrl),
+        ]);
+
+        // userG 连接 userH
+        const remoteH = await userG.connectUser(userH.userId);
+
+        // 清空 userG 本地可能残留的名片（测试独立性）
+        const existingCard = await userG.card.get(userH.userId);
+        if (existingCard) {
+          await userG.card.delete(userH.userId);
+        }
+
+        // 监听 card_received 事件
+        let cardReceivedEvent = null;
+        const unbind = userG.bind("card_received", (event) => {
+          cardReceivedEvent = event.detail;
+        });
+
+
+        // userG 向 userH 请求名片
+        const card = await userG.card.get(userH.userId);
+
+        // 使用 userH 自身的公钥验证名片签名
+        const signatureValid = await userH.verify(card);
+
+        console.log("card:", card);
+
+        // 取消事件监听
+        unbind();
+
+        // 验证名片数据完整性
+        const hasUserId = card.userId === userH.userId;
+        const hasPublicKey = typeof card.publicKey === "string" && card.publicKey.length > 0;
+        const hasUsername = typeof card.username === "string" && card.username.length > 0;
+        const hasSignTime = typeof card.signTime === "number" && card.signTime > 0;
+        const hasSignature = typeof card.signature === "string" && card.signature.length > 0;
+
+        // 验证名片中的公钥与 userH 一致（即确认是 userH 签发的）
+        const publicKeyMatch = card.publicKey === userH.publicKey;
+
+        // 验证 card_received 事件已触发
+        const eventTriggered = cardReceivedEvent !== null;
+        const eventUserIdMatch = cardReceivedEvent && cardReceivedEvent.userId === userH.userId;
+        const eventSaved = cardReceivedEvent && cardReceivedEvent.saved === true;
+
+        // 重新从 DB 读取，确认已持久化
+        const storedCard = await userG.card.get(userH.userId);
+        const storedMatch = storedCard && storedCard.userId === userH.userId;
+
+        // 再次请求应返回本地缓存（不再发起网络请求）
+        const cachedCard = await userG.card.get(userH.userId);
+        const fromCache = cachedCard.userId === userH.userId;
+
+        // 清理
+        await userG.card.delete(userH.userId);
+
+        const allCardChecks = hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+          && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
+          && storedMatch && fromCache;
+
+        return {
+          assert: allCardChecks,
+          content: {
+            message: allCardChecks ? "名片交换测试成功" : "名片交换测试失败",
+            card: {
+              userId: card.userId,
+              username: card.username,
+              signTime: card.signTime,
+              hasPublicKey: hasPublicKey,
+              hasSignature: hasSignature,
+            },
+            signatureValid,
+            verification: publicKeyMatch ? "公钥匹配" : "公钥不匹配",
+            eventTriggered,
+            eventDetail: cardReceivedEvent,
+            storedInDb: storedMatch,
+            cachedReturned: fromCache,
+            // 错误诊断字段
+            checks: {
+              hasUserId,
+              expectedUserId: userH.userId,
+              actualUserId: card.userId,
+              hasPublicKey,
+              publicKeyValue: card.publicKey,
+              hasUsername,
+              usernameValue: card.username,
+              hasSignTime,
+              signTimeValue: card.signTime,
+              hasSignature,
+              signatureValuePrefix: card.signature ? card.signature.substring(0, 20) + "..." : null,
+              signatureValid,
+              publicKeyMatch,
+              cardPublicKey: card.publicKey,
+              userHPublicKey: userH.publicKey,
+              eventTriggered,
+              eventUserIdMatch,
+              eventUserId: cardReceivedEvent?.userId,
+              eventSaved,
+              eventSavedValue: cardReceivedEvent?.saved,
+              storedMatch,
+              storedUserId: storedCard?.userId,
+              fromCache,
+              cachedUserId: cachedCard?.userId,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="E2EE Encrypted Message Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsI = "e2ee-test-i";
+        const nsJ = "e2ee-test-j";
+        const e2eeUrl = "ws://localhost:8081";
+
+        const userI = new LocalUser(nsI);
+        const userJ = new LocalUser(nsJ);
+
+        await Promise.all([userI.ready(), userJ.ready()]);
+
+        await Promise.all([
+          userI.server.connect(e2eeUrl),
+          userJ.server.connect(e2eeUrl),
+        ]);
+
+        // 双向连接，确保双方都能接收加密消息
+        const remoteJ = await userI.connectUser(userJ.userId);
+        const remoteI = await userJ.connectUser(userI.userId);
+
+        // 清空可能残留的名片，强制触发网络交换
+        const existingJ = await userI.card.getByDB(userJ.userId);
+        if (existingJ) await userI.card.delete(userJ.userId);
+        const existingI = await userJ.card.getByDB(userI.userId);
+        if (existingI) await userJ.card.delete(userI.userId);
+
+        // 交换名片（双方都要持有对方公钥才能 E2EE）
+        const cardJ = await userI.card.get(userJ.userId);
+        const cardI = await userJ.card.get(userI.userId);
+        const haveBothCards = cardJ !== null && cardI !== null;
+        const haveBothKeys = !!(await userI.card.getByDB(userJ.userId))?.publicKey
+          && !!(await userJ.card.getByDB(userI.userId))?.publicKey;
+
+        // 监听 userJ 侧原始消息：检查是否为二进制帧（证明加密）
+        let rawIsBinary = false;
+        const unbindRaw = userJ.bind("message", (event) => {
+          if (event.detail.data instanceof Blob) {
+            rawIsBinary = true;
+          }
+        });
+
+        // 监听解密后的消息到达
+        let receivedData = null;
+        const messagePromise = new Promise((resolve) => {
+          remoteI.bind("message", (event) => {
+            receivedData = event.detail.data;
+            resolve();
+          });
+        });
+
+        // userI 发送一个纯对象（触发 E2EE 加密路径）
+        const sentData = { text: "hello encrypted", num: 42 };
+        await remoteJ.send(userJ.sessionId, sentData);
+
+        // 等待解密后的消息到达或超时
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 3000)
+        );
+        await Promise.race([messagePromise, timeout]);
+
+        unbindRaw();
+
+        const messageCorrect =
+          receivedData !== null &&
+          typeof receivedData === "object" &&
+          receivedData.text === "hello encrypted" &&
+          receivedData.num === 42;
+
+        const e2eeAllPassed = haveBothCards && haveBothKeys && rawIsBinary && messageCorrect;
+
+        return {
+          assert: e2eeAllPassed,
+          content: {
+            message: e2eeAllPassed
+              ? "E2EE 加密测试成功：原始 relay 为二进制帧，解密后内容正确"
+              : "E2EE 加密测试失败",
+            haveBothCards,
+            haveBothKeys,
+            rawIsBinary,
+            sentData,
+            receivedData,
+            // 错误诊断字段
+            checks: {
+              haveBothCards,
+              cardJExists: cardJ !== null,
+              cardIExists: cardI !== null,
+              haveBothKeys,
+              hasUserJKey: !!(await userI.card.getByDB(userJ.userId))?.publicKey,
+              hasUserIKey: !!(await userJ.card.getByDB(userI.userId))?.publicKey,
+              rawIsBinary,
+              messageCorrect,
+              receivedDataIsObject: receivedData !== null && typeof receivedData === "object",
+              receivedTextMatch: receivedData?.text === "hello encrypted",
+              receivedNumMatch: receivedData?.num === 42,
+              expectedText: "hello encrypted",
+              expectedNum: 42,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Ping Pong RTT Measurement Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsPingA = "ping-user-a";
+        const nsPingB = "ping-user-b";
+        const pingUrl = "ws://localhost:8081";
+
+        const userPingA = new LocalUser(nsPingA);
+        const userPingB = new LocalUser(nsPingB);
+
+        await Promise.all([userPingA.ready(), userPingB.ready()]);
+
+        await Promise.all([
+          userPingA.server.connect(pingUrl),
+          userPingB.server.connect(pingUrl),
+        ]);
+
+        const remotePingB = await userPingA.connectUser(userPingB.userId);
+        const remotePingA = await userPingB.connectUser(userPingA.userId);
+
+        // ── 测试 1：基础 ping/pong RTT ──
+        const rtt1 = await remotePingB.ping(userPingB.sessionId);
+        const rtt1Valid = typeof rtt1 === "number" && rtt1 >= 0 && rtt1 < 10000;
+
+        // ── 测试 2：getRTT(sessionId) 返回刚测量的值及传输方式 ──
+        const getRttWithSession = remotePingB.getRTT(userPingB.sessionId);
+        const getRttWithSessionValid = getRttWithSession?.rtt === rtt1
+          && (getRttWithSession?.via === "server" || getRttWithSession?.via === "rtc")
+          && (getRttWithSession?.via !== "server" || typeof getRttWithSession?.url === "string");
+
+        // ── 测试 3：getRTT() 无参返回最佳 RTT 及传输方式 ──
+        const bestRtt = remotePingB.getRTT();
+        const bestRttValid = typeof bestRtt?.rtt === "number" && bestRtt.rtt >= 0
+          && (bestRtt?.via === "server" || bestRtt?.via === "rtc")
+          && (bestRtt?.via !== "server" || typeof bestRtt?.url === "string");
+
+        // ── 测试 4：多 session 情况下 getRTT 正常 ──
+        // userPingB 这边有两个 LocalUser（userPingB 本身和别名），但为了测试
+        // 我们给同一个 RemoteUser 对多个 session 发起 ping
+        await remotePingB.ping(userPingB.sessionId); // 再测一次
+        await remotePingA.ping(userPingA.sessionId); // 反方向也测一次
+        const bestRttBoth = remotePingB.getRTT();
+        const bestRttBothValid = typeof bestRttBoth?.rtt === "number" && bestRttBoth.rtt >= 0
+          && (bestRttBoth?.via === "server" || bestRttBoth?.via === "rtc")
+          && (bestRttBoth?.via !== "server" || typeof bestRttBoth?.url === "string");
+
+        // ── 测试 5：rtt_update 事件触发 ──
+        let rttEvent = null;
+        const unbindEvent = userPingA.bind("rtt_update", (event) => {
+          rttEvent = event.detail;
+        });
+        await remotePingB.ping(userPingB.sessionId);
+        unbindEvent();
+
+        const rttEventValid =
+          rttEvent !== null &&
+          rttEvent.userId === userPingB.userId &&
+          rttEvent.sessionId === userPingB.sessionId &&
+          typeof rttEvent.rtt === "number" &&
+          rttEvent.rtt >= 0 &&
+          (rttEvent.via === "server" || rttEvent.via === "rtc" || rttEvent.via === "unknown") &&
+          (rttEvent.via !== "server" || typeof rttEvent.url === "string");
+
+        // ── 测试 6：尚未测量过的 session 返回 null ──
+        const unknownRtt = remotePingB.getRTT("nonexistent-session-xxx");
+        const unknownRttValid = unknownRtt === null;
+
+        const allPassed =
+          rtt1Valid &&
+          getRttWithSessionValid &&
+          bestRttValid &&
+          bestRttBothValid &&
+          rttEventValid &&
+          unknownRttValid;
+
+        return {
+          assert: allPassed,
+          content: {
+            message: allPassed
+              ? `Ping/pong RTT 测试全部通过 — 最新 RTT: ${rtt1}ms, 最佳 RTT: ${bestRtt?.rtt}ms`
+              : "部分 RTT 测试未通过",
+            rtt1,
+            rtt1Valid,
+            getRttWithSession,
+            getRttWithSessionValid,
+            bestRtt,
+            bestRttValid,
+            bestRttBoth,
+            bestRttBothValid,
+            rttEvent,
+            rttEventValid,
+            unknownRtt,
+            unknownRttValid,
+            // 错误诊断字段
+            checks: {
+              rtt1Valid,
+              rtt1Type: typeof rtt1,
+              rtt1Value: rtt1,
+              getRttWithSessionValid,
+              getRttWithSessionRtt: getRttWithSession?.rtt,
+              getRttWithSessionVia: getRttWithSession?.via,
+              getRttWithSessionUrl: getRttWithSession?.url,
+              bestRttValid,
+              bestRttRtt: bestRtt?.rtt,
+              bestRttVia: bestRtt?.via,
+              bestRttUrl: bestRtt?.url,
+              bestRttBothValid,
+              bestRttBothRtt: bestRttBoth?.rtt,
+              bestRttBothVia: bestRttBoth?.via,
+              rttEventValid,
+              rttEventUserId: rttEvent?.userId,
+              rttEventSessionId: rttEvent?.sessionId,
+              rttEventRtt: rttEvent?.rtt,
+              rttEventVia: rttEvent?.via,
+              unknownRttValid,
+              unknownRttValue: unknownRtt,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser Certificate Tests</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser Certificate Tests</h1>
+
+  <sb-test name="Certificate Issue, Save and Query">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        // 创建两个用户：一个作为签发者(admin)，一个作为接收者(normal)
+        const adminUser = new LocalUser("cert_test_admin");
+        const normalUser = new LocalUser("cert_test_normal");
+
+        await adminUser.ready();
+        await normalUser.ready();
+
+        // 1. admin 给 normal 签发证书
+        // issue 会自动使用 admin 的私钥签名，并保存在 admin 的本地数据库中
+        const issuedCert = await adminUser.cert.issue({
+          subject: normalUser.userId,
+          role: "admin",
+          permission: "all"
+        });
+
+        const hasCertId = !!issuedCert.id;
+        const isIssuerAdmin = issuedCert.issuer === adminUser.userId;
+        const isSubjectNormal = issuedCert.subject === normalUser.userId;
+
+        // admin 自己可以通过查询查到发出的证书
+        const adminQueryCerts = await adminUser.cert.query({ role: "admin" });
+        const adminHasIt = adminQueryCerts.some(c => c.id === issuedCert.id);
+
+
+        // 2. normal 收到证书并导入
+        // import 会验证证书签名是否有效、issuer 和公钥是否匹配
+        const importedCert = await normalUser.cert.import(issuedCert);
+
+        // 3. 验证 normalUser 是否成功保存并能够查询到该证书
+        const normalHasCert = await normalUser.cert.has({
+          role: "admin",
+          issuer: adminUser.userId,
+          subject: normalUser.userId
+        });
+
+        // 清理测试数据
+        await adminUser.cert.delete(issuedCert.id);
+        await normalUser.cert.delete(importedCert.id);
+
+        return {
+          assert: hasCertId && isIssuerAdmin && isSubjectNormal && adminHasIt && normalHasCert,
+          content: {
+            message: "证书签发与保存验证通过",
+            certId: issuedCert.id,
+            adminHasIt,
+            normalHasCert,
+            checks: {
+              hasCertId,
+              isIssuerAdmin,
+              isSubjectNormal,
+              adminHasIt,
+              normalHasCert,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Delete">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const deleteUser = new LocalUser("cert_delete_test");
+        await deleteUser.ready();
+
+        // 给自己签发一个证书
+        const cert = await deleteUser.cert.issue({
+          subject: deleteUser.userId,
+          role: "tester"
+        });
+
+        const hasBeforeDelete = await deleteUser.cert.has({ role: "tester" });
+
+        // 删除证书
+        await deleteUser.cert.delete(cert.id);
+
+        const hasAfterDelete = await deleteUser.cert.has({ role: "tester" });
+
+        return {
+          assert: hasBeforeDelete === true && hasAfterDelete === false,
+          content: {
+            message: "证书删除测试通过",
+            hasBeforeDelete,
+            hasAfterDelete,
+            checks: {
+              hasBeforeDelete,
+              hasAfterDelete,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Invalid Certificate Validation">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const hacker = new LocalUser("cert_hacker");
+        const victim = new LocalUser("cert_victim");
+        await hacker.ready();
+        await victim.ready();
+
+        // hacker 给自己签发一个证书
+        const fakeCert = await hacker.cert.issue({
+          subject: hacker.userId,
+          role: "admin"
+        });
+
+        // 篡改 issuer 为 victim
+        fakeCert.issuer = victim.userId;
+
+        let catchError = false;
+        try {
+          // victim 或者任何人尝试导入这个被篡改的证书，预期抛出错误
+          await victim.cert.import(fakeCert);
+        } catch (err) {
+          catchError = true;
+        }
+
+        return {
+          assert: catchError,
+          content: {
+            message: "篡改证书验证拦截成功",
+            catchError,
+            checks: {
+              catchError,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Count">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const countUser = new LocalUser("cert_count_test");
+        await countUser.ready();
+
+        // 初始数量应该为 0
+        const initialCount = await countUser.cert.count();
+
+        // 签发多个证书
+        await countUser.cert.issue({ subject: "user1", role: "admin" });
+        await countUser.cert.issue({ subject: "user2", role: "admin" });
+        await countUser.cert.issue({ subject: "user3", role: "editor" });
+
+        // 测试总数
+        const totalCount = await countUser.cert.count();
+
+        // 测试带查询条件的数量
+        const adminCount = await countUser.cert.count({ role: "admin" });
+        const editorCount = await countUser.cert.count({ role: "editor" });
+
+        // 清理测试数据
+        const allCerts2 = await countUser.cert.query();
+        for (const cert of allCerts2) {
+          await countUser.cert.delete(cert.id);
+        }
+
+        return {
+          assert: initialCount === 0 && totalCount === 3 && adminCount === 2 && editorCount === 1,
+          content: {
+            message: "证书计数测试通过",
+            initialCount,
+            totalCount,
+            adminCount,
+            editorCount,
+            checks: {
+              initialCountIsZero: initialCount === 0,
+              totalCountIs3: totalCount === 3,
+              adminCountIs2: adminCount === 2,
+              editorCountIs1: editorCount === 1,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Certificate Values Iteration">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const valuesUser = new LocalUser("cert_values_test");
+        await valuesUser.ready();
+
+        // 签发多个证书
+        await valuesUser.cert.issue({ subject: "user1", role: "admin", level: 1 });
+        await valuesUser.cert.issue({ subject: "user2", role: "admin", level: 2 });
+        await valuesUser.cert.issue({ subject: "user3", role: "editor", level: 3 });
+
+        // 测试遍历所有证书
+        const iteratedCerts = [];
+        for await (const cert of valuesUser.cert.values()) {
+          iteratedCerts.push(cert);
+        }
+
+        // 测试遍历特定角色的证书
+        const adminCerts = [];
+        for await (const cert of valuesUser.cert.values({ role: "admin" })) {
+          adminCerts.push(cert);
+        }
+
+        const hasAllCerts = iteratedCerts.length === 3;
+        const hasAdminCerts = adminCerts.length === 2;
+        const allHaveLevel = iteratedCerts.every(cert => cert.level !== undefined);
+
+        // 清理测试数据
+        const certsToDelete = await valuesUser.cert.query();
+        for (const cert of certsToDelete) {
+          await valuesUser.cert.delete(cert.id);
+        }
+
+        return {
+          assert: hasAllCerts && hasAdminCerts && allHaveLevel,
+          content: {
+            message: "证书遍历测试通过",
+            allCertsCount: iteratedCerts.length,
+            adminCertsCount: adminCerts.length,
+            allHaveLevel,
+            checks: {
+              hasAllCerts,
+              expectedAllCount: 3,
+              actualAllCount: iteratedCerts.length,
+              hasAdminCerts,
+              expectedAdminCount: 2,
+              actualAdminCount: adminCerts.length,
+              allHaveLevel,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

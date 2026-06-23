@@ -1,0 +1,501 @@
+<template page>
+  <l-m
+    src="https://punch-ui-v2.pages.dev/packages/list/list.html"
+  ></l-m>
+  <l-m src="./comps/line-chart.html"></l-m>
+
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #refreshBtn {
+      background-color: var(--md-sys-color-tertiary);
+      color: var(--md-sys-color-on-tertiary);
+    }
+
+    .info-section {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .info-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .info-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .info-card h2 .icon {
+      font-size: 20px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-size: 14px;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .info-value {
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+      font-family: monospace;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background-color: var(--md-sys-color-surface-variant);
+      border-radius: 4px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-fill.low {
+      background-color: var(--md-sys-color-success);
+    }
+
+    .progress-fill.medium {
+      background-color: var(--md-sys-color-primary);
+    }
+
+    .progress-fill.high {
+      background-color: var(--md-sys-color-error);
+    }
+
+    .cpu-cores {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .cpu-core-block {
+      width: 80px;
+      height: 100px;
+      position: relative;
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 8px;
+      overflow: hidden;
+      background-color: var(--md-sys-color-surface-container);
+      flex-shrink: 0;
+    }
+
+    .cpu-core-fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transition: height 0.3s ease;
+      border-radius: 0 0 7px 7px;
+    }
+
+    .cpu-core-fill.low {
+      background-color: var(--md-sys-color-success, #4caf50);
+    }
+
+    .cpu-core-fill.medium {
+      background-color: var(--md-sys-color-primary, #1976d2);
+    }
+
+    .cpu-core-fill.high {
+      background-color: var(--md-sys-color-error, #d32f2f);
+    }
+
+    .cpu-core-label {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .cpu-core-label .core-num {
+      font-size: 10px;
+      font-weight: normal;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-bottom: 2px;
+    }
+
+    .cpu-core-label .core-pct {
+      font-size: 18px;
+    }
+
+    .disk-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+    }
+
+    .disk-item:last-child {
+      border-bottom: none;
+    }
+
+    .disk-mount {
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface);
+      margin-bottom: 4px;
+    }
+
+    .disk-fs {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-family: monospace;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+  </style>
+
+  <div class="container">
+
+    <div
+      class="status-bar"
+      class:connected="connected"
+      class:disconnected="!connected"
+    >
+      <span>{{connected ? '已连接' : '未连接'}}</span>
+      <span :style.display="connected && lastUpdate ? '' : 'none'">— 上次更新：{{lastUpdate}}</span>
+    </div>
+
+    <div class="controls">
+      <button id="refreshBtn" on:click="fetchSystemInfo" :disabled="!connected">
+        刷新系统信息
+      </button>
+    </div>
+
+    <o-if :value="connected && systemInfo">
+      <div class="info-section">
+        <!-- 内存 -->
+        <div class="info-card">
+          <h2><span class="icon">🧠</span> 内存</h2>
+          <div class="info-row">
+            <span class="info-label">总计</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.total)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">已使用</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.used)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">可用</span>
+            <span class="info-value">{{formatBytes(systemInfo.memory.available)}}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">使用率</span>
+            <span class="info-value">{{systemInfo.memory.usage_percent.toFixed(2)}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              :style.width="clampPercent(systemInfo.memory.usage_percent) + '%'"
+              class:low="systemInfo.memory.usage_percent < 60"
+              class:medium="systemInfo.memory.usage_percent >= 60 && systemInfo.memory.usage_percent < 85"
+              class:high="systemInfo.memory.usage_percent >= 85"
+            ></div>
+          </div>
+        </div>
+
+        <!-- CPU -->
+        <div class="info-card">
+          <h2><span class="icon">⚡</span> CPU — {{systemInfo.cpu.core_count}} 核 — 总使用率 {{cpuTotalPercent}}%</h2>
+          <div class="cpu-cores">
+            <o-fill :value="systemInfo.cpu.cores">
+              <div class="cpu-core-block">
+                <div
+                  class="cpu-core-fill"
+                  :style.height="$host.clampPercent($data.usage_percent) + '%'"
+                  class:low="$data.usage_percent < 60"
+                  class:medium="$data.usage_percent >= 60 && $data.usage_percent < 85"
+                  class:high="$data.usage_percent >= 85"
+                ></div>
+                <div class="cpu-core-label">
+                  <span class="core-num">#{{$data.index + 1}}</span>
+                  <span class="core-pct">{{$data.usage_percent.toFixed(2)}}%</span>
+                </div>
+              </div>
+            </o-fill>
+          </div>
+        </div>
+
+        <!-- 磁盘 -->
+        <div class="info-card">
+          <h2><span class="icon">💾</span> 磁盘</h2>
+          <o-fill :value="systemInfo.disks">
+            <div class="disk-item">
+              <div class="disk-mount">{{$data.mount_point}}</div>
+              <div class="disk-fs">{{$data.file_system}}</div>
+              <div class="info-row" style="padding: 4px 0; font-size: 13px;">
+                <span class="info-label">总计</span>
+                <span class="info-value">{{$host.formatBytes($data.total_space)}}</span>
+              </div>
+              <div class="info-row" style="padding: 4px 0; font-size: 13px;">
+                <span class="info-label">可用</span>
+                <span class="info-value">{{$host.formatBytes($data.available_space)}}</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style.width="$host.diskUsagePercent($data) + '%'"
+                  class:low="$host.diskUsagePercent($data) < 60"
+                  class:medium="$host.diskUsagePercent($data) >= 60 && $host.diskUsagePercent($data) < 85"
+                  class:high="$host.diskUsagePercent($data) >= 85"
+                ></div>
+              </div>
+            </div>
+          </o-fill>
+        </div>
+
+        <!-- CPU 趋势图 -->
+        <div class="info-card">
+          <h2><span class="icon">📈</span> CPU 使用率趋势</h2>
+          <n-line-chart :points="cpuHistory" :series="cpuSeries" y-suffix="%" time-mode="ms"></n-line-chart>
+        </div>
+
+        <!-- 内存趋势图 -->
+        <div class="info-card">
+          <h2><span class="icon">📈</span> 内存使用率趋势</h2>
+          <n-line-chart :points="memHistory" :series="memSeries" y-suffix="%" time-mode="ms"></n-line-chart>
+        </div>
+      </div>
+    </o-if>
+    <o-else>
+      <div class="empty-state">
+        点击「刷新系统信息」获取数据
+      </div>
+    </o-else>
+  </div>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
+      const WS_URL = getCurrentServerUrl();
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connecting: false,
+          systemInfo: null,
+          lastUpdate: "",
+          _adminUser: null,
+          _refreshTimer: null,
+          _statsTimer: null,
+          cpuHistory: [],
+          memHistory: [],
+          cpuSeries: [{ key: "value", label: "CPU 使用率", color: "#4caf50" }],
+          memSeries: [{ key: "value", label: "内存使用率", color: "#2196f3" }],
+        },
+
+        proto: {
+          formatBytes(bytes) {
+            if (!bytes || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = (bytes / Math.pow(1024, i)).toFixed(1);
+            return val + " " + units[i];
+          },
+
+          clampPercent(pct) {
+            return Math.min(100, Math.max(0, pct));
+          },
+
+          diskUsagePercent(disk) {
+            if (!disk || !disk.total_space || disk.total_space === 0) return 0;
+            const used = disk.total_space - disk.available_space;
+            return this.clampPercent((used / disk.total_space) * 100);
+          },
+
+          get cpuTotalPercent() {
+            if (!this.systemInfo?.cpu?.cores?.length) return "0.00";
+            const cores = this.systemInfo.cpu.cores;
+            const sum = cores.reduce((acc, c) => acc + c.usage_percent, 0);
+            return (sum / cores.length).toFixed(2);
+          },
+
+          async connect() {
+            if (this.connecting || this.connected) return;
+            this.connecting = true;
+
+            try {
+              if (!this._adminUser) {
+                const { adminUser } = await getAdmin(load);
+                this._adminUser = adminUser;
+
+                adminUser.addEventListener("close", () => this._onClose());
+              }
+
+              // 通过获取系统信息验证连接
+              await this.fetchSystemInfo();
+              if (this.systemInfo) {
+                this.connected = true;
+                this.connecting = false;
+                // 连接成功后立即拉取一次历史趋势数据
+                this.fetchSystemStatsHistory();
+              } else {
+                throw new Error("Failed to get system info");
+              }
+            } catch (e) {
+              console.error("Connect failed:", e);
+              showServerError(WS_URL, e);
+              this.connecting = false;
+            }
+          },
+
+          async fetchSystemInfo() {
+            if (!this._adminUser) return;
+            try {
+              const response = await this._adminUser.getSystemInfo(WS_URL);
+              if (response.status === "ok" && response.system_info) {
+                this.systemInfo = response.system_info;
+                this.lastUpdate = new Date().toLocaleTimeString();
+              }
+            } catch (e) {
+              console.error("fetchSystemInfo failed:", e);
+            }
+          },
+
+          async fetchSystemStatsHistory() {
+            if (!this._adminUser) return;
+            try {
+              const response = await this._adminUser.getSystemStatsHistory(WS_URL, { limit: 10 });
+              if (response.status === "ok" && response.system_stats) {
+                const cpu = [];
+                const mem = [];
+                for (const r of response.system_stats) {
+                  const t = r.recordedAt;
+                  cpu.push({ time: t, value: r.cpuUsagePercent });
+                  mem.push({ time: t, value: r.memoryUsagePercent });
+                }
+                this.cpuHistory = cpu;
+                this.memHistory = mem;
+              }
+            } catch (e) {
+              console.error("fetchSystemStatsHistory failed:", e);
+            }
+          },
+
+          _onClose() {
+            this.connected = false;
+            this.systemInfo = null;
+            this.lastUpdate = "";
+          },
+        },
+
+        attached() {
+          this.connect();
+          this._refreshTimer = setInterval(() => {
+            this.fetchSystemInfo();
+          }, 1000);
+          this._statsTimer = setInterval(() => {
+            this.fetchSystemStatsHistory();
+          }, 30000);
+        },
+
+        detached() {
+          if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+          }
+          if (this._statsTimer) {
+            clearInterval(this._statsTimer);
+            this._statsTimer = null;
+          }
+          this._adminUser = null;
+        },
+      };
+    };
+  </script>
+</template>

@@ -1,0 +1,579 @@
+const STORE_NAME = "data";
+const CERT_STORE_NAME = "certs";
+const CARD_STORE_NAME = "cards";
+const DB_VERSION = 5;
+
+// 数据库连接缓存池
+const dbCache = new Map();
+const CACHE_TIMEOUT = 5000; // 5秒
+
+/**
+ * 获取数据库实例（带缓存池）
+ * @param {string} namespace
+ * @returns {Promise<IDBDatabase>}
+ */
+function getDb(namespace) {
+  return new Promise((resolve, reject) => {
+    const dbName = `nos_user_${namespace}`;
+
+    // 检查缓存
+    const cached = dbCache.get(dbName);
+    if (cached) {
+      clearTimeout(cached.timer);
+      cached.timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
+      resolve(cached.db);
+      return;
+    }
+
+    const request = indexedDB.open(dbName, DB_VERSION);
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      const timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
+      dbCache.set(dbName, { db, timer });
+      resolve(db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(CERT_STORE_NAME)) {
+        const certStore = db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
+        // 单字段索引
+        certStore.createIndex("role", "role", { unique: false });
+        certStore.createIndex("issuer", "issuer", { unique: false });
+        certStore.createIndex("subject", "subject", { unique: false });
+        // 复合索引
+        certStore.createIndex("role_issuer", ["role", "issuer"], { unique: false });
+        certStore.createIndex("role_subject", ["role", "subject"], { unique: false });
+        certStore.createIndex("issuer_subject", ["issuer", "subject"], { unique: false });
+        certStore.createIndex("role_issuer_subject", ["role", "issuer", "subject"], { unique: false });
+      }
+      if (!db.objectStoreNames.contains(CARD_STORE_NAME)) {
+        db.createObjectStore(CARD_STORE_NAME, { keyPath: "userId" });
+      }
+    };
+  });
+}
+
+/**
+ * 关闭并清理缓存中的数据库连接
+ * @param {string} dbName
+ */
+function closeDbCache(dbName) {
+  const cached = dbCache.get(dbName);
+  if (cached) {
+    cached.db.close();
+    dbCache.delete(dbName);
+  }
+}
+
+/**
+ * 根据 namespace 关闭并清理缓存中的数据库连接
+ * @param {string} namespace
+ */
+export function closeDbByNamespace(namespace) {
+  const dbName = `nos_user_${namespace}`;
+  closeDbCache(dbName);
+}
+
+/**
+ * 存储用户密钥对
+ * @param {string} namespace
+ * @param {Object} keys - { publicKey, privateKey }
+ */
+export async function saveUserKeys(namespace, keys) {
+  if (!namespace) {
+    throw new Error("namespace is required");
+  }
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(keys, "keys");
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取用户密钥对
+ * @param {string} namespace
+ * @returns {Promise<{publicKey: string, privateKey: string} | null>}
+ */
+export async function getUserKeys(namespace) {
+  if (!namespace) {
+    throw new Error("namespace is required");
+  }
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get("keys");
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 保存证书
+ * @param {string} namespace
+ * @param {Object} certData
+ */
+export async function saveCertToDb(namespace, certData) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    const request = store.put(certData);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 查询证书
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {Promise<Array>}
+ */
+export async function getCertsFromDb(namespace, query = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  
+  const { role, issuer, subject } = query;
+  const hasRole = role !== undefined;
+  const hasIssuer = issuer !== undefined;
+  const hasSubject = subject !== undefined;
+  
+  // 确定使用哪个索引
+  let indexName = null;
+  let indexKey = null;
+  
+  if (hasRole && hasIssuer && hasSubject) {
+    indexName = "role_issuer_subject";
+    indexKey = [role, issuer, subject];
+  } else if (hasRole && hasIssuer) {
+    indexName = "role_issuer";
+    indexKey = [role, issuer];
+  } else if (hasRole && hasSubject) {
+    indexName = "role_subject";
+    indexKey = [role, subject];
+  } else if (hasIssuer && hasSubject) {
+    indexName = "issuer_subject";
+    indexKey = [issuer, subject];
+  } else if (hasRole) {
+    indexName = "role";
+    indexKey = role;
+  } else if (hasIssuer) {
+    indexName = "issuer";
+    indexKey = issuer;
+  } else if (hasSubject) {
+    indexName = "subject";
+    indexKey = subject;
+  }
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    
+    let request;
+    if (indexName) {
+      const index = store.index(indexName);
+      request = index.getAll(indexKey);
+    } else {
+      // 无查询条件，返回全部
+      request = store.getAll();
+    }
+    
+    request.onsuccess = (event) => {
+      resolve(event.target.result || []);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 删除证书
+ * @param {string} namespace
+ * @param {string} certId
+ */
+export async function deleteCertFromDb(namespace, certId) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    const request = store.delete(certId);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 使用游标遍历证书
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {AsyncIterable}
+ */
+export function iterateCerts(namespace, query = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  
+  return {
+    [Symbol.asyncIterator]() {
+      let db = null;
+      let request = null;
+      
+      return {
+        async next() {
+          if (!db) {
+            db = await getDb(namespace);
+            const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+            const store = transaction.objectStore(CERT_STORE_NAME);
+            
+            const { role, issuer, subject } = query;
+            const hasRole = role !== undefined;
+            const hasIssuer = issuer !== undefined;
+            const hasSubject = subject !== undefined;
+            
+            // 确定使用哪个索引
+            let indexName = null;
+            let indexKey = null;
+            
+            if (hasRole && hasIssuer && hasSubject) {
+              indexName = "role_issuer_subject";
+              indexKey = [role, issuer, subject];
+            } else if (hasRole && hasIssuer) {
+              indexName = "role_issuer";
+              indexKey = [role, issuer];
+            } else if (hasRole && hasSubject) {
+              indexName = "role_subject";
+              indexKey = [role, subject];
+            } else if (hasIssuer && hasSubject) {
+              indexName = "issuer_subject";
+              indexKey = [issuer, subject];
+            } else if (hasRole) {
+              indexName = "role";
+              indexKey = role;
+            } else if (hasIssuer) {
+              indexName = "issuer";
+              indexKey = issuer;
+            } else if (hasSubject) {
+              indexName = "subject";
+              indexKey = subject;
+            }
+            
+            if (indexName) {
+              const index = store.index(indexName);
+              request = index.openCursor(indexKey);
+            } else {
+              request = store.openCursor();
+            }
+          }
+          
+          return new Promise((resolve, reject) => {
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              
+              if (cursor) {
+                const value = cursor.value;
+                cursor.continue();
+                resolve({ value, done: false });
+              } else {
+                resolve({ value: undefined, done: true });
+              }
+            };
+            
+            request.onerror = () => reject(request.error);
+          });
+        }
+      };
+    }
+  };
+}
+
+/**
+ * 统计证书数量
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {Promise<number>}
+ */
+export async function countCerts(namespace, query = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    
+    const { role, issuer, subject } = query;
+    const hasRole = role !== undefined;
+    const hasIssuer = issuer !== undefined;
+    const hasSubject = subject !== undefined;
+    
+    // 确定使用哪个索引
+    let indexName = null;
+    let indexKey = null;
+    
+    if (hasRole && hasIssuer && hasSubject) {
+      indexName = "role_issuer_subject";
+      indexKey = [role, issuer, subject];
+    } else if (hasRole && hasIssuer) {
+      indexName = "role_issuer";
+      indexKey = [role, issuer];
+    } else if (hasRole && hasSubject) {
+      indexName = "role_subject";
+      indexKey = [role, subject];
+    } else if (hasIssuer && hasSubject) {
+      indexName = "issuer_subject";
+      indexKey = [issuer, subject];
+    } else if (hasRole) {
+      indexName = "role";
+      indexKey = role;
+    } else if (hasIssuer) {
+      indexName = "issuer";
+      indexKey = issuer;
+    } else if (hasSubject) {
+      indexName = "subject";
+      indexKey = subject;
+    }
+    
+    let request;
+    if (indexName) {
+      const index = store.index(indexName);
+      request = index.count(indexKey);
+    } else {
+      request = store.count();
+    }
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 保存服务器列表
+ * @param {string} namespace
+ * @param {string[]} servers - 服务器 URL 数组
+ */
+export async function saveServerList(namespace, servers) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(servers, "servers");
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取服务器列表
+ * @param {string} namespace
+ * @returns {Promise<string[] | null>}
+ */
+export async function getServerList(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get("servers");
+    request.onsuccess = (event) => {
+      resolve(event.target.result || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 保存用户信息
+ * @param {string} namespace
+ * @param {Object} infoData - 用户信息数据
+ */
+export async function saveUserInfo(namespace, infoData) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(infoData, "info");
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取用户信息
+ * @param {string} namespace
+ * @returns {Promise<Object | null>}
+ */
+export async function getUserInfo(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get("info");
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 保存名片
+ * 若已存在同一 userId 的名片，保留 signTime 更大的那张
+ * @param {string} namespace
+ * @param {Object} cardData - 已签名的名片数据（含 userId, signTime 等）
+ * @returns {Promise<boolean>} 是否成功保存（false 表示已有更新或相同时间的名片，未覆盖）
+ */
+export async function saveCardToDb(namespace, cardData) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!cardData.userId) throw new Error("cardData.userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+
+    const getRequest = store.get(cardData.userId);
+    getRequest.onsuccess = (event) => {
+      const existing = event.target.result;
+      if (existing && existing.signTime >= cardData.signTime) {
+        resolve(false);
+        return;
+      }
+      const putRequest = store.put(cardData);
+      putRequest.onsuccess = () => resolve(true);
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 获取名片
+ * @param {string} namespace
+ * @param {string} userId
+ * @returns {Promise<Object | null>}
+ */
+export async function getCardFromDb(namespace, userId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!userId) throw new Error("userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.get(userId);
+    request.onsuccess = (event) => resolve(event.target.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取所有名片
+ * @param {string} namespace
+ * @returns {Promise<Array>}
+ */
+export async function getAllCardsFromDb(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = (event) => resolve(event.target.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 删除名片
+ * @param {string} namespace
+ * @param {string} userId
+ * @returns {Promise}
+ */
+export async function deleteCardFromDb(namespace, userId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!userId) throw new Error("userId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.delete(userId);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 遍历名片
+ * @param {string} namespace
+ * @returns {AsyncIterable}
+ */
+export function iterateCards(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  return {
+    [Symbol.asyncIterator]() {
+      let db = null;
+      let request = null;
+      return {
+        async next() {
+          if (!db) {
+            db = await getDb(namespace);
+            const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+            const store = transaction.objectStore(CARD_STORE_NAME);
+            request = store.openCursor();
+          }
+          return new Promise((resolve, reject) => {
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              if (cursor) {
+                const value = cursor.value;
+                cursor.continue();
+                resolve({ value, done: false });
+              } else {
+                resolve({ value: undefined, done: true });
+              }
+            };
+            request.onerror = () => reject(request.error);
+          });
+        }
+      };
+    }
+  };
+}
+
+/**
+ * 统计名片数量
+ * @param {string} namespace
+ * @returns {Promise<number>}
+ */
+export async function countCards(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CARD_STORE_NAME);
+    const request = store.count();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}

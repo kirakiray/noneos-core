@@ -1,0 +1,67 @@
+[package]
+name = "study-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "hello_world"
+path = "src/01_basics/hello_world.rs"
+
+[[bin]]
+name = "variables"
+path = "src/01_basics/variables.rs"
+
+[[bin]]
+name = "data_types"
+path = "src/01_basics/data_types.rs"
+
+[[bin]]
+name = "functions"
+path = "src/01_basics/functions.rs"
+
+[[bin]]
+name = "control_flow"
+path = "src/01_basics/control_flow.rs"
+
+[[bin]]
+name = "ownership"
+path = "src/02_ownership/ownership.rs"
+
+[[bin]]
+name = "borrowing"
+path = "src/02_ownership/borrowing.rs"
+
+[[bin]]
+name = "lifetimes"
+path = "src/02_ownership/lifetimes.rs"
+
+[[bin]]
+name = "structs"
+path = "src/03_structs_enums/structs.rs"
+
+[[bin]]
+name = "enums"
+path = "src/03_structs_enums/enums.rs"
+
+[[bin]]
+name = "pattern_matching"
+path = "src/03_structs_enums/pattern_matching.rs"
+
+[[bin]]
+name = "error_handling"
+path = "src/04_error_handling/error_handling.rs"
+
+[[bin]]
+name = "custom_errors"
+path = "src/04_error_handling/custom_errors.rs"
+
+[[bin]]
+name = "concurrency"
+path = "src/05_concurrency/concurrency.rs"
+
+[[bin]]
+name = "async_await"
+path = "src/05_concurrency/async_await.rs"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }

@@ -1,0 +1,16 @@
+{
+  "namespace": "decrypt_test_user_1",
+  "keys": {
+    "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAExBXiq+MGasu0egbx2vQtgLBzWU0/InisRsCswe8Gnghqk11KumuejeCP4J3w0DS0spNc/Xa3x22eAVko/NyGKQ==",
+    "privateKey": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgIB+unAosd5TCwpJnpLFBhJwPIXCd6ZSDkh/02RojH32hRANCAATEFeKr4wZqy7R6BvHa9C2AsHNZTT8ieKxGwKzB7waeCGqTXUq6a56N4I/gnfDQNLSyk1z9drfHbZ4BWSj83IYp"
+  },
+  "info": {
+    "bio": "用于测试管理员权限",
+    "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAExBXiq+MGasu0egbx2vQtgLBzWU0/InisRsCswe8Gnghqk11KumuejeCP4J3w0DS0spNc/Xa3x22eAVko/NyGKQ==",
+    "signTime": 1781271761298,
+    "userId": "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c981",
+    "username": "管理员",
+    "signature": "yYQ6XeWzdB95AIvrbXl4c14njOXQ/wGFM8XxCYXBki6A5su9WRl1FLtCfc+itWOrNbPgGrNvfvs2oDF7KNjlQg=="
+  },
+  "exportTime": 1781271761299
+}

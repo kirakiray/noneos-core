@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser Info Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser Info Tests</h1>
+
+  <sb-test name="Default Username Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        // 使用固定的命名空间测试新用户
+        const ns_default = "test_info_user_default";
+        const user_default = new LocalUser(ns_default);
+
+        // 准备用户实例，首次初始化应该生成默认用户名
+        await user_default.ready();
+
+        // 获取用户信息
+        const info_default = await user_default.getInfo();
+
+        const hasInfo_default = !!info_default;
+        const hasUsername_default = !!info_default.username;
+        const usernameFormatValid_default = info_default.username.startsWith("user-");
+        const hasUserId_default = info_default.userId === user_default.userId;
+        const hasSignature_default = !!info_default.signature;
+        const hasSignTime_default = !!info_default.signTime;
+        const hasPublicKey_default = !!info_default.publicKey;
+
+        return {
+          assert: hasInfo_default && hasUsername_default && usernameFormatValid_default && hasUserId_default && hasSignature_default && hasSignTime_default && hasPublicKey_default,
+          content: {
+            message: "新用户默认用户名生成测试成功",
+            username: info_default.username,
+            userId: info_default.userId,
+            hasSignature: hasSignature_default,
+            hasSignTime: hasSignTime_default,
+            checks: {
+              hasInfo_default,
+              hasUsername_default,
+              usernameFormatValid_default,
+              hasUserId_default,
+              hasSignature_default,
+              hasSignTime_default,
+              hasPublicKey_default,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Update Info Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const ns_update = "test_info_user_update";
+        const user_update = new LocalUser(ns_update);
+        await user_update.ready();
+
+        // 更新用户信息
+        const updatedInfo = await user_update.updateInfo({
+          nickname: "测试用户",
+          age: 25,
+          email: "test@example.com"
+        });
+
+        // 验证更新后的信息
+        const hasNickname_update = updatedInfo.nickname === "测试用户";
+        const hasAge_update = updatedInfo.age === 25;
+        const hasEmail_update = updatedInfo.email === "test@example.com";
+        const hasUserId_update = updatedInfo.userId === user_update.userId;
+        const hasSignature_update = !!updatedInfo.signature;
+
+        // 获取信息验证持久化
+        const retrievedInfo = await user_update.getInfo();
+        const isNicknamePersisted = retrievedInfo.nickname === "测试用户";
+        const isAgePersisted = retrievedInfo.age === 25;
+
+        return {
+          assert: hasNickname_update && hasAge_update && hasEmail_update && hasUserId_update && hasSignature_update && isNicknamePersisted && isAgePersisted,
+          content: {
+            message: "用户信息更新测试成功",
+            nickname: updatedInfo.nickname,
+            age: updatedInfo.age,
+            email: updatedInfo.email,
+            hasSignature: hasSignature_update,
+            isNicknamePersisted,
+            checks: {
+              hasNickname_update,
+              hasAge_update,
+              hasEmail_update,
+              hasUserId_update,
+              hasSignature_update,
+              isNicknamePersisted,
+              isAgePersisted,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Merge Update Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const ns_merge = "test_info_user_merge";
+        const user_merge = new LocalUser(ns_merge);
+        await user_merge.ready();
+
+        // 第一次更新
+        await user_merge.updateInfo({
+          nickname: "初始昵称",
+          city: "北京"
+        });
+
+        // 第二次更新（应该合并，而不是覆盖）
+        const mergedInfo = await user_merge.updateInfo({
+          nickname: "新昵称",
+          hobby: "编程"
+        });
+
+        // 验证合并结果
+        const isNicknameUpdated_merge = mergedInfo.nickname === "新昵称";
+        const isCityRetained_merge = mergedInfo.city === "北京";
+        const isHobbyAdded_merge = mergedInfo.hobby === "编程";
+        const hasUserId_merge = mergedInfo.userId === user_merge.userId;
+        const hasSignature_merge = !!mergedInfo.signature;
+
+        // 验证签名有效性
+        const isSignatureValid_merge = await user_merge.verify(mergedInfo);
+
+        return {
+          assert: isNicknameUpdated_merge && isCityRetained_merge && isHobbyAdded_merge && hasUserId_merge && hasSignature_merge && isSignatureValid_merge,
+          content: {
+            message: "用户信息合并更新测试成功",
+            nickname: mergedInfo.nickname,
+            city: mergedInfo.city,
+            hobby: mergedInfo.hobby,
+            isSignatureValid: isSignatureValid_merge,
+            checks: {
+              isNicknameUpdated_merge,
+              isCityRetained_merge,
+              isHobbyAdded_merge,
+              hasUserId_merge,
+              hasSignature_merge,
+              isSignatureValid_merge,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Signature Verification Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const ns_verify = "test_info_user_verify";
+        const user_verify = new LocalUser(ns_verify);
+        await user_verify.ready();
+
+        // 更新用户信息
+        const signedInfo = await user_verify.updateInfo({
+          name: "签名测试用户",
+          level: 100
+        });
+
+        // 验证签名有效性
+        const isSignatureValid_verify = await user_verify.verify(signedInfo);
+
+        // 篡改数据后验证
+        const tamperedInfo = { ...signedInfo, name: "篡改用户" };
+        const isTamperedValid_verify = await user_verify.verify(tamperedInfo);
+
+        // 篡改等级
+        const tamperedLevel = { ...signedInfo, level: 999 };
+        const isLevelTamperedValid_verify = await user_verify.verify(tamperedLevel);
+
+        return {
+          assert: isSignatureValid_verify && !isTamperedValid_verify && !isLevelTamperedValid_verify,
+          content: {
+            message: "用户信息签名验证测试成功",
+            isSignatureValid: isSignatureValid_verify,
+            isTamperedValid: isTamperedValid_verify,
+            isLevelTamperedValid: isLevelTamperedValid_verify,
+            checks: {
+              isSignatureValid_verify,
+              isTamperedValid_verify,
+              isLevelTamperedValid_verify,
+              tamperedNameDetected: !isTamperedValid_verify,
+              tamperedLevelDetected: !isLevelTamperedValid_verify,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

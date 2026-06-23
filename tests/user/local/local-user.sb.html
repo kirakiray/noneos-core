@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser Tests</h1>
+
+  <sb-test name="Create and Initialize LocalUser Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        // 使用静态命名空间
+        const ns1 = "test_user_1";
+        const localUser = new LocalUser(ns1);
+
+        // 准备用户实例，这应该会生成并保存密钥
+        await localUser.ready();
+
+        const hasInitUserId = !!localUser.userId;
+        const hasInitPublicKey = !!localUser.publicKey;
+        const hasInitPrivateKey = !!localUser.sign;
+        const isNamespaceMatched = localUser.namespace === ns1;
+
+        return {
+          assert: hasInitUserId && hasInitPublicKey && hasInitPrivateKey && isNamespaceMatched,
+          content: {
+            message: "LocalUser 创建和初始化成功",
+            namespace: localUser.namespace,
+            userId: localUser.userId,
+            publicKeyLength: localUser.publicKey.length,
+            checks: {
+              hasInitUserId,
+              hasInitPublicKey,
+              hasInitPrivateKey,
+              isNamespaceMatched,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Persistence Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const ns2 = "persistence_test_user_1";
+        
+        // 第一次创建用户
+        const firstUser = new LocalUser(ns2);
+        await firstUser.ready();
+
+        const firstUserId = firstUser.userId;
+        const firstPublicKey = firstUser.publicKey;
+
+        // 第二次使用相同命名空间创建用户
+        const secondUser = new LocalUser(ns2);
+        await secondUser.ready();
+
+        const isUserIdMatched = secondUser.userId === firstUserId;
+        const isPublicKeyMatched = secondUser.publicKey === firstPublicKey;
+
+        return {
+          assert: isUserIdMatched && isPublicKeyMatched,
+          content: {
+            message: "LocalUser 密钥持久化测试成功",
+            namespace: ns2,
+            userIdMatched: isUserIdMatched,
+            publicKeyMatched: isPublicKeyMatched,
+            checks: {
+              isUserIdMatched,
+              isPublicKeyMatched,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Sign and Verify Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const ns3 = "sign_test_user_1";
+        const signingUser = new LocalUser(ns3);
+        await signingUser.ready();
+
+        // 签名数据
+        const originalData = {
+          message: "Hello, LocalUser!",
+          timestamp: Date.now(),
+        };
+
+        const resultSignedData = await signingUser.sign(originalData);
+
+        const hasSignature = !!resultSignedData.signature;
+        const hasSignTime = !!resultSignedData.signTime;
+        const hasSignedPublicKey = !!resultSignedData.publicKey;
+
+        // 验证签名
+        const isSignatureValid = await signingUser.verify(resultSignedData);
+
+        // 篡改数据后验证
+        const tamperedMsgData = { ...resultSignedData, message: "Tampered LocalUser!" };
+        const isTamperedValid = await signingUser.verify(tamperedMsgData);
+
+        return {
+          assert:
+            hasSignature &&
+            hasSignTime &&
+            hasSignedPublicKey &&
+            isSignatureValid &&
+            !isTamperedValid,
+          content: {
+            message: "LocalUser 签名和验证测试成功",
+            originalMessage: originalData.message,
+            signatureValid: isSignatureValid,
+            tamperedMessageValid: isTamperedValid,
+            checks: {
+              hasSignature,
+              hasSignTime,
+              hasSignedPublicKey,
+              isSignatureValid,
+              isTamperedValid,
+              tamperedMessageDetected: !isTamperedValid,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Get Session IDs Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/local/user.js";
+
+        const nsSession = "session_test_user_1";
+
+        // 创建三个相同 namespace 的 LocalUser，模拟三个浏览器标签页
+        const sessionUser1 = new LocalUser(nsSession);
+        const sessionUser2 = new LocalUser(nsSession);
+        const sessionUser3 = new LocalUser(nsSession);
+
+        await Promise.all([
+          sessionUser1.ready(),
+          sessionUser2.ready(),
+          sessionUser3.ready(),
+        ]);
+
+        // 让 sessionUser1 发起查询，收集所有 sessionId
+        const sessionIds = await sessionUser1.getSessionIds(100);
+
+        const isArray = Array.isArray(sessionIds);
+        const contains1 = sessionIds.includes(sessionUser1.sessionId);
+        const contains2 = sessionIds.includes(sessionUser2.sessionId);
+        const contains3 = sessionIds.includes(sessionUser3.sessionId);
+        const allStrings = sessionIds.every((id) => typeof id === "string");
+
+        return {
+          assert:
+            isArray &&
+            contains1 &&
+            contains2 &&
+            contains3 &&
+            allStrings &&
+            sessionIds.length >= 3,
+          content: {
+            message: "getSessionIds 测试成功，成功发现 3 个同 namespace 的 session",
+            ownSessionId: sessionUser1.sessionId,
+            allSessionIds: [
+              sessionUser1.sessionId,
+              sessionUser2.sessionId,
+              sessionUser3.sessionId,
+            ],
+            discoveredSessionIds: sessionIds,
+            count: sessionIds.length,
+            checks: {
+              isArray,
+              contains1,
+              contains2,
+              contains3,
+              allStrings,
+              countAtLeast3: sessionIds.length >= 3,
+              actualCount: sessionIds.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

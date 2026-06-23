@@ -70,6 +70,44 @@
       a {
         color: var(--md-sys-color-primary);
       }
+
+      .user-info-card {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 12px;
+        background-color: var(--md-sys-color-surface-variant);
+        color: var(--md-sys-color-on-surface-variant);
+        border: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
+      }
+
+      .user-info-card h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        color: var(--md-sys-color-on-surface);
+      }
+
+      .user-info-card dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px 16px;
+        font-size: 14px;
+      }
+
+      .user-info-card dt {
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .user-info-card dd {
+        margin: 0;
+        word-break: break-all;
+        color: var(--md-sys-color-on-surface);
+      }
+
+      .user-info-card .status {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: 14px;
+      }
     </style>
     <link rel="stylesheet" href="/nos-tool/css/palette.css" pui-colors="" />
     <link rel="stylesheet" href="/nos-tool/css/theme.css" />
@@ -126,6 +164,11 @@
       <div style="display: flex; justify-content: center; align-items: center">
         <nos-version auto-install></nos-version>
       </div>
+
+      <div class="user-info-card" id="user-info">
+        <h2>Default User</h2>
+        <p class="status">Loading user info...</p>
+      </div>
     </article>
 
     <script type="module">
@@ -133,6 +176,38 @@
 
       await load("./nos-tool/comps/nos-version.html");
       await load("/nos/locale-text/locale-text.html");
+
+      (async () => {
+        const { LocalUser } = await import("/nos/user/local/user.js");
+        const user = new LocalUser("default");
+        const infoContainer = $("#user-info");
+
+        try {
+          await user.ready();
+          const info = await user.getInfo();
+
+          if (!info) {
+            infoContainer.html = `<h2>Default User</h2><p class="status">No user info found.</p>`;
+            return;
+          }
+
+          const truncate = (str, len = 32) =>
+            str && str.length > len ? str.slice(0, len) + "..." : str || "-";
+
+          infoContainer.html = `
+            <h2>Default User</h2>
+            <dl>
+              <dt>Username</dt><dd>${info.username || "-"}</dd>
+              <dt>User ID</dt><dd>${info.userId || "-"}</dd>
+              <dt>Public Key</dt><dd>${truncate(info.publicKey)}</dd>
+              <dt>Sign Time</dt><dd>${info.signTime ? new Date(info.signTime).toLocaleString() : "-"}</dd>
+            </dl>
+          `;
+        } catch (error) {
+          infoContainer.html = `<h2>Default User</h2><p class="status">Failed to load user info: ${error.message}</p>`;
+          console.error("Failed to load default user info:", error);
+        }
+      })();
 
       (async () => {
         const urlObj = new URLSearchParams(location.search);

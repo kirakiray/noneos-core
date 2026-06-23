@@ -1,0 +1,283 @@
+<template component>
+  <style>
+    :host {
+      display: block;
+      width: 100%;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    svg {
+      width: 100%;
+      min-height: 200px;
+      display: block;
+    }
+
+    .legend {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      padding: 8px 0 0;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--md-sys-color-on-surface-variant, #666);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+  </style>
+
+  <div class="chart-wrapper">
+    <svg id="chart" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="legend" :html="legendHtml"></div>
+  </div>
+
+  <script>
+    export default async () => {
+      // 默认系列（流量页使用）
+      const TRAFFIC_SERIES = [
+        { key: "inbound_bytes", label: "入站", color: "#4caf50" },
+        { key: "outbound_bytes", label: "出站", color: "#2196f3" },
+        { key: "relay_forwarded_bytes", label: "转发", color: "#ff9800" },
+      ];
+
+      return {
+        tag: "n-line-chart",
+        attrs: {
+          "y-suffix": "",
+          "time-mode": "epoch",
+        },
+        data: {
+          points: [],
+          series: null,
+        },
+        watch: {
+          points() {
+            this.drawChart();
+          },
+          series() {
+            this.drawChart();
+          },
+        },
+        attached() {
+          this.debounceTimer = null;
+          this.resizeObserver = new ResizeObserver(() => {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => {
+              this.drawChart();
+            }, 100);
+          });
+          this.resizeObserver.observe(this.shadow.$("#chart").ele.parentElement);
+          this.drawChart();
+        },
+        detached() {
+          if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+          }
+          if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+          }
+        },
+        proto: {
+          get legendHtml() {
+            const seriesList = this.series || TRAFFIC_SERIES;
+            return seriesList.map(s =>
+              '<span class="legend-item">'
+                + '<span class="legend-dot" style="background:' + s.color + '"></span>'
+                + s.label
+              + '</span>'
+            ).join("");
+          },
+
+          _resolveTime(point) {
+            if (this["time-mode"] === "ms") {
+              return point.time;
+            }
+            // epoch 模式：minute_epoch 是分钟级秒数，转毫秒
+            return point.minute_epoch * 60 * 1000;
+          },
+
+          drawChart() {
+            const svg = this.shadow.$("#chart").ele;
+            svg.innerHTML = "";
+
+            const displayWidth = svg.parentElement.clientWidth || 600;
+            const displayHeight = 200;
+            svg.setAttribute("viewBox", `0 0 ${displayWidth} ${displayHeight}`);
+            svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+            const points = this.points || [];
+            if (!points || points.length === 0) return;
+
+            const seriesList = this.series || TRAFFIC_SERIES;
+
+            const margin = { top: 16, right: 16, bottom: 32, left: 56 };
+            const width = displayWidth - margin.left - margin.right;
+            const height = displayHeight - margin.top - margin.bottom;
+
+            // 将原始数据归一化为 { time, values: { key: val } }
+            const dataPoints = points.map(p => {
+              const dp = { time: this._resolveTime(p), values: {} };
+              for (const s of seriesList) {
+                dp.values[s.key] = p[s.key] || 0;
+              }
+              return dp;
+            });
+
+            const minTime = dataPoints[0].time;
+            const maxTime = dataPoints[dataPoints.length - 1].time;
+            const timeRange = maxTime - minTime || 1;
+
+            // 计算 Y 轴范围
+            const useBytes = !this["y-suffix"];
+            let yMax = 0;
+            for (const dp of dataPoints) {
+              for (const s of seriesList) {
+                yMax = Math.max(yMax, dp.values[s.key]);
+              }
+            }
+            if (useBytes) {
+              if (yMax === 0) yMax = 1024;
+              yMax = this._ceilBytes(yMax);
+            } else {
+              yMax = 100;
+            }
+            const yMin = 0;
+            const yRange = yMax - yMin;
+
+            // ── 辅助线和 Y 轴标签 ──
+            const gridGroup = this._createSvgElement("g");
+            gridGroup.setAttribute("stroke", "#e0e0e0");
+            gridGroup.setAttribute("stroke-width", "1");
+
+            const yTickGroup = this._createSvgElement("g");
+            yTickGroup.setAttribute("font-family", "monospace");
+            yTickGroup.setAttribute("font-size", "10");
+            yTickGroup.setAttribute("fill", "#888");
+
+            const yTicks = 4;
+            for (let i = 0; i <= yTicks; i++) {
+              const y = margin.top + height - (i * height) / yTicks;
+              const line = this._createSvgElement("line");
+              line.setAttribute("x1", margin.left);
+              line.setAttribute("y1", y);
+              line.setAttribute("x2", margin.left + width);
+              line.setAttribute("y2", y);
+              gridGroup.appendChild(line);
+
+              const val = yMin + (yMax - yMin) * (i / yTicks);
+              const label = this._createSvgElement("text");
+              label.textContent = useBytes
+                ? this._formatBytesShort(val)
+                : val.toFixed(0) + this["y-suffix"];
+              label.setAttribute("x", margin.left - 6);
+              label.setAttribute("y", y + 3);
+              label.setAttribute("text-anchor", "end");
+              yTickGroup.appendChild(label);
+            }
+            svg.appendChild(gridGroup);
+            svg.appendChild(yTickGroup);
+
+            // ── X 轴标签 ──
+            const xTickGroup = this._createSvgElement("g");
+            xTickGroup.setAttribute("font-family", "monospace");
+            xTickGroup.setAttribute("font-size", "10");
+            xTickGroup.setAttribute("fill", "#888");
+
+            const xTicks = Math.min(6, dataPoints.length);
+            for (let i = 0; i <= xTicks; i++) {
+              const idx = Math.round((i / xTicks) * (dataPoints.length - 1));
+              const dp = dataPoints[idx];
+              const x = margin.left + ((dp.time - minTime) / timeRange) * width;
+
+              const label = this._createSvgElement("text");
+              const d = new Date(dp.time);
+              label.textContent = useBytes
+                ? String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")
+                : String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+              label.setAttribute("x", x);
+              label.setAttribute("y", margin.top + height + 16);
+              label.setAttribute("text-anchor", "middle");
+              xTickGroup.appendChild(label);
+            }
+            svg.appendChild(xTickGroup);
+
+            // ── 绘制折线 ──
+            for (const cfg of seriesList) {
+              const pathGroup = this._createSvgElement("g");
+              let prevX = null, prevY = null;
+
+              for (const dp of dataPoints) {
+                const x = margin.left + ((dp.time - minTime) / timeRange) * width;
+                const y = margin.top + height - ((dp.values[cfg.key] - yMin) / yRange) * height;
+
+                if (prevX !== null && prevY !== null) {
+                  const line = this._createSvgElement("line");
+                  line.setAttribute("x1", prevX);
+                  line.setAttribute("y1", prevY);
+                  line.setAttribute("x2", x);
+                  line.setAttribute("y2", y);
+                  line.setAttribute("stroke", cfg.color);
+                  line.setAttribute("stroke-width", "1.5");
+                  line.setAttribute("stroke-linejoin", "round");
+                  line.setAttribute("opacity", "0.85");
+                  pathGroup.appendChild(line);
+                }
+
+                const dot = this._createSvgElement("circle");
+                dot.setAttribute("cx", x);
+                dot.setAttribute("cy", y);
+                dot.setAttribute("r", "2.5");
+                dot.setAttribute("fill", cfg.color);
+                dot.setAttribute("opacity", "0.7");
+                pathGroup.appendChild(dot);
+
+                prevX = x;
+                prevY = y;
+              }
+
+              svg.appendChild(pathGroup);
+            }
+          },
+
+          _createSvgElement(tag) {
+            return document.createElementNS("http://www.w3.org/2000/svg", tag);
+          },
+
+          _ceilBytes(bytes) {
+            if (bytes <= 0) return 1024;
+            const log = Math.floor(Math.log(bytes) / Math.log(1024));
+            const base = bytes / Math.pow(1024, log);
+            const roundTo = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+            let rounded = 1;
+            for (const r of roundTo) {
+              if (base <= r) { rounded = r; break; }
+            }
+            return rounded * Math.pow(1024, log);
+          },
+
+          _formatBytesShort(bytes) {
+            if (bytes == null || bytes === 0) return "0";
+            const units = ["", "K", "M", "G", "T"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? (val < 10 ? 1 : 0) : 0) + units[i];
+          },
+        },
+      };
+    };
+  </script>
+</template>

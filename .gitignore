@@ -98,6 +98,10 @@ dist
 # Sveltekit cache directory
 .svelte-kit/
 
+# Rust server config
+server/config.toml
+server/target/
+
 # vitepress build output
 **/.vitepress/dist
 
@@ -146,3 +150,15 @@ tests/cases/others
 rootkeys
 
 **/user-data
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+_prompt.md
+.webkit-test-data
+.chrome-test-data
+server/config2.db
+server/config.example.db

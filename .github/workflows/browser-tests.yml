@@ -10,13 +10,80 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Build handshake server
+        working-directory: server
+        run: cargo build
+
+      - name: Start handshake server 8081
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+
+      - name: Start handshake server 8082
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+
+      - name: Wait for handshake servers
+        run: |
+          for i in {1..30}; do
+            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
+              echo "Handshake servers are ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Handshake servers did not start in time"
+          exit 1
+
       - uses: ofajs/sibyl-test@v1
         with:
           browsers: 'chrome,firefox'
+
   test-webkit:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Build handshake server
+        working-directory: server
+        run: cargo build
+
+      - name: Start handshake server 8081
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+
+      - name: Start handshake server 8082
+        working-directory: server
+        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+
+      - name: Wait for handshake servers
+        run: |
+          for i in {1..30}; do
+            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
+              echo "Handshake servers are ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Handshake servers did not start in time"
+          exit 1
+
       - uses: ofajs/sibyl-test@v1
         with:
           browsers: 'webkit'

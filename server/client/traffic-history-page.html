@@ -1,0 +1,352 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-size: 14px;
+    }
+
+    .history-loading,
+    .history-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .history-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .history-summary-item {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .history-summary-item .label {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .history-summary-item .value {
+      font-size: 18px;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+
+    .history-table-wrap {
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .history-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--md-sys-color-surface-variant);
+      font-weight: bold;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .history-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--md-sys-color-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-table tr:hover td {
+      background-color: var(--md-sys-color-surface-container);
+    }
+
+    .history-time {
+      font-family: monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 0 4px;
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      flex-wrap: wrap;
+    }
+
+    .pagination-bar .page-info {
+      min-width: 100px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pagination-bar p-select {
+      margin-left: 12px;
+    }
+  </style>
+
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+
+  <div class="history-loading" :style.display="loading ? '' : 'none'">
+    正在加载流量历史...
+  </div>
+  <div
+    class="history-empty"
+    :style.display="!loading && records.length === 0 ? '' : 'none'"
+  >
+    <o-if :value="error">{{error}}</o-if>
+    <o-else>该用户暂无流量历史记录</o-else>
+  </div>
+  <div :style.display="!loading && records.length > 0 ? '' : 'none'">
+    <div class="history-summary">
+      <div class="history-summary-item">
+        <div class="label">入站流量</div>
+        <div class="value">{{totalInbound}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">出站流量</div>
+        <div class="value">{{totalOutbound}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">转发流量</div>
+        <div class="value">{{totalRelay}}</div>
+      </div>
+      <div class="history-summary-item">
+        <div class="label">记录数</div>
+        <div class="value">{{records.length}}</div>
+      </div>
+    </div>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>Session</th>
+            <th style="text-align: right">入站</th>
+            <th style="text-align: right">出站</th>
+            <th style="text-align: right">转发</th>
+            <th style="text-align: right">握手</th>
+          </tr>
+        </thead>
+        <tbody :html="tableHtml"></tbody>
+      </table>
+    </div>
+    <div class="pagination-bar" :style.display="total > 0 ? '' : 'none'">
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goFirstPage"
+        attr:disabled="currentPage <= 1"
+      >
+        首页
+      </p-button>
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goPrevPage"
+        attr:disabled="currentPage <= 1"
+      >
+        上一页
+      </p-button>
+      <span class="page-info">
+        第 {{currentPage}} / {{totalPages}} 页，共 {{total}} 条
+      </span>
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goNextPage"
+        attr:disabled="currentPage >= totalPages"
+      >
+        下一页
+      </p-button>
+      <p-button
+        variant="outlined"
+        size="s"
+        on:click="goLastPage"
+        attr:disabled="currentPage >= totalPages"
+      >
+        末页
+      </p-button>
+      <p-select size="s" on:change="changePageSize" sync:value="pageSize">
+        <p-option value="10">10条/页</p-option>
+        <p-option value="20">20条/页</p-option>
+        <p-option value="50">50条/页</p-option>
+        <p-option value="100">100条/页</p-option>
+      </p-select>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, getCurrentServerUrl } = await load("./admin-shared.js");
+      const WS_URL = getCurrentServerUrl();
+
+      return {
+        data: {
+          loading: false,
+          error: "",
+          records: [],
+          currentPage: 1,
+          pageSize: 20,
+          total: 0,
+          totalInboundBytes: 0,
+          totalOutboundBytes: 0,
+          totalRelayForwardedBytes: 0,
+          totalHandshakeBytes: 0,
+        },
+
+        proto: {
+          formatDateTime(epochMs) {
+            if (!epochMs) return "";
+            const d = new Date(epochMs);
+            const pad = (n) => String(n).padStart(2, "0");
+            return (
+              `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+              `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+            );
+          },
+
+          formatBytes(bytes) {
+            if (bytes == null || bytes === 0) return "0 B";
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const val = bytes / Math.pow(1024, i);
+            return val.toFixed(i > 0 ? 1 : 0) + " " + units[i];
+          },
+
+          escapeHtml(str) {
+            if (str == null) return "";
+            return String(str)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#39;");
+          },
+
+          get totalInbound() {
+            return this.formatBytes(this.totalInboundBytes);
+          },
+
+          get totalOutbound() {
+            return this.formatBytes(this.totalOutboundBytes);
+          },
+
+          get totalRelay() {
+            return this.formatBytes(this.totalRelayForwardedBytes);
+          },
+
+          get totalPages() {
+            return Math.max(1, Math.ceil(this.total / this.pageSize));
+          },
+
+          get tableHtml() {
+            if (!this.records || this.records.length === 0) return "";
+            const rows = this.records.map((r) => {
+              return (
+                "<tr>" +
+                `<td class="history-time">${this.escapeHtml(this.formatDateTime(r.recordedAt))}</td>` +
+                `<td>${this.escapeHtml(r.sessionId)}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.inboundBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.outboundBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.relayForwardedBytes))}</td>` +
+                `<td style="text-align:right">${this.escapeHtml(this.formatBytes(r.handshakeBytes))}</td>` +
+                "</tr>"
+              );
+            });
+            return rows.join("");
+          },
+
+          async goToPage(page) {
+            if (this.loading) return;
+            const target = Math.max(1, Math.min(page, this.totalPages || 1));
+            if (target === this.currentPage) return;
+            this.currentPage = target;
+            await this.loadHistory();
+          },
+
+          goFirstPage() {
+            this.goToPage(1);
+          },
+          goPrevPage() {
+            this.goToPage(this.currentPage - 1);
+          },
+          goNextPage() {
+            this.goToPage(this.currentPage + 1);
+          },
+          goLastPage() {
+            this.goToPage(this.totalPages);
+          },
+
+          changePageSize(event) {
+            this.currentPage = 1;
+            this.loadHistory();
+          },
+
+          async loadHistory() {
+            const userId = query.userId;
+            if (!userId) {
+              this.error = "缺少 userId 参数";
+              return;
+            }
+            this.loading = true;
+            this.error = "";
+            try {
+              const { adminUser } = await getAdmin(load);
+              const response = await adminUser.getTrafficHistory(WS_URL, {
+                userId,
+                page: this.currentPage,
+                pageSize: parseInt(this.pageSize),
+              });
+              if (response.status === "ok") {
+                this.records = (response.history || []).map((r) => ({
+                  recordedAt: Number(r.recordedAt) || 0,
+                  sessionId: r.sessionId || "",
+                  inboundBytes: Number(r.inboundBytes) || 0,
+                  outboundBytes: Number(r.outboundBytes) || 0,
+                  relayForwardedBytes: Number(r.relayForwardedBytes) || 0,
+                  handshakeBytes: Number(r.handshakeBytes) || 0,
+                }));
+                this.total = Number(response.total) || 0;
+                this.currentPage = Number(response.page) || this.currentPage;
+                this.pageSize = Number(response.page_size) || this.pageSize;
+                this.totalInboundBytes = Number(response.total_inbound_bytes) || 0;
+                this.totalOutboundBytes = Number(response.total_outbound_bytes) || 0;
+                this.totalRelayForwardedBytes = Number(response.total_relay_forwarded_bytes) || 0;
+                this.totalHandshakeBytes = Number(response.total_handshake_bytes) || 0;
+              } else {
+                this.error = response.message || "加载流量历史失败";
+                this.records = [];
+                this.total = 0;
+              }
+            } catch (e) {
+              console.error("loadHistory failed:", e);
+              this.error = e.message || "加载流量历史失败";
+              this.records = [];
+              this.total = 0;
+            } finally {
+              this.loading = false;
+            }
+          },
+        },
+
+        attached() {
+          this.loadHistory();
+        },
+      };
+    };
+  </script>
+</template>

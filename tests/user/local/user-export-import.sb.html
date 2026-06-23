@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Export/Import/Delete Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>User Export/Import/Delete Tests</h1>
+
+  <sb-test name="Export User Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser } from "/nos/user/main.js";
+
+        const exportNs = "export_test_user_1";
+        const exportPassword = "test_password_123";
+
+        // 创建用户
+        const exportUser1 = await getUser(exportNs);
+        const exportUserId = exportUser1.userId;
+
+        // 更新用户信息
+        await exportUser1.updateInfo({ username: "test_export_user" });
+
+        // 导出用户
+        const exportedData = await exportUser(exportNs, exportPassword);
+
+        const isExportedString = typeof exportedData === "string";
+        const isExportedNotEmpty = exportedData.length > 0;
+
+        return {
+          assert: isExportedString && isExportedNotEmpty,
+          content: {
+            message: "用户导出成功",
+            namespace: exportNs,
+            userId: exportUserId,
+            exportedDataLength: exportedData.length,
+            checks: {
+              isExportedString,
+              isExportedNotEmpty,
+              dataLength: exportedData.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Import User Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, importUser, deleteUser } from "/nos/user/main.js";
+
+        const importSourceNs = "import_source_user_1";
+        const importTargetNs = "import_target_user_1";
+        const importPassword = "import_password_456";
+
+        // 前置清理：确保目标命名空间不存在
+        try {
+          await deleteUser(importTargetNs, { skipConfirm: true });
+        } catch (e) {
+          // 目标用户不存在时忽略错误
+        }
+
+        // 创建源用户
+        const sourceUser = await getUser(importSourceNs);
+        const sourceUserId = sourceUser.userId;
+        await sourceUser.updateInfo({ username: "source_user" });
+
+        // 导出源用户
+        const importExportedData = await exportUser(importSourceNs, importPassword);
+
+        // 导入到新命名空间
+        const importedUser = await importUser(importTargetNs, importExportedData, importPassword);
+        const importedUserId = importedUser.userId;
+
+        // 验证用户ID是否一致
+        const isUserIdMatched = sourceUserId === importedUserId;
+
+        // 验证用户信息
+        const importedInfo = await importedUser.getInfo();
+        const isUsernameMatched = importedInfo.username === "source_user";
+
+        // 清理测试数据
+        await deleteUser(importSourceNs, { skipConfirm: true });
+        await deleteUser(importTargetNs, { skipConfirm: true });
+
+        return {
+          assert: isUserIdMatched && isUsernameMatched,
+          content: {
+            message: "用户导入成功",
+            sourceNamespace: importSourceNs,
+            targetNamespace: importTargetNs,
+            userIdMatched: isUserIdMatched,
+            usernameMatched: isUsernameMatched,
+            checks: {
+              isUserIdMatched,
+              isUsernameMatched,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Import with Wrong Password Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, importUser } from "/nos/user/main.js";
+
+        const wrongPassNs = "wrong_password_test_1";
+        const correctPassword = "correct_password";
+        const wrongPassword = "wrong_password";
+
+        // 创建用户并导出
+        const wrongPassUser = await getUser(wrongPassNs);
+        const wrongPassExportedData = await exportUser(wrongPassNs, correctPassword);
+
+        // 使用错误密码导入
+        let wrongPassErrorCaught = false;
+        try {
+          await importUser("wrong_password_target", wrongPassExportedData, wrongPassword);
+        } catch (error) {
+          wrongPassErrorCaught = true;
+        }
+
+        return {
+          assert: wrongPassErrorCaught,
+          content: {
+            message: "错误密码测试成功",
+            errorCaught: wrongPassErrorCaught,
+            checks: {
+              wrongPassErrorCaught,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Import Duplicate Namespace Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, importUser } from "/nos/user/main.js";
+
+        const dupNs = "duplicate_namespace_test_1";
+        const dupPassword = "duplicate_password";
+
+        // 创建用户
+        await getUser(dupNs);
+
+        // 导出用户
+        const dupExportedData = await exportUser(dupNs, dupPassword);
+
+        // 尝试导入到相同命名空间（应该失败）
+        let dupErrorCaught = false;
+        try {
+          await importUser(dupNs, dupExportedData, dupPassword);
+        } catch (error) {
+          dupErrorCaught = error.message.includes("already exists");
+        }
+
+        return {
+          assert: dupErrorCaught,
+          content: {
+            message: "重复命名空间测试成功",
+            errorCaught: dupErrorCaught,
+            checks: {
+              dupErrorCaught,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Export Non-existent User Test">
+    <template>
+      <script type="module">
+        import { exportUser } from "/nos/user/main.js";
+
+        const nonExistNs = "non_existent_user_1";
+        const nonExistPassword = "test_password";
+
+        // 尝试导出不存在的用户
+        let nonExistErrorCaught = false;
+        try {
+          await exportUser(nonExistNs, nonExistPassword);
+        } catch (error) {
+          nonExistErrorCaught = error.message.includes("not found");
+        }
+
+        return {
+          assert: nonExistErrorCaught,
+          content: {
+            message: "导出不存在的用户测试成功",
+            errorCaught: nonExistErrorCaught,
+            checks: {
+              nonExistErrorCaught,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Delete User with Skip Confirm Test">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const skipDeleteNs = "skip_delete_test_user_1";
+
+        // 创建用户
+        await getUser(skipDeleteNs);
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 使用 skipConfirm 参数直接删除，不弹出确认框
+        const skipDeleteResult = await deleteUser(skipDeleteNs, { skipConfirm: true });
+
+        // 删除成功应该返回 true
+        const isDeleted = skipDeleteResult === true;
+
+        return {
+          assert: isDeleted,
+          content: {
+            message: "跳过确认删除用户测试成功",
+            namespace: skipDeleteNs,
+            result: skipDeleteResult,
+            checks: {
+              isDeleted,
+              resultIsTrue: skipDeleteResult === true,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Delete Non-existent User Test">
+    <template>
+      <script type="module">
+        import { deleteUser } from "/nos/user/main.js";
+
+        const deleteNonExistNs = "non_existent_delete_user_1";
+
+        // 尝试删除不存在的用户
+        let deleteNonExistErrorCaught = false;
+        try {
+          await deleteUser(deleteNonExistNs);
+        } catch (error) {
+          deleteNonExistErrorCaught = error.message.includes("not found");
+        }
+
+        return {
+          assert: deleteNonExistErrorCaught,
+          content: {
+            message: "删除不存在的用户测试成功",
+            errorCaught: deleteNonExistErrorCaught,
+            checks: {
+              deleteNonExistErrorCaught,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Export and Import with Special Characters Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, importUser, deleteUser } from "/nos/user/main.js";
+
+        const specialSourceNs = "special_chars_source_1";
+        const specialTargetNs = "special_chars_target_1";
+        const specialPassword = "密码测试_!@#$%^&*()";
+
+        // 前置清理：确保目标命名空间不存在
+        try {
+          await deleteUser(specialTargetNs, { skipConfirm: true });
+        } catch (e) {
+          // 目标用户不存在时忽略错误
+        }
+
+        // 创建用户并设置特殊字符信息
+        const specialUser = await getUser(specialSourceNs);
+        await specialUser.updateInfo({ 
+          username: "测试用户_特殊字符",
+          bio: "包含特殊字符：!@#$%^&*()_+-={}[]|\\:\";<>?,./"
+        });
+
+        // 导出
+        const specialExportedData = await exportUser(specialSourceNs, specialPassword);
+
+        // 导入
+        const specialImportedUser = await importUser(specialTargetNs, specialExportedData, specialPassword);
+        const specialImportedInfo = await specialImportedUser.getInfo();
+
+        const isSpecialUsernameMatched = specialImportedInfo.username === "测试用户_特殊字符";
+        const isSpecialBioMatched = specialImportedInfo.bio === "包含特殊字符：!@#$%^&*()_+-={}[]|\\:\";<>?,./";
+
+        // 清理测试数据
+        await deleteUser(specialSourceNs, { skipConfirm: true });
+        await deleteUser(specialTargetNs, { skipConfirm: true });
+
+        return {
+          assert: isSpecialUsernameMatched && isSpecialBioMatched,
+          content: {
+            message: "特殊字符导出导入测试成功",
+            usernameMatched: isSpecialUsernameMatched,
+            bioMatched: isSpecialBioMatched,
+            checks: {
+              isSpecialUsernameMatched,
+              isSpecialBioMatched,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Decrypt Exported Data Test">
+    <template>
+      <script type="module">
+        import { getUser, exportUser, deleteUser } from "/nos/user/main.js";
+        import { decryptWithPassword } from "/nos/crypto/crypto-aes.js";
+
+        const decryptNs = "decrypt_test_user_1";
+        const decryptPassword = "decrypt_password_789";
+
+        // 前置清理
+        try {
+          await deleteUser(decryptNs, { skipConfirm: true });
+        } catch (e) {
+          // 用户不存在时忽略错误
+        }
+
+        // 创建用户并设置信息
+        const decryptUser = await getUser(decryptNs);
+        const decryptUserId = decryptUser.userId;
+        await decryptUser.updateInfo({
+          username: "解密测试用户",
+          bio: "用于测试导出数据解密",
+        });
+
+        // 导出用户
+        const encryptedData = await exportUser(decryptNs, decryptPassword);
+
+        // 解密导出数据
+        const decryptedJson = await decryptWithPassword(decryptPassword, encryptedData);
+        const decryptedObj = JSON.parse(decryptedJson);
+
+        // 验证解密后的数据字段
+        const hasNamespace = decryptedObj.namespace === decryptNs;
+        const hasKeys = !!(decryptedObj.keys && decryptedObj.keys.publicKey && decryptedObj.keys.privateKey);
+        const hasInfo = !!(decryptedObj.info && decryptedObj.info.username === "解密测试用户");
+        const hasExportTime = typeof decryptedObj.exportTime === "number";
+
+        // 清理测试数据
+        await deleteUser(decryptNs, { skipConfirm: true });
+
+        return {
+          assert: hasNamespace && hasKeys && hasInfo && hasExportTime,
+          content: {
+            message: "导出数据解密成功，以下是解密后的明文内容",
+            decryptedData: decryptedObj,
+            checks: {
+              hasNamespace,
+              hasKeys,
+              hasInfo,
+              hasExportTime,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect Server Default List Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Connect Server Default List Tests</h1>
+
+    <!-- ============================================================ -->
+    <!-- Test 1: 默认服务器列表包含预设地址                             -->
+    <!-- ============================================================ -->
+    <sb-test name="Default Server List Contains Preset URLs">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d1Ns = "default-list-t1-ns";
+          const d1User = new LocalUser(d1Ns);
+          await d1User.ready();
+
+          const d1Servers = await d1User.server.getServers();
+
+          const d1Has8081 = d1Servers.includes("ws://localhost:8081");
+          const d1Has8082 = d1Servers.includes("ws://localhost:8082");
+
+          const d1AllOk = d1Has8081 && d1Has8082 && d1Servers.length === 2;
+
+          return {
+            assert: d1AllOk,
+            content: {
+              message: d1AllOk
+                ? "Default server list contains both preset URLs"
+                : "Default server list missing expected URLs",
+              servers: d1Servers,
+              checks: {
+                d1Has8081,
+                d1Has8082,
+                expectedCount: 2,
+                actualCount: d1Servers.length,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 2: 自动连接到默认服务器                                  -->
+    <!-- ============================================================ -->
+    <sb-test name="Auto-Connect to Default Servers">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d2Ns = "default-list-t2-ns";
+          const d2User = new LocalUser(d2Ns);
+          await d2User.ready();
+
+          // 轮询等待自动连接完成（connect() 会复用已有连接或等待进行中的连接）
+          const d2Result = await d2User.server.connect("ws://localhost:8081");
+          const d2Connected = d2Result && d2Result.success === true;
+
+          return {
+            assert: d2Connected === true,
+            content: {
+              message: d2Connected
+                ? "Auto-connect to default server succeeded"
+                : "Auto-connect failed",
+              version: d2Result ? d2Result.version : null,
+              checks: {
+                d2Connected,
+                d2ResultSuccess: d2Result?.success === true,
+                actualSuccess: d2Result?.success,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 3: 添加自定义服务器到列表                                 -->
+    <!-- ============================================================ -->
+    <sb-test name="Add Custom Server to List">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d3Ns = "default-list-t3-ns";
+          const d3User = new LocalUser(d3Ns);
+          await d3User.ready();
+
+          const d3CustomUrl = "ws://localhost:9090";
+          await d3User.server.addServer(d3CustomUrl);
+
+          const d3Servers = await d3User.server.getServers();
+
+          const d3HasCustom = d3Servers.includes(d3CustomUrl);
+          const d3HasDefault8081 = d3Servers.includes("ws://localhost:8081");
+          const d3HasDefault8082 = d3Servers.includes("ws://localhost:8082");
+          const d3Count = d3Servers.length === 3;
+
+          const d3AllOk = d3HasCustom && d3HasDefault8081 && d3HasDefault8082 && d3Count;
+
+          return {
+            assert: d3AllOk,
+            content: {
+              message: d3AllOk
+                ? "Custom server added successfully"
+                : "Add server failed",
+              servers: d3Servers,
+              added: d3CustomUrl,
+              checks: {
+                d3HasCustom,
+                d3HasDefault8081,
+                d3HasDefault8082,
+                d3Count,
+                actualCount: d3Servers.length,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 4: 删除服务器从列表                                      -->
+    <!-- ============================================================ -->
+    <sb-test name="Remove Server from List">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d4Ns = "default-list-t4-ns";
+          const d4User = new LocalUser(d4Ns);
+          await d4User.ready();
+
+          // 先添加一个自定义服务器，再删除它
+          const d4CustomUrl = "ws://localhost:9091";
+          await d4User.server.addServer(d4CustomUrl);
+
+          let d4Servers = await d4User.server.getServers();
+          const d4HadCustom = d4Servers.includes(d4CustomUrl);
+
+          await d4User.server.removeServer(d4CustomUrl);
+
+          d4Servers = await d4User.server.getServers();
+          const d4NoCustom = !d4Servers.includes(d4CustomUrl);
+          const d4HasDefault8081 = d4Servers.includes("ws://localhost:8081");
+          const d4HasDefault8082 = d4Servers.includes("ws://localhost:8082");
+          const d4Count = d4Servers.length === 2;
+
+          const d4AllOk = d4HadCustom && d4NoCustom && d4HasDefault8081 && d4HasDefault8082 && d4Count;
+
+          return {
+            assert: d4AllOk,
+            content: {
+              message: d4AllOk
+                ? "Custom server removed successfully"
+                : "Remove server failed",
+              servers: d4Servers,
+              removed: d4CustomUrl,
+              checks: {
+                d4HadCustom,
+                d4NoCustom,
+                d4HasDefault8081,
+                d4HasDefault8082,
+                d4Count,
+                actualCount: d4Servers.length,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 5: 服务器列表在数据库中的持久化                           -->
+    <!-- ============================================================ -->
+    <sb-test name="Server List Persists in DB">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d5Ns = "default-list-t5-ns";
+
+          // 第一个实例：添加自定义服务器
+          const d5UserA = new LocalUser(d5Ns);
+          await d5UserA.ready();
+
+          const d5CustomUrl = "ws://localhost:9092";
+          await d5UserA.server.addServer(d5CustomUrl);
+
+          const d5ServersA = await d5UserA.server.getServers();
+          const d5HasCustomA = d5ServersA.includes(d5CustomUrl);
+
+          // 创建第二个实例（同一 namespace），验证服务器列表持久化
+          const d5UserB = new LocalUser(d5Ns);
+          await d5UserB.ready();
+
+          const d5ServersB = await d5UserB.server.getServers();
+          const d5HasCustomB = d5ServersB.includes(d5CustomUrl);
+          const d5Has8081 = d5ServersB.includes("ws://localhost:8081");
+          const d5Has8082 = d5ServersB.includes("ws://localhost:8082");
+
+          const d5AllOk = d5HasCustomA && d5HasCustomB && d5Has8081 && d5Has8082;
+
+          return {
+            assert: d5AllOk,
+            content: {
+              message: d5AllOk
+                ? "Server list correctly persists across instances"
+                : "Server list persistence failed",
+              instanceAServers: d5ServersA,
+              instanceBServers: d5ServersB,
+              addedUrl: d5CustomUrl,
+              checks: {
+                d5HasCustomA,
+                d5HasCustomB,
+                d5Has8081,
+                d5Has8082,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 6: 添加重复服务器不会重复添加                             -->
+    <!-- ============================================================ -->
+    <sb-test name="Add Duplicate Server Does Not Duplicate">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/local/user.js";
+
+          const d6Ns = "default-list-t6-ns";
+          const d6User = new LocalUser(d6Ns);
+          await d6User.ready();
+
+          // 多次添加同一个地址
+          await d6User.server.addServer("ws://localhost:8081");
+          await d6User.server.addServer("ws://localhost:8081");
+
+          const d6Servers = await d6User.server.getServers();
+
+          // 统计 8081 出现的次数
+          const d6Count8081 = d6Servers.filter(s => s === "ws://localhost:8081").length;
+
+          return {
+            assert: d6Count8081 === 1,
+            content: {
+              message: d6Count8081 === 1
+                ? "Duplicate server addition correctly prevented"
+                : "Duplicate server was added",
+              servers: d6Servers,
+              count8081: d6Count8081,
+              checks: {
+                expectedUniqueCount: 1,
+                actualUniqueCount: d6Count8081,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

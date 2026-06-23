@@ -1,0 +1,962 @@
+<template page>
+  <style>
+    :host {
+      display: block;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+
+    .container {
+      padding: 24px;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .status-bar.connected {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .status-bar.disconnected {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .top-bar .status-bar {
+      margin-bottom: 0;
+    }
+
+    .top-bar .user-count {
+      margin-bottom: 0;
+      margin-left: auto;
+    }
+
+    .user-count {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface-variant);
+      flex-shrink: 0;
+    }
+
+    .card-grid {
+      flex: 1;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 320px);
+      gap: 16px;
+      align-content: start;
+    }
+
+    .user-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .user-avatar.admin {
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .card-username {
+      font-weight: bold;
+      font-size: 16px;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .card-badges {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .admin-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      font-weight: bold;
+    }
+
+    .card-detail {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+
+    .latency-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .latency-badge.high {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .card-addr {
+      font-family: monospace;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    /* 按用户分组视图样式 */
+    .user-group-card {
+      border: 1px solid var(--md-sys-color-surface-variant);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .user-group-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-group-info .card-detail {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .session-count-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 4px;
+    }
+
+    .session-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-surface-container-low);
+      font-size: 13px;
+    }
+
+    .session-item-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .session-id-label {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .session-time {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .session-item-addr {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      width: 100%;
+    }
+
+    .session-item .card-actions {
+      margin-top: 0;
+      margin-left: auto;
+    }
+
+    .user-group-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px solid var(--md-sys-color-surface-variant);
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 12px 0;
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .pagination-bar .page-info {
+      min-width: 100px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pagination-bar p-select {
+      margin-left: 12px;
+    }
+  </style>
+
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/tabs/tab-bar.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+
+  <div class="container">
+    <div class="top-bar">
+      <div
+        class="status-bar"
+        class:connected="connected"
+        class:disconnected="!connected"
+      >
+        <span>{{connected ? '已连接' : '未连接'}}</span>
+        <span :style.display="connected ? '' : 'none'"
+          >— {{adminUsername}}</span
+        >
+      </div>
+
+      <p-tab-bar>
+        <p-tab-item attr:active="!groupByUser" on:click="groupByUser = false">
+          <span>实时会话</span>
+        </p-tab-item>
+        <p-tab-item attr:active="groupByUser" on:click="groupByUser = true">
+          <span>在线用户</span>
+        </p-tab-item>
+      </p-tab-bar>
+
+      <p-button
+        variant="outlined"
+        on:click="refreshUsers"
+        attr:disabled="!connected"
+      >
+        刷新用户列表
+      </p-button>
+
+      <div class="user-count" :style.display="connected ? '' : 'none'">
+        <o-if :value="!groupByUser">
+          在线会话：{{totalUsers}} 个（本页 {{users.length}} 个）
+        </o-if>
+        <o-else>
+          在线用户：{{totalUsers}} 个（本页 {{userGroupList.length}} 个）
+        </o-else>
+      </div>
+    </div>
+
+    <!-- 按会话显示（原有视图） -->
+    <div class="card-grid" :style.display="groupByUser ? 'none' : ''">
+      <o-fill :value="users">
+        <div class="user-card">
+          <div class="card-header">
+            <div class="user-avatar" class:admin="$data.isAdmin">
+              {{$data.avatar}}
+            </div>
+            <div>
+              <div class="card-username">{{$data.username}}</div>
+              <div class="card-detail">
+                <span class="card-addr">{{$data.host || $data.addr}}</span>
+                <span
+                  class="latency-badge"
+                  class:high="$data.latencyMs > 200"
+                  :style.display="$data.latencyMs != null ? '' : 'none'"
+                  >{{$data.latencyMs}}ms</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="card-detail">
+            <span>连接时间：{{$data.connectedTime}}</span>
+            <span>Session：{{$data.sessionId}}</span>
+          </div>
+
+          <div class="card-badges">
+            <span
+              class="admin-badge"
+              :style.display="$data.isAdmin ? '' : 'none'"
+              >管理员</span
+            >
+          </div>
+          <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
+            <p-button
+              color="error"
+              size="xs"
+              on:click="$host.kickSession($data.userId, $data.sessionId)"
+              attr:disabled="$data.isSelf"
+            >
+              断开会话
+            </p-button>
+            <p-button
+              variant="outlined"
+              color="error"
+              size="xs"
+              on:click="$host.kickUser($data.userId)"
+              attr:disabled="$data.isSelf"
+            >
+              断开所有
+            </p-button>
+          </div>
+        </div>
+      </o-fill>
+    </div>
+
+    <!-- 按用户显示（分组视图） -->
+    <div class="card-grid" :style.display="groupByUser ? '' : 'none'">
+      <o-fill :value="userGroupList">
+        <div class="user-group-card">
+          <div class="card-header">
+            <div class="user-avatar" class:admin="$data.isAdmin">
+              {{$data.avatar}}
+            </div>
+            <div class="user-group-info">
+              <div class="card-username">{{$data.username}}</div>
+              <div class="card-detail">
+                <span>用户ID：{{$data.userId}}</span>
+                <span class="session-count-badge"
+                  >{{$data.sessionCount}} 个会话</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="session-list">
+            <o-fill :value="$data.sessions">
+              <div class="session-item">
+                <div class="session-item-main">
+                  <span class="session-id-label"
+                    >Session：{{$data.sessionId}}</span
+                  >
+                  <span
+                    class="latency-badge"
+                    class:high="$data.latencyMs > 200"
+                    :style.display="$data.latencyMs != null ? '' : 'none'"
+                    >{{$data.latencyMs}}ms</span
+                  >
+                  <span class="session-time">{{$data.connectedTime}}</span>
+                </div>
+                <div class="session-item-addr">
+                  {{$data.host || $data.addr}}
+                </div>
+                <div
+                  class="card-actions"
+                  :style.display="$data.isSelf ? 'none' : ''"
+                >
+                  <p-button
+                    color="error"
+                    size="xs"
+                    on:click="$host.kickSession($data.userId, $data.sessionId)"
+                    attr:disabled="$data.isSelf"
+                  >
+                    断开会话
+                  </p-button>
+                </div>
+              </div>
+            </o-fill>
+          </div>
+          <div class="user-group-actions">
+            <p-button
+              variant="outlined"
+              color="primary"
+              size="xs"
+              on:click="$host.showTrafficHistory($data.userId, $data.username)"
+              attr:disabled="!$host._adminUser"
+            >
+              流量历史
+            </p-button>
+            <p-button
+              variant="outlined"
+              color="primary"
+              size="xs"
+              on:click="$host.openQuotaDialog($data)"
+              attr:disabled="$data.isSelf"
+            >
+              设置额度
+            </p-button>
+            <p-button
+              variant="outlined"
+              color="error"
+              size="xs"
+              on:click="$host.kickUser($data.userId)"
+              attr:disabled="$data.isSelf"
+            >
+              断开该用户所有会话
+            </p-button>
+          </div>
+        </div>
+      </o-fill>
+    </div>
+
+    <div
+      class="empty-state"
+      :style.display="users.length === 0 && connected && !groupByUser ? '' : 'none'"
+    >
+      暂无在线用户
+    </div>
+
+    <div
+      class="pagination-bar"
+      :style.display="connected && totalPages > 0 ? '' : 'none'"
+    >
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goFirstPage"
+        attr:disabled="currentPage <= 1"
+        >首页</p-button
+      >
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goPrevPage"
+        attr:disabled="currentPage <= 1"
+        >上一页</p-button
+      >
+      <span class="page-info">
+        <o-if :value="!groupByUser">
+          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个会话
+        </o-if>
+        <o-else>
+          第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
+        </o-else>
+      </span>
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goNextPage"
+        attr:disabled="currentPage >= totalPages"
+      >
+        下一页
+      </p-button>
+      <p-button
+        variant="outlined"
+        size="xs"
+        on:click="goLastPage"
+        attr:disabled="currentPage >= totalPages"
+      >
+        末页
+      </p-button>
+      <p-select size="s" on:change="changePageSize" :value="20">
+        <p-option value="10">10条/页</p-option>
+        <p-option value="20">20条/页</p-option>
+        <p-option value="50">50条/页</p-option>
+        <p-option value="100">100条/页</p-option>
+      </p-select>
+    </div>
+  </div>
+
+  <p-dialog id="traffic-history-dialog" sync:open="historyDialogOpen">
+    <span slot="title">{{historyDialogTitle}}</span>
+    <o-if :value="historyDialogOpen">
+      <o-page :src="historyPageSrc"></o-page>
+    </o-if>
+    <div slot="bottom">
+      <p-button color="primary" on:click="closeTrafficHistory">关闭</p-button>
+    </div>
+  </p-dialog>
+
+  <p-dialog id="quota-dialog" sync:open="quotaDialogOpen">
+    <span slot="title">设置额度 — {{quotaDialogTarget?.username}}</span>
+    <div class="quota-dialog-body" :style.display="quotaDialogOpen ? '' : 'none'">
+      <label>额度（字节）</label>
+      <input type="number" min="0" step="1024" sync:value="quotaDialogBytes" />
+      <div class="quota-quick-buttons">
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)">1MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="outlined" on:click="closeQuotaDialog">取消</p-button>
+      <p-button color="primary" on:click="confirmQuota">确定</p-button>
+    </div>
+  </p-dialog>
+
+  <style>
+    .quota-dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 280px;
+    }
+    .quota-dialog-body label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .quota-dialog-body input {
+      padding: 10px 12px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: 8px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .quota-quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+
+  <script>
+    export default async ({ query, load }) => {
+      const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
+      const WS_URL = getCurrentServerUrl();
+
+      return {
+        parent: "./layout.html",
+        data: {
+          connected: false,
+          connecting: false,
+          adminUsername: "",
+          adminUserId: "",
+          users: [],
+          userGroupList: [],
+          currentPage: 1,
+          pageSize: 20,
+          totalUsers: 0,
+          totalPages: 0,
+          groupByUser: false,
+          _adminUser: null,
+          _refreshTimer: null,
+          // 流量历史弹窗状态
+          historyDialogOpen: false,
+          historyPageSrc: "",
+          historyTarget: null, // { userId, username }
+          // 额度设置弹窗状态
+          quotaDialogOpen: false,
+          quotaDialogTarget: null, // { userId, username }
+          quotaDialogBytes: "0",
+        },
+
+        proto: {
+          async connect() {
+            if (this.connecting || this.connected) return;
+            this.connecting = true;
+
+            try {
+              if (!this._adminUser) {
+                const { adminUser, adminInfo } = await getAdmin(load);
+                this._adminUser = adminUser;
+                this.adminUserId = adminInfo.userId;
+                this.adminUsername = adminInfo.username;
+
+                adminUser.addEventListener("close", () => this._onClose());
+              }
+
+              // 通过执行 list_users 验证管理员身份并获取初始数据（同时加载第一页）
+              this.currentPage = 1;
+              const response = await this._adminUser.listUsers(WS_URL, {
+                page: 1,
+                pageSize: this.pageSize,
+              });
+
+              if (response.status === "ok") {
+                this.connected = true;
+                this.connecting = false;
+                this._applyUsersResponse(response);
+
+                // 自动每 5 秒刷新用户列表（用于更新延迟等动态数据）
+                this._refreshTimer = setInterval(() => {
+                  this.refreshUsers();
+                }, 5000);
+              } else {
+                throw new Error(response.message || "Not authorized as admin");
+              }
+            } catch (e) {
+              console.error("Connect failed:", e);
+              showServerError(WS_URL, e);
+              this.connecting = false;
+            }
+          },
+
+          async refreshUsers() {
+            if (!this.connected || !this._adminUser) return;
+            try {
+              if (this.groupByUser) {
+                const response = await this._adminUser.listUserGroups(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUserGroupsResponse(response);
+                }
+              } else {
+                const response = await this._adminUser.listUsers(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUsersResponse(response);
+                }
+              }
+            } catch (e) {
+              console.error("refreshUsers failed:", e);
+            }
+          },
+
+          /**
+           * 跳转到指定页
+           */
+          async goToPage(page) {
+            if (!this.connected || !this._adminUser) return;
+            page = Math.max(1, Math.min(page, this.totalPages || 1));
+            if (page === this.currentPage) return;
+            this.currentPage = page;
+            try {
+              if (this.groupByUser) {
+                const response = await this._adminUser.listUserGroups(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUserGroupsResponse(response);
+                }
+              } else {
+                const response = await this._adminUser.listUsers(WS_URL, {
+                  page: this.currentPage,
+                  pageSize: this.pageSize,
+                });
+                if (response.status === "ok") {
+                  this._applyUsersResponse(response);
+                }
+              }
+            } catch (e) {
+              console.error("goToPage failed:", e);
+            }
+          },
+
+          goFirstPage() {
+            this.goToPage(1);
+          },
+          goPrevPage() {
+            this.goToPage(this.currentPage - 1);
+          },
+          goNextPage() {
+            this.goToPage(this.currentPage + 1);
+          },
+          goLastPage() {
+            this.goToPage(this.totalPages);
+          },
+
+          changePageSize(event) {
+            const newSize = parseInt($(event.target).value, 10);
+            if (newSize === this.pageSize) return;
+            this.pageSize = newSize;
+            this.currentPage = 1;
+            this.refreshUsers();
+          },
+
+          /**
+           * 将 listUserGroups 响应应用到视图状态
+           */
+          _applyUserGroupsResponse(response) {
+            this.totalUsers = response.total || 0;
+            this.currentPage = response.page || 1;
+            this.pageSize = response.page_size || this.pageSize;
+            this.totalPages = Math.max(
+              1,
+              Math.ceil(this.totalUsers / this.pageSize),
+            );
+            this.userGroupList = (response.users || []).map((g) => ({
+              ...g,
+              avatar: (g.username || "?")[0].toUpperCase(),
+              isSelf: g.userId === this.adminUserId,
+              isAdmin: g.userId === this.adminUserId,
+              sessions: (g.sessions || []).map((s) => ({
+                ...s,
+                userId: g.userId,
+                host: s.host || "",
+                connectedTime: this._formatTime(s.connectedAt),
+              })),
+            }));
+            // 在用户模式下，users 也清空以释放内存
+            this.users = [];
+          },
+
+          /**
+           * 按 userId 分组计算属性
+           * 将扁平的 session 列表按用户分组，返回用户数组
+           * 每个用户包含：userId, username, avatar, isAdmin, isSelf, sessionCount, sessions[]
+           */
+          get userGroups() {
+            const groups = {};
+            for (const u of this.users) {
+              if (!groups[u.userId]) {
+                groups[u.userId] = {
+                  userId: u.userId,
+                  username: u.username,
+                  avatar: u.avatar,
+                  isAdmin: u.isAdmin,
+                  isSelf: u.isSelf,
+                  sessions: [],
+                  sessionCount: 0,
+                };
+              }
+              groups[u.userId].sessions.push(u);
+              groups[u.userId].sessionCount++;
+            }
+            return Object.values(groups);
+          },
+
+          /**
+           * 将 listUsers 响应应用到视图状态
+           */
+          _applyUsersResponse(response) {
+            this.totalUsers = response.total || 0;
+            this.currentPage = response.page || 1;
+            this.pageSize = response.page_size || this.pageSize;
+            this.totalPages = Math.max(
+              1,
+              Math.ceil(this.totalUsers / this.pageSize),
+            );
+            this.users = (response.users || []).map((u) => ({
+              ...u,
+              avatar: (u.username || "?")[0].toUpperCase(),
+              isSelf: u.userId === this.adminUserId,
+              isAdmin: u.userId === this.adminUserId,
+              connectedTime: this._formatTime(u.connectedAt),
+            }));
+          },
+
+          async kickUser(userId) {
+            if (!this.connected || !this._adminUser) return;
+            if (userId === this.adminUserId) return;
+            try {
+              await this._adminUser.disconnectUser(WS_URL, userId);
+              await this.refreshUsers();
+            } catch (e) {
+              console.error("kickUser failed:", e);
+            }
+          },
+
+          async kickSession(userId, sessionId) {
+            if (!this.connected || !this._adminUser) return;
+            if (userId === this.adminUserId) return;
+            try {
+              await this._adminUser.disconnectSession(
+                WS_URL,
+                userId,
+                sessionId,
+              );
+              await this.refreshUsers();
+            } catch (e) {
+              console.error("kickSession failed:", e);
+            }
+          },
+
+          /**
+           * 打开指定用户的流量历史弹窗
+           * @param {string} userId
+           * @param {string} username
+           */
+          showTrafficHistory(userId, username) {
+            if (!this.connected || !this._adminUser) return;
+            this.historyTarget = { userId, username };
+            // 加一个时间戳强制 o-page 每次都重新挂载，确保拉到最新数据
+            this.historyPageSrc = `./traffic-history-page.html?userId=${encodeURIComponent(
+              userId,
+            )}&t=${Date.now()}`;
+            this.historyDialogOpen = true;
+          },
+
+          /**
+           * 关闭流量历史弹窗并清空临时数据
+           */
+          closeTrafficHistory() {
+            this.historyDialogOpen = false;
+            this.historyPageSrc = "";
+            this.historyTarget = null;
+          },
+
+          /**
+           * 打开设置额度弹窗
+           */
+          openQuotaDialog(group) {
+            if (!this.connected || !this._adminUser || group.isSelf) return;
+            this.quotaDialogTarget = { userId: group.userId, username: group.username };
+            this.quotaDialogBytes = "0";
+            this.quotaDialogOpen = true;
+          },
+
+          /**
+           * 关闭额度设置弹窗
+           */
+          closeQuotaDialog() {
+            this.quotaDialogOpen = false;
+            this.quotaDialogTarget = null;
+            this.quotaDialogBytes = "0";
+          },
+
+          /**
+           * 设置快速额度
+           */
+          setQuickQuota(bytes) {
+            this.quotaDialogBytes = String(bytes);
+          },
+
+          /**
+           * 确认设置额度
+           */
+          async confirmQuota() {
+            if (!this.quotaDialogTarget || !this._adminUser) return;
+            const bytes = parseInt(this.quotaDialogBytes, 10);
+            if (Number.isNaN(bytes) || bytes < 0) return;
+            try {
+              const result = await this._adminUser.setUserRelayQuota(
+                WS_URL,
+                this.quotaDialogTarget.userId,
+                bytes,
+              );
+              if (result.status === "ok") {
+                this.closeQuotaDialog();
+              }
+            } catch (e) {
+              console.error("confirmQuota failed:", e);
+            }
+          },
+
+          _formatTime(epochMs) {
+            if (!epochMs) return "";
+            const d = new Date(epochMs);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+          },
+
+          /**
+           * 流量历史弹窗标题
+           */
+          get historyDialogTitle() {
+            if (!this.historyTarget) return "流量历史";
+            const name = this.historyTarget.username || "未命名用户";
+            return `${name} 的流量历史`;
+          },
+
+          _onClose() {
+            this.connected = false;
+            this.users = [];
+            this.userGroupList = [];
+            this.currentPage = 1;
+            this.totalUsers = 0;
+            this.totalPages = 0;
+            if (this._refreshTimer) {
+              clearInterval(this._refreshTimer);
+              this._refreshTimer = null;
+            }
+          },
+        },
+
+        watch: {
+          groupByUser() {
+            this.currentPage = 1;
+            this.refreshUsers();
+          },
+          historyDialogOpen(open) {
+            if (!open) {
+              // 关闭弹窗时清空 src 释放子页面实例
+              this.historyPageSrc = "";
+              this.historyTarget = null;
+            }
+          },
+          quotaDialogOpen(open) {
+            if (!open) {
+              this.quotaDialogTarget = null;
+              this.quotaDialogBytes = "0";
+            }
+          },
+        },
+
+        attached() {
+          this.connect();
+        },
+
+        detached() {
+          if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+          }
+          this._adminUser = null;
+        },
+      };
+    };
+  </script>
+</template>

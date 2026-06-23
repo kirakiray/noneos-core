@@ -1,0 +1,208 @@
+<template page>
+  <style>
+    :host {
+      height: 100%;
+    }
+
+    main {
+      position: relative;
+      display: block;
+      height: 100%;
+      box-sizing: border-box;
+      overflow: auto;
+    }
+
+    .server-avatar {
+      margin-top: auto;
+      align-self: center;
+      margin-bottom: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .server-avatar:hover {
+      background-color: var(--md-sys-color-primary-fixed-dim);
+    }
+
+    .dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 320px;
+    }
+
+    .dialog-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dialog-row label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    p-list-item.active {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      border-radius: 12px;
+    }
+  </style>
+
+  <l-m
+    src="https://punch-ui-v2.pages.dev/packages/navigation/nav-layout.html"
+  ></l-m>
+  <l-m
+    src="https://punch-ui-v2.pages.dev/packages/navigation/nav-bar.html"
+  ></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
+
+  <p-dialog id="server-dialog" sync:open="serverDialogOpen" auto-close>
+    <span slot="title">切换服务器地址</span>
+    <div class="dialog-body">
+      <p-list>
+        <o-fill :value="savedUrls">
+          <p-list-item button class:active="$host.currentUrl === $data" on:click="$host.switchToServer($data)">
+            <span ellipsis="1">{{$data}}</span>
+            <p-button slot="suffix" icon variant="text" color="error" size="s" on:click="$host.removeServer($event, $data)">×</p-button>
+          </p-list-item>
+        </o-fill>
+      </p-list>
+      <div class="dialog-row add-row">
+        <p-input placeholder="ws://localhost:8081" sync:value="newUrl">
+          <span slot="suffix">
+            <p-button icon size="s" color="primary" on:click="addNewServer">+</p-button>
+          </span>
+        </p-input>
+      </div>
+    </div>
+    <div slot="bottom">
+      <p-button variant="text" on:click="closeServerDialog">关闭</p-button>
+    </div>
+  </p-dialog>
+
+  <p-nav-layout>
+    <main>
+      <slot></slot>
+    </main>
+
+    <p-nav-bar slot="nav">
+      <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
+        <span slot="icon">⚙️</span>
+        <span>在线会话</span>
+      </p-nav-item>
+      <p-nav-item attr:active="activeAllUsers" on:click="navigateToAllUsers">
+        <span slot="icon">👥</span>
+        <span>所有用户</span>
+      </p-nav-item>
+      <p-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
+        <span slot="icon">📊</span>
+        <span>系统信息</span>
+      </p-nav-item>
+      <p-nav-item attr:active="activeTraffic" on:click="navigateToTraffic">
+        <span slot="icon">📈</span>
+        <span>流量统计</span>
+      </p-nav-item>
+
+      <div class="server-avatar" on:click="openServerDialog" attr:title="currentUrl">🌐</div>
+    </p-nav-bar>
+
+  <script>
+    export default async ({ load }) => {
+      const {
+        getCurrentServerUrl,
+        getServerHistory,
+        setCurrentServerUrl,
+        addServerHistory,
+        removeServerHistory,
+      } = await load("./admin-shared.js");
+
+      return {
+        data: {
+          activeAdmin: true,
+          activeAllUsers: false,
+          activeSysInfo: false,
+          activeTraffic: false,
+          currentUrl: getCurrentServerUrl(),
+          serverDialogOpen: false,
+          savedUrls: getServerHistory(),
+          newUrl: "",
+        },
+        routerChange() {
+          this.refreshActive();
+        },
+        attached() {
+          this.refreshActive();
+        },
+        proto: {
+          refreshActive() {
+            const { current } = this.app;
+            if (!current) return;
+            const path = current.src || "";
+            this.activeAdmin = path.endsWith("admin.html");
+            this.activeAllUsers = path.endsWith("all-users.html");
+            this.activeSysInfo = path.endsWith("system-info.html");
+            this.activeTraffic = path.endsWith("traffic.html");
+          },
+          navigateToAdmin() {
+            this.goto("./admin.html");
+          },
+          navigateToAllUsers() {
+            this.goto("./all-users.html");
+          },
+          navigateToSysInfo() {
+            this.goto("./system-info.html");
+          },
+          navigateToTraffic() {
+            this.goto("./traffic.html");
+          },
+          openServerDialog() {
+            this.savedUrls = getServerHistory();
+            this.newUrl = "";
+            this.serverDialogOpen = true;
+          },
+          closeServerDialog() {
+            this.serverDialogOpen = false;
+          },
+          switchToServer(url) {
+            if (!url) return;
+            setCurrentServerUrl(url);
+            addServerHistory(url);
+            this.serverDialogOpen = false;
+            window.location.reload();
+          },
+          addNewServer() {
+            const url = (this.newUrl || "").trim();
+            if (!url) return;
+            if (!/^wss?:\/\//i.test(url)) {
+              alert("服务器地址必须以 ws:// 或 wss:// 开头");
+              return;
+            }
+            addServerHistory(url);
+            this.savedUrls = getServerHistory();
+            this.newUrl = "";
+          },
+          removeServer(event, url) {
+            event.stopPropagation();
+            removeServerHistory(url);
+            this.savedUrls = getServerHistory();
+          },
+        },
+      };
+    };
+  </script>
+</template>

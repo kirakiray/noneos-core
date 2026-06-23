@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>清除所有用户数据</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      background-color: #dc3545;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .btn:hover {
+      background-color: #c82333;
+    }
+
+    .btn:active {
+      background-color: #bd2130;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .status.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+      display: block;
+    }
+
+    .status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      display: block;
+    }
+
+    .status.info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+      display: block;
+    }
+
+    .db-list {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .db-list.show {
+      display: block;
+    }
+
+    .db-item {
+      padding: 8px;
+      margin: 5px 0;
+      background-color: white;
+      border-radius: 4px;
+      border-left: 3px solid #dc3545;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>清除所有用户数据</h1>
+    
+    <p>此操作将删除本地所有以 <code>nos_user</code> 开头的 IndexedDB 数据库，包括用户密钥和证书数据。</p>
+    
+    <button class="btn" id="deleteBtn">清除所有带nos user</button>
+    
+    <div class="status" id="status"></div>
+    
+    <div class="db-list" id="dbList">
+      <h3>已删除的数据库：</h3>
+      <div id="dbItems"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    const deleteBtn = document.getElementById('deleteBtn');
+    const statusDiv = document.getElementById('status');
+    const dbListDiv = document.getElementById('dbList');
+    const dbItemsDiv = document.getElementById('dbItems');
+
+    let pendingDatabases = []; // 存储待删除的数据库列表
+
+    function showStatus(message, type) {
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+    }
+
+    function showDbList(databases, isPending = false) {
+      if (databases.length === 0) {
+        dbItemsDiv.innerHTML = '<p>没有找到以 nos_user 开头的数据库</p>';
+      } else {
+        const headerText = isPending ? '待删除的数据库：' : '已删除的数据库：';
+        dbListDiv.querySelector('h3').textContent = headerText;
+        dbItemsDiv.innerHTML = databases.map(db => 
+          `<div class="db-item">${db}</div>`
+        ).join('');
+      }
+      dbListDiv.classList.add('show');
+    }
+
+    async function getAllDatabases() {
+      // 检查浏览器是否支持 indexedDB.databases()
+      if ('databases' in indexedDB) {
+        const dbs = await indexedDB.databases();
+        return dbs.map(db => db.name).filter(name => name && name.startsWith('nos_user'));
+      } else {
+        // 如果不支持，提示用户
+        throw new Error('您的浏览器不支持获取所有数据库列表，请使用现代浏览器（如 Chrome、Edge）');
+      }
+    }
+
+    async function deleteDatabase(dbName) {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(dbName);
+        
+        request.onsuccess = () => {
+          resolve(true);
+        };
+        
+        request.onerror = () => {
+          reject(new Error(`删除数据库 ${dbName} 失败`));
+        };
+        
+        request.onblocked = () => {
+          // 数据库被阻塞，可能还有连接未关闭
+          console.warn(`删除数据库 ${dbName} 被阻塞，请关闭其他使用该数据库的标签页`);
+        };
+      });
+    }
+
+    deleteBtn.addEventListener('click', async () => {
+      try {
+        // 如果已经有待删除的数据库列表，执行删除
+        if (pendingDatabases.length > 0) {
+          const confirmed = confirm(
+            '⚠️ 警告：此操作不可逆！\n\n' +
+            '即将清除本地的所有用户数据（包括用户密钥和证书）。\n\n' +
+            '请确认是否继续？'
+          );
+
+          if (!confirmed) {
+            return;
+          }
+
+          // 删除所有数据库
+          showStatus(`正在删除 ${pendingDatabases.length} 个用户数据库...`, 'info');
+          
+          const deletePromises = pendingDatabases.map(dbName => deleteDatabase(dbName));
+          await Promise.all(deletePromises);
+
+          // 显示成功消息和已删除的数据库列表
+          showStatus(`成功删除 ${pendingDatabases.length} 个用户数据库`, 'success');
+          showDbList(pendingDatabases, false);
+          
+          // 清空待删除列表
+          pendingDatabases = [];
+          deleteBtn.textContent = '清除所有带nos user';
+          return;
+        }
+
+      } catch (error) {
+        console.error('删除数据库时出错:', error);
+        showStatus(`错误：${error.message}`, 'error');
+      }
+    });
+
+    // 页面加载时自动扫描并展示数据库列表
+    async function init() {
+      try {
+        showStatus('正在扫描数据库...', 'info');
+        
+        const databases = await getAllDatabases();
+        
+        if (databases.length === 0) {
+          showStatus('没有找到需要删除的用户数据库', 'info');
+          showDbList([]);
+          return;
+        }
+
+        // 显示找到的数据库列表
+        showStatus(`找到 ${databases.length} 个用户数据库，请确认删除`, 'info');
+        showDbList(databases, true);
+        
+        // 保存待删除列表并更新按钮文本
+        pendingDatabases = databases;
+        deleteBtn.textContent = '确认删除';
+
+      } catch (error) {
+        console.error('扫描数据库时出错:', error);
+        showStatus(`错误：${error.message}`, 'error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+
+</html>
