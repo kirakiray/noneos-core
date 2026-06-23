@@ -114,6 +114,10 @@
               expectedUserId: adminData.info.userId,
               importedUsername: adminImportedInfo.username,
               expectedUsername: adminData.info.username,
+              checks: {
+                isUserIdMatch,
+                isUsernameMatch,
+              },
             },
           };
         </script>
@@ -162,6 +166,11 @@
               message: isAdminAuth ? "Admin user verified via list_users command" : "Admin verification failed",
               listResponse: listResult,
               error: listError?.message,
+              checks: {
+                isAdminAuth,
+                listStatusOk: listResult?.status === "ok",
+                hasUsersArray: Array.isArray(listResult?.users),
+              },
             },
           };
         </script>
@@ -225,6 +234,13 @@
               paginationWithParamsOK,
               users: adminListResponse?.users,
               responseMessage: adminListResponse?.message,
+              checks: {
+                isListOK,
+                hasUsers,
+                selfInList,
+                hasPaginationFields,
+                paginationWithParamsOK,
+              },
             },
           };
         </script>
@@ -320,6 +336,11 @@
               status: normHandshake.status,
               is_admin: normHandshake.is_admin,
               handshakeMessage: normHandshake.message,
+              checks: {
+                isNormAuth,
+                handshakeSuccess: normHandshake?.status === "success",
+                isAdminFalse: normHandshake?.is_admin === false,
+              },
             },
           };
         </script>
@@ -373,6 +394,11 @@
             content: {
               message: isDenied ? "Non-admin correctly denied permission" : "Permission check failed",
               response: norm2AdminResp,
+              checks: {
+                isDenied,
+                responseStatusError: norm2AdminResp?.status === "error",
+                messageIncludesPermissionDenied: norm2AdminResp?.message?.includes("Permission denied"),
+              },
             },
           };
         </script>
@@ -435,6 +461,11 @@
                 : "Disconnect test failed",
               disconnectResult: adminDiscResult,
               victimClosed: victimClosed,
+              checks: {
+                isDisconnectOK,
+                victimClosed,
+                disconnectAction: adminDiscResult?.action === "disconnect_user",
+              },
             },
           };
         </script>
@@ -499,7 +530,13 @@
                 : "History user list verification failed",
               histResponse,
               victimRecord,
-              adminRecord
+              adminRecord,
+              checks: {
+                isHistOK,
+                hasVictim,
+                victimOffline,
+                adminOnline,
+              },
             },
           };
         </script>
@@ -656,6 +693,13 @@
               initialTotal: adminSessListResult.total,
               initialPage: adminSessListResult.page,
               initialPageSize: adminSessListResult.page_size,
+              checks: {
+                disconnectOK,
+                session1StillConnected,
+                session2Disconnected,
+                onlyOneSessionLeft,
+                hasPagination,
+              },
             },
           };
         </script>
