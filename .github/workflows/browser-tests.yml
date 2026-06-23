@@ -14,16 +14,28 @@ jobs:
       - name: Build WebSocket servers
         working-directory: server
         run: cargo build
-      - name: Start WebSocket servers
-        working-directory: server
+      - name: Install npm dependencies
+        run: npm install
+      - name: Start servers and run tests
         run: |
+          # Start WS handshake servers in background
+          cd server
           cargo run -- --config test-space/config.example.toml &
+          PID1=$!
           cargo run -- --config test-space/config2.toml &
-          echo "Waiting for servers to start..."
+          PID2=$!
+          cd ..
+
+          echo "Waiting for WS servers to start..."
           sleep 3
-      - uses: ofajs/sibyl-test@v1
-        with:
-          browsers: 'chrome,firefox'
+
+          # Run browser tests (sb-test starts its own HTTP server)
+          npx sb-test --browsers chrome,firefox || EXIT_CODE=$?
+
+          # Cleanup
+          kill $PID1 $PID2 2>/dev/null
+
+          exit ${EXIT_CODE:-0}
 
   test-webkit:
     runs-on: macos-latest
@@ -33,13 +45,25 @@ jobs:
       - name: Build WebSocket servers
         working-directory: server
         run: cargo build
-      - name: Start WebSocket servers
-        working-directory: server
+      - name: Install npm dependencies
+        run: npm install
+      - name: Start servers and run tests
         run: |
+          # Start WS handshake servers in background
+          cd server
           cargo run -- --config test-space/config.example.toml &
+          PID1=$!
           cargo run -- --config test-space/config2.toml &
-          echo "Waiting for servers to start..."
+          PID2=$!
+          cd ..
+
+          echo "Waiting for WS servers to start..."
           sleep 3
-      - uses: ofajs/sibyl-test@v1
-        with:
-          browsers: 'webkit'
+
+          # Run browser tests (sb-test starts its own HTTP server)
+          npx sb-test --browsers webkit || EXIT_CODE=$?
+
+          # Cleanup
+          kill $PID1 $PID2 2>/dev/null
+
+          exit ${EXIT_CODE:-0}
