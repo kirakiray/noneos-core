@@ -16,6 +16,7 @@ export class AdminUser extends LocalUser {
     await this.server.connect(url);
 
     return new Promise((resolve, reject) => {
+      let resolved = false;
       const handler = (e) => {
         let data;
         try {
@@ -24,7 +25,8 @@ export class AdminUser extends LocalUser {
           return;
         }
         if (data?.type === "admin_response" && data.action === action) {
-          this.removeEventListener("message", handler);
+          resolved = true;
+          unbind();
           resolve(data);
         }
       };
@@ -34,8 +36,10 @@ export class AdminUser extends LocalUser {
       this.server.sendToServer(url, JSON.stringify({ type: "admin", action, ...extra }));
 
       setTimeout(() => {
-        unbind();
-        reject(new Error(`Admin command "${action}" timed out`));
+        if (!resolved) {
+          unbind();
+          reject(new Error(`Admin command "${action}" timed out`));
+        }
       }, 5000);
     });
   }

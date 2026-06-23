@@ -308,6 +308,7 @@ export class ServerManager {
     await this.connect(url);
 
     return new Promise((resolve, reject) => {
+      let resolved = false;
       const handler = (e) => {
         let data;
         try {
@@ -320,6 +321,7 @@ export class ServerManager {
         }
         if (data?.type === responseType) {
           if (responseAction === undefined || data.action === responseAction) {
+            resolved = true;
             unbind();
             resolve(data);
           }
@@ -330,8 +332,10 @@ export class ServerManager {
       this.sendToServer(url, JSON.stringify(request));
 
       setTimeout(() => {
-        unbind();
-        reject(new Error(`Command timed out (type: ${responseType})`));
+        if (!resolved) {
+          unbind();
+          reject(new Error(`Command timed out (type: ${responseType})`));
+        }
       }, timeout);
     });
   }
