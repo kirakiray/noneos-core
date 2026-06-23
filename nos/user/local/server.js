@@ -1,6 +1,14 @@
 import { getServerList, saveServerList } from "../db.js";
 
-const DEFAULT_SERVERS = ["ws://localhost:8081", "ws://localhost:8082"];
+const DEFAULT_SERVERS = (() => {
+  const hostname =
+    typeof window !== "undefined" ? window.location.hostname : "";
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return ["ws://localhost:8081", "ws://localhost:8082"];
+  }
+  return ["wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4332"];
+})();
+
 const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期
 
 export class ServerManager {
@@ -117,7 +125,10 @@ export class ServerManager {
         existingWs.readyState === WebSocket.OPEN ||
         existingWs.readyState === WebSocket.CONNECTING
       ) {
-        return { success: true, version: this.#serverVersions.get(url) || null };
+        return {
+          success: true,
+          version: this.#serverVersions.get(url) || null,
+        };
       }
       this.#wsMap.delete(url);
       this.#serverVersions.delete(url);
@@ -369,7 +380,10 @@ export class ServerManager {
 
     const results = await Promise.allSettled(
       urls.map(async (url) => {
-        const { online, sessions, sessionInfo } = await this.queryUserOnline(url, targetUserId);
+        const { online, sessions, sessionInfo } = await this.queryUserOnline(
+          url,
+          targetUserId,
+        );
         if (!online) return null;
 
         // 获取本端延迟，优先缓存，无缓存则实时测量
