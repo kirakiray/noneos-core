@@ -1,7 +1,7 @@
 port = 8082
 host = "localhost"
 admin_user_id = "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c981"
-handshake_timeout_secs = 1
+handshake_timeout_secs = 2
 
 # 握手响应最大字节数（包含 userId/sessionId/username/challenge/签名等，默认 1024）
 handshake_max_size = 1024
