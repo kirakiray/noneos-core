@@ -63,8 +63,11 @@
 
         await remoteB.send(userB.sessionId, "hello from A");
 
-        // 等待消息到达
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // 轮询等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedMessage !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
 
         const messageReceived = receivedMessage === "hello from A";
 
@@ -146,8 +149,11 @@
         const remoteC = await userD.connectUser(userC.userId);
         await remoteC.send(userC.sessionId, "hello from D");
 
-        // 等待消息到达
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // 轮询等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (remoteMessageDetail !== null && localMessageDetail !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
 
         const remoteEventReceived =
           remoteMessageDetail !== null &&
@@ -235,8 +241,11 @@
         const binaryPayload = new Uint8Array([0x00, 0x01, 0x02, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc]);
         await remoteF.send(userF.sessionId, binaryPayload);
 
-        // 等待消息到达
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // 轮询等待二进制消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedBinary !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
 
         const binaryReceived = receivedBinary !== null;
         const payloadMatch =
