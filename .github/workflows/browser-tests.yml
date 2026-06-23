@@ -10,60 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Build WebSocket servers
-        working-directory: server
-        run: cargo build
-      - name: Install npm dependencies
-        run: npm install
-      - name: Start servers and run tests
-        run: |
-          # Start WS handshake servers in background
-          cd server
-          cargo run -- --config test-space/config.example.toml &
-          PID1=$!
-          cargo run -- --config test-space/config2.toml &
-          PID2=$!
-          cd ..
-
-          echo "Waiting for WS servers to start..."
-          sleep 3
-
-          # Run browser tests (sb-test starts its own HTTP server)
-          npx sb-test --browsers chrome,firefox || EXIT_CODE=$?
-
-          # Cleanup
-          kill $PID1 $PID2 2>/dev/null
-
-          exit ${EXIT_CODE:-0}
-
+      - uses: ofajs/sibyl-test@v1
+        with:
+          browsers: 'chrome,firefox'
   test-webkit:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Build WebSocket servers
-        working-directory: server
-        run: cargo build
-      - name: Install npm dependencies
-        run: npm install
-      - name: Start servers and run tests
-        run: |
-          # Start WS handshake servers in background
-          cd server
-          cargo run -- --config test-space/config.example.toml &
-          PID1=$!
-          cargo run -- --config test-space/config2.toml &
-          PID2=$!
-          cd ..
-
-          echo "Waiting for WS servers to start..."
-          sleep 3
-
-          # Run browser tests (sb-test starts its own HTTP server)
-          npx sb-test --browsers webkit || EXIT_CODE=$?
-
-          # Cleanup
-          kill $PID1 $PID2 2>/dev/null
-
-          exit ${EXIT_CODE:-0}
+      - uses: ofajs/sibyl-test@v1
+        with:
+          browsers: 'webkit'
