@@ -178,14 +178,20 @@
           await hsUserA.server.connect(hsUrl);
           await hsUserB.server.connect(hsUrl);
 
-          // 等待一下让流量统计更新
-          await new Promise(r => setTimeout(r, 200));
-
-          // 管理员查询流量统计
-          const hsResult = await hsAdmin.getTrafficStats(hsUrl);
+          // 轮询流量统计，直到至少有 3 个用户（管理员 + userA + userB）
+          // WebKit 下 WebSocket 处理可能较慢，需要重试
+          let hsResult = null;
+          let hsUserCount = 0;
+          const hsRetryMax = 10;
+          const hsRetryDelay = 300;
+          for (let i = 0; i < hsRetryMax; i++) {
+            hsResult = await hsAdmin.getTrafficStats(hsUrl);
+            hsUserCount = hsResult?.traffic?.users?.length || 0;
+            if (hsUserCount >= 3) break;
+            await new Promise(r => setTimeout(r, hsRetryDelay));
+          }
 
           // 验证：至少有 3 个用户的流量记录（管理员 + userA + userB）
-          const hsUserCount = hsResult?.traffic?.users?.length || 0;
           const hsHasThree = hsUserCount >= 3;
 
           // 每个用户都应该有 handshake 流量
