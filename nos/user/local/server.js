@@ -421,11 +421,13 @@ export class ServerManager {
       return a.localLatency + aRemoteMin - (b.localLatency + bRemoteMin);
     });
 
-    // 写入缓存
-    this.#serverCandidateCache.set(targetUserId, {
-      candidates,
-      timestamp: Date.now(),
-    });
+    // 只缓存非空结果，避免空缓存导致重试机制失效
+    if (candidates.length > 0) {
+      this.#serverCandidateCache.set(targetUserId, {
+        candidates,
+        timestamp: Date.now(),
+      });
+    }
 
     return candidates;
   }

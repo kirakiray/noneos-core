@@ -393,12 +393,12 @@ export class LocalUser extends BaseUser {
     // 使用共享算法查询目标用户在线的服务器（按综合延迟排序）
     // 因并发握手/状态同步可能存在短暂窗口，这里做少量重试
     let bestServer = null;
-    const maxRetries = 3;
+    const maxRetries = 5;
     for (let i = 0; i < maxRetries; i++) {
       bestServer = await this.#server.findBestServer(userId);
       if (bestServer) break;
       if (i < maxRetries - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
     if (!bestServer) {
