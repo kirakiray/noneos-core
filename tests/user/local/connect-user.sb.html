@@ -71,13 +71,24 @@
         return {
           assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
           content: {
-            message: "connectUser 测试成功，发现同用户多个 session 并成功发送消息",
+            message: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived
+              ? "connectUser 测试成功，发现同用户多个 session 并成功发送消息"
+              : "connectUser 测试失败",
             userAId: userA.userId,
             userBId: userB.userId,
             sessionIds,
             expectedSessions: [userB.sessionId, userB2.sessionId, userB3.sessionId],
             sentMessage: "hello from A",
             receivedMessage,
+            // 错误诊断字段
+            checks: {
+              hasB1,
+              hasB2,
+              hasB3,
+              countAtLeast3,
+              sessionCount: sessionIds.length,
+              messageReceived,
+            },
           },
         };
       </script>
@@ -151,9 +162,24 @@
         return {
           assert: remoteEventReceived && localEventReceived,
           content: {
-            message: "RemoteUser message 事件测试成功",
+            message: remoteEventReceived && localEventReceived
+              ? "RemoteUser message 事件测试成功"
+              : "RemoteUser message 事件测试失败",
             remoteEventDetail: remoteMessageDetail,
             localEventDetail: localMessageDetail,
+            // 错误诊断字段
+            checks: {
+              remoteEventReceived,
+              remoteEventNotNull: remoteMessageDetail !== null,
+              remoteFromUserIdMatch: remoteMessageDetail?.fromUserId === userD.userId,
+              remoteDataMatch: remoteMessageDetail?.data === "hello from D",
+              localEventReceived,
+              localEventNotNull: localMessageDetail !== null,
+              localFromUserIdMatch: localMessageDetail?.fromUserId === userD.userId,
+              localDataMatch: localMessageDetail?.data === "hello from D",
+              expectedRemoteFromUserId: userD.userId,
+              expectedData: "hello from D",
+            },
           },
         };
       </script>
@@ -223,11 +249,28 @@
         return {
           assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
           content: {
-            message: "二进制 relay 测试成功",
+            message: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch
+              ? "二进制 relay 测试成功"
+              : "二进制 relay 测试失败",
             expectedPayload: Array.from(binaryPayload),
             receivedPayload: receivedBinary ? Array.from(receivedBinary) : null,
             fromUserId: receivedFromUserId,
             fromSessionId: receivedFromSessionId,
+            // 错误诊断字段
+            checks: {
+              binaryReceived,
+              payloadMatch,
+              payloadLengthMatch: receivedBinary?.length === binaryPayload.length,
+              expectedLength: binaryPayload.length,
+              receivedLength: receivedBinary?.length,
+              payloadElementsMatch: binaryReceived && receivedBinary.every((b, i) => b === binaryPayload[i]),
+              fromUserMatch,
+              expectedFromUserId: userE.userId,
+              actualFromUserId: receivedFromUserId,
+              fromSessionMatch,
+              expectedFromSessionId: userE.sessionId,
+              actualFromSessionId: receivedFromSessionId,
+            },
           },
         };
       </script>
@@ -306,12 +349,14 @@
         // 清理
         await userG.card.delete(userH.userId);
 
+        const allCardChecks = hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+          && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
+          && storedMatch && fromCache;
+
         return {
-          assert: hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
-            && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
-            && storedMatch && fromCache,
+          assert: allCardChecks,
           content: {
-            message: "名片交换测试成功",
+            message: allCardChecks ? "名片交换测试成功" : "名片交换测试失败",
             card: {
               userId: card.userId,
               username: card.username,
@@ -325,6 +370,33 @@
             eventDetail: cardReceivedEvent,
             storedInDb: storedMatch,
             cachedReturned: fromCache,
+            // 错误诊断字段
+            checks: {
+              hasUserId,
+              expectedUserId: userH.userId,
+              actualUserId: card.userId,
+              hasPublicKey,
+              publicKeyValue: card.publicKey,
+              hasUsername,
+              usernameValue: card.username,
+              hasSignTime,
+              signTimeValue: card.signTime,
+              hasSignature,
+              signatureValuePrefix: card.signature ? card.signature.substring(0, 20) + "..." : null,
+              signatureValid,
+              publicKeyMatch,
+              cardPublicKey: card.publicKey,
+              userHPublicKey: userH.publicKey,
+              eventTriggered,
+              eventUserIdMatch,
+              eventUserId: cardReceivedEvent?.userId,
+              eventSaved,
+              eventSavedValue: cardReceivedEvent?.saved,
+              storedMatch,
+              storedUserId: storedCard?.userId,
+              fromCache,
+              cachedUserId: cachedCard?.userId,
+            },
           },
         };
       </script>
@@ -402,10 +474,12 @@
           receivedData.text === "hello encrypted" &&
           receivedData.num === 42;
 
+        const e2eeAllPassed = haveBothCards && haveBothKeys && rawIsBinary && messageCorrect;
+
         return {
-          assert: haveBothCards && haveBothKeys && rawIsBinary && messageCorrect,
+          assert: e2eeAllPassed,
           content: {
-            message: messageCorrect
+            message: e2eeAllPassed
               ? "E2EE 加密测试成功：原始 relay 为二进制帧，解密后内容正确"
               : "E2EE 加密测试失败",
             haveBothCards,
@@ -413,6 +487,22 @@
             rawIsBinary,
             sentData,
             receivedData,
+            // 错误诊断字段
+            checks: {
+              haveBothCards,
+              cardJExists: cardJ !== null,
+              cardIExists: cardI !== null,
+              haveBothKeys,
+              hasUserJKey: !!(await userI.card.getByDB(userJ.userId))?.publicKey,
+              hasUserIKey: !!(await userJ.card.getByDB(userI.userId))?.publicKey,
+              rawIsBinary,
+              messageCorrect,
+              receivedDataIsObject: receivedData !== null && typeof receivedData === "object",
+              receivedTextMatch: receivedData?.text === "hello encrypted",
+              receivedNumMatch: receivedData?.num === 42,
+              expectedText: "hello encrypted",
+              expectedNum: 42,
+            },
           },
         };
       </script>
@@ -514,6 +604,30 @@
             rttEventValid,
             unknownRtt,
             unknownRttValid,
+            // 错误诊断字段
+            checks: {
+              rtt1Valid,
+              rtt1Type: typeof rtt1,
+              rtt1Value: rtt1,
+              getRttWithSessionValid,
+              getRttWithSessionRtt: getRttWithSession?.rtt,
+              getRttWithSessionVia: getRttWithSession?.via,
+              getRttWithSessionUrl: getRttWithSession?.url,
+              bestRttValid,
+              bestRttRtt: bestRtt?.rtt,
+              bestRttVia: bestRtt?.via,
+              bestRttUrl: bestRtt?.url,
+              bestRttBothValid,
+              bestRttBothRtt: bestRttBoth?.rtt,
+              bestRttBothVia: bestRttBoth?.via,
+              rttEventValid,
+              rttEventUserId: rttEvent?.userId,
+              rttEventSessionId: rttEvent?.sessionId,
+              rttEventRtt: rttEvent?.rtt,
+              rttEventVia: rttEvent?.via,
+              unknownRttValid,
+              unknownRttValue: unknownRtt,
+            },
           },
         };
       </script>
