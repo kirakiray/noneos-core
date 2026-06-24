@@ -148,3 +148,31 @@ export async function deleteManifest(namespace, fileHash) {
     request.onerror = () => reject(request.error);
   });
 }
+
+/**
+ * 清理指定 namespace 的全部发布数据（删除整个 IndexedDB 数据库）
+ * 先关闭缓存中的连接，再删除数据库
+ * @param {string} namespace - 用户命名空间
+ * @returns {Promise<void>}
+ */
+export async function clearPublishData(namespace) {
+  if (!namespace) {
+    throw new Error("namespace is required");
+  }
+
+  const dbName = `nos_publish_data_${namespace}`;
+
+  // 关闭缓存中的连接
+  const cached = dbCache.get(namespace);
+  if (cached) {
+    const db = await cached;
+    db.close();
+    dbCache.delete(namespace);
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(dbName);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}

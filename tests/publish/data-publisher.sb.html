@@ -17,7 +17,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
-        import { getManifest, getChunk } from "/nos/publish/db.js";
+        import { getManifest, getChunk, clearPublishData } from "/nos/publish/db.js";
         import { getHash } from "/nos/util/hash/get-hash.js";
 
         const pub_ns = "publish-user-a";
@@ -101,6 +101,8 @@
             },
           },
         };
+
+        await clearPublishData(pub_ns);
       </script>
     </template>
   </sb-test>
@@ -111,7 +113,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
-        import { getManifest, getChunk } from "/nos/publish/db.js";
+        import { getManifest, getChunk, clearPublishData } from "/nos/publish/db.js";
         import { getHash } from "/nos/util/hash/get-hash.js";
 
         const lg_ns = "publish-user-large";
@@ -197,6 +199,8 @@
             },
           },
         };
+
+        await clearPublishData(lg_ns);
       </script>
     </template>
   </sb-test>
@@ -207,6 +211,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const asm_ns = "publish-user-assemble";
         const asm_serverUrl = "ws://localhost:8081";
@@ -256,6 +261,8 @@
             },
           },
         };
+
+        await clearPublishData(asm_ns);
       </script>
     </template>
   </sb-test>
@@ -266,6 +273,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const asmL_ns = "publish-user-assemble-large";
         const asmL_serverUrl = "ws://localhost:8081";
@@ -315,6 +323,8 @@
             },
           },
         };
+
+        await clearPublishData(asmL_ns);
       </script>
     </template>
   </sb-test>
@@ -325,7 +335,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
-        import { deleteChunk } from "/nos/publish/db.js";
+        import { deleteChunk, clearPublishData } from "/nos/publish/db.js";
 
         const miss_ns = "publish-user-missing";
         const miss_serverUrl = "ws://localhost:8081";
@@ -381,6 +391,8 @@
             },
           },
         };
+
+        await clearPublishData(miss_ns);
       </script>
     </template>
   </sb-test>
@@ -391,6 +403,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const rmA_ns = "publish-remote-a";
         const rmB_ns = "publish-remote-b";
@@ -469,6 +482,9 @@
             },
           },
         };
+
+        await clearPublishData(rmA_ns);
+        await clearPublishData(rmB_ns);
       </script>
     </template>
   </sb-test>
@@ -479,6 +495,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const rcA_ns = "publish-chunk-remote-a";
         const rcB_ns = "publish-chunk-remote-b";
@@ -542,6 +559,9 @@
             },
           },
         };
+
+        await clearPublishData(rcA_ns);
+        await clearPublishData(rcB_ns);
       </script>
     </template>
   </sb-test>
@@ -552,6 +572,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const meA_ns = "publish-manifest-error-a";
         const meB_ns = "publish-manifest-error-b";
@@ -606,6 +627,9 @@
             },
           },
         };
+
+        await clearPublishData(meA_ns);
+        await clearPublishData(meB_ns);
       </script>
     </template>
   </sb-test>
@@ -616,6 +640,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const ceA_ns = "publish-chunk-error-a";
         const ceB_ns = "publish-chunk-error-b";
@@ -670,6 +695,9 @@
             },
           },
         };
+
+        await clearPublishData(ceA_ns);
+        await clearPublishData(ceB_ns);
       </script>
     </template>
   </sb-test>
@@ -680,6 +708,7 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
         import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
 
         const frA_ns = "publish-full-a";
         const frB_ns = "publish-full-b";
@@ -775,6 +804,9 @@
             },
           },
         };
+
+        await clearPublishData(frA_ns);
+        await clearPublishData(frB_ns);
       </script>
     </template>
   </sb-test>
