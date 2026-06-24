@@ -55,6 +55,8 @@ importScripts("https://core.noneos.com/sw/dist.js");
 
 触发 `installed` 事件后即可使用 NoneOS Core。
 
+参考：[nos-version 组件文档](references/nos-version.md)
+
 ---
 
 ## 概述

@@ -129,14 +129,24 @@
             this.installStep = 0;
             this.installing = true;
 
-            await install((e) => {
-              this.installStep = e.step;
-              this.installDesc = e.desc;
-              this.installStepTotal = e.total;
-            });
+            this.emit("install-start");
 
-            this.installing = false;
-            this.refreshData();
+            try {
+              await install((e) => {
+                this.installStep = e.step;
+                this.installDesc = e.desc;
+                this.installStepTotal = e.total;
+                this.emit("install-progress", { data: { step: e.step, desc: e.desc, total: e.total } });
+              });
+
+              this.installing = false;
+              this.emit("install-complete");
+              this.refreshData();
+            } catch (err) {
+              this.installing = false;
+              this.loading = false;
+              this.emit("error", { data: { message: err.message, phase: "install" } });
+            }
           },
           async refreshData() {
             this.upgradable = false;
@@ -144,33 +154,44 @@
             this.version = "";
             this.loading = true;
 
-            const stateData = await check();
+            this.emit("check-start");
 
-            if (stateData.state === "uninstalled") {
-              this.installed = false;
-              this.loading = false;
+            try {
+              const stateData = await check();
 
-              if (this.autoInstall !== null) {
-                this.installNoneOSCore();
-              }
-              return;
-            }
+              if (stateData.state === "uninstalled") {
+                this.installed = false;
+                this.loading = false;
 
-            if (stateData.state === "upgradable") {
-              this.upgradable = true;
-              this.lastVersion = stateData.onlineVersion;
+                this.emit("uninstalled");
 
-              if (this.autoInstall !== null) {
-                this.installNoneOSCore();
+                if (this.autoInstall !== null) {
+                  this.installNoneOSCore();
+                }
                 return;
               }
+
+              if (stateData.state === "upgradable") {
+                this.upgradable = true;
+                this.lastVersion = stateData.onlineVersion;
+
+                this.emit("upgradable", { data: { version: stateData.version, lastVersion: stateData.onlineVersion } });
+
+                if (this.autoInstall !== null) {
+                  this.installNoneOSCore();
+                  return;
+                }
+              }
+
+              this.installed = true;
+              this.version = stateData.version;
+              this.loading = false;
+
+              this.emit("installed", { data: { version: stateData.version } });
+            } catch (err) {
+              this.loading = false;
+              this.emit("error", { data: { message: err.message, phase: "check" } });
             }
-
-            this.installed = true;
-            this.version = stateData.version;
-            this.loading = false;
-
-            this.emit("installed");
           },
         },
         attached() {
