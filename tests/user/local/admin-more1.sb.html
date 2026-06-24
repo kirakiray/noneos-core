@@ -262,9 +262,20 @@
           await relayUserA.server.connect(relayUrl);
           await relayUserB.server.connect(relayUrl);
 
-          // 查询用户B的 sessionId
-          const relayQuery = await relayAdmin.server.queryUserOnline(relayUrl, relayUserB.userId);
-          const relayTargetSession = relayQuery.sessions[0];
+          // 等待 relayUserB 上线并注册到服务器
+          let relayTargetSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await relayAdmin.server.queryUserOnline(relayUrl, relayUserB.userId);
+            if (q.online && q.sessions.length > 0) {
+              relayTargetSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!relayTargetSession) {
+            throw new Error("relayUserB did not come online in time");
+          }
 
           // userA 通过服务器 relay 一条消息到 userB
           const relayPayload = { text: "Hello from userA!", seq: 1 };
@@ -346,9 +357,21 @@
           await tdAdmin.server.connect(tdUrl);
           await tdUser.server.connect(tdUrl);
 
-          // 做一些 relay 操作产生流量
-          const tdQuery = await tdAdmin.server.queryUserOnline(tdUrl, tdUser.userId);
-          const tdSession = tdQuery.sessions[0];
+          // 等待 tdUser 上线并注册到服务器
+          let tdSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await tdAdmin.server.queryUserOnline(tdUrl, tdUser.userId);
+            if (q.online && q.sessions.length > 0) {
+              tdSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!tdSession) {
+            throw new Error("tdUser did not come online in time");
+          }
+
           await tdAdmin.server.relayToUserViaServer(tdUrl, tdUser.userId, tdSession, { ping: true });
 
           await new Promise(r => setTimeout(r, 200));
@@ -416,9 +439,20 @@
           await corrAdmin.server.connect(corrUrl);
           await corrUser.server.connect(corrUrl);
 
-          // 发送多条 relay 消息
-          const corrQuery = await corrAdmin.server.queryUserOnline(corrUrl, corrUser.userId);
-          const corrSession = corrQuery.sessions[0];
+          // 等待 corrUser 上线并注册到服务器
+          let corrSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await corrAdmin.server.queryUserOnline(corrUrl, corrUser.userId);
+            if (q.online && q.sessions.length > 0) {
+              corrSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!corrSession) {
+            throw new Error("corrUser did not come online in time");
+          }
 
           for (let i = 0; i < 3; i++) {
             await corrAdmin.server.relayToUserViaServer(corrUrl, corrUser.userId, corrSession, { msg: `hello-${i}` });
@@ -504,9 +538,21 @@
           await histAdmin.server.connect(histUrl);
           await histUser.server.connect(histUrl);
 
-          // 产生一些流量
-          const histQuery = await histAdmin.server.queryUserOnline(histUrl, histUser.userId);
-          const histSession = histQuery.sessions[0];
+          // 等待 histUser 上线并注册到服务器
+          let histSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await histAdmin.server.queryUserOnline(histUrl, histUser.userId);
+            if (q.online && q.sessions.length > 0) {
+              histSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!histSession) {
+            throw new Error("histUser did not come online in time");
+          }
+
           await histAdmin.server.relayToUserViaServer(histUrl, histUser.userId, histSession, { test: "history-data" });
 
           await new Promise(r => setTimeout(r, 300));
