@@ -78,6 +78,7 @@
           await getqAdmin.ready();
 
           const getqUserNs = "quota-target-ns";
+          try { await deleteUser(getqUserNs, { skipConfirm: true }); } catch (e) {}
           const getqUser = new LocalUser(getqUserNs);
           await getqUser.ready();
 
@@ -146,6 +147,7 @@
           await setzAdmin.ready();
 
           const setzUserNs = "quota-zero-target-ns";
+          try { await deleteUser(setzUserNs, { skipConfirm: true }); } catch (e) {}
           const setzUser = new LocalUser(setzUserNs);
           await setzUser.ready();
 
@@ -196,6 +198,7 @@
           await offAdmin.ready();
 
           const offUserNs = "quota-off-target-ns";
+          try { await deleteUser(offUserNs, { skipConfirm: true }); } catch (e) {}
           const offUser = new LocalUser(offUserNs);
           await offUser.ready();
           const targetUserId = offUser.userId;
@@ -275,6 +278,8 @@
 
           const bigrUserANs = "quota-big-a-ns";
           const bigrUserBNs = "quota-big-b-ns";
+          try { await deleteUser(bigrUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(bigrUserBNs, { skipConfirm: true }); } catch (e) {}
           const bigrUserA = new LocalUser(bigrUserANs);
           const bigrUserB = new LocalUser(bigrUserBNs);
           await bigrUserA.ready();
@@ -285,12 +290,23 @@
           await bigrUserA.server.connect(bigrUrl);
           await bigrUserB.server.connect(bigrUrl);
 
+          // 等待 bigrUserB 上线并注册到服务器
+          let bigrTargetSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await bigrAdmin.server.queryUserOnline(bigrUrl, bigrUserB.userId);
+            if (q.online && q.sessions.length > 0) {
+              bigrTargetSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!bigrTargetSession) {
+            throw new Error("bigrUserB did not come online in time");
+          }
+
           // 先把 bigrUserA 的额度设为 0
           await bigrAdmin.setUserRelayQuota(bigrUrl, bigrUserA.userId, 0);
-
-          // 查询 bigrUserB 的 sessionId
-          const bigrQuery = await bigrAdmin.server.queryUserOnline(bigrUrl, bigrUserB.userId);
-          const bigrTargetSession = bigrQuery.sessions[0];
 
           // 构造一条大于 1024 字节的消息
           const bigrPayload = { text: "x".repeat(1500) };
@@ -342,6 +358,8 @@
 
           const smallaUserANs = "quota-small-a-ns";
           const smallaUserBNs = "quota-small-b-ns";
+          try { await deleteUser(smallaUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(smallaUserBNs, { skipConfirm: true }); } catch (e) {}
           const smallaUserA = new LocalUser(smallaUserANs);
           const smallaUserB = new LocalUser(smallaUserBNs);
           await smallaUserA.ready();
@@ -352,11 +370,23 @@
           await smallaUserA.server.connect(smallaUrl);
           await smallaUserB.server.connect(smallaUrl);
 
+          // 等待 smallaUserB 上线并注册到服务器
+          let smallaTargetSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await smallaAdmin.server.queryUserOnline(smallaUrl, smallaUserB.userId);
+            if (q.online && q.sessions.length > 0) {
+              smallaTargetSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!smallaTargetSession) {
+            throw new Error("smallaUserB did not come online in time");
+          }
+
           // 把 smallaUserA 的额度设为 0
           await smallaAdmin.setUserRelayQuota(smallaUrl, smallaUserA.userId, 0);
-
-          const smallaQuery = await smallaAdmin.server.queryUserOnline(smallaUrl, smallaUserB.userId);
-          const smallaTargetSession = smallaQuery.sessions[0];
 
           // 小消息应被放行
           const smallaResult = await smallaUserA.server.relayToUserViaServer(
@@ -406,6 +436,7 @@
           await adminnlAdmin.ready();
 
           const adminnlUserNs = "quota-admin-target-ns";
+          try { await deleteUser(adminnlUserNs, { skipConfirm: true }); } catch (e) {}
           const adminnlUser = new LocalUser(adminnlUserNs);
           await adminnlUser.ready();
 
@@ -413,11 +444,23 @@
           await adminnlAdmin.server.connect(adminnlUrl);
           await adminnlUser.server.connect(adminnlUrl);
 
+          // 等待 adminnlUser 上线并注册到服务器
+          let adminnlTargetSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await adminnlAdmin.server.queryUserOnline(adminnlUrl, adminnlUser.userId);
+            if (q.online && q.sessions.length > 0) {
+              adminnlTargetSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!adminnlTargetSession) {
+            throw new Error("adminnlUser did not come online in time");
+          }
+
           // 把管理员自己的额度也设为 0
           await adminnlAdmin.setUserRelayQuota(adminnlUrl, adminnlAdmin.userId, 0);
-
-          const adminnlQuery = await adminnlAdmin.server.queryUserOnline(adminnlUrl, adminnlUser.userId);
-          const adminnlTargetSession = adminnlQuery.sessions[0];
 
           // 管理员发送大消息不应被拒绝
           const adminnlPayload = { text: "x".repeat(1500) };
@@ -468,6 +511,8 @@
 
           const raiseqUserANs = "quota-raise-a-ns";
           const raiseqUserBNs = "quota-raise-b-ns";
+          try { await deleteUser(raiseqUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(raiseqUserBNs, { skipConfirm: true }); } catch (e) {}
           const raiseqUserA = new LocalUser(raiseqUserANs);
           const raiseqUserB = new LocalUser(raiseqUserBNs);
           await raiseqUserA.ready();
@@ -478,11 +523,24 @@
           await raiseqUserA.server.connect(raiseqUrl);
           await raiseqUserB.server.connect(raiseqUrl);
 
+          // 等待 raiseqUserB 上线并注册到服务器
+          let raiseqTargetSession;
+          for (let i = 0; i < 10; i++) {
+            const q = await raiseqAdmin.server.queryUserOnline(raiseqUrl, raiseqUserB.userId);
+            if (q.online && q.sessions.length > 0) {
+              raiseqTargetSession = q.sessions[0];
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          if (!raiseqTargetSession) {
+            throw new Error("raiseqUserB did not come online in time");
+          }
+
           // 先设为 0，确认大消息被拒绝
           await raiseqAdmin.setUserRelayQuota(raiseqUrl, raiseqUserA.userId, 0);
-          const raiseqQuery = await raiseqAdmin.server.queryUserOnline(raiseqUrl, raiseqUserB.userId);
-          const raiseqTargetSession = raiseqQuery.sessions[0];
-
+          
           const raiseqPayload = { text: "x".repeat(1500) };
           const raiseqBlockedResult = await raiseqUserA.server.relayToUserViaServer(
             raiseqUrl,

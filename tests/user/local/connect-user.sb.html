@@ -444,9 +444,12 @@
         // 交换名片（双方都要持有对方公钥才能 E2EE）
         const cardJ = await userI.card.get(userJ.userId);
         const cardI = await userJ.card.get(userI.userId);
-        const haveBothCards = cardJ !== null && cardI !== null;
-        const haveBothKeys = !!(await userI.card.getByDB(userJ.userId))?.publicKey
-          && !!(await userJ.card.getByDB(userI.userId))?.publicKey;
+        const cardJExists = cardJ !== null;
+        const cardIExists = cardI !== null;
+        const haveBothCards = cardJExists && cardIExists;
+        const hasUserJKey = !!(await userI.card.getByDB(userJ.userId))?.publicKey;
+        const hasUserIKey = !!(await userJ.card.getByDB(userI.userId))?.publicKey;
+        const haveBothKeys = hasUserJKey && hasUserIKey;
 
         // 监听 userJ 侧原始消息：检查是否为二进制帧（证明加密）
         let rawIsBinary = false;
@@ -477,11 +480,12 @@
 
         unbindRaw();
 
-        const messageCorrect =
-          receivedData !== null &&
-          typeof receivedData === "object" &&
-          receivedData.text === "hello encrypted" &&
-          receivedData.num === 42;
+        const receivedDataNotNull = receivedData !== null;
+        const receivedDataIsTypeObject = typeof receivedData === "object";
+        const receivedDataIsObject = receivedDataNotNull && receivedDataIsTypeObject;
+        const receivedTextMatch = receivedData?.text === "hello encrypted";
+        const receivedNumMatch = receivedData?.num === 42;
+        const messageCorrect = receivedDataNotNull && receivedDataIsTypeObject && receivedTextMatch && receivedNumMatch;
 
         const e2eeAllPassed = haveBothCards && haveBothKeys && rawIsBinary && messageCorrect;
 
@@ -499,16 +503,18 @@
             // 错误诊断字段
             checks: {
               haveBothCards,
-              cardJExists: cardJ !== null,
-              cardIExists: cardI !== null,
+              cardJExists,
+              cardIExists,
               haveBothKeys,
-              hasUserJKey: !!(await userI.card.getByDB(userJ.userId))?.publicKey,
-              hasUserIKey: !!(await userJ.card.getByDB(userI.userId))?.publicKey,
+              hasUserJKey,
+              hasUserIKey,
               rawIsBinary,
               messageCorrect,
-              receivedDataIsObject: receivedData !== null && typeof receivedData === "object",
-              receivedTextMatch: receivedData?.text === "hello encrypted",
-              receivedNumMatch: receivedData?.num === 42,
+              receivedDataNotNull,
+              receivedDataIsTypeObject,
+              receivedDataIsObject,
+              receivedTextMatch,
+              receivedNumMatch,
               expectedText: "hello encrypted",
               expectedNum: 42,
             },
