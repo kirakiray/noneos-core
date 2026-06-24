@@ -16,7 +16,7 @@
     <sb-test name="User Connect to Handshake Server Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace1 = "test-connect";
           const user1 = new LocalUser(namespace1);
@@ -57,7 +57,7 @@
     <sb-test name="Server Version Retrieval Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespaceVersion = "test-version";
           const userVersion = new LocalUser(namespaceVersion);
@@ -94,7 +94,7 @@
     <sb-test name="WebSocket Persistence and Reuse Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace3 = "test-reuse";
           const user3 = new LocalUser(namespace3);
@@ -128,7 +128,7 @@
     <sb-test name="Tampered Data Handshake Test (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace4 = "test-tamper-data";
           const user4 = new LocalUser(namespace4);
@@ -243,7 +243,7 @@
     <sb-test name="Tampered Signature Handshake Test (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace5 = "test-tamper-sig";
           const user5 = new LocalUser(namespace5);
@@ -359,7 +359,7 @@
     <sb-test name="Handshake Timeout Test (No Response to Challenge)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace6 = "test-timeout";
           const user6 = new LocalUser(namespace6);
@@ -450,7 +450,7 @@
     <sb-test name="Latency Measurement Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace7 = "test-latency";
           const user7 = new LocalUser(namespace7);
@@ -510,7 +510,7 @@
     <sb-test name="Periodic Latency Monitor Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace8 = "test-latency-monitor";
           const user8 = new LocalUser(namespace8);

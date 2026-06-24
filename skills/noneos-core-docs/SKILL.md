@@ -1001,10 +1001,10 @@ console.log("文档签名有效:", await admin.verify(signedDoc));
 
 ## LocalUser 类
 
-如果需要直接使用 LocalUser 类（例如需要控制初始化时机），可以从 `/nos/user/local/user.js` 引入：
+如果需要直接使用 LocalUser 类（例如需要控制初始化时机），可以从 `/nos/user/user.js` 引入：
 
 ```javascript
-import { LocalUser } from "/nos/user/local/user.js";
+import { LocalUser } from "/nos/user/user.js";
 ```
 
 ### 构造函数

@@ -250,7 +250,7 @@
     <sb-test name="Non-Admin Connect Identity Verification">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const normNs = "norm-connect-ns";
           const normUser = new LocalUser(normNs);
@@ -350,7 +350,7 @@
     <sb-test name="Non-Admin Permission Denied for Admin Commands">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const norm2Ns = "norm-deny-ns";
           const norm2User = new LocalUser(norm2Ns);
@@ -411,7 +411,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 准备管理员用户
           const adminData6 = await fetch("/tests/user/local/admin.json").then(r => r.json());
@@ -481,7 +481,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const adminHistData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const adminHistNs = "admin-hist-list-ns";
@@ -561,7 +561,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 准备管理员用户
           const adminDataSess = await fetch("/tests/user/local/admin.json").then(r => r.json());

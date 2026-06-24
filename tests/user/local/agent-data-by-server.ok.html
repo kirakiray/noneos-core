@@ -86,7 +86,7 @@
     <sb-test name="Query Self Online Status">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t1Ns = "agent-t1-ns";
           const t1User = new LocalUser(t1Ns);
@@ -135,7 +135,7 @@
     <sb-test name="Query Offline User">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t2Ns = "agent-t2-ns";
           const t2User = new LocalUser(t2Ns);
@@ -184,7 +184,7 @@
     <sb-test name="Query Other User Online">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 用户 A：查询者
           const t3aNs = "agent-t3a-ns";
@@ -241,7 +241,7 @@
     <sb-test name="Relay Data to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方用户
           const t4SendNs = "agent-t4send-ns";
@@ -340,7 +340,7 @@
     <sb-test name="Relay Data to Offline Session (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t5Ns = "agent-t5-ns";
           const t5User = new LocalUser(t5Ns);
@@ -385,7 +385,7 @@
     <sb-test name="Receiver Gets Relay Data via Message Event">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t6SendNs = "agent-t6send-ns";
@@ -481,7 +481,7 @@
     <sb-test name="Relay Binary Uint8Array (0-255) to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t7SendNs = "agent-t7send-ns";
@@ -586,7 +586,7 @@
     <sb-test name="Relay ArrayBuffer to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t8SendNs = "agent-t8send-ns";
@@ -691,7 +691,7 @@
     <sb-test name="Auto-Select Server via sendToUser (No URL)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t9SendNs = "agent-t9send-ns";
@@ -791,7 +791,7 @@
     <sb-test name="sendToUser Target Offline (Should Throw)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t10Ns = "agent-t10-ns";
           const t10User = new LocalUser(t10Ns);
@@ -834,7 +834,7 @@
     <sb-test name="sendToUser No Connection (Should Throw)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t11Ns = "agent-t11-ns";
           const t11User = new LocalUser(t11Ns);

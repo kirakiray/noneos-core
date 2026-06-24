@@ -1,4 +1,4 @@
-import { LocalUser } from "./local/user.js";
+import { LocalUser } from "./user.js";
 import {
   getUserKeys,
   getUserInfo,

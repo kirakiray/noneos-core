@@ -1,4 +1,4 @@
-import { getServerList, saveServerList } from "../db.js";
+import { getServerList, saveServerList } from "./db.js";
 
 const DEFAULT_SERVERS = (() => {
   const hostname =

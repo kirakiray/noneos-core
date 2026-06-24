@@ -1,6 +1,6 @@
-import { BaseUser } from "../base-user.js";
-import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "../db.js";
-import { generateKeyPair } from "../../crypto/crypto-ecdsa.js";
+import { BaseUser } from "./base-user.js";
+import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "./db.js";
+import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
 import { CardManager } from "./card.js";
 import { ServerManager } from "./server.js";
@@ -199,7 +199,7 @@ export class LocalUser extends BaseUser {
     let messageData = payload;
     if (payload.byteLength > 12) {
       try {
-        const { tryDecryptBinary } = await import("../../crypto/crypto-e2ee.js");
+        const { tryDecryptBinary } = await import("../crypto/crypto-e2ee.js");
         const decrypted = await tryDecryptBinary(this, fromUserId, payload);
         if (decrypted !== null) {
           messageData = decrypted;

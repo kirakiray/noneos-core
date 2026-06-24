@@ -1,5 +1,5 @@
-import { BaseUser } from "../base-user.js";
-import { tryEncryptBinary } from "../../crypto/crypto-e2ee.js";
+import { BaseUser } from "./base-user.js";
+import { tryEncryptBinary } from "../crypto/crypto-e2ee.js";
 
 /**
  * 远程用户类，代表通过服务器连接的另一个用户

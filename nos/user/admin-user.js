@@ -1,4 +1,4 @@
-import { LocalUser } from "./local/user.js";
+import { LocalUser } from "./user.js";
 
 /**
  * 管理员用户类，继承自 LocalUser
