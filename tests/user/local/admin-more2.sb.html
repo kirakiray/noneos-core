@@ -78,6 +78,7 @@
           await getqAdmin.ready();
 
           const getqUserNs = "quota-target-ns";
+          try { await deleteUser(getqUserNs, { skipConfirm: true }); } catch (e) {}
           const getqUser = new LocalUser(getqUserNs);
           await getqUser.ready();
 
@@ -146,6 +147,7 @@
           await setzAdmin.ready();
 
           const setzUserNs = "quota-zero-target-ns";
+          try { await deleteUser(setzUserNs, { skipConfirm: true }); } catch (e) {}
           const setzUser = new LocalUser(setzUserNs);
           await setzUser.ready();
 
@@ -196,6 +198,7 @@
           await offAdmin.ready();
 
           const offUserNs = "quota-off-target-ns";
+          try { await deleteUser(offUserNs, { skipConfirm: true }); } catch (e) {}
           const offUser = new LocalUser(offUserNs);
           await offUser.ready();
           const targetUserId = offUser.userId;
@@ -275,6 +278,8 @@
 
           const bigrUserANs = "quota-big-a-ns";
           const bigrUserBNs = "quota-big-b-ns";
+          try { await deleteUser(bigrUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(bigrUserBNs, { skipConfirm: true }); } catch (e) {}
           const bigrUserA = new LocalUser(bigrUserANs);
           const bigrUserB = new LocalUser(bigrUserBNs);
           await bigrUserA.ready();
@@ -353,6 +358,8 @@
 
           const smallaUserANs = "quota-small-a-ns";
           const smallaUserBNs = "quota-small-b-ns";
+          try { await deleteUser(smallaUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(smallaUserBNs, { skipConfirm: true }); } catch (e) {}
           const smallaUserA = new LocalUser(smallaUserANs);
           const smallaUserB = new LocalUser(smallaUserBNs);
           await smallaUserA.ready();
@@ -429,6 +436,7 @@
           await adminnlAdmin.ready();
 
           const adminnlUserNs = "quota-admin-target-ns";
+          try { await deleteUser(adminnlUserNs, { skipConfirm: true }); } catch (e) {}
           const adminnlUser = new LocalUser(adminnlUserNs);
           await adminnlUser.ready();
 
@@ -503,6 +511,8 @@
 
           const raiseqUserANs = "quota-raise-a-ns";
           const raiseqUserBNs = "quota-raise-b-ns";
+          try { await deleteUser(raiseqUserANs, { skipConfirm: true }); } catch (e) {}
+          try { await deleteUser(raiseqUserBNs, { skipConfirm: true }); } catch (e) {}
           const raiseqUserA = new LocalUser(raiseqUserANs);
           const raiseqUserB = new LocalUser(raiseqUserBNs);
           await raiseqUserA.ready();
