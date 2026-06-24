@@ -101,10 +101,10 @@
           const t1Result = await t1User.server.queryUserOnline(t1Url, t1User.userId);
 
           const t1Online = t1Result.online === true;
-          const t1HasSession =
-            Array.isArray(t1Result.sessions) &&
-            t1Result.sessions.length === 1 &&
-            t1Result.sessions[0] === t1User.sessionId;
+          const t1SessionIsArray = Array.isArray(t1Result.sessions);
+          const t1SessionCount = t1Result.sessions?.length;
+          const t1SessionIdMatch = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
+          const t1HasSession = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
 
           return {
             assert: t1Online && t1HasSession,
@@ -116,6 +116,13 @@
               online: t1Result.online,
               sessions: t1Result.sessions,
               expectedSessionId: t1User.sessionId,
+              checks: {
+                t1Online,
+                t1SessionIsArray,
+                t1SessionCount,
+                t1SessionIdMatch,
+                t1HasSession,
+              },
             },
           };
         </script>
@@ -145,8 +152,9 @@
           const t2Result = await t2User.server.queryUserOnline(t2Url, t2FakeUserId);
 
           const t2Offline = t2Result.online === false;
-          const t2EmptySessions =
-            Array.isArray(t2Result.sessions) && t2Result.sessions.length === 0;
+          const t2SessionIsArray = Array.isArray(t2Result.sessions);
+          const t2SessionCount = t2Result.sessions?.length;
+          const t2EmptySessions = t2SessionIsArray && t2SessionCount === 0;
 
           return {
             assert: t2Offline && t2EmptySessions,
@@ -158,6 +166,12 @@
               online: t2Result.online,
               sessions: t2Result.sessions,
               queriedUserId: t2FakeUserId,
+              checks: {
+                t2Offline,
+                t2SessionIsArray,
+                t2SessionCount,
+                t2EmptySessions,
+              },
             },
           };
         </script>
@@ -192,10 +206,10 @@
           const t3Result = await t3aUser.server.queryUserOnline(t3Url, t3bUser.userId);
 
           const t3Online = t3Result.online === true;
-          const t3HasSession =
-            Array.isArray(t3Result.sessions) &&
-            t3Result.sessions.length === 1 &&
-            t3Result.sessions[0] === t3bUser.sessionId;
+          const t3SessionIsArray = Array.isArray(t3Result.sessions);
+          const t3SessionCount = t3Result.sessions?.length;
+          const t3SessionIdMatch = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
+          const t3HasSession = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
 
           return {
             assert: t3Online && t3HasSession,
@@ -208,6 +222,13 @@
               sessions: t3Result.sessions,
               targetUserId: t3bUser.userId,
               expectedSessionId: t3bUser.sessionId,
+              checks: {
+                t3Online,
+                t3SessionIsArray,
+                t3SessionCount,
+                t3SessionIdMatch,
+                t3HasSession,
+              },
             },
           };
         </script>
@@ -284,10 +305,10 @@
           const t4Received = await t4RecvPromise;
 
           const t4SendOk = t4SendResult.status === "ok";
-          const t4RecvOk =
-            t4Received !== null &&
-            t4Received.data?.text === t4Payload.text &&
-            t4Received.data?.number === t4Payload.number;
+          const t4ReceivedNotNull = t4Received !== null;
+          const t4TextMatch = t4Received?.data?.text === t4Payload.text;
+          const t4NumMatch = t4Received?.data?.number === t4Payload.number;
+          const t4RecvOk = t4ReceivedNotNull && t4TextMatch && t4NumMatch;
 
           return {
             assert: t4SendOk && t4RecvOk,
@@ -300,6 +321,13 @@
               sendMessage: t4SendResult.message,
               receivedPayload: t4Received,
               expectedPayload: t4Payload,
+              checks: {
+                t4SendOk,
+                t4ReceivedNotNull,
+                t4TextMatch,
+                t4NumMatch,
+                t4RecvOk,
+              },
             },
           };
         </script>
@@ -418,11 +446,11 @@
           const t6ReceivedData = await t6MsgPromise;
 
           const t6SendOk = t6SendResponse?.status === "ok";
-          const t6RecvOk =
-            t6ReceivedData !== null &&
-            t6ReceivedData.from_user_id === t6Sender.userId &&
-            t6ReceivedData.data?.msg === "Hello via event!" &&
-            t6ReceivedData.data?.seq === 1;
+          const t6ReceivedNotNull = t6ReceivedData !== null;
+          const t6FromUserIdMatch = t6ReceivedData?.from_user_id === t6Sender.userId;
+          const t6MsgMatch = t6ReceivedData?.data?.msg === "Hello via event!";
+          const t6SeqMatch = t6ReceivedData?.data?.seq === 1;
+          const t6RecvOk = t6ReceivedNotNull && t6FromUserIdMatch && t6MsgMatch && t6SeqMatch;
 
           return {
             assert: t6SendOk && t6RecvOk,
@@ -434,6 +462,14 @@
               sendResponse: t6SendResponse,
               receivedData: t6ReceivedData,
               expectedUserId: t6Sender.userId,
+              checks: {
+                t6SendOk,
+                t6ReceivedNotNull,
+                t6FromUserIdMatch,
+                t6MsgMatch,
+                t6SeqMatch,
+                t6RecvOk,
+              },
             },
           };
         </script>
@@ -514,10 +550,10 @@
           const t7Received = await t7RecvPromise;
 
           const t7SendOk = t7SendResult.status === "ok";
-          const t7RecvOk =
-            t7Received !== null &&
-            t7Received.payload.length === t7ExpectedBytes.length &&
-            t7Received.payload.every((v, i) => v === t7ExpectedBytes[i]);
+          const t7ReceivedNotNull = t7Received !== null;
+          const t7PayloadLenMatch = t7ReceivedNotNull && t7Received.payload.length === t7ExpectedBytes.length;
+          const t7PayloadContentMatch = t7PayloadLenMatch && t7Received.payload.every((v, i) => v === t7ExpectedBytes[i]);
+          const t7RecvOk = t7ReceivedNotNull && t7PayloadLenMatch && t7PayloadContentMatch;
 
           return {
             assert: t7SendOk && t7RecvOk,
@@ -531,6 +567,13 @@
               receivedHeader: t7Received?.header,
               receivedLength: t7Received?.payload?.length,
               expectedLength: t7ExpectedBytes.length,
+              checks: {
+                t7SendOk,
+                t7ReceivedNotNull,
+                t7PayloadLenMatch,
+                t7PayloadContentMatch,
+                t7RecvOk,
+              },
             },
           };
         </script>
@@ -612,10 +655,10 @@
           const t8Received = await t8RecvPromise;
 
           const t8SendOk = t8SendResult.status === "ok";
-          const t8RecvOk =
-            t8Received !== null &&
-            t8Received.payload.length === t8ExpectedBytes.length &&
-            t8Received.payload.every((v, i) => v === t8ExpectedBytes[i]);
+          const t8ReceivedNotNull = t8Received !== null;
+          const t8PayloadLenMatch = t8ReceivedNotNull && t8Received.payload.length === t8ExpectedBytes.length;
+          const t8PayloadContentMatch = t8PayloadLenMatch && t8Received.payload.every((v, i) => v === t8ExpectedBytes[i]);
+          const t8RecvOk = t8ReceivedNotNull && t8PayloadLenMatch && t8PayloadContentMatch;
 
           return {
             assert: t8SendOk && t8RecvOk,
@@ -629,6 +672,13 @@
               receivedHeader: t8Received?.header,
               receivedLength: t8Received?.payload?.length,
               expectedLength: t8ExpectedBytes.length,
+              checks: {
+                t8SendOk,
+                t8ReceivedNotNull,
+                t8PayloadLenMatch,
+                t8PayloadContentMatch,
+                t8RecvOk,
+              },
             },
           };
         </script>
@@ -706,10 +756,10 @@
           const t9Received = await t9RecvPromise;
 
           const t9SendOk = t9SendResult.status === "ok";
-          const t9RecvOk =
-            t9Received !== null &&
-            t9Received.data?.text === t9Payload.text &&
-            t9Received.data?.value === t9Payload.value;
+          const t9ReceivedNotNull = t9Received !== null;
+          const t9TextMatch = t9Received?.data?.text === t9Payload.text;
+          const t9ValueMatch = t9Received?.data?.value === t9Payload.value;
+          const t9RecvOk = t9ReceivedNotNull && t9TextMatch && t9ValueMatch;
 
           return {
             assert: t9SendOk && t9RecvOk,
@@ -722,6 +772,13 @@
               sendMessage: t9SendResult.message,
               receivedPayload: t9Received,
               expectedPayload: t9Payload,
+              checks: {
+                t9SendOk,
+                t9ReceivedNotNull,
+                t9TextMatch,
+                t9ValueMatch,
+                t9RecvOk,
+              },
             },
           };
         </script>
@@ -797,13 +854,20 @@
             t11Error = e;
           }
 
+          const t11ErrorThrown = t11Error !== null;
+          const t11MessageMatch = t11Error?.message?.includes("No connected servers");
+
           return {
-            assert: t11Error !== null && t11Error.message.includes("No connected servers"),
+            assert: t11ErrorThrown && t11MessageMatch,
             content: {
               message: t11Error
                 ? "sendToUser correctly threw error when no server connected"
                 : "sendToUser should throw when no server connected",
               error: t11Error?.message || t11Error,
+              checks: {
+                t11ErrorThrown,
+                t11MessageMatch,
+              },
             },
           };
         </script>
