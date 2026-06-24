@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataPublisher Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>DataPublisher Tests</h1>
+
+  <!-- 测试 1：本地发布文件 -->
+  <sb-test name="Publish File Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { getManifest, getChunk } from "/nos/publish/db.js";
+        import { getHash } from "/nos/util/hash/get-hash.js";
+
+        const pub_ns = "publish-user-a";
+        const pub_serverUrl = "ws://localhost:8081";
+
+        const pub_user = new LocalUser(pub_ns);
+        await pub_user.ready();
+        await pub_user.server.connect(pub_serverUrl);
+
+        const pub_publisher = new DataPublisher(pub_user);
+        pub_publisher.start();
+
+        // 构造测试文件（小于 255KB，单块）
+        const pub_fileContent = "Hello DataPublisher publish test!";
+        const pub_file = new File([pub_fileContent], "test-publish.txt", { type: "text/plain" });
+
+        // 发布文件
+        const pub_manifest = await pub_publisher.publish(pub_file);
+
+        // 验证 manifest 结构
+        const pub_hasFileHash = typeof pub_manifest.fileHash === "string" && pub_manifest.fileHash.length > 0;
+        const pub_hasChunkHashes = Array.isArray(pub_manifest.chunkHashes) && pub_manifest.chunkHashes.length > 0;
+        const pub_hasFileName = pub_manifest.fileName === "test-publish.txt";
+        const pub_hasFileSize = pub_manifest.fileSize === pub_file.size;
+        const pub_hasSignTime = typeof pub_manifest.signTime === "number" && pub_manifest.signTime > 0;
+        const pub_hasPublicKey = typeof pub_manifest.publicKey === "string" && pub_manifest.publicKey === pub_user.publicKey;
+        const pub_hasSignature = typeof pub_manifest.signature === "string" && pub_manifest.signature.length > 0;
+
+        // 验证 fileHash 计算正确（chunkHashes 拼接后 SHA-256）
+        const pub_expectedFileHash = await getHash(pub_manifest.chunkHashes.join(""));
+        const pub_fileHashMatch = pub_manifest.fileHash === pub_expectedFileHash;
+
+        // 验证 chunkHash 计算正确
+        const pub_expectedChunkHash = await getHash(new TextEncoder().encode(pub_fileContent).buffer);
+        const pub_chunkHashMatch = pub_manifest.chunkHashes[0] === pub_expectedChunkHash;
+
+        // 验证 manifest 已存入 DB
+        const pub_storedManifest = await getManifest(pub_manifest.fileHash);
+        const pub_manifestStored = pub_storedManifest && pub_storedManifest.fileHash === pub_manifest.fileHash;
+
+        // 验证 chunk 已存入 DB
+        const pub_storedChunk = await getChunk(pub_manifest.chunkHashes[0]);
+        const pub_chunkStored = pub_storedChunk !== null;
+
+        // 验证签名有效
+        const pub_signatureValid = await pub_user.verify(pub_manifest);
+
+        // 清理
+        pub_publisher.stop();
+
+        const pub_allChecks =
+          pub_hasFileHash && pub_hasChunkHashes && pub_hasFileName && pub_hasFileSize &&
+          pub_hasSignTime && pub_hasPublicKey && pub_hasSignature &&
+          pub_fileHashMatch && pub_chunkHashMatch && pub_manifestStored && pub_chunkStored && pub_signatureValid;
+
+        return {
+          assert: pub_allChecks,
+          content: {
+            message: pub_allChecks ? "发布文件测试成功" : "发布文件测试失败",
+            manifest: {
+              fileHash: pub_manifest.fileHash,
+              chunkHashes: pub_manifest.chunkHashes,
+              fileName: pub_manifest.fileName,
+              fileSize: pub_manifest.fileSize,
+            },
+            checks: {
+              hasFileHash: pub_hasFileHash,
+              hasChunkHashes: pub_hasChunkHashes,
+              hasFileName: pub_hasFileName,
+              hasFileSize: pub_hasFileSize,
+              hasSignTime: pub_hasSignTime,
+              hasPublicKey: pub_hasPublicKey,
+              hasSignature: pub_hasSignature,
+              fileHashMatch: pub_fileHashMatch,
+              expectedFileHash: pub_expectedFileHash,
+              chunkHashMatch: pub_chunkHashMatch,
+              expectedChunkHash: pub_expectedChunkHash,
+              manifestStored: pub_manifestStored,
+              chunkStored: pub_chunkStored,
+              signatureValid: pub_signatureValid,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 2：大文件分块发布 -->
+  <sb-test name="Publish Large File Multi-Chunk Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { getManifest, getChunk } from "/nos/publish/db.js";
+        import { getHash } from "/nos/util/hash/get-hash.js";
+
+        const lg_ns = "publish-user-large";
+        const lg_serverUrl = "ws://localhost:8081";
+
+        const lg_user = new LocalUser(lg_ns);
+        await lg_user.ready();
+        await lg_user.server.connect(lg_serverUrl);
+
+        const lg_publisher = new DataPublisher(lg_user);
+        lg_publisher.start();
+
+        // 构造大于 255KB 的文件（约 600KB，应分成 3 块）
+        const lg_chunkSize = 255 * 1024;
+        const lg_expectedChunks = 3;
+        const lg_fileSize = lg_chunkSize * 2 + 100 * 1024; // 610KB
+        const lg_buffer = new Uint8Array(lg_fileSize);
+        for (let i = 0; i < lg_fileSize; i++) {
+          lg_buffer[i] = i % 256;
+        }
+        const lg_file = new File([lg_buffer], "large-file.bin", { type: "application/octet-stream" });
+
+        const lg_manifest = await lg_publisher.publish(lg_file);
+
+        // 验证分块数量正确
+        const lg_chunkCountCorrect = lg_manifest.chunkHashes.length === lg_expectedChunks;
+
+        // 验证 fileHash 计算正确
+        const lg_expectedFileHash = await getHash(lg_manifest.chunkHashes.join(""));
+        const lg_fileHashMatch = lg_manifest.fileHash === lg_expectedFileHash;
+
+        // 验证每个 chunk 都已存入 DB
+        let lg_allChunksStored = true;
+        for (const lg_ch of lg_manifest.chunkHashes) {
+          const lg_c = await getChunk(lg_ch);
+          if (!lg_c) {
+            lg_allChunksStored = false;
+            break;
+          }
+        }
+
+        // 验证每个 chunk 的哈希值正确
+        let lg_allChunkHashesCorrect = true;
+        for (let i = 0; i < lg_manifest.chunkHashes.length; i++) {
+          const lg_start = i * lg_chunkSize;
+          const lg_end = Math.min(lg_start + lg_chunkSize, lg_fileSize);
+          const lg_chunkData = lg_buffer.slice(lg_start, lg_end);
+          const lg_expectedHash = await getHash(lg_chunkData);
+          if (lg_manifest.chunkHashes[i] !== lg_expectedHash) {
+            lg_allChunkHashesCorrect = false;
+            break;
+          }
+        }
+
+        // 验证 manifest 已存入 DB
+        const lg_storedManifest = await getManifest(lg_manifest.fileHash);
+        const lg_manifestStored = lg_storedManifest && lg_storedManifest.fileHash === lg_manifest.fileHash;
+
+        lg_publisher.stop();
+
+        const lg_allChecks =
+          lg_chunkCountCorrect && lg_fileHashMatch && lg_allChunksStored &&
+          lg_allChunkHashesCorrect && lg_manifestStored;
+
+        return {
+          assert: lg_allChecks,
+          content: {
+            message: lg_allChecks ? "大文件分块发布测试成功" : "大文件分块发布测试失败",
+            manifest: {
+              fileHash: lg_manifest.fileHash,
+              chunkCount: lg_manifest.chunkHashes.length,
+              fileName: lg_manifest.fileName,
+              fileSize: lg_manifest.fileSize,
+            },
+            checks: {
+              chunkCountCorrect: lg_chunkCountCorrect,
+              expectedChunks: lg_expectedChunks,
+              actualChunks: lg_manifest.chunkHashes.length,
+              fileHashMatch: lg_fileHashMatch,
+              allChunksStored: lg_allChunksStored,
+              allChunkHashesCorrect: lg_allChunkHashesCorrect,
+              manifestStored: lg_manifestStored,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 3：组装文件 -->
+  <sb-test name="Assemble File Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const asm_ns = "publish-user-assemble";
+        const asm_serverUrl = "ws://localhost:8081";
+
+        const asm_user = new LocalUser(asm_ns);
+        await asm_user.ready();
+        await asm_user.server.connect(asm_serverUrl);
+
+        const asm_publisher = new DataPublisher(asm_user);
+        asm_publisher.start();
+
+        // 构造测试文件
+        const asm_fileContent = "Assemble file test content - DataPublisher!";
+        const asm_file = new File([asm_fileContent], "assemble-test.txt", { type: "text/plain" });
+
+        // 发布文件
+        const asm_manifest = await asm_publisher.publish(asm_file);
+
+        // 组装文件
+        const asm_result = await asm_publisher.assembleFile(asm_manifest.fileHash);
+
+        // 验证返回的 blob
+        const asm_blobText = await asm_result.blob.text();
+        const asm_contentMatch = asm_blobText === asm_fileContent;
+        const asm_fileNameMatch = asm_result.fileName === "assemble-test.txt";
+        const asm_fileSizeMatch = asm_result.fileSize === asm_file.size;
+
+        asm_publisher.stop();
+
+        const asm_allChecks = asm_contentMatch && asm_fileNameMatch && asm_fileSizeMatch;
+
+        return {
+          assert: asm_allChecks,
+          content: {
+            message: asm_allChecks ? "组装文件测试成功" : "组装文件测试失败",
+            result: {
+              fileName: asm_result.fileName,
+              fileSize: asm_result.fileSize,
+              blobSize: asm_result.blob.size,
+            },
+            checks: {
+              contentMatch: asm_contentMatch,
+              fileNameMatch: asm_fileNameMatch,
+              fileSizeMatch: asm_fileSizeMatch,
+              expectedContent: asm_fileContent,
+              actualContent: asm_blobText,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 4：组装大文件（多块） -->
+  <sb-test name="Assemble Large File Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const asmL_ns = "publish-user-assemble-large";
+        const asmL_serverUrl = "ws://localhost:8081";
+
+        const asmL_user = new LocalUser(asmL_ns);
+        await asmL_user.ready();
+        await asmL_user.server.connect(asmL_serverUrl);
+
+        const asmL_publisher = new DataPublisher(asmL_user);
+        asmL_publisher.start();
+
+        // 构造大于 255KB 的文件
+        const asmL_chunkSize = 255 * 1024;
+        const asmL_fileSize = asmL_chunkSize * 2 + 50 * 1024; // 560KB
+        const asmL_buffer = new Uint8Array(asmL_fileSize);
+        for (let i = 0; i < asmL_fileSize; i++) {
+          asmL_buffer[i] = (i * 7 + 13) % 256;
+        }
+        const asmL_file = new File([asmL_buffer], "large-assemble.bin", { type: "application/octet-stream" });
+
+        // 发布并组装
+        const asmL_manifest = await asmL_publisher.publish(asmL_file);
+        const asmL_result = await asmL_publisher.assembleFile(asmL_manifest.fileHash);
+
+        // 验证组装后的内容与原始一致
+        const asmL_assembledBuffer = new Uint8Array(await asmL_result.blob.arrayBuffer());
+        const asmL_contentMatch = asmL_assembledBuffer.length === asmL_buffer.length &&
+          asmL_assembledBuffer.every((b, i) => b === asmL_buffer[i]);
+        const asmL_fileNameMatch = asmL_result.fileName === "large-assemble.bin";
+        const asmL_fileSizeMatch = asmL_result.fileSize === asmL_fileSize;
+
+        asmL_publisher.stop();
+
+        const asmL_allChecks = asmL_contentMatch && asmL_fileNameMatch && asmL_fileSizeMatch;
+
+        return {
+          assert: asmL_allChecks,
+          content: {
+            message: asmL_allChecks ? "大文件组装测试成功" : "大文件组装测试失败",
+            checks: {
+              contentMatch: asmL_contentMatch,
+              fileNameMatch: asmL_fileNameMatch,
+              fileSizeMatch: asmL_fileSizeMatch,
+              expectedSize: asmL_fileSize,
+              actualSize: asmL_assembledBuffer.length,
+              chunkCount: asmL_manifest.chunkHashes.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 5：组装缺失 chunk 的文件应报错 -->
+  <sb-test name="Assemble File Missing Chunk Error Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { deleteChunk } from "/nos/publish/db.js";
+
+        const miss_ns = "publish-user-missing";
+        const miss_serverUrl = "ws://localhost:8081";
+
+        const miss_user = new LocalUser(miss_ns);
+        await miss_user.ready();
+        await miss_user.server.connect(miss_serverUrl);
+
+        const miss_publisher = new DataPublisher(miss_user);
+        miss_publisher.start();
+
+        // 构造多块文件
+        const miss_chunkSize = 255 * 1024;
+        const miss_fileSize = miss_chunkSize * 2 + 10 * 1024;
+        const miss_buffer = new Uint8Array(miss_fileSize);
+        for (let i = 0; i < miss_fileSize; i++) {
+          miss_buffer[i] = i % 256;
+        }
+        const miss_file = new File([miss_buffer], "missing-chunk.bin", { type: "application/octet-stream" });
+
+        const miss_manifest = await miss_publisher.publish(miss_file);
+
+        // 删除其中一个 chunk
+        await deleteChunk(miss_manifest.chunkHashes[1]);
+
+        // 组装应抛错
+        let miss_errorThrown = false;
+        let miss_missingList = [];
+        try {
+          await miss_publisher.assembleFile(miss_manifest.fileHash);
+        } catch (err) {
+          miss_errorThrown = true;
+          miss_missingList = err.missing || [];
+        }
+
+        const miss_errorHasMissing = miss_missingList.length > 0;
+        const miss_missingMatch = miss_missingList.includes(miss_manifest.chunkHashes[1]);
+
+        miss_publisher.stop();
+
+        const miss_allChecks = miss_errorThrown && miss_errorHasMissing && miss_missingMatch;
+
+        return {
+          assert: miss_allChecks,
+          content: {
+            message: miss_allChecks ? "缺失 chunk 组装报错测试成功" : "缺失 chunk 组装报错测试失败",
+            checks: {
+              errorThrown: miss_errorThrown,
+              errorHasMissing: miss_errorHasMissing,
+              missingMatch: miss_missingMatch,
+              missingCount: miss_missingList.length,
+              expectedMissing: miss_manifest.chunkHashes[1],
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 6：远程请求 manifest -->
+  <sb-test name="Request Manifest From Remote Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const rmA_ns = "publish-remote-a";
+        const rmB_ns = "publish-remote-b";
+        const rm_serverUrl = "ws://localhost:8081";
+
+        const rm_userA = new LocalUser(rmA_ns);
+        const rm_userB = new LocalUser(rmB_ns);
+        await Promise.all([rm_userA.ready(), rm_userB.ready()]);
+
+        await Promise.all([
+          rm_userA.server.connect(rm_serverUrl),
+          rm_userB.server.connect(rm_serverUrl),
+        ]);
+
+        // 双方都启动 DataPublisher
+        const rm_publisherA = new DataPublisher(rm_userA);
+        const rm_publisherB = new DataPublisher(rm_userB);
+        rm_publisherA.start();
+        rm_publisherB.start();
+
+        // userB 发布文件
+        const rm_fileContent = "Remote manifest request test content";
+        const rm_file = new File([rm_fileContent], "remote-manifest.txt", { type: "text/plain" });
+        const rm_manifest = await rm_publisherB.publish(rm_file);
+
+        // userA 连接 userB 并请求 manifest
+        const rm_remoteB = await rm_userA.connectUser(rm_userB.userId);
+        const rm_sessionIds = await rm_remoteB.getSessionIds();
+
+        // 请求 manifest
+        const rm_receivedManifest = await rm_publisherA.requestManifest(
+          rm_remoteB,
+          rm_sessionIds[0],
+          rm_manifest.fileHash,
+        );
+
+        // 验证收到的 manifest
+        const rm_fileHashMatch = rm_receivedManifest.fileHash === rm_manifest.fileHash;
+        const rm_chunkHashesMatch = JSON.stringify(rm_receivedManifest.chunkHashes) === JSON.stringify(rm_manifest.chunkHashes);
+        const rm_fileNameMatch = rm_receivedManifest.fileName === "remote-manifest.txt";
+        const rm_fileSizeMatch = rm_receivedManifest.fileSize === rm_file.size;
+        const rm_hasSignature = typeof rm_receivedManifest.signature === "string";
+        const rm_hasPublicKey = typeof rm_receivedManifest.publicKey === "string";
+
+        // 验证签名有效
+        let rm_signatureValid = false;
+        try {
+          rm_signatureValid = await rm_userB.verify(rm_receivedManifest);
+        } catch {}
+
+        rm_publisherA.stop();
+        rm_publisherB.stop();
+
+        const rm_allChecks =
+          rm_fileHashMatch && rm_chunkHashesMatch && rm_fileNameMatch && rm_fileSizeMatch &&
+          rm_hasSignature && rm_hasPublicKey && rm_signatureValid;
+
+        return {
+          assert: rm_allChecks,
+          content: {
+            message: rm_allChecks ? "远程请求 manifest 测试成功" : "远程请求 manifest 测试失败",
+            checks: {
+              fileHashMatch: rm_fileHashMatch,
+              chunkHashesMatch: rm_chunkHashesMatch,
+              fileNameMatch: rm_fileNameMatch,
+              fileSizeMatch: rm_fileSizeMatch,
+              hasSignature: rm_hasSignature,
+              hasPublicKey: rm_hasPublicKey,
+              signatureValid: rm_signatureValid,
+              receivedFileHash: rm_receivedManifest.fileHash,
+              expectedFileHash: rm_manifest.fileHash,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 7：远程请求 chunk -->
+  <sb-test name="Request Chunk From Remote Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const rcA_ns = "publish-chunk-remote-a";
+        const rcB_ns = "publish-chunk-remote-b";
+        const rc_serverUrl = "ws://localhost:8081";
+
+        const rc_userA = new LocalUser(rcA_ns);
+        const rc_userB = new LocalUser(rcB_ns);
+        await Promise.all([rc_userA.ready(), rc_userB.ready()]);
+
+        await Promise.all([
+          rc_userA.server.connect(rc_serverUrl),
+          rc_userB.server.connect(rc_serverUrl),
+        ]);
+
+        const rc_publisherA = new DataPublisher(rc_userA);
+        const rc_publisherB = new DataPublisher(rc_userB);
+        rc_publisherA.start();
+        rc_publisherB.start();
+
+        // userB 发布文件
+        const rc_fileContent = "Remote chunk request test!";
+        const rc_file = new File([rc_fileContent], "remote-chunk.txt", { type: "text/plain" });
+        const rc_manifest = await rc_publisherB.publish(rc_file);
+
+        // userA 连接 userB
+        const rc_remoteB = await rc_userA.connectUser(rc_userB.userId);
+        const rc_sessionIds = await rc_remoteB.getSessionIds();
+
+        // 请求第一个 chunk
+        const rc_chunkHash = rc_manifest.chunkHashes[0];
+        const rc_chunkData = await rc_publisherA.requestChunk(
+          rc_remoteB,
+          rc_sessionIds[0],
+          rc_chunkHash,
+        );
+
+        // 验证收到的 chunk 数据
+        const rc_chunkReceived = rc_chunkData !== null && rc_chunkData !== undefined;
+        const rc_chunkIsBinary = rc_chunkData instanceof ArrayBuffer || ArrayBuffer.isView(rc_chunkData);
+
+        // 验证内容正确
+        const rc_chunkText = new TextDecoder().decode(rc_chunkData);
+        const rc_contentMatch = rc_chunkText === rc_fileContent;
+
+        rc_publisherA.stop();
+        rc_publisherB.stop();
+
+        const rc_allChecks = rc_chunkReceived && rc_chunkIsBinary && rc_contentMatch;
+
+        return {
+          assert: rc_allChecks,
+          content: {
+            message: rc_allChecks ? "远程请求 chunk 测试成功" : "远程请求 chunk 测试失败",
+            checks: {
+              chunkReceived: rc_chunkReceived,
+              chunkIsBinary: rc_chunkIsBinary,
+              contentMatch: rc_contentMatch,
+              expectedContent: rc_fileContent,
+              actualContent: rc_chunkText,
+              chunkSize: rc_chunkData?.byteLength,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 8：远程请求不存在的 manifest -->
+  <sb-test name="Request Non-Existent Manifest Error Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const meA_ns = "publish-manifest-error-a";
+        const meB_ns = "publish-manifest-error-b";
+        const me_serverUrl = "ws://localhost:8081";
+
+        const me_userA = new LocalUser(meA_ns);
+        const me_userB = new LocalUser(meB_ns);
+        await Promise.all([me_userA.ready(), me_userB.ready()]);
+
+        await Promise.all([
+          me_userA.server.connect(me_serverUrl),
+          me_userB.server.connect(me_serverUrl),
+        ]);
+
+        const me_publisherA = new DataPublisher(me_userA);
+        const me_publisherB = new DataPublisher(me_userB);
+        me_publisherA.start();
+        me_publisherB.start();
+
+        // userA 连接 userB
+        const me_remoteB = await me_userA.connectUser(me_userB.userId);
+        const me_sessionIds = await me_remoteB.getSessionIds();
+
+        // 请求一个不存在的 manifest
+        const me_fakeFileHash = "non_existent_hash_1234567890abcdef";
+        let me_errorThrown = false;
+        let me_errorMessage = "";
+        try {
+          await me_publisherA.requestManifest(
+            me_remoteB,
+            me_sessionIds[0],
+            me_fakeFileHash,
+          );
+        } catch (err) {
+          me_errorThrown = true;
+          me_errorMessage = err.message;
+        }
+
+        me_publisherA.stop();
+        me_publisherB.stop();
+
+        const me_allChecks = me_errorThrown;
+
+        return {
+          assert: me_allChecks,
+          content: {
+            message: me_allChecks ? "请求不存在 manifest 报错测试成功" : "请求不存在 manifest 报错测试失败",
+            checks: {
+              errorThrown: me_errorThrown,
+              errorMessage: me_errorMessage,
+              requestedHash: me_fakeFileHash,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 9：远程请求不存在的 chunk -->
+  <sb-test name="Request Non-Existent Chunk Error Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const ceA_ns = "publish-chunk-error-a";
+        const ceB_ns = "publish-chunk-error-b";
+        const ce_serverUrl = "ws://localhost:8081";
+
+        const ce_userA = new LocalUser(ceA_ns);
+        const ce_userB = new LocalUser(ceB_ns);
+        await Promise.all([ce_userA.ready(), ce_userB.ready()]);
+
+        await Promise.all([
+          ce_userA.server.connect(ce_serverUrl),
+          ce_userB.server.connect(ce_serverUrl),
+        ]);
+
+        const ce_publisherA = new DataPublisher(ce_userA);
+        const ce_publisherB = new DataPublisher(ce_userB);
+        ce_publisherA.start();
+        ce_publisherB.start();
+
+        // userA 连接 userB
+        const ce_remoteB = await ce_userA.connectUser(ce_userB.userId);
+        const ce_sessionIds = await ce_remoteB.getSessionIds();
+
+        // 请求一个不存在的 chunk
+        const ce_fakeChunkHash = "non_existent_chunk_hash_abcdef123456";
+        let ce_errorThrown = false;
+        let ce_errorMessage = "";
+        try {
+          await ce_publisherA.requestChunk(
+            ce_remoteB,
+            ce_sessionIds[0],
+            ce_fakeChunkHash,
+          );
+        } catch (err) {
+          ce_errorThrown = true;
+          ce_errorMessage = err.message;
+        }
+
+        ce_publisherA.stop();
+        ce_publisherB.stop();
+
+        const ce_allChecks = ce_errorThrown;
+
+        return {
+          assert: ce_allChecks,
+          content: {
+            message: ce_allChecks ? "请求不存在 chunk 报错测试成功" : "请求不存在 chunk 报错测试失败",
+            checks: {
+              errorThrown: ce_errorThrown,
+              errorMessage: ce_errorMessage,
+              requestedHash: ce_fakeChunkHash,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 10：完整远程发布与组装流程 -->
+  <sb-test name="Full Remote Publish and Assemble Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+        const frA_ns = "publish-full-a";
+        const frB_ns = "publish-full-b";
+        const fr_serverUrl = "ws://localhost:8081";
+
+        const fr_userA = new LocalUser(frA_ns);
+        const fr_userB = new LocalUser(frB_ns);
+        await Promise.all([fr_userA.ready(), fr_userB.ready()]);
+
+        await Promise.all([
+          fr_userA.server.connect(fr_serverUrl),
+          fr_userB.server.connect(fr_serverUrl),
+        ]);
+
+        const fr_publisherA = new DataPublisher(fr_userA);
+        const fr_publisherB = new DataPublisher(fr_userB);
+        fr_publisherA.start();
+        fr_publisherB.start();
+
+        // userB 发布一个多块文件
+        const fr_chunkSize = 255 * 1024;
+        const fr_fileSize = fr_chunkSize + 100 * 1024; // 355KB，2 块
+        const fr_buffer = new Uint8Array(fr_fileSize);
+        for (let i = 0; i < fr_fileSize; i++) {
+          fr_buffer[i] = (i * 3 + 7) % 256;
+        }
+        const fr_file = new File([fr_buffer], "full-remote.bin", { type: "application/octet-stream" });
+        const fr_manifest = await fr_publisherB.publish(fr_file);
+
+        // userA 连接 userB
+        const fr_remoteB = await fr_userA.connectUser(fr_userB.userId);
+        const fr_sessionIds = await fr_remoteB.getSessionIds();
+        const fr_sessionId = fr_sessionIds[0];
+
+        // userA 请求 manifest
+        const fr_receivedManifest = await fr_publisherA.requestManifest(
+          fr_remoteB,
+          fr_sessionId,
+          fr_manifest.fileHash,
+        );
+
+        const fr_manifestReceived = fr_receivedManifest.fileHash === fr_manifest.fileHash;
+
+        // userA 请求所有 chunk
+        let fr_allChunksReceived = true;
+        for (const fr_ch of fr_receivedManifest.chunkHashes) {
+          try {
+            const fr_chunkData = await fr_publisherA.requestChunk(
+              fr_remoteB,
+              fr_sessionId,
+              fr_ch,
+            );
+            if (!fr_chunkData) {
+              fr_allChunksReceived = false;
+              break;
+            }
+          } catch (err) {
+            fr_allChunksReceived = false;
+            break;
+          }
+        }
+
+        // userA 组装文件
+        const fr_result = await fr_publisherA.assembleFile(fr_manifest.fileHash);
+        const fr_assembledBuffer = new Uint8Array(await fr_result.blob.arrayBuffer());
+
+        // 验证组装后的内容与原始一致
+        const fr_contentMatch = fr_assembledBuffer.length === fr_buffer.length &&
+          fr_assembledBuffer.every((b, i) => b === fr_buffer[i]);
+        const fr_fileNameMatch = fr_result.fileName === "full-remote.bin";
+        const fr_fileSizeMatch = fr_result.fileSize === fr_fileSize;
+
+        fr_publisherA.stop();
+        fr_publisherB.stop();
+
+        const fr_allChecks =
+          fr_manifestReceived && fr_allChunksReceived && fr_contentMatch &&
+          fr_fileNameMatch && fr_fileSizeMatch;
+
+        return {
+          assert: fr_allChecks,
+          content: {
+            message: fr_allChecks ? "完整远程发布与组装测试成功" : "完整远程发布与组装测试失败",
+            checks: {
+              manifestReceived: fr_manifestReceived,
+              allChunksReceived: fr_allChunksReceived,
+              contentMatch: fr_contentMatch,
+              fileNameMatch: fr_fileNameMatch,
+              fileSizeMatch: fr_fileSizeMatch,
+              chunkCount: fr_receivedManifest.chunkHashes.length,
+              expectedSize: fr_fileSize,
+              actualSize: fr_assembledBuffer.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
