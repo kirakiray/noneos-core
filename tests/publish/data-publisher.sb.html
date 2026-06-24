@@ -55,11 +55,11 @@
         const pub_chunkHashMatch = pub_manifest.chunkHashes[0] === pub_expectedChunkHash;
 
         // 验证 manifest 已存入 DB
-        const pub_storedManifest = await getManifest(pub_manifest.fileHash);
+        const pub_storedManifest = await getManifest(pub_ns, pub_manifest.fileHash);
         const pub_manifestStored = pub_storedManifest && pub_storedManifest.fileHash === pub_manifest.fileHash;
 
         // 验证 chunk 已存入 DB
-        const pub_storedChunk = await getChunk(pub_manifest.chunkHashes[0]);
+        const pub_storedChunk = await getChunk(pub_ns, pub_manifest.chunkHashes[0]);
         const pub_chunkStored = pub_storedChunk !== null;
 
         // 验证签名有效
@@ -146,7 +146,7 @@
         // 验证每个 chunk 都已存入 DB
         let lg_allChunksStored = true;
         for (const lg_ch of lg_manifest.chunkHashes) {
-          const lg_c = await getChunk(lg_ch);
+          const lg_c = await getChunk(lg_ns, lg_ch);
           if (!lg_c) {
             lg_allChunksStored = false;
             break;
@@ -167,7 +167,7 @@
         }
 
         // 验证 manifest 已存入 DB
-        const lg_storedManifest = await getManifest(lg_manifest.fileHash);
+        const lg_storedManifest = await getManifest(lg_ns, lg_manifest.fileHash);
         const lg_manifestStored = lg_storedManifest && lg_storedManifest.fileHash === lg_manifest.fileHash;
 
         lg_publisher.stop();
@@ -349,7 +349,7 @@
         const miss_manifest = await miss_publisher.publish(miss_file);
 
         // 删除其中一个 chunk
-        await deleteChunk(miss_manifest.chunkHashes[1]);
+        await deleteChunk(miss_ns, miss_manifest.chunkHashes[1]);
 
         // 组装应抛错
         let miss_errorThrown = false;

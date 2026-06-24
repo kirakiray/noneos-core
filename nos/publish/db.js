@@ -1,24 +1,32 @@
 // DataPublisher 专用 IndexedDB 数据库
-// 独立于 nos/user/db.js，不依赖 user namespace
-// 数据库名约定为 nos_publish_data，版本号从 1 开始
+// 每个 namespace 使用独立的数据库，数据库命名规则：nos_publish_data_<namespace>
+// 版本号从 1 开始
 
-const DB_NAME = "nos_publish_data";
 const DB_VERSION = 1;
 const CHUNK_STORE = "file_chunks";
 const MANIFEST_STORE = "file_manifests";
 
-// 单例连接缓存，避免每次操作重新打开数据库
-let dbPromise = null;
+// 数据库连接缓存，key 为 namespace
+const dbCache = new Map();
 
 /**
- * 获取数据库实例（单例）
+ * 获取数据库实例（按 namespace 缓存）
+ * @param {string} namespace - 用户命名空间
  * @returns {Promise<IDBDatabase>}
  */
-function getDb() {
-  if (dbPromise) return dbPromise;
+function getDb(namespace) {
+  if (!namespace) {
+    throw new Error("namespace is required");
+  }
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  if (dbCache.has(namespace)) {
+    return dbCache.get(namespace);
+  }
+
+  const dbName = `nos_publish_data_${namespace}`;
+
+  const dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => reject(request.error);
 
@@ -37,16 +45,18 @@ function getDb() {
     };
   });
 
+  dbCache.set(namespace, dbPromise);
   return dbPromise;
 }
 
 /**
  * 存入一个块
+ * @param {string} namespace - 用户命名空间
  * @param {string} chunkHash - 块的 SHA-256 哈希值
  * @param {ArrayBuffer|Uint8Array} data - 块原始二进制数据
  */
-export async function saveChunk(chunkHash, data) {
-  const db = await getDb();
+export async function saveChunk(namespace, chunkHash, data) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CHUNK_STORE], "readwrite");
     const store = transaction.objectStore(CHUNK_STORE);
@@ -58,11 +68,12 @@ export async function saveChunk(chunkHash, data) {
 
 /**
  * 读取一个块的二进制数据
+ * @param {string} namespace - 用户命名空间
  * @param {string} chunkHash - 块的 SHA-256 哈希值
  * @returns {Promise<ArrayBuffer|null>}
  */
-export async function getChunk(chunkHash) {
-  const db = await getDb();
+export async function getChunk(namespace, chunkHash) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CHUNK_STORE], "readonly");
     const store = transaction.objectStore(CHUNK_STORE);
@@ -74,11 +85,12 @@ export async function getChunk(chunkHash) {
 
 /**
  * 存入一个 manifest
+ * @param {string} namespace - 用户命名空间
  * @param {string} fileHash - 整个文件的 SHA-256 哈希值
  * @param {Object} manifest - manifest 对象（含签名）
  */
-export async function saveManifest(fileHash, manifest) {
-  const db = await getDb();
+export async function saveManifest(namespace, fileHash, manifest) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MANIFEST_STORE], "readwrite");
     const store = transaction.objectStore(MANIFEST_STORE);
@@ -90,11 +102,12 @@ export async function saveManifest(fileHash, manifest) {
 
 /**
  * 读取一个 manifest
+ * @param {string} namespace - 用户命名空间
  * @param {string} fileHash - 整个文件的 SHA-256 哈希值
  * @returns {Promise<Object|null>}
  */
-export async function getManifest(fileHash) {
-  const db = await getDb();
+export async function getManifest(namespace, fileHash) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MANIFEST_STORE], "readonly");
     const store = transaction.objectStore(MANIFEST_STORE);
@@ -106,10 +119,11 @@ export async function getManifest(fileHash) {
 
 /**
  * 删除一个块
+ * @param {string} namespace - 用户命名空间
  * @param {string} chunkHash - 块的 SHA-256 哈希值
  */
-export async function deleteChunk(chunkHash) {
-  const db = await getDb();
+export async function deleteChunk(namespace, chunkHash) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CHUNK_STORE], "readwrite");
     const store = transaction.objectStore(CHUNK_STORE);
@@ -121,10 +135,11 @@ export async function deleteChunk(chunkHash) {
 
 /**
  * 删除一个 manifest
+ * @param {string} namespace - 用户命名空间
  * @param {string} fileHash - 整个文件的 SHA-256 哈希值
  */
-export async function deleteManifest(fileHash) {
-  const db = await getDb();
+export async function deleteManifest(namespace, fileHash) {
+  const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MANIFEST_STORE], "readwrite");
     const store = transaction.objectStore(MANIFEST_STORE);

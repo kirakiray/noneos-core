@@ -202,7 +202,7 @@ export class DataPublisher {
       const chunkHash = await getHash(buffer);
       chunkHashes.push(chunkHash);
       // 每算完一块立即存入 DB
-      await saveChunk(chunkHash, buffer);
+      await saveChunk(this.#user.namespace, chunkHash, buffer);
     }
 
     // 将所有 chunkHash 按顺序拼接成字符串，计算 SHA-256 得到 fileHash
@@ -216,7 +216,7 @@ export class DataPublisher {
       fileSize,
     });
 
-    await saveManifest(fileHash, manifest);
+    await saveManifest(this.#user.namespace, fileHash, manifest);
     return manifest;
   }
 
@@ -232,7 +232,7 @@ export class DataPublisher {
    */
   async requestManifest(remoteUser, sessionId, fileHash) {
     // 先查本地
-    const local = await getManifest(fileHash);
+    const local = await getManifest(this.#user.namespace, fileHash);
     if (local) return local;
 
     // 并发请求去重
@@ -291,7 +291,7 @@ export class DataPublisher {
       return;
     }
 
-    await saveManifest(fileHash, manifest);
+    await saveManifest(this.#user.namespace, fileHash, manifest);
     this.#resolveManifestRequest(fileHash, manifest);
   }
 
@@ -323,7 +323,7 @@ export class DataPublisher {
    */
   async requestChunk(remoteUser, sessionId, chunkHash) {
     // 先查本地
-    const local = await getChunk(chunkHash);
+    const local = await getChunk(this.#user.namespace, chunkHash);
     if (local) return local;
 
     // 并发请求去重
@@ -375,7 +375,7 @@ export class DataPublisher {
                 bytes.byteOffset,
                 bytes.byteOffset + bytes.byteLength,
               );
-              await saveChunk(recalcHash, buffer);
+              await saveChunk(this.#user.namespace, recalcHash, buffer);
               resolve(buffer);
             }
           } catch (err) {
@@ -422,7 +422,7 @@ export class DataPublisher {
    * 处理 incoming 的 request_manifest：查 DB，回复 manifest 或 not_found 错误
    */
   async #handleRequestManifest(fileHash, fromUserId, fromSessionId, url) {
-    const manifest = await getManifest(fileHash);
+    const manifest = await getManifest(this.#user.namespace, fileHash);
     try {
       if (manifest) {
         // 直接发送 manifest 对象
@@ -454,7 +454,7 @@ export class DataPublisher {
    * 处理 incoming 的 request_chunk：查 DB，回复二进制 chunk 或 not_found 错误
    */
   async #handleRequestChunk(chunkHash, fromUserId, fromSessionId, url) {
-    const chunkData = await getChunk(chunkHash);
+    const chunkData = await getChunk(this.#user.namespace, chunkHash);
     try {
       if (chunkData) {
         // 发送二进制 chunk 数据（relayToUserViaServer 对二进制自动走二进制 relay）
@@ -490,7 +490,7 @@ export class DataPublisher {
    * @returns {Promise<{ blob: Blob, fileName: string, fileSize: number }>}
    */
   async assembleFile(fileHash) {
-    const manifest = await getManifest(fileHash);
+    const manifest = await getManifest(this.#user.namespace, fileHash);
     if (!manifest) {
       throw new Error(`Manifest not found: ${fileHash}`);
     }
@@ -498,7 +498,7 @@ export class DataPublisher {
     const chunks = [];
     const missing = [];
     for (const chunkHash of manifest.chunkHashes) {
-      const chunk = await getChunk(chunkHash);
+      const chunk = await getChunk(this.#user.namespace, chunkHash);
       if (chunk) {
         chunks.push(chunk);
       } else {
