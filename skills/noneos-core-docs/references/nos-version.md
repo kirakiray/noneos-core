@@ -10,7 +10,7 @@ NoneOS Core 版本管理组件，用于检测当前安装版本、提示升级�
 
 | 属性名 | 默认值 | 说明 |
 |--------|--------|------|
-| `autoInstall` | `null` | 设置任意值（如 `autoInstall`）时，组件挂载后自动执行安装或升级，无需用户手动点击按钮 |
+| `auto-install` | `null` | 设置时，组件挂载后自动执行安装或升级，无需用户手动点击按钮 |
 
 ## 数据 (data)
 
@@ -87,10 +87,10 @@ UI 表现对应关系：
 
 ### 自动安装模式
 
-设置 `autoInstall` 属性后，组件挂载时会自动检测并执行安装或升级：
+设置 `auto-install` 属性后，组件挂载时会自动检测并执行安装或升级：
 
 ```html
-<nos-version autoInstall></nos-version>
+<nos-version auto-install></nos-version>
 ```
 
 ### 外部事件监听
@@ -100,21 +100,19 @@ UI 表现对应关系：
 ```html
 <nos-version id="nv"></nos-version>
 <script>
-  const nv = document.querySelector("#nv");
-
-  nv.on("install-progress", (e) => {
+  $("#nv").on("install-progress", (e) => {
     console.log(e.detail); // { step: 2, desc: "downloading", total: 5 }
   });
 
-  nv.on("installed", (e) => {
+  $("#nv").on("installed", (e) => {
     console.log("当前版本:", e.detail.version);
   });
 
-  nv.on("upgradable", (e) => {
+  $("#nv").on("upgradable", (e) => {
     console.log("可升级:", e.detail.version, "→", e.detail.lastVersion);
   });
 
-  nv.on("error", (e) => {
+  $("#nv").on("error", (e) => {
     console.error("出错:", e.detail.message, "阶段:", e.detail.phase);
   });
 </script>
