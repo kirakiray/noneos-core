@@ -114,9 +114,13 @@ await dir.remove();
 
 ## 目录挂载
 
-目录挂载功能允许访问用户本地文件系统中的**真实目录**，并将其持久化存储。
+目录挂载功能允许将虚拟目录或用户本地目录挂载到系统中，挂载后可通过 `/$mount-xxx` 路径以 HTTP 方式访问。
 
-### open() - 打开目录选择器
+> ⚠️ **注意**：`open()`（打开目录选择器）仅 Chrome 浏览器支持，Safari 等其他浏览器不支持。
+
+### open() - 打开目录选择器 (仅 Chrome)
+
+打开系统文件选择器，让用户选择本地文件夹：
 
 ```javascript
 import { open } from "/nos/fs/main.js";
@@ -124,29 +128,101 @@ import { open } from "/nos/fs/main.js";
 const handle = await open();
 ```
 
+`open()` 返回一个 `DirHandle`，可直接搭配 `mount()` 使用。
+
 ### mount() - 挂载目录
 
-```javascript
-import { open, mount } from "/nos/fs/main.js";
+挂载一个 `DirHandle`（可以是虚拟目录或 `open()` 打开的本地目录），返回一个挂载后的句柄，其 `path` 以 `$mount-` 为前缀：
 
-const handle = await open();
-await mount(handle);
+```javascript
+import { init, mount } from "/nos/fs/main.js";
+
+// 挂载虚拟目录
+const testDir = await init("my-dir");
+const mountedHandle = await mount(testDir);
+
+console.log(mountedHandle.path); // 如 "$mount-my-dir-xxxxx"
+```
+
+### 通过 get() 访问挂载目录
+
+挂载后可以通过 `get()` 传入 `mountedHandle.path` 来访问目录内容：
+
+```javascript
+// 创建文件后挂载，通过挂载路径重新获取
+await testDir.get("test.txt", { create: "file" });
+const mountedHandle = await mount(testDir);
+
+// 通过挂载路径获取目录
+const retrieved = await get(mountedHandle.path);
+
+// 比较是否为同一句柄
+const isSame = await mountedHandle.isSame(retrieved); // true
+```
+
+### 访问挂载目录中的子目录和文件
+
+```javascript
+const subDir = await testDir.get("subdir", { create: "dir" });
+const file = await subDir.get("test.txt", { create: "file" });
+await file.write("mount test content");
+
+const mountedHandle = await mount(testDir);
+
+// 通过挂载路径访问子目录
+const subDirHandle = await get(`${mountedHandle.path}/subdir`);
+const fileHandle = await subDirHandle.get("test.txt");
+const content = await fileHandle.text();
+```
+
+### 通过 Fetch 访问挂载目录 (HTTP)
+
+配合 Service Worker 注册，挂载目录中的文件可以通过 HTTP fetch 直接访问：
+
+```javascript
+import registration from "/_install/register.js";
+await registration;
+
+// 写入文件后挂载
+const testFile = await testDir.get("fetch-test.txt", { create: "file" });
+await testFile.write("sample content");
+const mountedHandle = await mount(testDir);
+
+// 通过 HTTP fetch 访问
+const response = await fetch(`/${mountedHandle.path}/fetch-test.txt`);
+const text = await response.text(); // "sample content"
 ```
 
 ### 获取已挂载目录列表
 
+`getMounted()` 返回一个数组，每项包含 `{ path, handle }`：
+
 ```javascript
 import { getMounted } from "/nos/fs/main.js";
 
-const mountedDirs = await getMounted();
+const allHandles = await getMounted();
+// 例: [{ path: "$mount-my-dir-xxxxx", handle: DirHandle }, ...]
+
+// 查找已挂载的目录
+const found = allHandles.find(item => item.path === mountedHandle.path);
 ```
 
 ### 卸载目录
 
-```javascript
-import { unmount } from "/nos/fs/main.js";
+`unmount()` 可以直接传入 `mount()` 返回的句柄，也可以传入 `getMounted()` 返回列表中的 `handle`：
 
-await unmount(handle);
+```javascript
+import { unmount, getMounted } from "/nos/fs/main.js";
+
+// 方式一：直接传入挂载句柄
+await unmount(mountedHandle);
+
+// 方式二：从已挂载列表中找到后卸载
+const allHandles = await getMounted();
+const found = allHandles.find(item => item.path === mountedHandle.path);
+if (found) {
+  await unmount(found.handle);
+}
 ```
 
 ---
