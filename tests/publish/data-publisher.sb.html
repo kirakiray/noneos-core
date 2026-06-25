@@ -437,8 +437,8 @@
         // 请求 manifest
         const rm_receivedManifest = await rm_publisherA.requestManifest(
           rm_remoteB,
-          rm_sessionIds[0],
           rm_manifest.fileHash,
+          rm_sessionIds[0],
         );
 
         // 验证收到的 manifest
@@ -531,8 +531,8 @@
         const rc_chunkHash = rc_manifest.chunkHashes[0];
         const rc_chunkData = await rc_publisherA.requestChunk(
           rc_remoteB,
-          rc_sessionIds[0],
           rc_chunkHash,
+          rc_sessionIds[0],
         );
 
         // 验证收到的 chunk 数据
@@ -606,8 +606,8 @@
         try {
           await me_publisherA.requestManifest(
             me_remoteB,
-            me_sessionIds[0],
             me_fakeFileHash,
+            me_sessionIds[0],
           );
         } catch (err) {
           me_errorThrown = true;
@@ -674,8 +674,8 @@
         try {
           await ce_publisherA.requestChunk(
             ce_remoteB,
-            ce_sessionIds[0],
             ce_fakeChunkHash,
+            ce_sessionIds[0],
           );
         } catch (err) {
           ce_errorThrown = true;
@@ -729,7 +729,7 @@
         const fl_manifest = await fl_publisher.publish(fl_file);
 
         // 直接 fetchFile（应在本地命中）
-        const fl_result = await fl_publisher.fetchFile(null, null, fl_manifest.fileHash);
+        const fl_result = await fl_publisher.fetchFile(null, fl_manifest.fileHash);
 
         // 验证内容
         const fl_blobText = await fl_result.blob.text();
@@ -804,8 +804,8 @@
         // （此时 userA 本地没有任何数据，应自动走远程拉取流程）
         const ff_result = await ff_publisherA.fetchFile(
           ff_remoteB,
-          ff_sessionIds[0],
           ff_manifest.fileHash,
+          ff_sessionIds[0],
         );
 
         // 验证组装后的内容与原始一致
@@ -841,7 +841,158 @@
     </template>
   </sb-test>
 
-  <!-- 测试 12：完整远程发布与组装流程（原有） -->
+  <!-- 测试 12：fetchFile 远程文件（不传 sessionId） -->
+  <sb-test name="FetchFile Remote No SessionId Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const fnA_ns = "publish-fetch-nosession-a";
+        const fnB_ns = "publish-fetch-nosession-b";
+        const fn_serverUrl = "ws://localhost:8081";
+
+        const fn_userA = new LocalUser(fnA_ns);
+        const fn_userB = new LocalUser(fnB_ns);
+        await Promise.all([fn_userA.ready(), fn_userB.ready()]);
+
+        await Promise.all([
+          fn_userA.server.connect(fn_serverUrl),
+          fn_userB.server.connect(fn_serverUrl),
+        ]);
+
+        const fn_publisherA = new DataPublisher(fn_userA);
+        const fn_publisherB = new DataPublisher(fn_userB);
+        fn_publisherA.start();
+        fn_publisherB.start();
+
+        // userB 发布多块文件
+        const fn_chunkSize = 255 * 1024;
+        const fn_fileSize = fn_chunkSize + 50 * 1024; // 305KB，2 块
+        const fn_buffer = new Uint8Array(fn_fileSize);
+        for (let i = 0; i < fn_fileSize; i++) {
+          fn_buffer[i] = (i * 3 + 9) % 256;
+        }
+        const fn_file = new File([fn_buffer], "fetch-nosession.bin", { type: "application/octet-stream" });
+        const fn_manifest = await fn_publisherB.publish(fn_file);
+
+        // userA 连接 userB
+        const fn_remoteB = await fn_userA.connectUser(fn_userB.userId);
+
+        // 不传 sessionId，自动获取第一个可用会话
+        const fn_result = await fn_publisherA.fetchFile(
+          fn_remoteB,
+          fn_manifest.fileHash,
+        );
+
+        // 验证内容
+        const fn_assembledBuffer = new Uint8Array(await fn_result.blob.arrayBuffer());
+        const fn_contentMatch = fn_assembledBuffer.length === fn_buffer.length &&
+          fn_assembledBuffer.every((b, i) => b === fn_buffer[i]);
+        const fn_fileNameMatch = fn_result.fileName === "fetch-nosession.bin";
+        const fn_fileSizeMatch = fn_result.fileSize === fn_fileSize;
+
+        fn_publisherA.stop();
+        fn_publisherB.stop();
+
+        const fn_allChecks = fn_contentMatch && fn_fileNameMatch && fn_fileSizeMatch;
+
+        return {
+          assert: fn_allChecks,
+          content: {
+            message: fn_allChecks ? "fetchFile 不传 sessionId 测试成功" : "fetchFile 不传 sessionId 测试失败",
+            checks: {
+              contentMatch: fn_contentMatch,
+              fileNameMatch: fn_fileNameMatch,
+              fileSizeMatch: fn_fileSizeMatch,
+              expectedSize: fn_fileSize,
+              actualSize: fn_assembledBuffer.length,
+              chunkCount: fn_manifest.chunkHashes.length,
+            },
+          },
+        };
+
+        await clearPublishData(fnA_ns);
+        await clearPublishData(fnB_ns);
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 13：requestManifest / requestChunk 不传 sessionId -->
+  <sb-test name="Request Without SessionId Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const nsA_ns = "publish-nosession-a";
+        const nsB_ns = "publish-nosession-b";
+        const ns_serverUrl = "ws://localhost:8081";
+
+        const ns_userA = new LocalUser(nsA_ns);
+        const ns_userB = new LocalUser(nsB_ns);
+        await Promise.all([ns_userA.ready(), ns_userB.ready()]);
+
+        await Promise.all([
+          ns_userA.server.connect(ns_serverUrl),
+          ns_userB.server.connect(ns_serverUrl),
+        ]);
+
+        const ns_publisherA = new DataPublisher(ns_userA);
+        const ns_publisherB = new DataPublisher(ns_userB);
+        ns_publisherA.start();
+        ns_publisherB.start();
+
+        // userB 发布文件
+        const ns_fileContent = "No sessionId test";
+        const ns_file = new File([ns_fileContent], "nosession.txt", { type: "text/plain" });
+        const ns_manifest = await ns_publisherB.publish(ns_file);
+
+        // userA 连接 userB
+        const ns_remoteB = await ns_userA.connectUser(ns_userB.userId);
+
+        // 不传 sessionId，自动获取第一个可用会话
+        const ns_receivedManifest = await ns_publisherA.requestManifest(
+          ns_remoteB,
+          ns_manifest.fileHash,
+        );
+        const ns_manifestReceived = ns_receivedManifest.fileHash === ns_manifest.fileHash;
+
+        // 不传 sessionId 请求 chunk
+        const ns_chunkHash = ns_manifest.chunkHashes[0];
+        const ns_chunkData = await ns_publisherA.requestChunk(
+          ns_remoteB,
+          ns_chunkHash,
+        );
+        const ns_chunkReceived = ns_chunkData !== null && ns_chunkData !== undefined;
+        const ns_contentMatch = new TextDecoder().decode(ns_chunkData) === ns_fileContent;
+
+        ns_publisherA.stop();
+        ns_publisherB.stop();
+
+        const ns_allChecks = ns_manifestReceived && ns_chunkReceived && ns_contentMatch;
+
+        return {
+          assert: ns_allChecks,
+          content: {
+            message: ns_allChecks ? "不传 sessionId 请求测试成功" : "不传 sessionId 请求测试失败",
+            checks: {
+              manifestReceived: ns_manifestReceived,
+              chunkReceived: ns_chunkReceived,
+              contentMatch: ns_contentMatch,
+            },
+          },
+        };
+
+        await clearPublishData(nsA_ns);
+        await clearPublishData(nsB_ns);
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 14：完整远程发布与组装流程（原有） -->
   <sb-test name="Full Remote Publish and Assemble Test">
     <template>
       <script type="module">
@@ -885,8 +1036,8 @@
         // userA 请求 manifest
         const fr_receivedManifest = await fr_publisherA.requestManifest(
           fr_remoteB,
-          fr_sessionId,
           fr_manifest.fileHash,
+          fr_sessionId,
         );
 
         const fr_manifestReceived = fr_receivedManifest.fileHash === fr_manifest.fileHash;
@@ -897,8 +1048,8 @@
           try {
             const fr_chunkData = await fr_publisherA.requestChunk(
               fr_remoteB,
-              fr_sessionId,
               fr_ch,
+              fr_sessionId,
             );
             if (!fr_chunkData) {
               fr_allChunksReceived = false;

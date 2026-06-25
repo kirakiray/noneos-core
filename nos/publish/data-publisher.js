@@ -223,14 +223,29 @@ export class DataPublisher {
   // ───── 请求方：请求 manifest ─────
 
   /**
+   * 解析 sessionId：如果传了就直接用，否则从 remoteUser 自动获取第一个可用会话
+   * @param {import("../user/remote-user.js").RemoteUser} remoteUser
+   * @param {string} [sessionId]
+   * @returns {Promise<string>}
+   */
+  async #resolveSessionId(remoteUser, sessionId) {
+    if (sessionId) return sessionId;
+    const ids = await remoteUser.getSessionIds();
+    if (!ids || ids.length === 0) {
+      throw new Error("No available session from remote user");
+    }
+    return ids[0];
+  }
+
+  /**
    * 请求远程用户的文件清单
    * 先查本地 DB，没有再发起网络请求
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
-   * @param {string} sessionId - 目标会话 ID
    * @param {string} fileHash - 文件哈希
+   * @param {string} [sessionId] - 可选，目标会话 ID，不传则自动获取第一个可用会话
    * @returns {Promise<Object>} manifest 对象
    */
-  async requestManifest(remoteUser, sessionId, fileHash) {
+  async requestManifest(remoteUser, fileHash, sessionId) {
     // 先查本地
     const local = await getManifest(this.#user.namespace, fileHash);
     if (local) return local;
@@ -255,8 +270,9 @@ export class DataPublisher {
     this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise });
 
     try {
+      const sid = await this.#resolveSessionId(remoteUser, sessionId);
       await remoteUser.send(
-        sessionId,
+        sid,
         { type: "data_publish", action: "request_manifest", fileHash },
         true,
       );
@@ -317,11 +333,11 @@ export class DataPublisher {
    * 请求远程用户的块数据
    * 先查本地 DB，没有再发起网络请求
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
-   * @param {string} sessionId - 目标会话 ID
    * @param {string} chunkHash - 块哈希
+   * @param {string} [sessionId] - 可选，目标会话 ID，不传则自动获取第一个可用会话
    * @returns {Promise<ArrayBuffer>} 块二进制数据
    */
-  async requestChunk(remoteUser, sessionId, chunkHash) {
+  async requestChunk(remoteUser, chunkHash, sessionId) {
     // 先查本地
     const local = await getChunk(this.#user.namespace, chunkHash);
     if (local) return local;
@@ -331,7 +347,7 @@ export class DataPublisher {
       return this.#chunkRequestMap.get(chunkHash);
     }
 
-    const promise = this.#doRequestChunk(remoteUser, sessionId, chunkHash);
+    const promise = this.#doRequestChunk(remoteUser, chunkHash, sessionId);
     this.#chunkRequestMap.set(chunkHash, promise);
     promise.finally(() => this.#chunkRequestMap.delete(chunkHash));
     return promise;
@@ -345,7 +361,9 @@ export class DataPublisher {
    *   此处监听 RemoteUser 的 "message" 事件，收到二进制后 recalc hash 匹配
    * - chunk 不存在：应答方发送 JSON 错误，同样分发到 RemoteUser
    */
-  async #doRequestChunk(remoteUser, sessionId, chunkHash) {
+  async #doRequestChunk(remoteUser, chunkHash, sessionId) {
+    const sid = await this.#resolveSessionId(remoteUser, sessionId);
+
     return new Promise((resolve, reject) => {
       let settled = false;
 
@@ -402,7 +420,7 @@ export class DataPublisher {
       // 发送请求（raw 模式跳过 E2EE）
       remoteUser
         .send(
-          sessionId,
+          sid,
           { type: "data_publish", action: "request_chunk", chunkHash },
           true,
         )
@@ -526,20 +544,20 @@ export class DataPublisher {
   // ───── 获取完整文件（本地优先，远程兜底） ─────
 
   /**
-   * 获取完整文件。优先从本地 DB 读取，若缺失 chunk 则自动从远程用户拉取。
+   * 获取完整文件。优先从本地 DB 读取，若缺失则自动从远程用户拉取。
    *
    * 流程：
    * 1. 尝试本地 assembleFile，若成功直接返回
-   * 2. 若本地缺失 chunk，向远程请求 manifest
+   * 2. 若本地缺失数据，向远程请求 manifest
    * 3. 逐个请求缺失的 chunk
    * 4. 再次 assembleFile 返回结果
    *
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
-   * @param {string} sessionId - 目标会话 ID
    * @param {string} fileHash - 文件哈希
+   * @param {string} [sessionId] - 可选，目标会话 ID，不传则自动获取第一个可用会话
    * @returns {Promise<{ blob: Blob, fileName: string, fileSize: number }>}
    */
-  async fetchFile(remoteUser, sessionId, fileHash) {
+  async fetchFile(remoteUser, fileHash, sessionId) {
     // 先试本地 —— 不论是 manifest 不存在还是缺少 chunk，都走远程兜底
     try {
       return await this.assembleFile(fileHash);
@@ -548,7 +566,7 @@ export class DataPublisher {
     }
 
     // 请求远程 manifest（会自动验签并存入本地 DB）
-    await this.requestManifest(remoteUser, sessionId, fileHash);
+    await this.requestManifest(remoteUser, fileHash, sessionId);
 
     // 请求所有 chunk（requestChunk 内部会先查本地，不会重复拉取）
     const manifest = await getManifest(this.#user.namespace, fileHash);
@@ -557,7 +575,7 @@ export class DataPublisher {
     }
     await Promise.all(
       manifest.chunkHashes.map((chunkHash) =>
-        this.requestChunk(remoteUser, sessionId, chunkHash),
+        this.requestChunk(remoteUser, chunkHash, sessionId),
       ),
     );
 
