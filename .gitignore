@@ -157,7 +157,7 @@ Cargo.lock
 **/*.rs.bk
 *.pdb
 
-_prompt.md
+_prompt*.md
 .webkit-test-data
 .chrome-test-data
 server/config2.db
