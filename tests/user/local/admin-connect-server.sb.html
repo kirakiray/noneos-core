@@ -150,7 +150,7 @@
           let listResult;
           let listError;
           try {
-            listResult = await adminConUser.listUsers(adminConUrl);
+            listResult = await adminConUser.listUsers(adminConUrl, { pageSize: 100 });
           } catch (e) {
             listError = e;
           }
@@ -199,7 +199,7 @@
 
           const adminListUrl = "ws://localhost:8081";
 
-          const adminListResponse = await adminListUser.listUsers(adminListUrl);
+          const adminListResponse = await adminListUser.listUsers(adminListUrl, { pageSize: 100 });
           // 也测试显式指定分页参数
           const adminListResponse2 = await adminListUser.listUsers(adminListUrl, { page: 1, pageSize: 10 });
 
@@ -212,7 +212,7 @@
           // 验证分页字段
           const hasPaginationFields = adminListResponse.total != null
             && adminListResponse.page === 1
-            && adminListResponse.page_size === 20;
+            && adminListResponse.page_size === 100;
           // 带分页参数的响应也正确
           const paginationWithParamsOK = adminListResponse2?.page === 1
             && adminListResponse2?.page_size === 10;
@@ -649,7 +649,7 @@
           const ws2 = await sess2Promise;
 
           // 管理员使用 AdminUser API 分步操作
-          const adminSessListResult = await adminSessUser.listUsers(sessUrl);
+          const adminSessListResult = await adminSessUser.listUsers(sessUrl, { pageSize: 100 });
 
           let adminSessDisconnectResult = null;
           let adminSessAfterList = null;
@@ -666,7 +666,7 @@
               targetSessions[0].sessionId,
             );
             // 再次 list_users 确认只有一个 session 剩余
-            adminSessAfterList = await adminSessUser.listUsers(sessUrl);
+            adminSessAfterList = await adminSessUser.listUsers(sessUrl, { pageSize: 100 });
           } else {
             adminSessDisconnectResult = { status: "error", message: "Fake session not found in list" };
           }
