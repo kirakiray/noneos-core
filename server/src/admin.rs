@@ -84,7 +84,7 @@ impl AppState {
         if let Some(ref db_path) = self.config.traffic_db_path {
             let quota_clone = quota.clone();
             let path_clone = db_path.clone();
-            tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
                 if let Ok(conn) = rusqlite::Connection::open(path_clone) {
                     if let Err(e) = traffic::save_user_relay_quota(&conn, &quota_clone) {
                         eprintln!("Failed to save user quota to DB: {}", e);
@@ -226,100 +226,111 @@ impl AppState {
 }
 
 /// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
-pub fn get_memory_usage_percent() -> f64 {
+pub async fn get_memory_usage_percent() -> f64 {
     static CACHE: OnceLock<std::sync::Mutex<(f64, std::time::Instant)>> = OnceLock::new();
     let cache_mutex = CACHE.get_or_init(|| {
         std::sync::Mutex::new((0.0, std::time::Instant::now() - Duration::from_secs(10)))
     });
 
-    let mut cache = cache_mutex.lock().unwrap();
-    if cache.1.elapsed() < Duration::from_secs(1) {
-        return cache.0;
+    {
+        let cache = cache_mutex.lock().unwrap();
+        if cache.1.elapsed() < Duration::from_secs(1) {
+            return cache.0;
+        }
     }
 
-    static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
-    let mut system = SYSTEM.get_or_init(|| {
-        std::sync::Mutex::new(System::new_all())
-    }).lock().unwrap();
+    // 将阻塞的刷新操作移至 spawn_blocking
+    let usage = tokio::task::spawn_blocking(|| {
+        static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
+        let mut system = SYSTEM.get_or_init(|| {
+            std::sync::Mutex::new(System::new_all())
+        }).lock().unwrap();
 
-    system.refresh_memory();
-    let total = system.total_memory();
-    let usage = if total == 0 {
-        0.0
-    } else {
-        (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
-    };
+        system.refresh_memory();
+        let total = system.total_memory();
+        if total == 0 {
+            0.0
+        } else {
+            (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
+        }
+    }).await.unwrap_or(0.0);
 
+    let mut cache = cache_mutex.lock().unwrap();
     cache.0 = usage;
     cache.1 = std::time::Instant::now();
     usage
 }
 
 /// 收集系统信息（内存、CPU、磁盘使用情况，带 1 秒缓存）
-pub fn collect_system_info() -> serde_json::Value {
+pub async fn collect_system_info() -> serde_json::Value {
     static CACHE: OnceLock<std::sync::Mutex<(serde_json::Value, std::time::Instant)>> = OnceLock::new();
     let cache_mutex = CACHE.get_or_init(|| {
         std::sync::Mutex::new((serde_json::Value::Null, std::time::Instant::now() - Duration::from_secs(10)))
     });
 
-    let mut cache = cache_mutex.lock().unwrap();
-    if cache.1.elapsed() < Duration::from_secs(1) {
-        return cache.0.clone();
+    {
+        let cache = cache_mutex.lock().unwrap();
+        if cache.1.elapsed() < Duration::from_secs(1) {
+            return cache.0.clone();
+        }
     }
 
-    static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
-    let mut system = SYSTEM.get_or_init(|| {
-        std::sync::Mutex::new(System::new_all())
-    }).lock().unwrap();
+    let info = tokio::task::spawn_blocking(|| {
+        static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
+        let mut system = SYSTEM.get_or_init(|| {
+            std::sync::Mutex::new(System::new_all())
+        }).lock().unwrap();
 
-    // 刷新内存（快照型，一次即可）
-    system.refresh_memory();
-    // 刷新 CPU：至少需要两次刷新才能得到有意义的差值
-    system.refresh_cpu_all();
-    let disks = Disks::new_with_refreshed_list();
+        // 刷新内存（快照型，一次即可）
+        system.refresh_memory();
+        // 刷新 CPU：至少需要两次刷新才能得到有意义的差值
+        system.refresh_cpu_all();
+        let disks = Disks::new_with_refreshed_list();
 
-    // 内存信息（字节）
-    let total_memory = system.total_memory();
-    let used_memory = system.used_memory();
-    let available_memory = system.available_memory();
+        // 内存信息（字节）
+        let total_memory = system.total_memory();
+        let used_memory = system.used_memory();
+        let available_memory = system.available_memory();
 
-    // CPU 信息：返回每个核心的单独占用率
-    let cpu_count = system.cpus().len();
-    let cores: Vec<serde_json::Value> = system.cpus().iter().enumerate().map(|(i, cpu)| {
+        // CPU 信息：返回每个核心的单独占用率
+        let cpu_count = system.cpus().len();
+        let cores: Vec<serde_json::Value> = system.cpus().iter().enumerate().map(|(i, cpu)| {
+            serde_json::json!({
+                "index": i,
+                "usage_percent": (cpu.cpu_usage() * 100.0).round() / 100.0,
+            })
+        }).collect();
+
+        // 磁盘信息
+        let disk_list: Vec<serde_json::Value> = disks.iter().map(|disk| {
+            serde_json::json!({
+                "mount_point": disk.mount_point().to_string_lossy(),
+                "total_space": disk.total_space(),
+                "available_space": disk.available_space(),
+                "file_system": disk.file_system().to_string_lossy(),
+            })
+        }).collect();
+
         serde_json::json!({
-            "index": i,
-            "usage_percent": (cpu.cpu_usage() * 100.0).round() / 100.0,
-        })
-    }).collect();
-
-    // 磁盘信息
-    let disk_list: Vec<serde_json::Value> = disks.iter().map(|disk| {
-        serde_json::json!({
-            "mount_point": disk.mount_point().to_string_lossy(),
-            "total_space": disk.total_space(),
-            "available_space": disk.available_space(),
-            "file_system": disk.file_system().to_string_lossy(),
-        })
-    }).collect();
-
-    let info = serde_json::json!({
-        "memory": {
-            "total": total_memory,
-            "used": used_memory,
-            "available": available_memory,
-            "usage_percent": if total_memory > 0 {
-                (used_memory as f64 / total_memory as f64 * 100.0 * 100.0).round() / 100.0
-            } else {
-                0.0
+            "memory": {
+                "total": total_memory,
+                "used": used_memory,
+                "available": available_memory,
+                "usage_percent": if total_memory > 0 {
+                    (used_memory as f64 / total_memory as f64 * 100.0 * 100.0).round() / 100.0
+                } else {
+                    0.0
+                },
             },
-        },
-        "cpu": {
-            "core_count": cpu_count,
-            "cores": cores,
-        },
-        "disks": disk_list,
-    });
+            "cpu": {
+                "core_count": cpu_count,
+                "cores": cores,
+            },
+            "disks": disk_list,
+        })
+    }).await.unwrap_or(serde_json::Value::Null);
 
+    let mut cache = cache_mutex.lock().unwrap();
     cache.0 = info.clone();
     cache.1 = std::time::Instant::now();
     info
@@ -367,42 +378,47 @@ pub async fn handle_admin_command(
         "list_all_users" => {
             // 从数据库查询所有用户（包括离线的）
             if let Some(ref db_path) = state.config.traffic_db_path {
-                match rusqlite::Connection::open(db_path) {
-                    Ok(conn) => {
-                        match traffic::query_users_paginated(&conn, admin_cmd.page, admin_cmd.page_size) {
-                            Ok((mut users, total)) => {
-                                // 为查询结果添加在线状态标记
-                                for user in users.iter_mut() {
-                                    if let Some(user_id_val) = user.get("userId").and_then(|v| v.as_str()) {
-                                        let prefix = format!("{}:", user_id_val);
-                                        let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
-                                        if let Some(obj) = user.as_object_mut() {
-                                            obj.insert("isOnline".to_string(), serde_json::Value::Bool(is_online));
-                                        }
-                                    }
-                                }
+                let db_path_clone = db_path.clone();
+                let page = admin_cmd.page;
+                let page_size = admin_cmd.page_size;
+                
+                let db_res = tokio::task::spawn_blocking(move || {
+                    let conn = rusqlite::Connection::open(db_path_clone)?;
+                    traffic::query_users_paginated(&conn, page, page_size)
+                }).await;
 
-                                AdminResponse {
-                                    msg_type: "admin_response".to_string(),
-                                    action: "list_all_users".to_string(),
-                                    status: "ok".to_string(),
-                                    message: Some(format!("Found {} total user(s) in database", total)),
-                                    users: Some(users),
-                                    total: Some(total),
-                                    page: Some(admin_cmd.page),
-                                    page_size: Some(admin_cmd.page_size),
-                                    ..Default::default()
+                match db_res {
+                    Ok(Ok((mut users, total))) => {
+                        // 为查询结果添加在线状态标记
+                        for user in users.iter_mut() {
+                            if let Some(user_id_val) = user.get("userId").and_then(|v| v.as_str()) {
+                                let prefix = format!("{}:", user_id_val);
+                                let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
+                                if let Some(obj) = user.as_object_mut() {
+                                    obj.insert("isOnline".to_string(), serde_json::Value::Bool(is_online));
                                 }
                             }
-                            Err(e) => {
-                                AdminResponse {
-                                    msg_type: "admin_response".to_string(),
-                                    action: "list_all_users".to_string(),
-                                    status: "error".to_string(),
-                                    message: Some(format!("Database query error: {}", e)),
-                                    ..Default::default()
-                                }
-                            }
+                        }
+
+                        AdminResponse {
+                            msg_type: "admin_response".to_string(),
+                            action: "list_all_users".to_string(),
+                            status: "ok".to_string(),
+                            message: Some(format!("Found {} total user(s) in database", total)),
+                            users: Some(users),
+                            total: Some(total),
+                            page: Some(admin_cmd.page),
+                            page_size: Some(admin_cmd.page_size),
+                            ..Default::default()
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        AdminResponse {
+                            msg_type: "admin_response".to_string(),
+                            action: "list_all_users".to_string(),
+                            status: "error".to_string(),
+                            message: Some(format!("Database query error: {}", e)),
+                            ..Default::default()
                         }
                     }
                     Err(e) => {
@@ -410,7 +426,7 @@ pub async fn handle_admin_command(
                             msg_type: "admin_response".to_string(),
                             action: "list_all_users".to_string(),
                             status: "error".to_string(),
-                            message: Some(format!("Failed to open database: {}", e)),
+                            message: Some(format!("Spawn blocking error: {}", e)),
                             ..Default::default()
                         }
                     }
@@ -499,7 +515,7 @@ pub async fn handle_admin_command(
             }
         }
         "get_system_info" => {
-            let info = collect_system_info();
+            let info = collect_system_info().await;
             AdminResponse {
                 msg_type: "admin_response".to_string(),
                 action: "get_system_info".to_string(),
@@ -525,39 +541,47 @@ pub async fn handle_admin_command(
             // from_ms 由客户端明确传入；不传则默认查最近 1 小时
             let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3600_000);
             let db_path = state.config.traffic_db_path.clone();
-            let (history_result, total, total_inbound, total_outbound, total_relay, total_handshake) = if let Some(ref path) = db_path {
-                match rusqlite::Connection::open(path) {
-                    Ok(conn) => {
-                        let history = match traffic::query_traffic_history_paginated(
-                            &conn,
-                            from_ms,
-                            to_ms,
-                            admin_cmd.user_id.as_deref(),
-                            admin_cmd.page,
-                            admin_cmd.page_size,
-                        ) {
-                            Ok((rows, total)) => (rows, total),
-                            Err(e) => (
-                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})],
-                                0,
-                            ),
-                        };
-                        let totals = traffic::query_traffic_history_totals(
-                            &conn,
-                            from_ms,
-                            to_ms,
-                            admin_cmd.user_id.as_deref(),
-                        ).unwrap_or((0, 0, 0, 0));
-                        (history.0, history.1, totals.0, totals.1, totals.2, totals.3)
-                    }
+            let page = admin_cmd.page;
+            let page_size = admin_cmd.page_size;
+            let target_user_id = admin_cmd.user_id.clone();
+
+            let (history_result, total, total_inbound, total_outbound, total_relay, total_handshake) = if let Some(path) = db_path {
+                let res = tokio::task::spawn_blocking(move || {
+                    let conn = rusqlite::Connection::open(path)?;
+                    let history = traffic::query_traffic_history_paginated(
+                        &conn,
+                        from_ms,
+                        to_ms,
+                        target_user_id.as_deref(),
+                        page,
+                        page_size,
+                    )?;
+                    let totals = traffic::query_traffic_history_totals(
+                        &conn,
+                        from_ms,
+                        to_ms,
+                        target_user_id.as_deref(),
+                    )?;
+                    Ok::<(Vec<serde_json::Value>, u32, u64, u64, u64, u64), rusqlite::Error>((
+                        history.0, history.1, totals.0, totals.1, totals.2, totals.3
+                    ))
+                }).await;
+
+                match res {
+                    Ok(Ok(data)) => data,
+                    Ok(Err(e)) => (
+                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})],
+                        0, 0, 0, 0, 0,
+                    ),
                     Err(e) => (
-                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})],
+                        vec![serde_json::json!({"error": format!("Spawn blocking error: {}", e)})],
                         0, 0, 0, 0, 0,
                     ),
                 }
             } else {
                 (Vec::new(), 0, 0, 0, 0, 0)
             };
+
             AdminResponse {
                 msg_type: "admin_response".to_string(),
                 action: "get_traffic_history".to_string(),
@@ -577,22 +601,23 @@ pub async fn handle_admin_command(
         "get_system_stats_history" => {
             let limit = admin_cmd.limit.unwrap_or(60);
             let db_path = state.config.traffic_db_path.clone();
-            let stats_result: Vec<serde_json::Value> = if let Some(ref path) = db_path {
-                match rusqlite::Connection::open(path) {
-                    Ok(conn) => {
-                        match traffic::query_system_stats_history(&conn, limit) {
-                            Ok(rows) => rows.iter().map(|r| serde_json::json!({
-                                "recordedAt": r.recorded_at,
-                                "cpuUsagePercent": r.cpu_usage_percent,
-                                "memoryUsagePercent": r.memory_usage_percent,
-                            })).collect(),
-                            Err(e) => {
-                                vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
-                            }
-                        }
+            let stats_result: Vec<serde_json::Value> = if let Some(path) = db_path {
+                let res = tokio::task::spawn_blocking(move || {
+                    let conn = rusqlite::Connection::open(path)?;
+                    traffic::query_system_stats_history(&conn, limit)
+                }).await;
+
+                match res {
+                    Ok(Ok(rows)) => rows.iter().map(|r| serde_json::json!({
+                        "recordedAt": r.recorded_at,
+                        "cpuUsagePercent": r.cpu_usage_percent,
+                        "memoryUsagePercent": r.memory_usage_percent,
+                    })).collect(),
+                    Ok(Err(e)) => {
+                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
                     }
                     Err(e) => {
-                        vec![serde_json::json!({"error": format!("Failed to open DB: {}", e)})]
+                        vec![serde_json::json!({"error": format!("Spawn blocking error: {}", e)})]
                     }
                 }
             } else {

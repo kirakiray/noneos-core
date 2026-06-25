@@ -513,7 +513,7 @@ pub async fn handle_connection(
             // 内存过载保护：非管理员且内存使用率超过阈值时拒绝连接
             if !is_admin {
                 let threshold = state.config.max_memory_usage_percent;
-                let mem_usage = admin::get_memory_usage_percent();
+                let mem_usage = admin::get_memory_usage_percent().await;
                 if mem_usage > threshold {
                     let msg = format!(
                         "Server memory usage is too high ({}% > {}%), connection rejected. Please try again later.",
@@ -558,7 +558,7 @@ pub async fn handle_connection(
                 tr.add_handshake(&conn_key, handshake_size as u64, now_ms);
             }
 
-            // 持久化用户信息到数据库（异步，不阻塞连接）
+            // 持久化用户信息到数据库（异步阻塞线程中执行）
             if let Some(ref db_path) = state.config.traffic_db_path {
                 let db_path_clone = db_path.clone();
                 let user_record = traffic::UserRecord {
@@ -568,7 +568,7 @@ pub async fn handle_connection(
                     first_seen_at: traffic::now_ms(),
                     last_seen_at: traffic::now_ms(),
                 };
-                tokio::spawn(async move {
+                tokio::task::spawn_blocking(move || {
                     if let Ok(conn) = rusqlite::Connection::open(db_path_clone) {
                         if let Err(e) = traffic::save_user(&conn, &user_record) {
                             eprintln!("Failed to persist user {} to DB: {}", user_record.user_id, e);
