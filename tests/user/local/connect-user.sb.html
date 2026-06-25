@@ -293,7 +293,7 @@
 
         const nsG = "card-user-g";
         const nsH = "card-user-h";
-        const serverUrl = "ws://localhost:8081";
+        const serverUrl4 = "ws://localhost:8081";
 
         const userG = new LocalUser(nsG);
         const userH = new LocalUser(nsH);
@@ -301,8 +301,8 @@
         await Promise.all([userG.ready(), userH.ready()]);
 
         await Promise.all([
-          userG.server.connect(serverUrl),
-          userH.server.connect(serverUrl),
+          userG.server.connect(serverUrl4),
+          userH.server.connect(serverUrl4),
         ]);
 
         // userG 连接 userH
@@ -333,7 +333,7 @@
         unbind();
 
         // 验证名片数据完整性
-        const hasUserId = card.userId === userH.userId;
+        const cardHasUserId = card.userId === userH.userId;
         const hasPublicKey = typeof card.publicKey === "string" && card.publicKey.length > 0;
         const hasUsername = typeof card.username === "string" && card.username.length > 0;
         const hasSignTime = typeof card.signTime === "number" && card.signTime > 0;
@@ -358,7 +358,7 @@
         // 清理
         await userG.card.delete(userH.userId);
 
-        const allCardChecks = hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+        const allCardChecks = cardHasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
           && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
           && storedMatch && fromCache;
 
@@ -381,7 +381,7 @@
             cachedReturned: fromCache,
             // 错误诊断字段
             checks: {
-              hasUserId,
+              cardHasUserId,
               expectedUserId: userH.userId,
               actualUserId: card.userId,
               hasPublicKey,
@@ -593,7 +593,7 @@
         const unknownRtt = remotePingB.getRTT("nonexistent-session-xxx");
         const unknownRttValid = unknownRtt === null;
 
-        const allPassed =
+        const allPingPassed =
           rtt1Valid &&
           getRttWithSessionValid &&
           bestRttValid &&
@@ -602,9 +602,9 @@
           unknownRttValid;
 
         return {
-          assert: allPassed,
+          assert: allPingPassed,
           content: {
-            message: allPassed
+            message: allPingPassed
               ? `Ping/pong RTT 测试全部通过 — 最新 RTT: ${rtt1}ms, 最佳 RTT: ${bestRtt?.rtt}ms`
               : "部分 RTT 测试未通过",
             rtt1,
