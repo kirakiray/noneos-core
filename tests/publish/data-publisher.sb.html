@@ -452,10 +452,10 @@
         let rm_signatureValid = false;
         try {
           // 使用 verifyData 验证 manifest（使用 manifest 自身内嵌的 publicKey）
-          const { verifyData: rm_verifyData } = await import("/nos/crypto/crypto-verify.js");
-          rm_signatureValid = await rm_verifyData(rm_receivedManifest);
-          const res2 = await rm_userB.verify(rm_receivedManifest);
-          debugger
+          // const { verifyData: rm_verifyData } = await import("/nos/crypto/crypto-verify.js");
+          // rm_signatureValid = await rm_verifyData(rm_receivedManifest);
+          
+          rm_signatureValid= await rm_userB.verify(rm_receivedManifest);
         } catch (err) {
           console.error("Error verifying signature:", err);
         }
