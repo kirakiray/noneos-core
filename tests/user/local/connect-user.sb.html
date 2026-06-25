@@ -648,6 +648,76 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="Session Left Notification Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsK = "session-left-k";
+        const nsL = "session-left-l";
+        const slUrl = "ws://localhost:8081";
+
+        const userK = new LocalUser(nsK);
+        const userL = new LocalUser(nsL);
+
+        await Promise.all([userK.ready(), userL.ready()]);
+
+        await Promise.all([
+          userK.server.connect(slUrl),
+          userL.server.connect(slUrl),
+        ]);
+
+        // userK 连接 userL（自动 watch）
+        const remoteL = await userK.connectUser(userL.userId);
+
+        // 监听 session_left 事件
+        let sessionLeftEvent = null;
+        remoteL.bind("session_left", (event) => {
+          sessionLeftEvent = event.detail;
+        });
+
+        // 断开 userL 的 WebSocket，模拟 session 下线
+        // 通过关闭 userL 的所有服务器连接实现
+        for (const url of userL.server.connectedUrls) {
+          // 直接关闭底层 WebSocket
+          userL.server.disconnect(url);
+        }
+
+        // 等待 session_left 事件触发（聚合检测需要时间）
+        for (let i = 0; i < 30; i++) {
+          if (sessionLeftEvent !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        const eventReceived = sessionLeftEvent !== null;
+        const sessionIdMatch = sessionLeftEvent?.sessionId === userL.sessionId;
+        const allPassed = eventReceived && sessionIdMatch;
+
+        return {
+          assert: allPassed,
+          content: {
+            message: allPassed
+              ? "Session left 通知测试成功"
+              : "Session left 通知测试失败",
+            userKId: userK.userId,
+            userLId: userL.userId,
+            userLSessionId: userL.sessionId,
+            sessionLeftEvent,
+            // 错误诊断字段
+            checks: {
+              eventReceived,
+              eventNotNull: sessionLeftEvent !== null,
+              sessionIdMatch,
+              expectedSessionId: userL.sessionId,
+              actualSessionId: sessionLeftEvent?.sessionId,
+              remoteUserId: remoteL.userId,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

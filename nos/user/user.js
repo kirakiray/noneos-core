@@ -52,6 +52,9 @@ export class LocalUser extends BaseUser {
 
     // 设置 RTC 直连消息并分发给对应的 RemoteUser 实例
     this.#setupRTCDispatch();
+    // 监听服务器的 session_server_left 通知，聚合后触发 session_left 事件
+    // 必须在 setupRelayDispatch 之前注册，确保优先拦截
+    this.#setupServerNotificationDispatch();
     // 监听 relay 消息并分发给对应的 RemoteUser 实例
     this.#setupRelayDispatch();
     // 监听 RTC 建立/断开事件，触发对应 RemoteUser 重新测量 RTT
@@ -158,6 +161,128 @@ export class LocalUser extends BaseUser {
         .then((remoteUser) => remoteUser.recalcRTT(sessionId))
         .catch(() => {});
     });
+  }
+
+  /**
+   * 监听服务端推送的 session_server_left 通知。
+   * 当收到的消息 type 为 session_server_left 时，拦截并做聚合决策：
+   * 1. 查其他已连接服务器上该 session 是否还在
+   * 2. 查 RTC DataChannel 是否还连通
+   * 只有所有链路都不通时才触发 session_left 事件
+   */
+  #setupServerNotificationDispatch() {
+    this.bind("message", (event) => {
+      const detail = event.detail;
+      if (typeof detail.data !== "string") return;
+      let parsed;
+      try {
+        parsed = JSON.parse(detail.data);
+      } catch {
+        return;
+      }
+      if (parsed.type === "session_server_left") {
+        event.stopImmediatePropagation();
+        this.#handleSessionServerLeft(parsed);
+      }
+    });
+  }
+
+  /**
+   * 收到 session_server_left 通知后，聚合判断是否真的下线
+   */
+  async #handleSessionServerLeft(data) {
+    const { user_id, session_id, username } = data;
+    const reallyOffline = await this.#checkSessionReallyOffline(
+      user_id,
+      session_id,
+    );
+    if (reallyOffline) {
+      this._trigger("session_left", {
+        userId: user_id,
+        sessionId: session_id,
+        username: username || "",
+      });
+      this.#dispatchSessionLeftToRemote(user_id, session_id, username || "");
+    }
+  }
+
+  /**
+   * 检查指定 userId 的 sessionId 是否在其他服务器或 RTC 上仍在线
+   * @returns {Promise<boolean>} true 表示真的下线了，false 表示还在
+   */
+  async #checkSessionReallyOffline(userId, sessionId) {
+    // 1. 检查其他已连接服务器上该 session 是否还在
+    const urls = this.#server.connectedUrls;
+    for (const url of urls) {
+      try {
+        const result = await this.#server.queryUserOnline(url, userId);
+        if (result.online && result.sessions.includes(sessionId)) {
+          return false; // 在其他服务器上还在
+        }
+      } catch {
+        // 查询失败的服务器跳过
+      }
+    }
+
+    // 2. 检查 RTC DataChannel 是否还连通
+    const dc = this.#rtc.getChannel(userId, sessionId);
+    if (dc && dc.readyState === "open") {
+      return false; // RTC 还通着
+    }
+
+    return true; // 所有链路都不通，真的下线了
+  }
+
+  /**
+   * 将 session_left 事件分发给缓存的 RemoteUser 实例
+   */
+  #dispatchSessionLeftToRemote(userId, sessionId, username) {
+    if (!this.#remoteUserCache.has(userId)) return;
+    const remoteUserPromise = this.#remoteUserCache.get(userId);
+    Promise.resolve(remoteUserPromise).then((remoteUser) => {
+      remoteUser._trigger("session_left", {
+        sessionId,
+        username,
+      });
+    });
+  }
+
+  /**
+   * 向所有已连接服务器注册关注（watch）指定 userId 的下线通知
+   */
+  async #watchUser(userId) {
+    for (const url of this.#server.connectedUrls) {
+      try {
+        this.#server.sendToServer(
+          url,
+          JSON.stringify({
+            type: "watch_user",
+            target_user_id: userId,
+          }),
+        );
+      } catch {
+        // 发送失败的服务器跳过
+      }
+    }
+  }
+
+  /**
+   * 向所有已连接服务器取消关注（unwatch）指定 userId 的下线通知
+   */
+  async #unwatchUser(userId) {
+    for (const url of this.#server.connectedUrls) {
+      try {
+        this.#server.sendToServer(
+          url,
+          JSON.stringify({
+            type: "unwatch_user",
+            target_user_id: userId,
+          }),
+        );
+      } catch {
+        // 发送失败的服务器跳过
+      }
+    }
   }
 
   /**
@@ -404,7 +529,20 @@ export class LocalUser extends BaseUser {
     if (!bestServer) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
-    return new RemoteUser(userId, this);
+    const remoteUser = new RemoteUser(userId, this);
+    // 自动在所有已连接服务器注册关注，以便接收对方 session 的下线通知
+    this.#watchUser(userId);
+    return remoteUser;
+  }
+
+  /**
+   * 断开与远程用户的连接
+   * 取消关注其下线通知，并清理本地缓存
+   * @param {string} userId - 目标用户的 userId
+   */
+  async disconnectUser(userId) {
+    await this.#unwatchUser(userId);
+    this.#remoteUserCache.delete(userId);
   }
 
   /**
