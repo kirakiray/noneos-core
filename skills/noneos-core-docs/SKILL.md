@@ -102,7 +102,23 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
-更多详细操作参考：[用户管理 API 参考](references/user-api.md)
+更多详细操作参考：
+- [用户管理 API 参考](references/user-api.md)
+- [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化与签名验证
+- [用户信息管理](references/user-info.md) — 信息获取、更新、合并与验证
+- [证书管理](references/user-cert.md) — 证书签发、导入、查询与安全管理
+- [用户导出/导入/删除](references/user-export-import.md) — 加密导出、导入、生命周期管理
+
+### 服务器连接
+
+- [服务器连接与握手](references/connect-server.md) — 连接、安全握手、延迟测量
+- [服务器列表管理](references/server-list.md) — 默认列表、添加/删除、持久化
+
+### 通信详细操作
+
+- [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
+- [Session 管理](references/connect-session.md) — 下线通知、多服务器、RTC 保活
+- [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 
 ---
 
