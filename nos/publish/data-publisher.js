@@ -117,8 +117,9 @@ export class DataPublisher {
       this.#unbind = null;
     }
     // 清理所有进行中的请求
-    for (const { reject, timer } of this.#manifestRequestMap.values()) {
+    for (const { reject, timer, unbind } of this.#manifestRequestMap.values()) {
       clearTimeout(timer);
+      unbind();
       reject(new Error("DataPublisher stopped"));
     }
     this.#manifestRequestMap.clear();
@@ -267,7 +268,13 @@ export class DataPublisher {
       reject(new Error(`Manifest request timed out: ${fileHash}`));
     }, MANIFEST_TIMEOUT);
 
-    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise });
+    const unbind = remoteUser.bind("session_left", () => {
+      clearTimeout(timer);
+      this.#manifestRequestMap.delete(fileHash);
+      reject(new Error(`Remote user disconnected, manifest request failed: ${fileHash}`));
+    });
+
+    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind });
 
     try {
       const sid = await this.#resolveSessionId(remoteUser, sessionId);
@@ -278,6 +285,7 @@ export class DataPublisher {
       );
     } catch (err) {
       clearTimeout(timer);
+      unbind();
       this.#manifestRequestMap.delete(fileHash);
       throw err;
     }
@@ -315,6 +323,7 @@ export class DataPublisher {
     const entry = this.#manifestRequestMap.get(fileHash);
     if (!entry) return;
     clearTimeout(entry.timer);
+    entry.unbind();
     this.#manifestRequestMap.delete(fileHash);
     entry.resolve(manifest);
   }
@@ -323,6 +332,7 @@ export class DataPublisher {
     const entry = this.#manifestRequestMap.get(fileHash);
     if (!entry) return;
     clearTimeout(entry.timer);
+    entry.unbind();
     this.#manifestRequestMap.delete(fileHash);
     entry.reject(error);
   }
@@ -367,14 +377,19 @@ export class DataPublisher {
     return new Promise((resolve, reject) => {
       let settled = false;
 
+      const cleanup = () => {
+        messageUnbind();
+        sessionLeftUnbind();
+      };
+
       const timer = setTimeout(() => {
         if (settled) return;
         settled = true;
-        unbind();
+        cleanup();
         reject(new Error(`Chunk request timed out: ${chunkHash}`));
       }, CHUNK_TIMEOUT);
 
-      const unbind = remoteUser.bind("message", async (event) => {
+      const messageUnbind = remoteUser.bind("message", async (event) => {
         if (settled) return;
         const { data } = event.detail;
 
@@ -387,7 +402,7 @@ export class DataPublisher {
             if (recalcHash === chunkHash) {
               settled = true;
               clearTimeout(timer);
-              unbind();
+              cleanup();
               // 存入 DB（拷贝为独立 ArrayBuffer）
               const buffer = bytes.buffer.slice(
                 bytes.byteOffset,
@@ -412,9 +427,17 @@ export class DataPublisher {
         ) {
           settled = true;
           clearTimeout(timer);
-          unbind();
+          cleanup();
           reject(new Error(data.error || "Chunk not found"));
         }
+      });
+
+      const sessionLeftUnbind = remoteUser.bind("session_left", () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error(`Remote user disconnected, chunk request failed: ${chunkHash}`));
       });
 
       // 发送请求（raw 模式跳过 E2EE）
@@ -428,7 +451,7 @@ export class DataPublisher {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
-          unbind();
+          cleanup();
           reject(err);
         });
     });
