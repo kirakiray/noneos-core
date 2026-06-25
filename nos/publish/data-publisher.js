@@ -522,4 +522,46 @@ export class DataPublisher {
       fileSize: manifest.fileSize,
     };
   }
+
+  // ───── 获取完整文件（本地优先，远程兜底） ─────
+
+  /**
+   * 获取完整文件。优先从本地 DB 读取，若缺失 chunk 则自动从远程用户拉取。
+   *
+   * 流程：
+   * 1. 尝试本地 assembleFile，若成功直接返回
+   * 2. 若本地缺失 chunk，向远程请求 manifest
+   * 3. 逐个请求缺失的 chunk
+   * 4. 再次 assembleFile 返回结果
+   *
+   * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
+   * @param {string} sessionId - 目标会话 ID
+   * @param {string} fileHash - 文件哈希
+   * @returns {Promise<{ blob: Blob, fileName: string, fileSize: number }>}
+   */
+  async fetchFile(remoteUser, sessionId, fileHash) {
+    // 先试本地 —— 不论是 manifest 不存在还是缺少 chunk，都走远程兜底
+    try {
+      return await this.assembleFile(fileHash);
+    } catch {
+      // 忽略所有组装失败，继续尝试远程拉取
+    }
+
+    // 请求远程 manifest（会自动验签并存入本地 DB）
+    await this.requestManifest(remoteUser, sessionId, fileHash);
+
+    // 请求所有 chunk（requestChunk 内部会先查本地，不会重复拉取）
+    const manifest = await getManifest(this.#user.namespace, fileHash);
+    if (!manifest) {
+      throw new Error(`Manifest not found after remote fetch: ${fileHash}`);
+    }
+    await Promise.all(
+      manifest.chunkHashes.map((chunkHash) =>
+        this.requestChunk(remoteUser, sessionId, chunkHash),
+      ),
+    );
+
+    // 再次组装（此时所有 chunk 应已在本地）
+    return this.assembleFile(fileHash);
+  }
 }

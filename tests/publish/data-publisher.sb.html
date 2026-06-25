@@ -705,7 +705,143 @@
     </template>
   </sb-test>
 
-  <!-- 测试 10：完整远程发布与组装流程 -->
+  <!-- 测试 10：fetchFile 获取本地文件 -->
+  <sb-test name="FetchFile Local Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const fl_ns = "publish-fetch-local";
+        const fl_serverUrl = "ws://localhost:8081";
+
+        const fl_user = new LocalUser(fl_ns);
+        await fl_user.ready();
+        await fl_user.server.connect(fl_serverUrl);
+
+        const fl_publisher = new DataPublisher(fl_user);
+        fl_publisher.start();
+
+        // 发布文件
+        const fl_fileContent = "FetchFile local test content!";
+        const fl_file = new File([fl_fileContent], "fetch-local.txt", { type: "text/plain" });
+        const fl_manifest = await fl_publisher.publish(fl_file);
+
+        // 直接 fetchFile（应在本地命中）
+        const fl_result = await fl_publisher.fetchFile(null, null, fl_manifest.fileHash);
+
+        // 验证内容
+        const fl_blobText = await fl_result.blob.text();
+        const fl_contentMatch = fl_blobText === fl_fileContent;
+        const fl_fileNameMatch = fl_result.fileName === "fetch-local.txt";
+        const fl_fileSizeMatch = fl_result.fileSize === fl_file.size;
+
+        fl_publisher.stop();
+
+        const fl_allChecks = fl_contentMatch && fl_fileNameMatch && fl_fileSizeMatch;
+
+        return {
+          assert: fl_allChecks,
+          content: {
+            message: fl_allChecks ? "fetchFile 本地文件测试成功" : "fetchFile 本地文件测试失败",
+            checks: {
+              contentMatch: fl_contentMatch,
+              fileNameMatch: fl_fileNameMatch,
+              fileSizeMatch: fl_fileSizeMatch,
+              expectedContent: fl_fileContent,
+              actualContent: fl_blobText,
+            },
+          },
+        };
+
+        await clearPublishData(fl_ns);
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 11：fetchFile 获取远程文件（自动拉取） -->
+  <sb-test name="FetchFile Remote Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ffA_ns = "publish-fetch-remote-a";
+        const ffB_ns = "publish-fetch-remote-b";
+        const ff_serverUrl = "ws://localhost:8081";
+
+        const ff_userA = new LocalUser(ffA_ns);
+        const ff_userB = new LocalUser(ffB_ns);
+        await Promise.all([ff_userA.ready(), ff_userB.ready()]);
+
+        await Promise.all([
+          ff_userA.server.connect(ff_serverUrl),
+          ff_userB.server.connect(ff_serverUrl),
+        ]);
+
+        const ff_publisherA = new DataPublisher(ff_userA);
+        const ff_publisherB = new DataPublisher(ff_userB);
+        ff_publisherA.start();
+        ff_publisherB.start();
+
+        // userB 发布多块文件
+        const ff_chunkSize = 255 * 1024;
+        const ff_fileSize = ff_chunkSize + 100 * 1024; // 355KB，2 块
+        const ff_buffer = new Uint8Array(ff_fileSize);
+        for (let i = 0; i < ff_fileSize; i++) {
+          ff_buffer[i] = (i * 5 + 11) % 256;
+        }
+        const ff_file = new File([ff_buffer], "fetch-remote.bin", { type: "application/octet-stream" });
+        const ff_manifest = await ff_publisherB.publish(ff_file);
+
+        // userA 连接 userB
+        const ff_remoteB = await ff_userA.connectUser(ff_userB.userId);
+        const ff_sessionIds = await ff_remoteB.getSessionIds();
+
+        // userA 使用 fetchFile 自动拉取完整文件
+        // （此时 userA 本地没有任何数据，应自动走远程拉取流程）
+        const ff_result = await ff_publisherA.fetchFile(
+          ff_remoteB,
+          ff_sessionIds[0],
+          ff_manifest.fileHash,
+        );
+
+        // 验证组装后的内容与原始一致
+        const ff_assembledBuffer = new Uint8Array(await ff_result.blob.arrayBuffer());
+        const ff_contentMatch = ff_assembledBuffer.length === ff_buffer.length &&
+          ff_assembledBuffer.every((b, i) => b === ff_buffer[i]);
+        const ff_fileNameMatch = ff_result.fileName === "fetch-remote.bin";
+        const ff_fileSizeMatch = ff_result.fileSize === ff_fileSize;
+
+        ff_publisherA.stop();
+        ff_publisherB.stop();
+
+        const ff_allChecks = ff_contentMatch && ff_fileNameMatch && ff_fileSizeMatch;
+
+        return {
+          assert: ff_allChecks,
+          content: {
+            message: ff_allChecks ? "fetchFile 远程文件测试成功" : "fetchFile 远程文件测试失败",
+            checks: {
+              contentMatch: ff_contentMatch,
+              fileNameMatch: ff_fileNameMatch,
+              fileSizeMatch: ff_fileSizeMatch,
+              expectedSize: ff_fileSize,
+              actualSize: ff_assembledBuffer.length,
+              chunkCount: ff_manifest.chunkHashes.length,
+            },
+          },
+        };
+
+        await clearPublishData(ffA_ns);
+        await clearPublishData(ffB_ns);
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 12：完整远程发布与组装流程（原有） -->
   <sb-test name="Full Remote Publish and Assemble Test">
     <template>
       <script type="module">
