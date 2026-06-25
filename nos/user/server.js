@@ -197,28 +197,9 @@ export class ServerManager {
 
               // 绑定后续消息处理
               ws.onmessage = (e) => {
-                const data = e.data;
-                // 拦截 session_left 消息，触发独立事件
-                if (typeof data === "string") {
-                  try {
-                    const parsed = JSON.parse(data);
-                    if (parsed.type === "session_left") {
-                      this.#user._trigger("session_left", {
-                        url,
-                        userId: parsed.user_id,
-                        sessionId: parsed.session_id,
-                        username: parsed.username,
-                      });
-                      // session_left 不再走通用 message 事件
-                      return;
-                    }
-                  } catch {
-                    // 非 JSON 消息，继续走通用 message 事件
-                  }
-                }
                 this.#user._trigger("message", {
                   url: url,
-                  data: data,
+                  data: e.data,
                   originalEvent: e,
                 });
               };
