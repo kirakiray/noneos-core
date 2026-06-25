@@ -9,7 +9,6 @@ use std::fs;
 use std::sync::Arc;
 use config::{Args, Config};
 use handler::{handle_connection, AppState};
-use sysinfo::System;
 
 /// WebSocket 服务器主入口函数
 /// 使用 tokio 运行时驱动异步 IO
@@ -34,112 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. 初始化流量统计落盘任务（如果配置了数据库路径）
     if let Some(ref db_path) = config.traffic_db_path {
-        let db_path = db_path.clone();
-        let state_clone = Arc::clone(&state);
-        let flush_interval = config.traffic_flush_interval_secs;
-        tokio::spawn(async move {
-            let conn = match traffic::init_db(&db_path) {
-                Ok(c) => {
-                    println!("Traffic stats persistence initialized: {}", db_path);
-                    c
-                }
-                Err(e) => {
-                    eprintln!("Failed to init traffic DB: {}", e);
-                    return;
-                }
-            };
-
-            // 加载初始全局统计数据
-            match traffic::load_global_traffic(&conn) {
-                Ok(global) => {
-                    let mut tr = state_clone.traffic.lock().unwrap();
-                    tr.set_global(global);
-                    println!("Loaded historical global traffic data");
-                }
-                Err(e) => {
-                    eprintln!("Failed to load global traffic data: {}", e);
-                }
-            }
-
-            // 初始化并加载用户转发额度
-            if let Err(e) = traffic::init_user_quota_table(&conn) {
-                eprintln!("Failed to init user quota table: {}", e);
-            } else {
-                match traffic::load_user_relay_quotas(&conn) {
-                    Ok(quotas) => {
-                        for (user_id, quota) in quotas {
-                            state_clone.user_quotas.insert(user_id, quota);
-                        }
-                        println!("Loaded {} user relay quota record(s)", state_clone.user_quotas.len());
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to load user relay quotas: {}", e);
-                    }
-                }
-            }
-
-            println!("Traffic stats flush task started (interval: {}s)", flush_interval);
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(flush_interval)).await;
-                let recorded_at = traffic::now_ms();
-                
-                // 1. 获取会话快照和全局流量
-                let (sessions, global) = {
-                    let tr = state_clone.traffic.lock().unwrap();
-                    (tr.sessions.clone(), tr.global.clone())
-                };
-
-                // 2. 保存会话快照
-                if !sessions.is_empty() {
-                    if let Err(e) = traffic::flush_sessions_to_db(&conn, &sessions, recorded_at) {
-                        eprintln!("Failed to flush session traffic snapshots: {}", e);
-                    }
-                }
-
-                // 3. 保存全局流量
-                if let Err(e) = traffic::save_global_traffic(&conn, &global) {
-                    eprintln!("Failed to save global traffic stats: {}", e);
-                }
-
-                // 4. 保存用户转发额度快照
-                let quotas = {
-                    let mut map = std::collections::HashMap::new();
-                    for q in state_clone.user_quotas.iter() {
-                        map.insert(q.key().clone(), q.value().clone());
-                    }
-                    map
-                };
-                if !quotas.is_empty() {
-                    if let Err(e) = traffic::save_user_relay_quotas(&conn, &quotas) {
-                        eprintln!("Failed to flush user relay quotas: {}", e);
-                    }
-                }
-
-                // 5. 采集系统指标（CPU + 内存使用率）
-                let mut sys = System::new_all();
-                sys.refresh_cpu_all();
-                sys.refresh_memory();
-                // sysinfo 需要两次 refresh 才能获得有意义的 CPU 差值
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                sys.refresh_cpu_all();
-                sys.refresh_memory();
-
-                let cpu_count = sys.cpus().len();
-                let cpu_sum: f64 = sys.cpus().iter().map(|c| c.cpu_usage() as f64).sum();
-                let cpu_avg = if cpu_count > 0 { cpu_sum / cpu_count as f64 } else { 0.0 };
-
-                let total_mem = sys.total_memory();
-                let mem_percent = if total_mem > 0 {
-                    (sys.used_memory() as f64 / total_mem as f64 * 100.0 * 100.0).round() / 100.0
-                } else {
-                    0.0
-                };
-
-                if let Err(e) = traffic::save_system_stats(&conn, recorded_at, cpu_avg, mem_percent) {
-                    eprintln!("Failed to save system stats: {}", e);
-                }
-            }
-        });
+        traffic::start_persistence_task(
+            Arc::clone(&state),
+            db_path.clone(),
+            config.traffic_flush_interval_secs,
+        );
     }
 
     // 6. 初始化网络监听

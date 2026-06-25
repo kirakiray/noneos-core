@@ -39,6 +39,8 @@ pub struct AppState {
     pub traffic: std::sync::Mutex<traffic::TrafficStats>,
     pub user_quotas: DashMap<String, traffic::UserRelayQuota>,
     users: DashMap<String, UserSession>,
+    /// 用户当前 session 计数：userId -> count
+    user_session_counts: DashMap<String, usize>,
     /// 关注者映射：watched_user_id -> { watcher_conn_key -> data_tx }
     /// 当被关注用户的某个 session 断开时，通知所有关注者（每个关注者 conn_key 对应一个 WebSocket 连接）
     watchers: DashMap<String, DashMap<String, mpsc::UnboundedSender<Message>>>,
@@ -55,6 +57,7 @@ impl AppState {
             config,
             users: DashMap::new(),
             user_quotas: DashMap::new(),
+            user_session_counts: DashMap::new(),
             watchers: DashMap::new(),
             watch_targets: DashMap::new(),
         }
@@ -148,13 +151,13 @@ impl AppState {
             if let Some(tx) = old_session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
+            // 注意：这里不需要减少计数，因为马上会增加或在 Error 时由 remove_user 处理
+            // 实际上 remove 会减少计数，所以这里要小心
+            self.user_session_counts.entry(user_id.clone()).and_modify(|c| *c = c.saturating_sub(1));
         }
 
-        // 检查该 userId 的当前 session 数
-        let prefix = format!("{}:", user_id);
-        let current_count = self.users.iter()
-            .filter(|r| r.key().starts_with(&prefix))
-            .count();
+        // 检查该 userId 的当前 session 数 (O(1) 复杂度)
+        let current_count = self.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
         
         if current_count >= self.config.max_sessions_per_user {
             return Err(format!(
@@ -179,11 +182,21 @@ impl AppState {
             relay_fail_count: 0,
             relay_fail_window_start: now,
         });
+        
+        // 增加计数
+        self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
+        
         Ok(())
     }
 
     pub fn remove_user(&self, conn_key: &str) -> Option<UserSession> {
-        self.users.remove(conn_key).map(|(_, s)| s)
+        if let Some((_, session)) = self.users.remove(conn_key) {
+            let user_id = conn_key.split(':').next().unwrap_or(conn_key);
+            self.user_session_counts.entry(user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
+            Some(session)
+        } else {
+            None
+        }
     }
 
     /// 根据 userId 踢掉该用户的所有连接（用于管理员断开用户）
@@ -203,6 +216,11 @@ impl AppState {
                 true // 保留
             }
         });
+
+        if count > 0 {
+            self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(count));
+        }
+        
         count
     }
 
@@ -213,6 +231,7 @@ impl AppState {
             if let Some(tx) = session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
+            self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
             true
         } else {
             false

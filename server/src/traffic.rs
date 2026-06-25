@@ -1,6 +1,9 @@
 use std::collections::{HashMap, VecDeque};
 use serde::Serialize;
 use rusqlite::Connection;
+use sysinfo::System;
+use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 
 /// Per-session traffic counters
 #[derive(Debug, Clone, Serialize)]
@@ -773,4 +776,118 @@ pub fn save_final_user_quota(
             }
         });
     }
+}
+
+/// 启动流量统计持久化后台任务
+pub fn start_persistence_task(
+    state: Arc<crate::handler::AppState>,
+    db_path: String,
+    flush_interval_secs: u64,
+) {
+    tokio::spawn(async move {
+        let conn = match init_db(&db_path) {
+            Ok(c) => {
+                println!("Traffic stats persistence initialized: {}", db_path);
+                c
+            }
+            Err(e) => {
+                eprintln!("Failed to init traffic DB: {}", e);
+                return;
+            }
+        };
+
+        // 1. 加载初始全局统计数据
+        match load_global_traffic(&conn) {
+            Ok(global) => {
+                let mut tr = state.traffic.lock().unwrap();
+                tr.set_global(global);
+                println!("Loaded historical global traffic data");
+            }
+            Err(e) => {
+                eprintln!("Failed to load global traffic data: {}", e);
+            }
+        }
+
+        // 2. 初始化并加载用户转发额度
+        if let Err(e) = init_user_quota_table(&conn) {
+            eprintln!("Failed to init user quota table: {}", e);
+        } else {
+            match load_user_relay_quotas(&conn) {
+                Ok(quotas) => {
+                    for (user_id, quota) in quotas {
+                        state.user_quotas.insert(user_id, quota);
+                    }
+                    println!("Loaded {} user relay quota record(s)", state.user_quotas.len());
+                }
+                Err(e) => {
+                    eprintln!("Failed to load user relay quotas: {}", e);
+                }
+            }
+        }
+
+        // 3. 循环执行持久化任务
+        let mut sys = System::new_all();
+        // 初始刷新，为后续 CPU 计算建立基准
+        sys.refresh_cpu_all();
+        sys.refresh_memory();
+        
+        println!("Traffic stats flush task started (interval: {}s)", flush_interval_secs);
+        
+        loop {
+            sleep(Duration::from_secs(flush_interval_secs)).await;
+            let recorded_at = now_ms();
+            
+            // A. 获取会话快照和全局流量
+            let (sessions, global) = {
+                let tr = state.traffic.lock().unwrap();
+                (tr.sessions.clone(), tr.global.clone())
+            };
+
+            // B. 保存会话快照
+            if !sessions.is_empty() {
+                if let Err(e) = flush_sessions_to_db(&conn, &sessions, recorded_at) {
+                    eprintln!("Failed to flush session traffic snapshots: {}", e);
+                }
+            }
+
+            // C. 保存全局流量
+            if let Err(e) = save_global_traffic(&conn, &global) {
+                eprintln!("Failed to save global traffic stats: {}", e);
+            }
+
+            // D. 保存用户转发额度快照
+            let quotas = {
+                let mut map = HashMap::new();
+                for q in state.user_quotas.iter() {
+                    map.insert(q.key().clone(), q.value().clone());
+                }
+                map
+            };
+            if !quotas.is_empty() {
+                if let Err(e) = save_user_relay_quotas(&conn, &quotas) {
+                    eprintln!("Failed to flush user relay quotas: {}", e);
+                }
+            }
+
+            // E. 采集系统指标（CPU + 内存使用率）
+            // 每次循环刷新一次，sysinfo 会计算自上次刷新以来的 CPU 平均负载
+            sys.refresh_cpu_all();
+            sys.refresh_memory();
+
+            let cpu_count = sys.cpus().len();
+            let cpu_sum: f64 = sys.cpus().iter().map(|c| c.cpu_usage() as f64).sum();
+            let cpu_avg = if cpu_count > 0 { cpu_sum / cpu_count as f64 } else { 0.0 };
+
+            let total_mem = sys.total_memory();
+            let mem_percent = if total_mem > 0 {
+                (sys.used_memory() as f64 / total_mem as f64 * 100.0 * 100.0).round() / 100.0
+            } else {
+                0.0
+            };
+
+            if let Err(e) = save_system_stats(&conn, recorded_at, cpu_avg, mem_percent) {
+                eprintln!("Failed to save system stats: {}", e);
+            }
+        }
+    });
 }
