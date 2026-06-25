@@ -71,23 +71,16 @@
             message: foundSession && msgReceived && ctxHasUserId && ctxHasSessionId && ctxHasRemoteUser
               ? "私密服务注册与发现测试成功"
               : "私密服务注册与发现测试失败",
-            sessionsFound: sessionsSvc1,
-            receivedMsg: receivedMsgSvc1,
-            ctx: receivedCtxSvc1,
+            sessionsFound: sessionsSvc1.toString(),
             checks: {
               foundSession,
               sessionCount: sessionsSvc1.length,
               msgReceived,
               receivedText: receivedMsgSvc1?.text,
-              expectedText: "hello private service",
               ctxHasUserId,
-              ctxFromUserId: receivedCtxSvc1?.fromUserId,
-              expectedFromUserId: userSvc1b.userId,
               ctxHasSessionId,
-              ctxSessionId: receivedCtxSvc1?.fromSessionId,
               ctxHasRemoteUser,
               ctxRemoteUserId: receivedCtxSvc1?.remoteUser?.userId,
-              expectedRemoteUserId: userSvc1b.userId,
             },
           },
         };
