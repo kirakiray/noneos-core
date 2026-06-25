@@ -1,7 +1,7 @@
 {
   "version": "4.1.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782294158511,
+  "signTime": 1782406459570,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -134,14 +134,29 @@
       "size": 1444
     },
     {
+      "path": "publish/README.md",
+      "hash": "1fa7f213595ea229182b3f67f2fcdc83eca9958836ac305c764f3672269a9203",
+      "size": 12170
+    },
+    {
+      "path": "publish/data-publisher.js",
+      "hash": "209c134c75349de88b1f4ee63ad1044a3dfdb6dce74967cbd9356c147ff33e45",
+      "size": 22789
+    },
+    {
+      "path": "publish/db.js",
+      "hash": "53012795acdefa8441675904ab2a1983e1d4de0fcfa6b9be3ff1dfec654ba483",
+      "size": 5842
+    },
+    {
       "path": "root-cert.json",
       "hash": "9a63f4c8c49b868fab18273986c81778e543a5c0f9d0b657ded7352fbcd3cf0d",
       "size": 325
     },
     {
       "path": "user/README.md",
-      "hash": "140e2de2948aadd06a1abfa8d0c2c94d0b50e873e3229c2b243ff8d405024e8f",
-      "size": 16686
+      "hash": "a66de1de6038844c14db1eeec6b29e77b98f9c2bd1c0266eb4668b5fdc5ccfcf",
+      "size": 21762
     },
     {
       "path": "user/admin-user.js",
@@ -175,8 +190,8 @@
     },
     {
       "path": "user/remote-user.js",
-      "hash": "a75571d138adce599b1a4723c9ffe330e4b4d63fe5845c645aa81a9d6111e858",
-      "size": 10877
+      "hash": "e860163253b14a36f4ad53ba91b2ab81216e39095d5ec01609e087d6a28e964b",
+      "size": 14621
     },
     {
       "path": "user/rtc.js",
@@ -189,9 +204,14 @@
       "size": 25476
     },
     {
+      "path": "user/service-registry.js",
+      "hash": "882683f455b2f523cdf18a19e0124ba8869797b1c8699ee1285785ec97895d5f",
+      "size": 3249
+    },
+    {
       "path": "user/user.js",
-      "hash": "ca3dd225db99e1e20271afa9d18062238ea0b4463db03a9f46e51fa7777bbe9c",
-      "size": 13155
+      "hash": "6dfe57537d3c7d8c7be06a4f139dbe1eb8c9ed1761b0dbf144ebd5e71e322871",
+      "size": 20974
     },
     {
       "path": "util/async-pool.js",
@@ -239,5 +259,5 @@
       "size": 2117
     }
   ],
-  "signature": "odvzmHUqmNfUJWRlQ5ges+mbgeplrDC5/zVM05muA8keEDPT1yHLXOT+EyFGHfTLL6XPB35lnQFomi59mi0/Yw=="
+  "signature": "bpDiG6SJU/DAmmSSsOzUJPGRBcGHckCYKdIB7w8PEAiYQsQfXHtZV0E1aihKc2YmzKY9pUhQvoQuSK9k27HmEQ=="
 }
