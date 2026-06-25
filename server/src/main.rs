@@ -1,3 +1,4 @@
+mod admin;
 mod config;
 mod crypto;
 mod handler;
