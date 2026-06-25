@@ -6,6 +6,7 @@ import { CardManager } from "./card.js";
 import { ServerManager } from "./server.js";
 import { RemoteUser } from "./remote-user.js";
 import { RTCManager } from "./rtc.js";
+import { ServiceRegistry } from "./service-registry.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
@@ -23,6 +24,7 @@ export class LocalUser extends BaseUser {
   #rtc;
   #sessionChannel;
   #remoteUserCache = new Map(); // userId -> Promise<RemoteUser>
+  #serviceRegistry;
 
   /**
    * 构造函数
@@ -38,6 +40,7 @@ export class LocalUser extends BaseUser {
     this.#card = new CardManager(this);
     this.#server = new ServerManager(this);
     this.#rtc = new RTCManager(this);
+    this.#serviceRegistry = new ServiceRegistry(this);
     // 创建持久化的 BroadcastChannel 监听跨标签页 session 查询
     this.#sessionChannel = new BroadcastChannel(`noneos-sessions-${namespace}`);
     this.#sessionChannel.addEventListener("message", (event) => {
@@ -338,9 +341,32 @@ export class LocalUser extends BaseUser {
   }
 
   /**
-   * 将消息分发给缓存的 RemoteUser 实例
+   * 将消息分发给相应的处理器
+   *
+   * 分发优先级：
+   * 1. 若消息包含 __app 字段 → 分发给 ServiceRegistry 中对应的 handler
+   * 2. 若消息 type 为 __service_query → LocalUser 级别处理（回复 service 列表）
+   * 3. 否则 → 分发给缓存的 RemoteUser 实例
    */
   #dispatchToRemote(fromUserId, fromSessionId, messageData, viaServer) {
+    // 1. 检查是否为 __service 发现协议消息（任何用户都可能发起，无需缓存）
+    if (messageData && typeof messageData === "object" && messageData.type === "__service_query") {
+      this.#handleServiceQuery(fromUserId, fromSessionId, messageData);
+      return;
+    }
+
+    // 2. 检查是否为 app 绑定消息
+    if (
+      messageData &&
+      typeof messageData === "object" &&
+      !Array.isArray(messageData) &&
+      messageData.__app
+    ) {
+      this.#dispatchToServiceApp(fromUserId, fromSessionId, messageData, viaServer);
+      return;
+    }
+
+    // 3. 分发给已缓存的 RemoteUser
     if (!this.#remoteUserCache.has(fromUserId)) return;
 
     const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
@@ -352,6 +378,70 @@ export class LocalUser extends BaseUser {
         viaServer,
       });
     });
+  }
+
+  /**
+   * 响应对方发起的 service 查询：回复本地所有已注册 appId 列表
+   * 通过缓存的 RemoteUser 发送回复，确保路径一致
+   */
+  async #handleServiceQuery(fromUserId, fromSessionId, query) {
+    const services = this.#serviceRegistry.getServiceList();
+    try {
+      if (this.#remoteUserCache.has(fromUserId)) {
+        const remoteUser = await this.#remoteUserCache.get(fromUserId);
+        await remoteUser.send(fromSessionId, {
+          type: "__service_response",
+          id: query.id,
+          services,
+        }, true); // raw=true 跳过 E2EE
+      } else {
+        // 没有缓存时直接通过服务器发送
+        await this.#server.sendToUser(fromUserId, fromSessionId, {
+          type: "__service_response",
+          id: query.id,
+          services,
+        });
+      }
+    } catch {
+      // 失败静默
+    }
+  }
+
+  /**
+   * 将 __app 消息分发给 ServiceRegistry 中注册的 handler
+   */
+  async #dispatchToServiceApp(fromUserId, fromSessionId, messageData, viaServer) {
+    const appId = messageData.__app;
+    const data = messageData.__data;
+    const handler = this.#serviceRegistry.getHandler(appId);
+    if (!handler) return; // 未注册该 app，静默丢弃
+
+    // 获取或创建 RemoteUser 供 ctx 使用
+    let remoteUser;
+    if (this.#remoteUserCache.has(fromUserId)) {
+      remoteUser = await this.#remoteUserCache.get(fromUserId);
+    } else {
+      try {
+        remoteUser = await this.connectUser(fromUserId);
+      } catch {
+        // 无法 connect 时创建一个轻量 RemoteUser（不查在线状态）
+        remoteUser = new RemoteUser(fromUserId, this);
+        this.#remoteUserCache.set(fromUserId, Promise.resolve(remoteUser));
+        this.#watchUser(fromUserId);
+      }
+    }
+
+    const ctx = {
+      fromUserId,
+      fromSessionId,
+      remoteUser,
+    };
+
+    try {
+      handler(data, ctx);
+    } catch (err) {
+      console.warn(`[ServiceRegistry] Handler error for "${appId}":`, err);
+    }
   }
 
   /**
@@ -394,6 +484,22 @@ export class LocalUser extends BaseUser {
    */
   get rtc() {
     return this.#rtc;
+  }
+
+  /**
+   * 注册一个应用服务
+   *
+   * 注册后，对方可以通过 remoteUser.sendToService(appId, data) 发送数据，
+   * 收到的消息会自动路由到 onMessage 回调。
+   *
+   * @param {string} appId - 应用唯一标识
+   * @param {Object} [options]
+   * @param {boolean} [options.exposeToServer=false] - 是否将 appId 暴露给服务端
+   * @param {Function} [options.onMessage] - (data, ctx) => {} 收到的应用消息
+   * @returns {{ appId: string, unregister: () => void }}
+   */
+  registerService(appId, options = {}) {
+    return this.#serviceRegistry.register(appId, options);
   }
 
   /**

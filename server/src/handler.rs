@@ -36,6 +36,8 @@ pub(crate) struct UserSession {
     pub(crate) relay_fail_count: u32,
     /// relay 失败计数窗口开始时间（Unix 毫秒）
     pub(crate) relay_fail_window_start: u64,
+    /// 该 session 公开注册的应用服务列表（exposeToServer 模式）
+    pub(crate) services: Vec<String>,
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -165,6 +167,7 @@ impl AppState {
             connected_at: now,
             relay_fail_count: 0,
             relay_fail_window_start: now,
+            services: Vec::new(),
         });
         
         // 增加计数
@@ -248,6 +251,7 @@ impl AppState {
                 serde_json::json!({
                     "sessionId": session_id,
                     "latencyMs": session.latency_ms,
+                    "services": session.services,
                 })
             })
             .collect()
@@ -304,6 +308,14 @@ impl AppState {
             self.disconnect_session(user_id, session_id);
         }
         should_kick
+    }
+
+    /// 更新指定 session 的公开服务列表（exposeToServer 模式）
+    pub fn update_services(&self, user_id: &str, session_id: &str, services: Vec<String>) {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        if let Some(mut session) = self.users.get_mut(&conn_key) {
+            session.services = services;
+        }
     }
 }
 
@@ -748,6 +760,19 @@ pub async fn handle_connection(
                                                     });
                                                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                     println!("Watcher removed: {}:{} -> {}", user_id, session_id, target_user);
+                                                }
+                                                continue;
+                                            }
+
+                                            // 处理 update_services：更新该 session 公开的应用服务列表（exposeToServer 模式）
+                                            if msg_type == "update_services" {
+                                                let services: Vec<String> = cmd.get("services")
+                                                    .and_then(|v| v.as_array())
+                                                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+                                                    .unwrap_or_default();
+                                                state.update_services(&user_id, &session_id, services.clone());
+                                                if !services.is_empty() {
+                                                    println!("Services updated for {}:{} — {:?}", user_id, session_id, services);
                                                 }
                                                 continue;
                                             }

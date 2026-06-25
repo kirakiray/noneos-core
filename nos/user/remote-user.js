@@ -266,6 +266,116 @@ export class RemoteUser extends BaseUser {
     return best ? { rtt: best.rtt, via: best.via, url: best.url } : null;
   }
 
+  // ───── 应用服务发现与通信 ─────
+
+  /**
+   * 查询对方所有运行指定 appId 的 session。
+   *
+   * 通过 relay 协议向对方每个 session 发送查询，
+   * 服务端不感知 appId 信息（私密模式）。
+   *
+   * @param {string} appId - 应用唯一标识
+   * @param {number} [timeout=3000] - 等待响应的超时时间（毫秒）
+   * @returns {Promise<Array<{ sessionId: string }>>} 匹配的 session 列表
+   */
+  async getServiceSessions(appId, timeout = 3000) {
+    const sessionIds = await this.getSessionIds();
+    if (sessionIds.length === 0) return [];
+
+    const queryId = `sq_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const remaining = new Set(sessionIds);
+    const matched = [];
+
+    return new Promise((resolve) => {
+      const handler = (event) => {
+        const { data } = event.detail;
+        // relay 过来的数据可能是已经解析好的对象，也可能是 JSON 字符串
+        let parsed = data;
+        if (typeof data === "string") {
+          try {
+            parsed = JSON.parse(data);
+          } catch {
+            return;
+          }
+        }
+        if (!parsed || typeof parsed !== "object") return;
+        if (parsed.type === "__service_response" && parsed.id === queryId) {
+          remaining.delete(event.detail.fromSessionId);
+          if (parsed.services.includes(appId)) {
+            matched.push({ sessionId: event.detail.fromSessionId });
+          }
+          if (remaining.size === 0) {
+            unbind();
+            resolve(matched);
+          }
+        }
+      };
+
+      const unbind = this.bind("message", handler);
+
+      // 向每个 session 发送查询
+      for (const sid of sessionIds) {
+        this.#sendRaw(sid, { type: "__service_query", id: queryId }).catch(() => {
+          remaining.delete(sid);
+        });
+      }
+
+      // 超时保护
+      setTimeout(() => {
+        unbind();
+        resolve(matched);
+      }, timeout);
+    });
+  }
+
+  /**
+   * 向对方的指定应用发送数据。
+   *
+   * 数据会自动包裹 __app 字段，接收方 LocalUser 会据此路由到对应 handler。
+   * 服务端只看到加密后的二进制帧或普通 relay 数据，不感知 appId。
+   *
+   * 不传 sessionId 时：广播给对方所有 session，接收方自动丢弃未注册 app 的消息。
+   * 指定 sessionId 时：只发送给该 session（不匹配时接收方静默丢弃）。
+   *
+   * @param {string} appId - 目标应用标识
+   * @param {*} data - 要发送的数据（JSON 可序列化对象）
+   * @param {Object} [options]
+   * @param {string} [options.sessionId] - 指定目标 sessionId（不传则发给所有 session）
+   * @returns {Promise<Array<{ sessionId: string, status: string, via?: string }>>}
+   */
+  async sendToService(appId, data, options = {}) {
+    const { sessionId: targetSessionId } = options || {};
+
+    if (targetSessionId) {
+      // 发给指定 session（若该 session 未注册此 app，接收方静默丢弃）
+      const result = await this.send(targetSessionId, {
+        __app: appId,
+        __data: data,
+      });
+      return [{ sessionId: targetSessionId, ...result }];
+    }
+
+    // 广播给所有 session，接收方会静默丢弃未注册 app 的消息
+    const sessionIds = await this.getSessionIds();
+    const results = [];
+    for (const sid of sessionIds) {
+      try {
+        const result = await this.send(sid, {
+          __app: appId,
+          __data: data,
+        });
+        results.push({ sessionId: sid, ...result });
+      } catch (err) {
+        results.push({
+          sessionId: sid,
+          status: "error",
+          error: err.message,
+        });
+      }
+    }
+    return results;
+  }
+
   /**
    * send 完成后调用：记录本次 via 和 url，若路径发生变化则自动触发 ping
    */
