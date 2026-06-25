@@ -56,6 +56,8 @@ export class LocalUser extends BaseUser {
     this.#setupRelayDispatch();
     // 监听 RTC 建立/断开事件，触发对应 RemoteUser 重新测量 RTT
     this.#setupRTCStateListener();
+    // 监听 session_left 事件并分发给对应的 RemoteUser 实例
+    this.#setupSessionLeftDispatch();
   }
 
   /**
@@ -156,6 +158,24 @@ export class LocalUser extends BaseUser {
       if (!this.#remoteUserCache.has(userId)) return;
       Promise.resolve(this.#remoteUserCache.get(userId))
         .then((remoteUser) => remoteUser.recalcRTT(sessionId))
+        .catch(() => {});
+    });
+  }
+
+  /**
+   * 监听 session_left 事件，分发给对应的 RemoteUser 实例
+   */
+  #setupSessionLeftDispatch() {
+    this.bind("session_left", (event) => {
+      const { userId, sessionId, username } = event.detail;
+      if (!this.#remoteUserCache.has(userId)) return;
+      Promise.resolve(this.#remoteUserCache.get(userId))
+        .then((remoteUser) => {
+          remoteUser._trigger("session_left", {
+            sessionId,
+            username,
+          });
+        })
         .catch(() => {});
     });
   }
@@ -404,7 +424,49 @@ export class LocalUser extends BaseUser {
     if (!bestServer) {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
+
+    // 连接成功后，向所有已连接的服务器注册关注
+    await this.#sendWatchUser(userId);
+
     return new RemoteUser(userId, this);
+  }
+
+  /**
+   * 向所有已连接的服务器发送 watch_user 命令
+   * @param {string} targetUserId - 要关注的用户 ID
+   */
+  async #sendWatchUser(targetUserId) {
+    const urls = this.#server.connectedUrls;
+    const promises = urls.map((url) => {
+      try {
+        return this.#server.sendToServer(url, JSON.stringify({
+          type: "watch_user",
+          target_user_id: targetUserId,
+        }));
+      } catch {
+        // 失联服务器静默忽略
+      }
+    });
+    await Promise.allSettled(promises);
+  }
+
+  /**
+   * 向所有已连接的服务器发送 unwatch_user 命令
+   * @param {string} targetUserId - 要取消关注的用户 ID
+   */
+  async _sendUnwatchUser(targetUserId) {
+    const urls = this.#server.connectedUrls;
+    const promises = urls.map((url) => {
+      try {
+        return this.#server.sendToServer(url, JSON.stringify({
+          type: "unwatch_user",
+          target_user_id: targetUserId,
+        }));
+      } catch {
+        // 失联服务器静默忽略
+      }
+    });
+    await Promise.allSettled(promises);
   }
 
   /**

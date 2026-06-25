@@ -67,6 +67,16 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
+   * 取消关注该用户的 session 下线通知。
+   * 调用后，将不再收到该用户的 session_left 事件。
+   * 通常在不再需要监听对方状态时调用。
+   * @returns {Promise<void>}
+   */
+  async unwatch() {
+    await this.#localUser._sendUnwatchUser(this.#userId);
+  }
+
+  /**
    * 发送数据给对方
    *
    * 默认启用 E2EE 加密：如果双方已完成名片交换，
