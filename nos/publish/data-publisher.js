@@ -87,6 +87,7 @@ export class DataPublisher {
   #unbind; // start() 绑定的解绑函数
   #manifestRequestMap = new Map(); // fileHash -> { resolve, reject, timer }
   #chunkRequestMap = new Map(); // chunkHash -> Promise（去重并发请求）
+  #sessionIdCache = new Map(); // remoteUser -> { sessionId, promise }
 
   /**
    * @param {import("../user/user.js").LocalUser} localUser - 本地用户实例
@@ -124,6 +125,7 @@ export class DataPublisher {
     }
     this.#manifestRequestMap.clear();
     this.#chunkRequestMap.clear();
+    this.#sessionIdCache.clear();
   }
 
   /**
@@ -225,22 +227,79 @@ export class DataPublisher {
 
   /**
    * 解析 sessionId：如果传了就直接用，否则从 remoteUser 自动获取第一个可用会话
+   * 带缓存逻辑——首次获取后缓存，后续直接返回缓存值。
+   * 并发场景下多个请求共享同一个 Promise，避免重复调用 getSessionIds()。
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser
    * @param {string} [sessionId]
    * @returns {Promise<string>}
    */
   async #resolveSessionId(remoteUser, sessionId) {
     if (sessionId) return sessionId;
+
+    // 1. 检查缓存（已有 resolved sessionId）
+    const cached = this.#sessionIdCache.get(remoteUser);
+    if (cached && cached.sessionId) {
+      console.debug(`[DataPublisher] sessionId cache hit: ${cached.sessionId}`);
+      return cached.sessionId;
+    }
+
+    // 2. 并发去重：同一 remoteUser 已有正在进行的请求，复用 Promise
+    if (cached && cached.promise) {
+      console.debug(`[DataPublisher] sessionId concurrent fetch dedup`);
+      return cached.promise;
+    }
+
+    // 3. 发起实际请求
+    console.debug(`[DataPublisher] sessionId cache miss, fetching...`);
+    const promise = this.#fetchSessionId(remoteUser);
+    this.#sessionIdCache.set(remoteUser, { sessionId: null, promise });
+
+    try {
+      const ids = await promise;
+      const sid = ids[0];
+      console.debug(`[DataPublisher] sessionId resolved: ${sid}`);
+      this.#sessionIdCache.set(remoteUser, { sessionId: sid, promise: null });
+      return sid;
+    } catch (err) {
+      this.#sessionIdCache.delete(remoteUser);
+      throw err;
+    }
+  }
+
+  /**
+   * 调用 remoteUser.getSessionIds()，获取可用会话列表
+   */
+  async #fetchSessionId(remoteUser) {
     const ids = await remoteUser.getSessionIds();
     if (!ids || ids.length === 0) {
       throw new Error("No available session from remote user");
     }
-    return ids[0];
+    return ids;
+  }
+
+  /**
+   * 失效指定 remoteUser 的 sessionId 缓存。
+   * 如果传了 sessionId，仅当匹配时才失效（误触其他 session 下线不清理）。
+   * @param {import("../user/remote-user.js").RemoteUser} remoteUser
+   * @param {string} [sessionId]
+   */
+  #invalidateSessionCache(remoteUser, sessionId) {
+    const cached = this.#sessionIdCache.get(remoteUser);
+    if (!cached || !cached.sessionId) return;
+    if (sessionId && cached.sessionId !== sessionId) return;
+    console.debug(
+      `[DataPublisher] sessionId cache invalidated: ${cached.sessionId}` +
+        (sessionId ? ` (session ${sessionId} closed)` : ""),
+    );
+    this.#sessionIdCache.delete(remoteUser);
   }
 
   /**
    * 请求远程用户的文件清单
    * 先查本地 DB，没有再发起网络请求
+   * session_left 事件中只对当前使用的 sessionId 做出响应，
+   * 其他 session 下线不影响当前请求。
+   * 当前 session 断开后自动重试一次。
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
    * @param {string} fileHash - 文件哈希
    * @param {string} [sessionId] - 可选，目标会话 ID，不传则自动获取第一个可用会话
@@ -257,6 +316,27 @@ export class DataPublisher {
       return existing.promise;
     }
 
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.#sendManifestRequest(remoteUser, fileHash, sessionId);
+      } catch (err) {
+        if (attempt === 0 && err.message.includes("disconnected")) {
+          console.debug(
+            `[DataPublisher] Manifest session disconnected, retrying: ${fileHash}`,
+          );
+          this.#invalidateSessionCache(remoteUser);
+          sessionId = null;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * 实际发送 manifest 请求并等待响应
+   */
+  async #sendManifestRequest(remoteUser, fileHash, sessionId) {
     let resolve, reject;
     const promise = new Promise((res, rej) => {
       resolve = res;
@@ -268,16 +348,22 @@ export class DataPublisher {
       reject(new Error(`Manifest request timed out: ${fileHash}`));
     }, MANIFEST_TIMEOUT);
 
-    const unbind = remoteUser.bind("session_left", () => {
+    const sid = sessionId || (await this.#resolveSessionId(remoteUser));
+
+    const unbind = remoteUser.bind("session_left", (event) => {
+      // 只对当前使用的 sessionId 做出响应
+      if (event.detail.sessionId !== sid) return;
       clearTimeout(timer);
       this.#manifestRequestMap.delete(fileHash);
-      reject(new Error(`Remote user disconnected, manifest request failed: ${fileHash}`));
+      this.#invalidateSessionCache(remoteUser, sid);
+      reject(
+        new Error(`Session ${sid} disconnected, manifest request failed: ${fileHash}`),
+      );
     });
 
     this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind });
 
     try {
-      const sid = await this.#resolveSessionId(remoteUser, sessionId);
       await remoteUser.send(
         sid,
         { type: "data_publish", action: "request_manifest", fileHash },
@@ -342,6 +428,8 @@ export class DataPublisher {
   /**
    * 请求远程用户的块数据
    * 先查本地 DB，没有再发起网络请求
+   * session_left 事件中只对当前使用的 sessionId 做出响应。
+   * 当前 session 断开后自动重试一次。
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
    * @param {string} chunkHash - 块哈希
    * @param {string} [sessionId] - 可选，目标会话 ID，不传则自动获取第一个可用会话
@@ -352,15 +440,30 @@ export class DataPublisher {
     const local = await getChunk(this.#user.namespace, chunkHash);
     if (local) return local;
 
-    // 并发请求去重
-    if (this.#chunkRequestMap.has(chunkHash)) {
-      return this.#chunkRequestMap.get(chunkHash);
-    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // 并发请求去重（每次重试重新检查，避免重复使用已失败的 Promise）
+      if (attempt === 0 && this.#chunkRequestMap.has(chunkHash)) {
+        return this.#chunkRequestMap.get(chunkHash);
+      }
 
-    const promise = this.#doRequestChunk(remoteUser, chunkHash, sessionId);
-    this.#chunkRequestMap.set(chunkHash, promise);
-    promise.finally(() => this.#chunkRequestMap.delete(chunkHash));
-    return promise;
+      const promise = this.#doRequestChunk(remoteUser, chunkHash, sessionId);
+      this.#chunkRequestMap.set(chunkHash, promise);
+
+      try {
+        return await promise;
+      } catch (err) {
+        this.#chunkRequestMap.delete(chunkHash);
+        if (attempt === 0 && err.message.includes("disconnected")) {
+          console.debug(
+            `[DataPublisher] Chunk session disconnected, retrying: ${chunkHash}`,
+          );
+          this.#invalidateSessionCache(remoteUser);
+          sessionId = null;
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   /**
@@ -432,12 +535,15 @@ export class DataPublisher {
         }
       });
 
-      const sessionLeftUnbind = remoteUser.bind("session_left", () => {
+      const sessionLeftUnbind = remoteUser.bind("session_left", (event) => {
+        // 只对当前使用的 sessionId 做出响应
+        if (event.detail.sessionId !== sid) return;
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         cleanup();
-        reject(new Error(`Remote user disconnected, chunk request failed: ${chunkHash}`));
+        this.#invalidateSessionCache(remoteUser, sid);
+        reject(new Error(`Session ${sid} disconnected, chunk request failed: ${chunkHash}`));
       });
 
       // 发送请求（raw 模式跳过 E2EE）
