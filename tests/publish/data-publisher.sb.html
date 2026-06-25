@@ -132,8 +132,9 @@
         const lg_fileSize = lg_chunkSize * 2 + 100 * 1024; // 610KB
         const lg_buffer = new Uint8Array(lg_fileSize);
         for (let i = 0; i < lg_fileSize; i++) {
-          lg_buffer[i] = i % 256;
+          lg_buffer[i] = Math.floor(Math.random() * 256);
         }
+
         const lg_file = new File([lg_buffer], "large-file.bin", { type: "application/octet-stream" });
 
         const lg_manifest = await lg_publisher.publish(lg_file);
@@ -454,7 +455,7 @@
           // 使用 verifyData 验证 manifest（使用 manifest 自身内嵌的 publicKey）
           // const { verifyData: rm_verifyData } = await import("/nos/crypto/crypto-verify.js");
           // rm_signatureValid = await rm_verifyData(rm_receivedManifest);
-          
+
           rm_signatureValid= await rm_userB.verify(rm_receivedManifest);
         } catch (err) {
           console.error("Error verifying signature:", err);
