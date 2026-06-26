@@ -18,8 +18,8 @@ import {
 import { verifyData } from "../crypto/crypto-verify.js";
 import { getHash } from "../util/hash/get-hash.js";
 
-// 分块大小：255KB
-const CHUNK_SIZE = 255 * 1024;
+// 分块大小：128KB
+const CHUNK_SIZE = 128 * 1024;
 
 // 请求超时时间
 const MANIFEST_TIMEOUT = 10000;
