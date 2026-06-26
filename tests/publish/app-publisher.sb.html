@@ -999,6 +999,103 @@
       </script>
     </template>
   </sb-test>
+
+  <!-- 测试 12：recommendApp / unrecommendApp -->
+  <sb-test name="AppManager recommendApp and unrecommendApp Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { listRecommendations, getRecommendation } from "/nos/publish/db.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_rec_ns = "app-mgr-rec";
+        const ap_rec_srv = "ws://localhost:8081";
+
+        const ap_rec_user = new LocalUser(ap_rec_ns);
+        await ap_rec_user.ready();
+        await ap_rec_user.server.connect(ap_rec_srv);
+
+        const ap_rec_mgr = new AppManager(ap_rec_user);
+        ap_rec_mgr.start();
+
+        // 创建并安装一个应用（推荐需要安装记录）
+        const ap_rec_root = await init("test-publish");
+        const ap_rec_old = await ap_rec_root.get("rec-test");
+        if (ap_rec_old) await ap_rec_old.remove();
+
+        const ap_rec_dir = await ap_rec_root.get("rec-test", { create: "dir" });
+        const ap_rec_file = await ap_rec_dir.get("index.html", { create: "file" });
+        await ap_rec_file.write("<h1>Recommend</h1>");
+
+        const ap_rec_release = await ap_rec_mgr.createRelease(ap_rec_dir, {
+          appName: "rec-test-app",
+          version: "1.0.0",
+        });
+        const ap_rec_pub = await ap_rec_mgr.publish(ap_rec_release);
+        await ap_rec_mgr.installApp(ap_rec_release.manifest);
+
+        // 推荐本应用（模拟推荐别人发布的应用）
+        const ap_rec_publisherUserId = "simulated-publisher-123";
+        await ap_rec_mgr.recommendApp(ap_rec_pub.appId, ap_rec_publisherUserId);
+
+        // 验证推荐记录已写入 DB
+        const ap_rec_dbRec = await getRecommendation(ap_rec_ns, ap_rec_pub.appId, ap_rec_publisherUserId);
+        const ap_rec_recExists = ap_rec_dbRec !== null && ap_rec_dbRec.appId === ap_rec_pub.appId;
+
+        // 验证 listRecommendations 中有记录
+        const ap_rec_all = await listRecommendations(ap_rec_ns);
+        const ap_rec_listed = ap_rec_all.some((r) => r.appId === ap_rec_pub.appId);
+
+        // 重复推荐不应产生新记录
+        await ap_rec_mgr.recommendApp(ap_rec_pub.appId, ap_rec_publisherUserId);
+        const ap_rec_allDedup = await listRecommendations(ap_rec_ns);
+        const ap_rec_dedupOk = ap_rec_allDedup.filter((r) => r.appId === ap_rec_pub.appId).length === 1;
+
+        // 取消推荐
+        await ap_rec_mgr.unrecommendApp(ap_rec_pub.appId, ap_rec_publisherUserId);
+
+        // 验证记录已删除
+        const ap_rec_dbAfter = await getRecommendation(ap_rec_ns, ap_rec_pub.appId, ap_rec_publisherUserId);
+        const ap_rec_recRemoved = ap_rec_dbAfter === null;
+
+        // 幂等取消推荐（不再存在的应用）
+        let ap_rec_idempotentError = false;
+        try {
+          await ap_rec_mgr.unrecommendApp("fake-app-id", "fake-user");
+        } catch {
+          ap_rec_idempotentError = true;
+        }
+
+        // 清理安装目录
+        const ap_rec_appsRoot = await init("apps");
+        const ap_rec_installed = await ap_rec_appsRoot.get(`rec-test-app-${ap_rec_pub.appId}`);
+        if (ap_rec_installed) await ap_rec_installed.remove();
+        ap_rec_mgr.stop();
+
+        const ap_rec_allChecks =
+          ap_rec_recExists && ap_rec_listed && ap_rec_dedupOk &&
+          ap_rec_recRemoved && !ap_rec_idempotentError;
+
+        await clearPublishData(ap_rec_ns);
+
+        return {
+          assert: ap_rec_allChecks,
+          content: {
+            message: ap_rec_allChecks ? "recommendApp / unrecommendApp 测试成功" : "测试失败",
+            checks: {
+              recExists: ap_rec_recExists,
+              listed: ap_rec_listed,
+              dedupOk: ap_rec_dedupOk,
+              recRemoved: ap_rec_recRemoved,
+              idempotentError: ap_rec_idempotentError,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

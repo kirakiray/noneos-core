@@ -336,6 +336,90 @@ export async function decrementFileRef(namespace, fileHash, appId) {
   }
 }
 
+// ───── AppManager 相关：recommendations ─────
+
+/**
+ * 保存推荐记录
+ * @param {string} namespace - 用户命名空间
+ * @param {Object} record - { id, appId, appName, publisherUserId, recommendedAt }
+ */
+export async function saveRecommendation(namespace, record) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([RECOMMENDATIONS_STORE], "readwrite");
+    const store = transaction.objectStore(RECOMMENDATIONS_STORE);
+    const request = store.put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 根据 appId + publisherUserId 获取推荐记录
+ * @param {string} namespace - 用户命名空间
+ * @param {string} appId - 应用 ID
+ * @param {string} publisherUserId - 发布者用户 ID
+ * @returns {Promise<Object|null>}
+ */
+export async function getRecommendation(namespace, appId, publisherUserId) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([RECOMMENDATIONS_STORE], "readonly");
+    const store = transaction.objectStore(RECOMMENDATIONS_STORE);
+    const request = store.getAll();
+    request.onsuccess = (event) => {
+      const all = event.target.result || [];
+      const found = all.find((r) => r.appId === appId && r.publisherUserId === publisherUserId);
+      resolve(found || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 删除推荐记录
+ * @param {string} namespace - 用户命名空间
+ * @param {string} appId - 应用 ID
+ * @param {string} publisherUserId - 发布者用户 ID
+ */
+export async function deleteRecommendation(namespace, appId, publisherUserId) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([RECOMMENDATIONS_STORE], "readwrite");
+    const store = transaction.objectStore(RECOMMENDATIONS_STORE);
+    // 先查后删
+    const getAllReq = store.getAll();
+    getAllReq.onsuccess = () => {
+      const all = getAllReq.result || [];
+      const found = all.find((r) => r.appId === appId && r.publisherUserId === publisherUserId);
+      if (found) {
+        const delReq = store.delete(found.id);
+        delReq.onsuccess = () => resolve();
+        delReq.onerror = () => reject(delReq.error);
+      } else {
+        resolve();
+      }
+    };
+    getAllReq.onerror = () => reject(getAllReq.error);
+  });
+}
+
+/**
+ * 获取所有推荐记录
+ * @param {string} namespace - 用户命名空间
+ * @returns {Promise<Object[]>}
+ */
+export async function listRecommendations(namespace) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([RECOMMENDATIONS_STORE], "readonly");
+    const store = transaction.objectStore(RECOMMENDATIONS_STORE);
+    const request = store.getAll();
+    request.onsuccess = (event) => resolve(event.target.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 // ───── 清理 ─────
 
 /**

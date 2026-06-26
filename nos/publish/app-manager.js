@@ -18,6 +18,10 @@ import {
   listPublishedApps,
   incrementFileRef,
   getManifest,
+  saveRecommendation,
+  getRecommendation,
+  deleteRecommendation,
+  listRecommendations,
 } from "./db.js";
 import { init } from "../fs/handle/main.js";
 
@@ -340,6 +344,63 @@ export class AppManager {
       status: "unpublished",
       updatedAt: Date.now(),
     });
+  }
+
+  // ───── 推荐 ─────
+
+  /**
+   * 推荐一个应用
+   *
+   * 将本地已安装的别人发布的应用推荐出去，
+   * 这样其他用户在 discoverApps({ publisherUserId: myUserId }) 时也能看到这个应用。
+   *
+   * @param {string} appId - 要推荐的应用 ID
+   * @param {string} publisherUserId - 该应用的发布者用户 ID
+   * @returns {Promise<void>}
+   */
+  async recommendApp(appId, publisherUserId) {
+    if (!appId || !publisherUserId) {
+      throw new Error("appId and publisherUserId are required");
+    }
+
+    // 检查是否已推荐，避免重复
+    const existing = await getRecommendation(
+      this.#user.namespace,
+      appId,
+      publisherUserId,
+    );
+    if (existing) return;
+
+    // 获取 appName：从已安装应用中查找
+    const manifest = await this.#readInstalledManifest(appId);
+    const appName = manifest ? manifest.appName : appId;
+
+    await saveRecommendation(this.#user.namespace, {
+      id: `${appId}-${publisherUserId}`,
+      appId,
+      appName,
+      publisherUserId,
+      recommendedAt: Date.now(),
+    });
+  }
+
+  /**
+   * 取消推荐一个应用
+   *
+   * @param {string} appId - 要取消推荐的应用 ID
+   * @param {string} publisherUserId - 该应用的发布者用户 ID
+   * @returns {Promise<void>}
+   */
+  async unrecommendApp(appId, publisherUserId) {
+    if (!appId || !publisherUserId) {
+      throw new Error("appId and publisherUserId are required");
+    }
+
+    await deleteRecommendation(
+      this.#user.namespace,
+      appId,
+      publisherUserId,
+    );
   }
 
   // ───── 安装 / 更新 ─────
