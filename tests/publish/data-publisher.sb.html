@@ -30,7 +30,7 @@
         const pub_publisher = new DataPublisher(pub_user);
         pub_publisher.start();
 
-        // 构造测试文件（小于 255KB，单块）
+        // 构造测试文件（小于 128KB，单块）
         const pub_fileContent = "Hello DataPublisher publish test!";
         const pub_file = new File([pub_fileContent], "test-publish.txt", { type: "text/plain" });
 
@@ -126,10 +126,10 @@
         const lg_publisher = new DataPublisher(lg_user);
         lg_publisher.start();
 
-        // 构造大于 255KB 的文件（约 600KB，应分成 3 块）
-        const lg_chunkSize = 255 * 1024;
+        // 构造多块文件（约 356KB，应分成 3 块）
+        const lg_chunkSize = 128 * 1024;
         const lg_expectedChunks = 3;
-        const lg_fileSize = lg_chunkSize * 2 + 100 * 1024; // 610KB
+        const lg_fileSize = lg_chunkSize * 2 + 100 * 1024; // 356KB
         const lg_buffer = new Uint8Array(lg_fileSize);
         for (let i = 0; i < lg_fileSize; i++) {
           lg_buffer[i] = Math.floor(Math.random() * 256);
@@ -286,8 +286,8 @@
         const asmL_publisher = new DataPublisher(asmL_user);
         asmL_publisher.start();
 
-        // 构造大于 255KB 的文件
-        const asmL_chunkSize = 255 * 1024;
+        // 构造多块文件
+        const asmL_chunkSize = 128 * 1024;
         const asmL_fileSize = asmL_chunkSize * 2 + 50 * 1024; // 560KB
         const asmL_buffer = new Uint8Array(asmL_fileSize);
         for (let i = 0; i < asmL_fileSize; i++) {
@@ -349,7 +349,7 @@
         miss_publisher.start();
 
         // 构造多块文件
-        const miss_chunkSize = 255 * 1024;
+        const miss_chunkSize = 128 * 1024;
         const miss_fileSize = miss_chunkSize * 2 + 10 * 1024;
         const miss_buffer = new Uint8Array(miss_fileSize);
         for (let i = 0; i < miss_fileSize; i++) {
@@ -787,8 +787,8 @@
         ff_publisherB.start();
 
         // userB 发布多块文件
-        const ff_chunkSize = 255 * 1024;
-        const ff_fileSize = ff_chunkSize + 100 * 1024; // 355KB，2 块
+        const ff_chunkSize = 128 * 1024;
+        const ff_fileSize = ff_chunkSize + 100 * 1024; // 228KB，2 块
         const ff_buffer = new Uint8Array(ff_fileSize);
         for (let i = 0; i < ff_fileSize; i++) {
           ff_buffer[i] = (i * 5 + 11) % 256;
@@ -868,8 +868,8 @@
         fn_publisherB.start();
 
         // userB 发布多块文件
-        const fn_chunkSize = 255 * 1024;
-        const fn_fileSize = fn_chunkSize + 50 * 1024; // 305KB，2 块
+        const fn_chunkSize = 128 * 1024;
+        const fn_fileSize = fn_chunkSize + 50 * 1024; // 178KB，2 块
         const fn_buffer = new Uint8Array(fn_fileSize);
         for (let i = 0; i < fn_fileSize; i++) {
           fn_buffer[i] = (i * 3 + 9) % 256;
@@ -1019,8 +1019,8 @@
         fr_publisherB.start();
 
         // userB 发布一个多块文件
-        const fr_chunkSize = 255 * 1024;
-        const fr_fileSize = fr_chunkSize + 100 * 1024; // 355KB，2 块
+        const fr_chunkSize = 128 * 1024;
+        const fr_fileSize = fr_chunkSize + 100 * 1024; // 228KB，2 块
         const fr_buffer = new Uint8Array(fr_fileSize);
         for (let i = 0; i < fr_fileSize; i++) {
           fr_buffer[i] = (i * 3 + 7) % 256;
