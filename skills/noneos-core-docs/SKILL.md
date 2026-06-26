@@ -131,6 +131,41 @@ const result = await publisher.assembleFile(fileHash);
 
 更多参考：[DataPublisher 完整文档](/nos/publish/README.md) | [测试用例](/tests/publish/data-publisher.sb.html)
 
+## 核心功能 4：应用发布与管理 (AppManager)
+
+基于 DataPublisher 的应用发布管理模块，提供应用的创建、发布、发现、安装、升级、下架和推荐机制。
+
+```javascript
+import { AppManager } from "/nos/publish/app-manager.js";
+
+const user = await getUser("my-ns");
+const manager = new AppManager(user);
+manager.start();
+
+// 发布应用（两步：预览 → 确认发布）
+const handle = await init("my-app");
+const release = await manager.createRelease(handle, {
+  appName: "my-app",
+  version: "0.1.0",
+});
+// UI 展示 release 信息给用户确认
+const { appId } = await manager.publish(release);
+
+// 安装他人应用
+const manifest = await manager.fetchManifest(appId);
+await manager.installApp(manifest);
+
+// 通过 /$apps/{appName}-{appId}/ 访问已安装的应用
+
+// 检查更新
+const update = await manager.checkForUpdates(appId);
+if (update?.hasUpdate) {
+  await manager.installApp(update.manifest);
+}
+```
+
+更多参考：[AppManager API 参考](references/app-manager.md)
+
 更多详细操作参考：
 - [用户管理 API 参考](references/user-api.md)
 - [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化与签名验证
