@@ -462,18 +462,112 @@ export class AppManager {
     return results;
   }
 
+  // ───── 本地已安装管理 ─────
+
+  /**
+   * 获取所有已安装应用的列表
+   *
+   * 遍历 apps/ 目录，从每个子目录的 asset-manifest.json 中读取应用信息。
+   *
+   * @returns {Promise<AppInfo[]>}
+   */
+  async listInstalledApps() {
+    const appsRoot = await this.#ensureAppsRoot();
+    const list = [];
+    for await (const [name, handle] of appsRoot.entries()) {
+      if (handle.kind !== "dir") continue;
+      const manifestFile = await handle.get("asset-manifest.json");
+      if (!manifestFile) continue;
+      try {
+        const text = await manifestFile.read({ type: "text" });
+        const manifest = JSON.parse(text);
+        if (manifest.appId && manifest.appName) {
+          list.push({
+            appId: manifest.appId,
+            appName: manifest.appName,
+            version: manifest.version,
+            publisherUserId: manifest.publisherUserId,
+          });
+        }
+      } catch {
+        // 跳过损坏的 manifest
+      }
+    }
+    return list;
+  }
+
+  /**
+   * 根据 appName 获取已安装应用的 asset-manifest.json
+   *
+   * @param {string} appName - 应用名称
+   * @returns {Promise<Object|null>} 签名的 manifest 对象，未找到返回 null
+   */
+  async getInstalledAppInfo(appName) {
+    const appsRoot = await this.#ensureAppsRoot();
+    for await (const [name, handle] of appsRoot.entries()) {
+      if (handle.kind !== "dir") continue;
+      const manifestFile = await handle.get("asset-manifest.json");
+      if (!manifestFile) continue;
+      try {
+        const text = await manifestFile.read({ type: "text" });
+        const manifest = JSON.parse(text);
+        if (manifest.appName === appName) return manifest;
+      } catch {
+        // 跳过损坏的 manifest
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 卸载已安装的应用
+   *
+   * 扫描 apps/ 目录，找到 appName 匹配的应用目录后整体删除。
+   * 如果应用不存在，静默成功（幂等）。
+   *
+   * @param {string} appName - 应用名称
+   * @returns {Promise<void>}
+   */
+  async uninstallApp(appName) {
+    const appsRoot = await this.#ensureAppsRoot();
+    for await (const [name, handle] of appsRoot.entries()) {
+      if (handle.kind !== "dir") continue;
+      const manifestFile = await handle.get("asset-manifest.json");
+      if (!manifestFile) continue;
+      try {
+        const text = await manifestFile.read({ type: "text" });
+        const manifest = JSON.parse(text);
+        if (manifest.appName === appName) {
+          await handle.remove();
+          return;
+        }
+      } catch {
+        // 跳过损坏的 manifest
+      }
+    }
+    // 未找到 → 幂等成功
+  }
+
   // ───── 内部辅助 ─────
+
+  /**
+   * 确保 apps/ 目录存在并返回其句柄
+   */
+  async #ensureAppsRoot() {
+    let appsRoot;
+    try {
+      appsRoot = await init("apps");
+    } catch {
+      appsRoot = await init("apps");
+    }
+    return appsRoot;
+  }
 
   /**
    * 遍历 apps/ 目录，获取所有已安装应用的 appId
    */
   async #listInstalledAppIds() {
-    let appsRoot;
-    try {
-      appsRoot = await init("apps");
-    } catch {
-      return [];
-    }
+    const appsRoot = await this.#ensureAppsRoot();
     const ids = [];
     for await (const [name, handle] of appsRoot.entries()) {
       if (handle.kind !== "dir") continue;
@@ -494,12 +588,7 @@ export class AppManager {
    * 根据 appId 查找已安装应用的 manifest
    */
   async #readInstalledManifest(appId) {
-    let appsRoot;
-    try {
-      appsRoot = await init("apps");
-    } catch {
-      return null;
-    }
+    const appsRoot = await this.#ensureAppsRoot();
     for await (const [name, handle] of appsRoot.entries()) {
       if (handle.kind !== "dir") continue;
       const manifestFile = await handle.get("asset-manifest.json");

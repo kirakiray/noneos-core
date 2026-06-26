@@ -796,6 +796,124 @@
       </script>
     </template>
   </sb-test>
+
+  <!-- 测试 10：listInstalledApps / getInstalledAppInfo / uninstallApp -->
+  <sb-test name="AppManager listInstalledApps Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_lst_ns = "app-mgr-lst";
+        const ap_lst_srv = "ws://localhost:8081";
+
+        const ap_lst_user = new LocalUser(ap_lst_ns);
+        await ap_lst_user.ready();
+        await ap_lst_user.server.connect(ap_lst_srv);
+
+        const ap_lst_mgr = new AppManager(ap_lst_user);
+        ap_lst_mgr.start();
+
+        // 清理旧数据
+        const ap_lst_appsRoot = await init("apps");
+        const ap_lst_root = await init("test-publish");
+        for (const dir of ["inst-test-a", "inst-test-b"]) {
+          const old = await ap_lst_root.get(dir);
+          if (old) await old.remove();
+        }
+
+        const ap_lst_results = [];
+
+        // 清理残留目录后创建测试文件
+        const ap_lst_dirA = await ap_lst_root.get("inst-test-a", { create: "dir" });
+        const ap_lst_fileA = await ap_lst_dirA.get("index.html", { create: "file" });
+        await ap_lst_fileA.write("AAA");
+
+        const ap_lst_dirB = await ap_lst_root.get("inst-test-b", { create: "dir" });
+        const ap_lst_fileB = await ap_lst_dirB.get("index.html", { create: "file" });
+        await ap_lst_fileB.write("BBB");
+
+        // 发布 + 安装 appA
+        const ap_lst_releaseA = await ap_lst_mgr.createRelease(ap_lst_dirA, { appName: "inst-app-a", version: "1.0.0" });
+        const ap_lst_pubA = await ap_lst_mgr.publish(ap_lst_releaseA);
+        await ap_lst_mgr.installApp(ap_lst_releaseA.manifest);
+        ap_lst_results.push(ap_lst_pubA);
+
+        // 发布 + 安装 appB
+        const ap_lst_releaseB = await ap_lst_mgr.createRelease(ap_lst_dirB, { appName: "inst-app-b", version: "2.0.0" });
+        const ap_lst_pubB = await ap_lst_mgr.publish(ap_lst_releaseB);
+        await ap_lst_mgr.installApp(ap_lst_releaseB.manifest);
+        ap_lst_results.push(ap_lst_pubB);
+
+        // 测试 listInstalledApps
+        const ap_lst_list = await ap_lst_mgr.listInstalledApps();
+        const ap_lst_countOk = ap_lst_list.length === 2;
+        const ap_lst_findA = ap_lst_list.some((a) => a.appName === "inst-app-a");
+        const ap_lst_findB = ap_lst_list.some((a) => a.appName === "inst-app-b");
+        const ap_lst_hasVersion = ap_lst_list.some((a) => a.version === "1.0.0") && ap_lst_list.some((a) => a.version === "2.0.0");
+        const ap_lst_hasAppId = ap_lst_list.every((a) => typeof a.appId === "string");
+
+        // 测试 getInstalledAppInfo
+        const ap_lst_infoA = await ap_lst_mgr.getInstalledAppInfo("inst-app-a");
+        const ap_lst_infoAOk = ap_lst_infoA !== null && ap_lst_infoA.appName === "inst-app-a" && ap_lst_infoA.version === "1.0.0" && typeof ap_lst_infoA.signature === "string";
+
+        const ap_lst_infoNone = await ap_lst_mgr.getInstalledAppInfo("non-existent-app");
+        const ap_lst_infoNoneOk = ap_lst_infoNone === null;
+
+        // 测试 uninstallApp — 卸载 appA
+        await ap_lst_mgr.uninstallApp("inst-app-a");
+        const ap_lst_afterUninstall = await ap_lst_mgr.listInstalledApps();
+        const ap_lst_uninstallCount = ap_lst_afterUninstall.length === 1;
+        const ap_lst_uninstallRemoved = !ap_lst_afterUninstall.some((a) => a.appName === "inst-app-a");
+        const ap_lst_uninstallBRemains = ap_lst_afterUninstall.some((a) => a.appName === "inst-app-b");
+
+        // 测试幂等卸载（卸载不存在的应用）
+        let ap_lst_idempotentError = false;
+        try {
+          await ap_lst_mgr.uninstallApp("non-existent-app");
+        } catch {
+          ap_lst_idempotentError = true;
+        }
+
+        // 清理
+        const ap_lst_remains = await ap_lst_appsRoot.get(`${ap_lst_pubB.appName}-${ap_lst_pubB.appId}`);
+        if (ap_lst_remains) await ap_lst_remains.remove();
+        ap_lst_mgr.stop();
+
+        const ap_lst_allChecks =
+          ap_lst_countOk && ap_lst_findA && ap_lst_findB && ap_lst_hasVersion && ap_lst_hasAppId &&
+          ap_lst_infoAOk && ap_lst_infoNoneOk &&
+          ap_lst_uninstallCount && ap_lst_uninstallRemoved && ap_lst_uninstallBRemains &&
+          !ap_lst_idempotentError;
+
+        await clearPublishData(ap_lst_ns);
+
+        return {
+          assert: ap_lst_allChecks,
+          content: {
+            message: ap_lst_allChecks ? "listInstalledApps / getInstalledAppInfo / uninstallApp 测试成功" : "测试失败",
+            checks: {
+              listCountOk: ap_lst_countOk,
+              listCount: ap_lst_list.length,
+              findA: ap_lst_findA,
+              findB: ap_lst_findB,
+              hasVersion: ap_lst_hasVersion,
+              hasAppId: ap_lst_hasAppId,
+              infoAOk: ap_lst_infoAOk,
+              infoNoneOk: ap_lst_infoNoneOk,
+              uninstallCount: ap_lst_uninstallCount,
+              afterCount: ap_lst_afterUninstall.length,
+              uninstallRemoved: ap_lst_uninstallRemoved,
+              uninstallBRemains: ap_lst_uninstallBRemains,
+              idempotentError: ap_lst_idempotentError,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
