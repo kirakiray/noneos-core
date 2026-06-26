@@ -301,6 +301,47 @@ export class AppManager {
     }
   }
 
+  // ───── 自身发布管理 ─────
+
+  /**
+   * 获取自己发布的应用列表
+   *
+   * @returns {Promise<AppInfo[]>}
+   */
+  async listMyPublishedApps() {
+    const apps = await listPublishedApps(this.#user.namespace);
+    return apps
+      .filter((a) => a.status === "published")
+      .map((a) => ({
+        appId: a.appId,
+        appName: a.appName,
+        version: a.version,
+        publisherUserId: a.publisherUserId,
+        publishedAt: a.publishedAt,
+      }));
+  }
+
+  /**
+   * 取消发布应用（下架）
+   *
+   * 只将状态改为 "unpublished"，不删除 DataPublisher 中的文件数据。
+   * 后续可通过 publish() 重新上架。
+   * 如果应用未发布过，静默成功（幂等）。
+   *
+   * @param {string} appName
+   * @returns {Promise<void>}
+   */
+  async unpublishApp(appName) {
+    const app = await getPublishedApp(this.#user.namespace, appName);
+    if (!app) return;
+
+    await savePublishedApp(this.#user.namespace, {
+      ...app,
+      status: "unpublished",
+      updatedAt: Date.now(),
+    });
+  }
+
   // ───── 安装 / 更新 ─────
 
   /**

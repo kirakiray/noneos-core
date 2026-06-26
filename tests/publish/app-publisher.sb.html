@@ -914,6 +914,91 @@
       </script>
     </template>
   </sb-test>
+
+  <!-- 测试 11：listMyPublishedApps / unpublishApp -->
+  <sb-test name="AppManager listMyPublishedApps and unpublishApp Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { getPublishedApp } from "/nos/publish/db.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_my_ns = "app-mgr-my";
+        const ap_my_srv = "ws://localhost:8081";
+
+        const ap_my_user = new LocalUser(ap_my_ns);
+        await ap_my_user.ready();
+        await ap_my_user.server.connect(ap_my_srv);
+
+        const ap_my_mgr = new AppManager(ap_my_user);
+        ap_my_mgr.start();
+
+        // 清理
+        const ap_my_root = await init("test-publish");
+        const ap_my_old = await ap_my_root.get("my-test");
+        if (ap_my_old) await ap_my_old.remove();
+
+        // 创建并发布一个应用
+        const ap_my_dir = await ap_my_root.get("my-test", { create: "dir" });
+        const ap_my_file = await ap_my_dir.get("index.html", { create: "file" });
+        await ap_my_file.write("<h1>My App</h1>");
+
+        const ap_my_release = await ap_my_mgr.createRelease(ap_my_dir, {
+          appName: "my-published-app",
+          version: "0.1.0",
+        });
+        await ap_my_mgr.publish(ap_my_release);
+
+        // 测试 listMyPublishedApps
+        const ap_my_list = await ap_my_mgr.listMyPublishedApps();
+        const ap_my_listOk = ap_my_list.length === 1 && ap_my_list[0].appName === "my-published-app";
+
+        // 测试 unpublishApp — 下架
+        await ap_my_mgr.unpublishApp("my-published-app");
+
+        // 验证 DB 中状态已变更
+        const ap_my_db = await getPublishedApp(ap_my_ns, "my-published-app");
+        const ap_my_statusOk = ap_my_db !== null && ap_my_db.status === "unpublished";
+
+        // 下架后 listMyPublishedApps 不应再包含它
+        const ap_my_listAfter = await ap_my_mgr.listMyPublishedApps();
+        const ap_my_listAfterOk = ap_my_listAfter.length === 0;
+
+        // 测试幂等下架（不存在的应用）
+        let ap_my_idempotentError = false;
+        try {
+          await ap_my_mgr.unpublishApp("non-existent-app");
+        } catch {
+          ap_my_idempotentError = true;
+        }
+
+        ap_my_mgr.stop();
+
+        const ap_my_allChecks =
+          ap_my_listOk && ap_my_statusOk && ap_my_listAfterOk && !ap_my_idempotentError;
+
+        await clearPublishData(ap_my_ns);
+
+        return {
+          assert: ap_my_allChecks,
+          content: {
+            message: ap_my_allChecks ? "listMyPublishedApps / unpublishApp 测试成功" : "测试失败",
+            checks: {
+              listOk: ap_my_listOk,
+              listCount: ap_my_list.length,
+              statusOk: ap_my_statusOk,
+              dbStatus: ap_my_db?.status,
+              listAfterOk: ap_my_listAfterOk,
+              listAfterCount: ap_my_listAfter.length,
+              idempotentError: ap_my_idempotentError,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>
