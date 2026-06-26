@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AppPublisher Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>AppPublisher (AppManager) Tests</h1>
+
+  <!-- 测试 1：createRelease 基本功能 -->
+  <sb-test name="AppManager createRelease Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_cr_ns = "app-mgr-cr";
+        const ap_cr_srv = "ws://localhost:8081";
+
+        const ap_cr_user = new LocalUser(ap_cr_ns);
+        await ap_cr_user.ready();
+        await ap_cr_user.server.connect(ap_cr_srv);
+
+        const ap_cr_mgr = new AppManager(ap_cr_user);
+        ap_cr_mgr.start();
+
+        // 在 test-publish/cr-test 下创建测试文件
+        const ap_cr_root = await init("test-publish");
+        const ap_cr_dir = await ap_cr_root.get("cr-test", { create: "dir" });
+        const ap_cr_html = await ap_cr_dir.get("index.html", { create: "file" });
+        await ap_cr_html.write("<h1>Hello</h1>");
+        const ap_cr_css = await ap_cr_dir.get("style.css", { create: "file" });
+        await ap_cr_css.write("body { color: red; }");
+        const ap_cr_sub = await ap_cr_dir.get("src", { create: "dir" });
+        const ap_cr_js = await ap_cr_sub.get("app.js", { create: "file" });
+        await ap_cr_js.write("console.log('hi');");
+
+        // 调用 createRelease
+        const ap_cr_release = await ap_cr_mgr.createRelease(ap_cr_dir, {
+          appName: "cr-test-app",
+          version: "0.1.0",
+        });
+
+        // 验证返回结构
+        const ap_cr_hasManifest = typeof ap_cr_release.manifest === "object";
+        const ap_cr_manifestSigned = typeof ap_cr_release.manifest.signature === "string";
+        const ap_cr_hasAppId = typeof ap_cr_release.manifest.appId === "string";
+        const ap_cr_appNameOk = ap_cr_release.manifest.appName === "cr-test-app";
+        const ap_cr_versionOk = ap_cr_release.manifest.version === "0.1.0";
+        const ap_cr_publisherOk = ap_cr_release.manifest.publisherUserId === ap_cr_user.userId;
+        const ap_cr_hasFiles = typeof ap_cr_release.manifest.files === "object";
+        const ap_cr_fileCountOk = ap_cr_release.fileCount === 3;
+        const ap_cr_hasTotalSize = typeof ap_cr_release.totalSize === "number" && ap_cr_release.totalSize > 0;
+        const ap_cr_previousNull = ap_cr_release.manifest.previousManifestHash === null;
+        const ap_cr_diffNull = ap_cr_release.diffSummary === null;
+        const ap_cr_publicKeyOk = ap_cr_release.manifest.publicKey === ap_cr_user.publicKey;
+
+        // 验证文件路径
+        const ap_cr_files = ap_cr_release.manifest.files;
+        const ap_cr_hasHtml = "index.html" in ap_cr_files;
+        const ap_cr_hasCss = "style.css" in ap_cr_files;
+        const ap_cr_hasJs = "src/app.js" in ap_cr_files;
+
+        ap_cr_mgr.stop();
+
+        const ap_cr_allChecks =
+          ap_cr_hasManifest && ap_cr_manifestSigned && ap_cr_hasAppId &&
+          ap_cr_appNameOk && ap_cr_versionOk && ap_cr_publisherOk &&
+          ap_cr_hasFiles && ap_cr_fileCountOk && ap_cr_hasTotalSize &&
+          ap_cr_previousNull && ap_cr_diffNull && ap_cr_publicKeyOk &&
+          ap_cr_hasHtml && ap_cr_hasCss && ap_cr_hasJs;
+
+        await clearPublishData(ap_cr_ns);
+
+        return {
+          assert: ap_cr_allChecks,
+          content: {
+            message: ap_cr_allChecks ? "createRelease 测试成功" : "createRelease 测试失败",
+            manifest: {
+              appId: ap_cr_release.manifest.appId,
+              appName: ap_cr_release.manifest.appName,
+              version: ap_cr_release.manifest.version,
+              fileCount: ap_cr_release.fileCount,
+              totalSize: ap_cr_release.totalSize,
+            },
+            checks: {
+              hasManifest: ap_cr_hasManifest,
+              manifestSigned: ap_cr_manifestSigned,
+              hasAppId: ap_cr_hasAppId,
+              appNameOk: ap_cr_appNameOk,
+              versionOk: ap_cr_versionOk,
+              publisherOk: ap_cr_publisherOk,
+              hasFiles: ap_cr_hasFiles,
+              fileCountOk: ap_cr_fileCountOk,
+              hasTotalSize: ap_cr_hasTotalSize,
+              previousNull: ap_cr_previousNull,
+              diffNull: ap_cr_diffNull,
+              publicKeyOk: ap_cr_publicKeyOk,
+              hasHtml: ap_cr_hasHtml,
+              hasCss: ap_cr_hasCss,
+              hasJs: ap_cr_hasJs,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 2：publish 基本功能 -->
+  <sb-test name="AppManager publish Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { getPublishedApp } from "/nos/publish/db.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_pub_ns = "app-mgr-pub";
+        const ap_pub_srv = "ws://localhost:8081";
+
+        const ap_pub_user = new LocalUser(ap_pub_ns);
+        await ap_pub_user.ready();
+        await ap_pub_user.server.connect(ap_pub_srv);
+
+        const ap_pub_mgr = new AppManager(ap_pub_user);
+        ap_pub_mgr.start();
+
+        // 创建测试目录和文件
+        const ap_pub_root = await init("test-publish");
+        const ap_pub_dir = await ap_pub_root.get("pub-test", { create: "dir" });
+        const ap_pub_html = await ap_pub_dir.get("index.html", { create: "file" });
+        await ap_pub_html.write("<h1>Publish Test</h1>");
+        const ap_pub_js = await ap_pub_dir.get("app.js", { create: "file" });
+        await ap_pub_js.write("console.log('publish');");
+
+        // createRelease + publish
+        const ap_pub_release = await ap_pub_mgr.createRelease(ap_pub_dir, {
+          appName: "pub-test-app",
+          version: "1.0.0",
+        });
+
+        const ap_pub_result = await ap_pub_mgr.publish(ap_pub_release);
+
+        // 验证 publish 返回
+        const ap_pub_hasAppId = typeof ap_pub_result.appId === "string";
+        const ap_pub_appNameOk = ap_pub_result.appName === "pub-test-app";
+        const ap_pub_versionOk = ap_pub_result.version === "1.0.0";
+        const ap_pub_hasPublishedAt = typeof ap_pub_result.publishedAt === "number";
+
+        // 验证 DB 中有记录
+        const ap_pub_db = await getPublishedApp(ap_pub_ns, "pub-test-app");
+        const ap_pub_dbExists = ap_pub_db !== null;
+        const ap_pub_dbStatusOk = ap_pub_db.status === "published";
+        const ap_pub_dbVersionOk = ap_pub_db.version === "1.0.0";
+        const ap_pub_dbAppIdOk = ap_pub_db.appId === ap_pub_result.appId;
+
+        ap_pub_mgr.stop();
+
+        const ap_pub_allChecks =
+          ap_pub_hasAppId && ap_pub_appNameOk && ap_pub_versionOk && ap_pub_hasPublishedAt &&
+          ap_pub_dbExists && ap_pub_dbStatusOk && ap_pub_dbVersionOk && ap_pub_dbAppIdOk;
+
+        await clearPublishData(ap_pub_ns);
+
+        return {
+          assert: ap_pub_allChecks,
+          content: {
+            message: ap_pub_allChecks ? "publish 测试成功" : "publish 测试失败",
+            result: {
+              appId: ap_pub_result.appId,
+              appName: ap_pub_result.appName,
+              version: ap_pub_result.version,
+              publishedAt: ap_pub_result.publishedAt,
+            },
+            checks: {
+              hasAppId: ap_pub_hasAppId,
+              appNameOk: ap_pub_appNameOk,
+              versionOk: ap_pub_versionOk,
+              hasPublishedAt: ap_pub_hasPublishedAt,
+              dbExists: ap_pub_dbExists,
+              dbStatusOk: ap_pub_dbStatusOk,
+              dbVersionOk: ap_pub_dbVersionOk,
+              dbAppIdOk: ap_pub_dbAppIdOk,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 3：publish 后签名篡改验证失败 -->
+  <sb-test name="AppManager publish Tampered Manifest Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_tamper_ns = "app-mgr-tamper";
+        const ap_tamper_srv = "ws://localhost:8081";
+
+        const ap_tamper_user = new LocalUser(ap_tamper_ns);
+        await ap_tamper_user.ready();
+        await ap_tamper_user.server.connect(ap_tamper_srv);
+
+        const ap_tamper_mgr = new AppManager(ap_tamper_user);
+        ap_tamper_mgr.start();
+
+        const ap_tamper_root = await init("test-publish");
+        const ap_tamper_dir = await ap_tamper_root.get("tamper-test", { create: "dir" });
+        const ap_tamper_file = await ap_tamper_dir.get("test.txt", { create: "file" });
+        await ap_tamper_file.write("original content");
+
+        const ap_tamper_release = await ap_tamper_mgr.createRelease(ap_tamper_dir, {
+          appName: "tamper-test-app",
+          version: "0.1.0",
+        });
+
+        // 篡改 manifest
+        ap_tamper_release.manifest.version = "9.9.9";
+
+        let ap_tamper_error = null;
+        try {
+          await ap_tamper_mgr.publish(ap_tamper_release);
+        } catch (err) {
+          ap_tamper_error = err.message;
+        }
+
+        ap_tamper_mgr.stop();
+
+        const ap_tamper_allChecks = ap_tamper_error !== null;
+
+        await clearPublishData(ap_tamper_ns);
+
+        return {
+          assert: ap_tamper_allChecks,
+          content: {
+            message: ap_tamper_allChecks ? "publish 防篡改测试成功" : "publish 防篡改测试失败",
+            checks: {
+              errorCaught: ap_tamper_allChecks,
+              errorMessage: ap_tamper_error,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 4：discoverApps 能列出已发布应用 -->
+  <sb-test name="AppManager discoverApps Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_disc_ns = "app-mgr-disc";
+        const ap_disc_srv = "ws://localhost:8081";
+
+        const ap_disc_user = new LocalUser(ap_disc_ns);
+        await ap_disc_user.ready();
+        await ap_disc_user.server.connect(ap_disc_srv);
+
+        const ap_disc_mgr = new AppManager(ap_disc_user);
+        ap_disc_mgr.start();
+
+        // 发布一个应用
+        const ap_disc_root = await init("test-publish");
+        const ap_disc_dir = await ap_disc_root.get("disc-test", { create: "dir" });
+        const ap_disc_file = await ap_disc_dir.get("index.html", { create: "file" });
+        await ap_disc_file.write("<h1>Discover</h1>");
+
+        const ap_disc_release = await ap_disc_mgr.createRelease(ap_disc_dir, {
+          appName: "disc-test-app",
+          version: "0.1.0",
+        });
+        await ap_disc_mgr.publish(ap_disc_release);
+
+        // discoverApps
+        const ap_disc_list = await ap_disc_mgr.discoverApps();
+
+        const ap_disc_found = ap_disc_list.some(
+          (a) => a.appName === "disc-test-app",
+        );
+        const ap_disc_hasAppId = ap_disc_list.some(
+          (a) => typeof a.appId === "string",
+        );
+        const ap_disc_hasVersion = ap_disc_list.some(
+          (a) => a.version === "0.1.0",
+        );
+        const ap_disc_hasPublisher = ap_disc_list.some(
+          (a) => a.publisherUserId === ap_disc_user.userId,
+        );
+
+        ap_disc_mgr.stop();
+
+        const ap_disc_allChecks =
+          ap_disc_found && ap_disc_hasAppId && ap_disc_hasVersion && ap_disc_hasPublisher;
+
+        await clearPublishData(ap_disc_ns);
+
+        return {
+          assert: ap_disc_allChecks,
+          content: {
+            message: ap_disc_allChecks ? "discoverApps 测试成功" : "discoverApps 测试失败",
+            list: ap_disc_list,
+            checks: {
+              found: ap_disc_found,
+              hasAppId: ap_disc_hasAppId,
+              hasVersion: ap_disc_hasVersion,
+              hasPublisher: ap_disc_hasPublisher,
+              listCount: ap_disc_list.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 5：fetchManifest 能获取已发布应用的 manifest -->
+  <sb-test name="AppManager fetchManifest Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_fetch_ns = "app-mgr-fetch";
+        const ap_fetch_srv = "ws://localhost:8081";
+
+        const ap_fetch_user = new LocalUser(ap_fetch_ns);
+        await ap_fetch_user.ready();
+        await ap_fetch_user.server.connect(ap_fetch_srv);
+
+        const ap_fetch_mgr = new AppManager(ap_fetch_user);
+        ap_fetch_mgr.start();
+
+        // 发布应用
+        const ap_fetch_root = await init("test-publish");
+        const ap_fetch_dir = await ap_fetch_root.get("fetch-test", { create: "dir" });
+        const ap_fetch_html = await ap_fetch_dir.get("index.html", { create: "file" });
+        await ap_fetch_html.write("<h1>Fetch</h1>");
+        const ap_fetch_js = await ap_fetch_dir.get("app.js", { create: "file" });
+        await ap_fetch_js.write("console.log('fetch');");
+
+        const ap_fetch_release = await ap_fetch_mgr.createRelease(ap_fetch_dir, {
+          appName: "fetch-test-app",
+          version: "0.5.0",
+        });
+        const ap_fetch_result = await ap_fetch_mgr.publish(ap_fetch_release);
+
+        // fetchManifest
+        const ap_fetch_manifest = await ap_fetch_mgr.fetchManifest(ap_fetch_result.appId);
+
+        const ap_fetch_exists = ap_fetch_manifest !== null;
+        const ap_fetch_appIdOk = ap_fetch_manifest.appId === ap_fetch_result.appId;
+        const ap_fetch_appNameOk = ap_fetch_manifest.appName === "fetch-test-app";
+        const ap_fetch_versionOk = ap_fetch_manifest.version === "0.5.0";
+        const ap_fetch_signed = typeof ap_fetch_manifest.signature === "string";
+        const ap_fetch_hasFiles = typeof ap_fetch_manifest.files === "object";
+        const ap_fetch_hasHtml = "index.html" in ap_fetch_manifest.files;
+        const ap_fetch_hasJs = "app.js" in ap_fetch_manifest.files;
+
+        // 验证不存在的 appId 返回 null
+        const ap_fetch_null = await ap_fetch_mgr.fetchManifest("non-existent-app-id");
+        const ap_fetch_nullOk = ap_fetch_null === null;
+
+        ap_fetch_mgr.stop();
+
+        const ap_fetch_allChecks =
+          ap_fetch_exists && ap_fetch_appIdOk && ap_fetch_appNameOk &&
+          ap_fetch_versionOk && ap_fetch_signed && ap_fetch_hasFiles &&
+          ap_fetch_hasHtml && ap_fetch_hasJs && ap_fetch_nullOk;
+
+        await clearPublishData(ap_fetch_ns);
+
+        return {
+          assert: ap_fetch_allChecks,
+          content: {
+            message: ap_fetch_allChecks ? "fetchManifest 测试成功" : "fetchManifest 测试失败",
+            manifest: ap_fetch_manifest ? {
+              appId: ap_fetch_manifest.appId,
+              appName: ap_fetch_manifest.appName,
+              version: ap_fetch_manifest.version,
+              fileCount: Object.keys(ap_fetch_manifest.files).length,
+            } : null,
+            checks: {
+              exists: ap_fetch_exists,
+              appIdOk: ap_fetch_appIdOk,
+              appNameOk: ap_fetch_appNameOk,
+              versionOk: ap_fetch_versionOk,
+              signed: ap_fetch_signed,
+              hasFiles: ap_fetch_hasFiles,
+              hasHtml: ap_fetch_hasHtml,
+              hasJs: ap_fetch_hasJs,
+              nullOk: ap_fetch_nullOk,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 6：createRelease 升级场景（diffSummary） -->
+  <sb-test name="AppManager createRelease Upgrade Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_upg_ns = "app-mgr-upg";
+        const ap_upg_srv = "ws://localhost:8081";
+
+        const ap_upg_user = new LocalUser(ap_upg_ns);
+        await ap_upg_user.ready();
+        await ap_upg_user.server.connect(ap_upg_srv);
+
+        const ap_upg_mgr = new AppManager(ap_upg_user);
+        ap_upg_mgr.start();
+
+        // 清理残留目录后重新创建
+        const ap_upg_root = await init("test-publish");
+        const ap_upg_oldDir = await ap_upg_root.get("upg-test");
+        if (ap_upg_oldDir) {
+          await ap_upg_oldDir.remove();
+        }
+        const ap_upg_dir = await ap_upg_root.get("upg-test", { create: "dir" });
+        const ap_upg_v1Html = await ap_upg_dir.get("index.html", { create: "file" });
+        await ap_upg_v1Html.write("<h1>V1</h1>");
+        const ap_upg_v1Js = await ap_upg_dir.get("app.js", { create: "file" });
+        await ap_upg_v1Js.write("console.log('v1');");
+        const ap_upg_v1Old = await ap_upg_dir.get("old.txt", { create: "file" });
+        await ap_upg_v1Old.write("removed in v2");
+
+        // 发布 v1
+        const ap_upg_v1 = await ap_upg_mgr.createRelease(ap_upg_dir, {
+          appName: "upg-test-app",
+          version: "1.0.0",
+        });
+        await ap_upg_mgr.publish(ap_upg_v1);
+
+        // 修改 v2 目录：新增文件、修改文件、删除文件
+        const ap_upg_v2Html = await ap_upg_dir.get("index.html", { create: "file" });
+        await ap_upg_v2Html.write("<h1>V2</h1>"); // 修改
+        const ap_upg_v2New = await ap_upg_dir.get("new.txt", { create: "file" });
+        await ap_upg_v2New.write("added in v2"); // 新增
+        await ap_upg_dir.get("old.txt").then((h) => h.remove()); // 删除
+
+        // 创建 v2 release
+        const ap_upg_v2 = await ap_upg_mgr.createRelease(ap_upg_dir, {
+          appName: "upg-test-app",
+          version: "2.0.0",
+        });
+
+        // 验证 diffSummary
+        const ap_upg_hasDiff = ap_upg_v2.diffSummary !== null;
+        const ap_upg_addedCount = Object.keys(ap_upg_v2.diffSummary.added).length;
+        const ap_upg_modifiedCount = Object.keys(ap_upg_v2.diffSummary.modified).length;
+        const ap_upg_removedCount = Object.keys(ap_upg_v2.diffSummary.removed).length;
+        const ap_upg_hasSizeDelta = typeof ap_upg_v2.diffSummary.sizeDelta === "number";
+        const ap_upg_previousHash = typeof ap_upg_v2.manifest.previousManifestHash === "string";
+
+        // v1 有 old.txt（将被删除），v2 有 new.txt（新增），index.html 内容变了（修改），app.js 没变
+        const ap_upg_addedNew = "new.txt" in ap_upg_v2.diffSummary.added;
+        const ap_upg_removedOld = "old.txt" in ap_upg_v2.diffSummary.removed;
+        const ap_upg_modifiedHtml = "index.html" in ap_upg_v2.diffSummary.modified;
+
+        ap_upg_mgr.stop();
+
+        const ap_upg_allChecks =
+          ap_upg_hasDiff && ap_upg_addedCount === 1 && ap_upg_modifiedCount === 1 &&
+          ap_upg_removedCount === 1 && ap_upg_hasSizeDelta &&
+          ap_upg_previousHash && ap_upg_addedNew && ap_upg_removedOld && ap_upg_modifiedHtml;
+
+        await clearPublishData(ap_upg_ns);
+
+        return {
+          assert: ap_upg_allChecks,
+          content: {
+            message: ap_upg_allChecks ? "createRelease 升级 diff 测试成功" : "createRelease 升级 diff 测试失败",
+            diffSummary: {
+              added: ap_upg_v2.diffSummary.added,
+              modified: ap_upg_v2.diffSummary.modified,
+              removed: ap_upg_v2.diffSummary.removed,
+              sizeDelta: ap_upg_v2.diffSummary.sizeDelta,
+            },
+            checks: {
+              hasDiff: ap_upg_hasDiff,
+              addedCount: ap_upg_addedCount,
+              modifiedCount: ap_upg_modifiedCount,
+              removedCount: ap_upg_removedCount,
+              hasSizeDelta: ap_upg_hasSizeDelta,
+              previousHash: ap_upg_previousHash,
+              addedNew: ap_upg_addedNew,
+              removedOld: ap_upg_removedOld,
+              modifiedHtml: ap_upg_modifiedHtml,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

@@ -2,9 +2,12 @@
 // 每个 namespace 使用独立的数据库，数据库命名规则：nos_publish_data_<namespace>
 // 版本号从 1 开始
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const CHUNK_STORE = "file_chunks";
 const MANIFEST_STORE = "file_manifests";
+const PUBLISHED_APPS_STORE = "published_apps";
+const FILE_REFS_STORE = "file_refs";
+const RECOMMENDATIONS_STORE = "recommendations";
 
 // 数据库连接缓存，key 为 namespace
 const dbCache = new Map();
@@ -34,13 +37,34 @@ function getDb(namespace) {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains(CHUNK_STORE)) {
-        // key: chunkHash (string)，value: 块原始二进制数据 (ArrayBuffer)
-        db.createObjectStore(CHUNK_STORE);
+      const oldVersion = event.oldVersion || 0;
+
+      if (oldVersion < 1) {
+        // Version 1 stores
+        if (!db.objectStoreNames.contains(CHUNK_STORE)) {
+          // key: chunkHash (string)，value: 块原始二进制数据 (ArrayBuffer)
+          db.createObjectStore(CHUNK_STORE);
+        }
+        if (!db.objectStoreNames.contains(MANIFEST_STORE)) {
+          // key: fileHash (string)，value: manifest 对象（含签名）
+          db.createObjectStore(MANIFEST_STORE);
+        }
       }
-      if (!db.objectStoreNames.contains(MANIFEST_STORE)) {
-        // key: fileHash (string)，value: manifest 对象（含签名）
-        db.createObjectStore(MANIFEST_STORE);
+
+      if (oldVersion < 2) {
+        // Version 2 stores — AppManager
+        if (!db.objectStoreNames.contains(PUBLISHED_APPS_STORE)) {
+          // key: appName (string)，value: { appId, appName, version, manifestHash, publisherUserId, status, publishedAt, updatedAt }
+          db.createObjectStore(PUBLISHED_APPS_STORE, { keyPath: "appName" });
+        }
+        if (!db.objectStoreNames.contains(FILE_REFS_STORE)) {
+          // key: fileHash (string)，value: { fileHash, refCount, appIds: [appId] }
+          db.createObjectStore(FILE_REFS_STORE, { keyPath: "fileHash" });
+        }
+        if (!db.objectStoreNames.contains(RECOMMENDATIONS_STORE)) {
+          // key: id (string)，value: { id, appId, appName, publisherUserId, recommendedAt }
+          db.createObjectStore(RECOMMENDATIONS_STORE, { keyPath: "id" });
+        }
       }
     };
   });
@@ -148,6 +172,171 @@ export async function deleteManifest(namespace, fileHash) {
     request.onerror = () => reject(request.error);
   });
 }
+
+// ───── AppManager 相关：published_apps ─────
+
+/**
+ * 保存或更新已发布应用的记录
+ * @param {string} namespace - 用户命名空间
+ * @param {Object} record - { appId, appName, version, manifestHash, publisherUserId, status, publishedAt, updatedAt }
+ */
+export async function savePublishedApp(namespace, record) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PUBLISHED_APPS_STORE], "readwrite");
+    const store = transaction.objectStore(PUBLISHED_APPS_STORE);
+    const request = store.put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 根据 appName 获取已发布应用的记录
+ * @param {string} namespace - 用户命名空间
+ * @param {string} appName - 应用名称
+ * @returns {Promise<Object|null>}
+ */
+export async function getPublishedApp(namespace, appName) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PUBLISHED_APPS_STORE], "readonly");
+    const store = transaction.objectStore(PUBLISHED_APPS_STORE);
+    const request = store.get(appName);
+    request.onsuccess = (event) => resolve(event.target.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 获取所有已发布应用的记录
+ * @param {string} namespace - 用户命名空间
+ * @returns {Promise<Object[]>}
+ */
+export async function listPublishedApps(namespace) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PUBLISHED_APPS_STORE], "readonly");
+    const store = transaction.objectStore(PUBLISHED_APPS_STORE);
+    const request = store.getAll();
+    request.onsuccess = (event) => resolve(event.target.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 删除已发布应用的记录
+ * @param {string} namespace - 用户命名空间
+ * @param {string} appName - 应用名称
+ */
+export async function deletePublishedApp(namespace, appName) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PUBLISHED_APPS_STORE], "readwrite");
+    const store = transaction.objectStore(PUBLISHED_APPS_STORE);
+    const request = store.delete(appName);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// ───── AppManager 相关：file_refs ─────
+
+/**
+ * 保存文件引用计数
+ * @param {string} namespace - 用户命名空间
+ * @param {Object} ref - { fileHash, refCount, appIds }
+ */
+export async function saveFileRef(namespace, ref) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([FILE_REFS_STORE], "readwrite");
+    const store = transaction.objectStore(FILE_REFS_STORE);
+    const request = store.put(ref);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 根据 fileHash 获取文件引用记录
+ * @param {string} namespace - 用户命名空间
+ * @param {string} fileHash - 文件哈希
+ * @returns {Promise<Object|null>}
+ */
+export async function getFileRef(namespace, fileHash) {
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([FILE_REFS_STORE], "readonly");
+    const store = transaction.objectStore(FILE_REFS_STORE);
+    const request = store.get(fileHash);
+    request.onsuccess = (event) => resolve(event.target.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * 增加文件的引用计数
+ * @param {string} namespace - 用户命名空间
+ * @param {string} fileHash - 文件哈希
+ * @param {string} appId - 应用 ID
+ */
+export async function incrementFileRef(namespace, fileHash, appId) {
+  const ref = await getFileRef(namespace, fileHash);
+  if (ref) {
+    ref.refCount = (ref.refCount || 0) + 1;
+    if (!ref.appIds.includes(appId)) {
+      ref.appIds.push(appId);
+    }
+    await saveFileRef(namespace, ref);
+  } else {
+    await saveFileRef(namespace, {
+      fileHash,
+      refCount: 1,
+      appIds: [appId],
+    });
+  }
+}
+
+/**
+ * 减少文件的引用计数，降到 0 时删除该文件的 manifest 和 chunks
+ * @param {string} namespace - 用户命名空间
+ * @param {string} fileHash - 文件哈希
+ * @param {string} appId - 应用 ID
+ */
+export async function decrementFileRef(namespace, fileHash, appId) {
+  const ref = await getFileRef(namespace, fileHash);
+  if (!ref) return;
+
+  ref.refCount = Math.max(0, (ref.refCount || 1) - 1);
+  const idx = ref.appIds.indexOf(appId);
+  if (idx !== -1) ref.appIds.splice(idx, 1);
+
+  if (ref.refCount <= 0) {
+    // 清理文件数据
+    // 先获取 manifest 拿到 chunkHashes，再删 manifest
+    const manifest = await getManifest(namespace, fileHash);
+    await deleteManifest(namespace, fileHash);
+    if (manifest && manifest.chunkHashes) {
+      await Promise.all(
+        manifest.chunkHashes.map((ch) => deleteChunk(namespace, ch)),
+      );
+    }
+    // 删除引用记录
+    const db = await getDb(namespace);
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([FILE_REFS_STORE], "readwrite");
+      const store = transaction.objectStore(FILE_REFS_STORE);
+      const request = store.delete(fileHash);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } else {
+    await saveFileRef(namespace, ref);
+  }
+}
+
+// ───── 清理 ─────
 
 /**
  * 清理指定 namespace 的全部发布数据（删除整个 IndexedDB 数据库）
