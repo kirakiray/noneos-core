@@ -119,12 +119,11 @@ publisher.start();
 const file = new File(["..."], "photo.jpg");
 const manifest = await publisher.publish(file);
 
-// 请求他人文件
+// 请求他人文件（sessionId 可选，不传则自动获取）
 const remoteUser = await user.connectUser(publisherUserId);
-const sessionIds = await remoteUser.getSessionIds();
-const manifest2 = await publisher.requestManifest(remoteUser, sessionIds[0], fileHash);
+const manifest2 = await publisher.requestManifest(remoteUser, fileHash);
 for (const chunkHash of manifest2.chunkHashes) {
-  await publisher.requestChunk(remoteUser, sessionIds[0], chunkHash);
+  await publisher.requestChunk(remoteUser, chunkHash);
 }
 const result = await publisher.assembleFile(fileHash);
 // result.blob, result.fileName, result.fileSize

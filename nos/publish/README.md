@@ -60,16 +60,16 @@ const sessionIds = await remoteUser.getSessionIds();
 // 1. 请求文件清单
 const manifest = await publisher.requestManifest(
   remoteUser,
-  sessionIds[0],
-  targetFileHash
+  targetFileHash,
+  sessionIds[0]
 );
 
 // 2. 请求所有分块
 for (const chunkHash of manifest.chunkHashes) {
   const chunkData = await publisher.requestChunk(
     remoteUser,
-    sessionIds[0],
-    chunkHash
+    chunkHash,
+    sessionIds[0]
   );
 }
 
@@ -133,27 +133,27 @@ URL.revokeObjectURL(url);
 }
 ```
 
-#### `requestManifest(remoteUser, sessionId, fileHash)`
+#### `requestManifest(remoteUser, fileHash, sessionId)`
 
 请求远程用户的文件清单。先查本地 DB，命中则直接返回；否则发起网络请求。
 
 **参数：**
 - `remoteUser` (RemoteUser) - 远程用户实例
-- `sessionId` (string) - 目标会话 ID
 - `fileHash` (string) - 文件哈希
+- `sessionId` (string, optional) - 目标会话 ID，不传则自动获取第一个可用会话
 
 **返回值：** Promise\<Object\> - manifest 对象
 
 **超时：** 10 秒
 
-#### `requestChunk(remoteUser, sessionId, chunkHash)`
+#### `requestChunk(remoteUser, chunkHash, sessionId)`
 
 请求远程用户的块数据。先查本地 DB，命中则直接返回；否则发起网络请求。
 
 **参数：**
 - `remoteUser` (RemoteUser) - 远程用户实例
-- `sessionId` (string) - 目标会话 ID
 - `chunkHash` (string) - 块哈希
+- `sessionId` (string, optional) - 目标会话 ID，不传则自动获取第一个可用会话
 
 **返回值：** Promise\<ArrayBuffer\> - 块二进制数据
 
@@ -173,6 +173,17 @@ URL.revokeObjectURL(url);
 **抛出错误：**
 - manifest 不存在：`Manifest not found: <fileHash>`
 - chunk 缺失：错误对象带 `missing` 字段（缺失的 chunkHash 数组）和 `fileHash` 字段
+
+#### `fetchFile(remoteUser, fileHash, sessionId)`
+
+获取完整文件。优先从本地 DB 读取，若缺失则自动从远程用户拉取 manifest 和所有 chunk。
+
+**参数：**
+- `remoteUser` (RemoteUser) - 远程用户实例
+- `fileHash` (string) - 文件哈希
+- `sessionId` (string, optional) - 目标会话 ID，不传则自动获取第一个可用会话
+
+**返回值：** Promise\<{ blob: Blob, fileName: string, fileSize: number }\>
 
 ---
 
@@ -349,13 +360,13 @@ const sessionIds = await remoteUser.getSessionIds();
 // 请求 manifest
 const manifest = await publisher.requestManifest(
   remoteUser,
-  sessionIds[0],
-  fileHash
+  fileHash,
+  sessionIds[0]
 );
 
 // 请求所有 chunk
 for (const chunkHash of manifest.chunkHashes) {
-  await publisher.requestChunk(remoteUser, sessionIds[0], chunkHash);
+  await publisher.requestChunk(remoteUser, chunkHash, sessionIds[0]);
 }
 
 // 组装并下载
@@ -413,4 +424,8 @@ URL.revokeObjectURL(url);
 - 文件组装（小文件 / 大文件 / 缺失 chunk 报错）
 - 远程请求 manifest / chunk
 - 请求不存在的 manifest / chunk 报错
+- `fetchFile` 获取文件（本地 / 远程 / 不传 sessionId）
+- `requestManifest` / `requestChunk` 不传 sessionId（自动获取）
+- sessionId 缓存命中
+- 非当前 session 关闭不影响请求
 - 完整远程发布与组装流程
