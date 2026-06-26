@@ -102,6 +102,36 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
+---
+
+## 核心功能 3：文件发布与获取 (DataPublisher)
+
+基于 LocalUser 的点对点文件分发模块，将文件分块签名后发布，其他用户可通过 userId 远程获取。
+
+```javascript
+import { DataPublisher } from "/nos/publish/data-publisher.js";
+
+const user = await getUser("my-ns");
+const publisher = new DataPublisher(user);
+publisher.start();
+
+// 发布文件
+const file = new File(["..."], "photo.jpg");
+const manifest = await publisher.publish(file);
+
+// 请求他人文件
+const remoteUser = await user.connectUser(publisherUserId);
+const sessionIds = await remoteUser.getSessionIds();
+const manifest2 = await publisher.requestManifest(remoteUser, sessionIds[0], fileHash);
+for (const chunkHash of manifest2.chunkHashes) {
+  await publisher.requestChunk(remoteUser, sessionIds[0], chunkHash);
+}
+const result = await publisher.assembleFile(fileHash);
+// result.blob, result.fileName, result.fileSize
+```
+
+更多参考：[DataPublisher 完整文档](/nos/publish/README.md) | [测试用例](/tests/publish/data-publisher.sb.html)
+
 更多详细操作参考：
 - [用户管理 API 参考](references/user-api.md)
 - [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化与签名验证
