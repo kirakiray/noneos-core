@@ -512,6 +512,290 @@
       </script>
     </template>
   </sb-test>
+
+  <!-- 测试 7：installApp 基本功能 -->
+  <sb-test name="AppManager installApp Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_inst_ns = "app-mgr-inst";
+        const ap_inst_srv = "ws://localhost:8081";
+
+        const ap_inst_user = new LocalUser(ap_inst_ns);
+        await ap_inst_user.ready();
+        await ap_inst_user.server.connect(ap_inst_srv);
+
+        const ap_inst_mgr = new AppManager(ap_inst_user);
+        ap_inst_mgr.start();
+
+        // 清理残留
+        const ap_inst_oldRoot = await init("apps");
+        const ap_inst_appName = "install-test-app";
+
+        // 创建测试文件
+        const ap_inst_root = await init("test-publish");
+        const ap_inst_oldDir = await ap_inst_root.get("install-test");
+        if (ap_inst_oldDir) await ap_inst_oldDir.remove();
+        const ap_inst_dir = await ap_inst_root.get("install-test", { create: "dir" });
+        const ap_inst_f1 = await ap_inst_dir.get("hello.html", { create: "file" });
+        await ap_inst_f1.write("<h1>Installed</h1>");
+        const ap_inst_f2 = await ap_inst_dir.get("script.js", { create: "file" });
+        await ap_inst_f2.write("console.log('installed');");
+
+        // 发布
+        const ap_inst_release = await ap_inst_mgr.createRelease(ap_inst_dir, {
+          appName: ap_inst_appName,
+          version: "1.0.0",
+        });
+        const ap_inst_pub = await ap_inst_mgr.publish(ap_inst_release);
+
+        // 安装
+        await ap_inst_mgr.installApp(ap_inst_release.manifest);
+
+        // 验证安装目录存在
+        const ap_inst_dirName = `${ap_inst_appName}-${ap_inst_pub.appId}`;
+        const ap_inst_appDir = await ap_inst_oldRoot.get(ap_inst_dirName);
+        const ap_inst_dirExists = ap_inst_appDir !== null;
+
+        // 验证文件存在且内容正确
+        let ap_inst_contentOk = false;
+        let ap_inst_manifestOk = false;
+        let ap_inst_fileCount = 0;
+        if (ap_inst_appDir) {
+          const ap_inst_files = await ap_inst_appDir.flat();
+          ap_inst_fileCount = ap_inst_files.length;
+
+          // 读取 hello.html
+          const ap_inst_hello = await ap_inst_appDir.get("hello.html");
+          const ap_inst_helloText = ap_inst_hello ? await ap_inst_hello.read({ type: "text" }) : "";
+          const ap_inst_helloMatch = ap_inst_helloText === "<h1>Installed</h1>";
+
+          // 读取 script.js
+          const ap_inst_scr = await ap_inst_appDir.get("script.js");
+          const ap_inst_scrText = ap_inst_scr ? await ap_inst_scr.read({ type: "text" }) : "";
+          const ap_inst_scrMatch = ap_inst_scrText === "console.log('installed');";
+
+          ap_inst_contentOk = ap_inst_helloMatch && ap_inst_scrMatch;
+
+          // 读取 manifest
+          const ap_inst_manifestFile = await ap_inst_appDir.get("asset-manifest.json");
+          const ap_inst_manifestText = ap_inst_manifestFile ? await ap_inst_manifestFile.read({ type: "text" }) : "";
+          try {
+            const ap_inst_parsed = JSON.parse(ap_inst_manifestText);
+            ap_inst_manifestOk = ap_inst_parsed.appId === ap_inst_pub.appId && ap_inst_parsed.version === "1.0.0";
+          } catch {
+            ap_inst_manifestOk = false;
+          }
+        }
+
+        // 清理
+        if (ap_inst_appDir) await ap_inst_appDir.remove();
+        ap_inst_mgr.stop();
+
+        const ap_inst_allChecks = ap_inst_dirExists && ap_inst_contentOk && ap_inst_manifestOk && ap_inst_fileCount >= 2;
+
+        await clearPublishData(ap_inst_ns);
+
+        return {
+          assert: ap_inst_allChecks,
+          content: {
+            message: ap_inst_allChecks ? "installApp 测试成功" : "installApp 测试失败",
+            checks: {
+              dirExists: ap_inst_dirExists,
+              contentOk: ap_inst_contentOk,
+              manifestOk: ap_inst_manifestOk,
+              fileCount: ap_inst_fileCount,
+              dirName: ap_inst_dirName,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 8：checkForUpdates 检测升级 -->
+  <sb-test name="AppManager checkForUpdates Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_cfu_ns = "app-mgr-cfu";
+        const ap_cfu_srv = "ws://localhost:8081";
+
+        const ap_cfu_user = new LocalUser(ap_cfu_ns);
+        await ap_cfu_user.ready();
+        await ap_cfu_user.server.connect(ap_cfu_srv);
+
+        const ap_cfu_mgr = new AppManager(ap_cfu_user);
+        ap_cfu_mgr.start();
+
+        const ap_cfu_appName = "cfu-test-app";
+
+        // 清理 OPFS 残留
+        const ap_cfu_appsRoot = await init("apps");
+        const ap_cfu_root = await init("test-publish");
+        const ap_cfu_oldTest = await ap_cfu_root.get("cfu-test");
+        if (ap_cfu_oldTest) await ap_cfu_oldTest.remove();
+
+        // 创建 v1 文件
+        const ap_cfu_dir = await ap_cfu_root.get("cfu-test", { create: "dir" });
+        const ap_cfu_v1Html = await ap_cfu_dir.get("index.html", { create: "file" });
+        await ap_cfu_v1Html.write("<h1>V1</h1>");
+        const ap_cfu_v1Js = await ap_cfu_dir.get("app.js", { create: "file" });
+        await ap_cfu_v1Js.write("console.log('v1');");
+
+        // 发布 v1 并安装
+        const ap_cfu_v1 = await ap_cfu_mgr.createRelease(ap_cfu_dir, { appName: ap_cfu_appName, version: "1.0.0" });
+        const ap_cfu_v1Pub = await ap_cfu_mgr.publish(ap_cfu_v1);
+        await ap_cfu_mgr.installApp(ap_cfu_v1.manifest);
+
+        // checkForUpdates → v1 是最新，应无更新
+        const ap_cfu_noUpdate = await ap_cfu_mgr.checkForUpdates(ap_cfu_v1Pub.appId);
+        const ap_cfu_noUpdateOk = ap_cfu_noUpdate !== null && ap_cfu_noUpdate.hasUpdate === false;
+
+        // 修改文件并发布 v2
+        const ap_cfu_v2Html = await ap_cfu_dir.get("index.html", { create: "file" });
+        await ap_cfu_v2Html.write("<h1>V2</h1>");
+        const ap_cfu_v2New = await ap_cfu_dir.get("new.js", { create: "file" });
+        await ap_cfu_v2New.write("console.log('new');");
+
+        const ap_cfu_v2 = await ap_cfu_mgr.createRelease(ap_cfu_dir, { appName: ap_cfu_appName, version: "2.0.0" });
+        const ap_cfu_v2Pub = await ap_cfu_mgr.publish(ap_cfu_v2);
+
+        // checkForUpdates → 应检测到更新
+        const ap_cfu_hasUpdate = await ap_cfu_mgr.checkForUpdates(ap_cfu_v1Pub.appId);
+        const ap_cfu_hasUpdateOk = ap_cfu_hasUpdate !== null && ap_cfu_hasUpdate.hasUpdate === true;
+        const ap_cfu_versionOk = ap_cfu_hasUpdate.currentVersion === "1.0.0" && ap_cfu_hasUpdate.latestVersion === "2.0.0";
+        const ap_cfu_appNameOk = ap_cfu_hasUpdate.appName === ap_cfu_appName;
+        const ap_cfu_diffHasModified = "index.html" in (ap_cfu_hasUpdate.diffSummary?.modified || {});
+        const ap_cfu_diffHasAdded = "new.js" in (ap_cfu_hasUpdate.diffSummary?.added || {});
+
+        // 清理
+        const ap_cfu_installedDir = await ap_cfu_appsRoot.get(`${ap_cfu_appName}-${ap_cfu_v1Pub.appId}`);
+        if (ap_cfu_installedDir) await ap_cfu_installedDir.remove();
+        ap_cfu_mgr.stop();
+
+        const ap_cfu_allChecks =
+          ap_cfu_noUpdateOk && ap_cfu_hasUpdateOk && ap_cfu_versionOk &&
+          ap_cfu_appNameOk && ap_cfu_diffHasModified && ap_cfu_diffHasAdded;
+
+        await clearPublishData(ap_cfu_ns);
+
+        return {
+          assert: ap_cfu_allChecks,
+          content: {
+            message: ap_cfu_allChecks ? "checkForUpdates 测试成功" : "checkForUpdates 测试失败",
+            checks: {
+              noUpdateOk: ap_cfu_noUpdateOk,
+              hasUpdateOk: ap_cfu_hasUpdateOk,
+              versionOk: ap_cfu_versionOk,
+              appNameOk: ap_cfu_appNameOk,
+              diffHasModified: ap_cfu_diffHasModified,
+              diffHasAdded: ap_cfu_diffHasAdded,
+              currentVersion: ap_cfu_hasUpdate?.currentVersion,
+              latestVersion: ap_cfu_hasUpdate?.latestVersion,
+              diffSummary: ap_cfu_hasUpdate?.diffSummary,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 9：checkAllUpdates 批量检查 -->
+  <sb-test name="AppManager checkAllUpdates Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { AppManager } from "/nos/publish/app-manager.js";
+        import { init } from "/nos/fs/handle/main.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const ap_cau_ns = "app-mgr-cau";
+        const ap_cau_srv = "ws://localhost:8081";
+
+        const ap_cau_user = new LocalUser(ap_cau_ns);
+        await ap_cau_user.ready();
+        await ap_cau_user.server.connect(ap_cau_srv);
+
+        const ap_cau_mgr = new AppManager(ap_cau_user);
+        ap_cau_mgr.start();
+
+        const ap_cau_appsRoot = await init("apps");
+        const ap_cau_root = await init("test-publish");
+
+        // 清理残留目录
+        for (const dir of ["cau-app1", "cau-app2"]) {
+          const old = await ap_cau_root.get(dir);
+          if (old) await old.remove();
+        }
+
+        // 创建并发布 + 安装两个不同应用
+        const ap_cau_results = [];
+
+        for (const [appName, content] of [["cau-app1", "app1"], ["cau-app2", "app2"]]) {
+          const dir = await ap_cau_root.get(appName, { create: "dir" });
+          const file = await dir.get("index.html", { create: "file" });
+          await file.write(`<h1>${content}</h1>`);
+
+          const release = await ap_cau_mgr.createRelease(dir, { appName, version: "1.0.0" });
+          const pub = await ap_cau_mgr.publish(release);
+          await ap_cau_mgr.installApp(release.manifest);
+          ap_cau_results.push(pub);
+        }
+
+        // checkAllUpdates — 两个都已是最新，应返回 2 条 hasUpdate:false
+        const ap_cau_updates = await ap_cau_mgr.checkAllUpdates();
+        const ap_cau_countOk = ap_cau_updates.length === 2;
+        const ap_cau_allFalse = ap_cau_updates.every((u) => u.hasUpdate === false);
+
+        // 升级其中一个
+        const ap_cau_dir1 = await ap_cau_root.get("cau-app1");
+        const ap_cau_v2File = await ap_cau_dir1.get("index.html", { create: "file" });
+        await ap_cau_v2File.write("<h1>app1 V2</h1>");
+        const ap_cau_v2 = await ap_cau_mgr.createRelease(ap_cau_dir1, { appName: "cau-app1", version: "2.0.0" });
+        await ap_cau_mgr.publish(ap_cau_v2);
+
+        // 再次批量检查 — 应有一条检测到更新
+        const ap_cau_updates2 = await ap_cau_mgr.checkAllUpdates();
+        const ap_cau_count2Ok = ap_cau_updates2.length >= 1;
+        const ap_cau_hasOneUpdate = ap_cau_updates2.some((u) => u.hasUpdate === true && u.appName === "cau-app1");
+
+        // 清理
+        for (const r of ap_cau_results) {
+          const d = await ap_cau_appsRoot.get(`${r.appName}-${r.appId}`);
+          if (d) await d.remove();
+        }
+        ap_cau_mgr.stop();
+
+        const ap_cau_allChecks = ap_cau_countOk && ap_cau_allFalse && ap_cau_count2Ok && ap_cau_hasOneUpdate;
+
+        await clearPublishData(ap_cau_ns);
+
+        return {
+          assert: ap_cau_allChecks,
+          content: {
+            message: ap_cau_allChecks ? "checkAllUpdates 测试成功" : "checkAllUpdates 测试失败",
+            checks: {
+              countOk: ap_cau_countOk,
+              initialCount: ap_cau_updates.length,
+              allFalse: ap_cau_allFalse,
+              count2Ok: ap_cau_count2Ok,
+              hasOneUpdate: ap_cau_hasOneUpdate,
+              updatesAfterUpgrade: ap_cau_updates2.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

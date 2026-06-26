@@ -16,11 +16,21 @@ import {
   savePublishedApp,
   getPublishedApp,
   listPublishedApps,
-  saveFileRef,
-  getFileRef,
   incrementFileRef,
   getManifest,
 } from "./db.js";
+import { init } from "../fs/handle/main.js";
+
+/** 简单语义化版本号比较，返回正数/零/负数 */
+function semverCompare(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
 
 /**
  * 应用发布管理器
@@ -289,6 +299,254 @@ export class AppManager {
     } catch {
       return null;
     }
+  }
+
+  // ───── 安装 / 更新 ─────
+
+  /**
+   * 安装应用
+   *
+   * 1. 验签 manifest
+   * 2. 将每个文件通过 DataPublisher 获取并写入 apps/{appName}-{appId}/
+   * 3. 写入 asset-manifest.json
+   *
+   * 如果目录已存在（升级场景），只拉取和覆写有变化的文件。
+   *
+   * @param {Object} manifest - 已签名的 asset-manifest.json 对象
+   * @param {{ publisherUser?: import("../user/remote-user.js").RemoteUser }} [options]
+   *   - publisherUser: 发布者的 RemoteUser，不传则只查本地 DataPublisher 缓存
+   * @returns {Promise<void>}
+   */
+  async installApp(manifest, { publisherUser } = {}) {
+    // 1. 验签
+    const isValid = await verifyData(manifest);
+    if (!isValid) {
+      throw new Error("Manifest signature verification failed");
+    }
+
+    const { appId, appName, version, files } = manifest;
+    const dirName = `${appName}-${appId}`;
+
+    // 2. 确保 apps/ 根目录存在
+    let appsRoot;
+    try {
+      appsRoot = await init("apps");
+    } catch {
+      appsRoot = await init("apps");
+    }
+
+    // 3. 创建或获取应用目录
+    const appDir = await appsRoot.get(dirName, { create: "dir" });
+
+    // 4. 读取旧 manifest（升级场景）
+    const oldManifestFile = await appDir.get("asset-manifest.json");
+    let oldFiles = null;
+    if (oldManifestFile) {
+      try {
+        const oldText = await oldManifestFile.read({ type: "text" });
+        oldFiles = JSON.parse(oldText).files || {};
+      } catch {
+        // 旧 manifest 损坏，忽略
+      }
+    }
+
+    // 5. 遍历文件，只拉取有变化的
+    for (const [relativePath, fileInfo] of Object.entries(files)) {
+      // 升级场景：hash 相同则跳过
+      if (oldFiles && oldFiles[relativePath] && oldFiles[relativePath].fileHash === fileInfo.fileHash) {
+        continue;
+      }
+
+      // 通过 DataPublisher 获取文件（本地优先，远程兜底）
+      const result = await this.#publisher.fetchFile(
+        publisherUser || null,
+        fileInfo.fileHash,
+      );
+
+      // 按相对路径创建子目录（如有）并写入文件
+      const pathParts = relativePath.split("/");
+      const fileName = pathParts.pop();
+      let targetDir = appDir;
+      if (pathParts.length > 0) {
+        targetDir = await appDir.get(pathParts.join("/"), { create: "dir" });
+      }
+      const targetFile = await targetDir.get(fileName, { create: "file" });
+      await targetFile.write(result.blob);
+    }
+
+    // 6. 删除旧版有但新版没有的文件（升级场景）
+    if (oldFiles) {
+      for (const [oldPath] of Object.entries(oldFiles)) {
+        if (!files[oldPath]) {
+          const pathParts = oldPath.split("/");
+          const fileName = pathParts.pop();
+          try {
+            let delDir = appDir;
+            if (pathParts.length > 0) {
+              delDir = await appDir.get(pathParts.join("/"));
+            }
+            if (delDir) {
+              const delFile = await delDir.get(fileName);
+              if (delFile) await delFile.remove();
+            }
+          } catch {
+            // 文件不存在则忽略
+          }
+        }
+      }
+    }
+
+    // 7. 写入 asset-manifest.json
+    const manifestContent = JSON.stringify(manifest, null, 2);
+    const manifestFile = await appDir.get("asset-manifest.json", { create: "file" });
+    await manifestFile.write(manifestContent);
+  }
+
+  /**
+   * 检查单个应用是否有更新
+   *
+   * 对比本地已安装版本与发布者的最新版本。
+   *
+   * @param {string} appId - 应用 ID
+   * @returns {Promise<UpdateInfo|null>}
+   *   null 表示未找到已安装的应用；
+   *   { hasUpdate: false } 表示已是最新；
+   *   否则返回 { hasUpdate: true, appName, currentVersion, latestVersion, diffSummary, manifest }
+   */
+  async checkForUpdates(appId) {
+    // 1. 读取本地已安装的 manifest
+    const localManifest = await this.#readInstalledManifest(appId);
+    if (!localManifest) return null;
+
+    // 2. 获取发布者最新版本
+    const latestManifest = await this.fetchManifest(appId);
+    if (!latestManifest) {
+      // 发布者已下架或不可用
+      return { hasUpdate: false };
+    }
+
+    // 3. 比较版本
+    if (latestManifest.version === localManifest.version) {
+      return { hasUpdate: false };
+    }
+
+    // 4. 生成 diffSummary
+    const diffSummary = this.#compareFileSets(localManifest.files, latestManifest.files);
+
+    return {
+      hasUpdate: true,
+      appName: localManifest.appName,
+      currentVersion: localManifest.version,
+      latestVersion: latestManifest.version,
+      diffSummary,
+      manifest: latestManifest,
+    };
+  }
+
+  /**
+   * 批量检查所有已安装应用的更新
+   *
+   * @returns {Promise<UpdateInfo[]>}
+   */
+  async checkAllUpdates() {
+    const installed = await this.#listInstalledAppIds();
+    const results = [];
+    for (const appId of installed) {
+      try {
+        const info = await this.checkForUpdates(appId);
+        if (info) results.push(info);
+      } catch (err) {
+        console.warn(`[AppManager] checkForUpdates failed for ${appId}:`, err.message);
+      }
+    }
+    return results;
+  }
+
+  // ───── 内部辅助 ─────
+
+  /**
+   * 遍历 apps/ 目录，获取所有已安装应用的 appId
+   */
+  async #listInstalledAppIds() {
+    let appsRoot;
+    try {
+      appsRoot = await init("apps");
+    } catch {
+      return [];
+    }
+    const ids = [];
+    for await (const [name, handle] of appsRoot.entries()) {
+      if (handle.kind !== "dir") continue;
+      const manifestFile = await handle.get("asset-manifest.json");
+      if (!manifestFile) continue;
+      try {
+        const text = await manifestFile.read({ type: "text" });
+        const manifest = JSON.parse(text);
+        if (manifest.appId) ids.push(manifest.appId);
+      } catch {
+        // 跳过损坏的 manifest
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * 根据 appId 查找已安装应用的 manifest
+   */
+  async #readInstalledManifest(appId) {
+    let appsRoot;
+    try {
+      appsRoot = await init("apps");
+    } catch {
+      return null;
+    }
+    for await (const [name, handle] of appsRoot.entries()) {
+      if (handle.kind !== "dir") continue;
+      const manifestFile = await handle.get("asset-manifest.json");
+      if (!manifestFile) continue;
+      try {
+        const text = await manifestFile.read({ type: "text" });
+        const manifest = JSON.parse(text);
+        if (manifest.appId === appId) return manifest;
+      } catch {
+        // 跳过损坏的 manifest
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 对比两组文件集合，生成变更摘要
+   */
+  #compareFileSets(oldFiles, newFiles) {
+    const added = {};
+    const modified = {};
+    const removed = {};
+    let sizeDelta = 0;
+
+    for (const [path, info] of Object.entries(newFiles)) {
+      if (!oldFiles[path]) {
+        added[path] = info;
+        sizeDelta += info.size;
+      } else if (oldFiles[path].fileHash !== info.fileHash) {
+        modified[path] = {
+          oldHash: oldFiles[path].fileHash,
+          newHash: info.fileHash,
+          oldSize: oldFiles[path].size,
+          newSize: info.size,
+        };
+        sizeDelta += info.size - oldFiles[path].size;
+      }
+    }
+
+    for (const [path, info] of Object.entries(oldFiles)) {
+      if (!newFiles[path]) {
+        removed[path] = info;
+        sizeDelta -= info.size;
+      }
+    }
+
+    return { added, modified, removed, sizeDelta };
   }
 
   // ───── 内部工具 ─────
