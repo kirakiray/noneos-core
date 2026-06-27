@@ -4,7 +4,7 @@ admin_user_id = "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c98
 handshake_timeout_secs = 3
 
 # 握手响应最大字节数（包含 userId/sessionId/username/challenge/签名等，默认 1024）
-handshake_max_size = 1024
+handshake_max_size = 2048
 
 # 文本消息（JSON 命令）最大字节数（默认 256KB）
 text_message_max_size = 262144
