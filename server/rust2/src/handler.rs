@@ -34,15 +34,6 @@ pub async fn handle_connection(
     addr: SocketAddr,
     state: Arc<AppState>,
 ) {
-    // 从连接信号量获取许可（超出限制的连接在此自动等待 / 快速失败）
-    let _permit = match state.conn_semaphore.try_acquire() {
-        Ok(p) => p,
-        Err(_) => {
-            eprintln!("[conn] Rejected connection from {} - server at max capacity", addr);
-            return;
-        }
-    };
-
     eprintln!("[conn] New connection from {}", addr);
 
     // 1. WebSocket 升级，捕获 Origin

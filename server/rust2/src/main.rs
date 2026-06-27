@@ -149,15 +149,20 @@ async fn accept_loop(listener: TcpListener, state: Arc<AppState>) -> Result<(), 
     loop {
         let (stream, addr) = listener.accept().await?;
 
-        // 快速检查：如果已满则直接拒绝（不阻塞）
-        if state.conn_semaphore.available_permits() == 0 {
-            eprintln!("[conn] Rejected {} - server full ({} max)", addr, state.config.max_connections);
-            drop(stream); // 关闭 TCP 连接
-            continue;
-        }
+        // 在 spawn 之前原子地获取许可，消除 TOCTOU 竞态
+        let permit = match state.conn_semaphore.clone().try_acquire_owned() {
+            Ok(p) => p,
+            Err(_) => {
+                eprintln!("[conn] Rejected {} - server full ({} max)", addr, state.config.max_connections);
+                drop(stream);
+                continue;
+            }
+        };
 
         let state = Arc::clone(&state);
         tokio::spawn(async move {
+            // permit 随 task 存活，task 结束时自动释放
+            let _permit = permit;
             handler::handle_connection(stream, addr, state).await;
         });
     }
