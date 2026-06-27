@@ -161,3 +161,4 @@ _prompt*.md
 .webkit-test-data
 .chrome-test-data
 server/**/*.db
+server/**/*.redb

@@ -1,11 +1,50 @@
-use std::collections::{HashMap, VecDeque};
-use serde::Serialize;
-use rusqlite::Connection;
+use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 use sysinfo::System;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
+use redb::{Database, ReadableTable, TableDefinition, ReadableDatabase};
 
-/// 单个 session 的流量计数器
+// ===== Redb 表定义 =====
+
+/// 用户信息表：userId -> bincode(UserRecord)
+/// 存储用户基础信息 + 转发额度，握手时写入，所有 session 关闭时更新用量
+const USERS: TableDefinition<&str, Vec<u8>> = TableDefinition::new("users");
+
+/// 用户流量时间分布（每30秒聚合）：(ts_30s, from_user, to_user) -> bytes
+/// 双路径写入：1) 每30秒定时 flush  2) 用户所有 session 关闭时即时写入
+const USER_TRAFFIC_DIST: TableDefinition<(u64, &str, &str), u64> = TableDefinition::new("user_traffic_dist");
+
+/// 全局累计数据：key_name -> cumulative_value
+/// key: "total_inbound", "total_outbound", "total_relay"
+const GLOBAL_DATA: TableDefinition<&str, u64> = TableDefinition::new("global_data");
+
+/// 全局流量时间分布（每30秒 delta）：ts_30s -> (inbound_delta, outbound_delta, relay_delta)
+const GLOBAL_TRAFFIC_DIST: TableDefinition<u64, (u64, u64, u64)> = TableDefinition::new("global_traffic_dist");
+
+/// 系统快照（每30秒）：ts_30s -> (cpu_percent, mem_percent)
+const SYSTEM_STATS: TableDefinition<u64, (f64, f64)> = TableDefinition::new("system_stats");
+
+// ===== 全局累计数据 key 常量 =====
+const KEY_TOTAL_INBOUND: &str = "total_inbound";
+const KEY_TOTAL_OUTBOUND: &str = "total_outbound";
+const KEY_TOTAL_RELAY: &str = "total_relay";
+
+// ===== 数据结构 =====
+
+/// 用户记录（合并用户信息 + 转发额度，存储在 redb users 表）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserRecord {
+    pub user_id: String,
+    pub username: String,
+    pub public_key: String,
+    pub first_seen_at: u64,
+    pub last_seen_at: u64,
+    pub quota_bytes: u64,
+    pub used_bytes: u64,
+}
+
+/// 单个 session 的流量计数器（纯内存，不再持久化到 DB）
 #[derive(Debug, Clone, Serialize)]
 pub struct SessionTraffic {
     pub conn_key: String,
@@ -32,7 +71,7 @@ pub struct UserTrafficSummary {
     pub handshake_bytes: u64,
 }
 
-/// 全局流量汇总
+/// 全局流量汇总（内存 + DB 全局累计值）
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct GlobalTraffic {
     pub inbound_bytes: u64,
@@ -41,7 +80,16 @@ pub struct GlobalTraffic {
     pub handshake_bytes: u64,
 }
 
-/// 分钟级流量桶，用于时间分布统计
+/// 管理员 get_traffic_stats 命令的响应结构
+#[derive(Debug, Clone, Serialize)]
+pub struct TrafficStatsResponse {
+    pub global: GlobalTraffic,
+    pub users: Vec<UserTrafficSummary>,
+    pub time_distribution: Vec<MinuteBucket>,
+    pub user_count: usize,
+}
+
+/// 分钟级流量桶（用于 get_traffic_stats 响应）
 #[derive(Debug, Clone, Serialize)]
 pub struct MinuteBucket {
     pub minute_epoch: u64,
@@ -50,41 +98,59 @@ pub struct MinuteBucket {
     pub relay_forwarded_bytes: u64,
 }
 
-/// 管理员 `get_traffic_stats` 命令的响应结构
+/// 系统统计记录
 #[derive(Debug, Clone, Serialize)]
-pub struct TrafficStatsResponse {
-    pub global: GlobalTraffic,
-    pub users: Vec<UserTrafficSummary>,
-    pub time_distribution: Vec<MinuteBucket>,
-    pub user_count: usize, // 去重前的在线用户总数
+pub struct SystemStatsRecord {
+    pub recorded_at: u64,
+    pub cpu_usage_percent: f64,
+    pub memory_usage_percent: f64,
 }
 
-/// 流量统计容器 — 存放在 AppState 中
+/// 流量统计容器（纯内存，存于 AppState.traffic）
 pub struct TrafficStats {
     pub sessions: HashMap<String, SessionTraffic>,
-    pub minute_buckets: VecDeque<MinuteBucket>,
-    pub global: GlobalTraffic, // 增量全局统计
-    current_minute_epoch: u64,
+    pub global: GlobalTraffic,
+
+    // ---- 以下字段用于 30s 周期 flush ----
+
+    /// 当前 30s 窗口内的 delta 累计值（每次 flush 后重置）
+    interval_inbound: u64,
+    interval_outbound: u64,
+    interval_relay: u64,
+
+    /// 当前 30s 窗口内的用户粒度转发聚合：(from_user, to_user) -> bytes
+    /// 双路径：定时 flush + 用户断开时即时写入
+    user_traffic_map: HashMap<(String, String), u64>,
+
+    /// 当前 30s 窗口的 epoch（now_ms / 30000），暂未使用
+    #[allow(dead_code)]
+    current_interval_epoch: u64,
+    /// 当前分钟窗口（只用于 in-memory 的 get_traffic_stats）
+    minute_buckets: std::collections::VecDeque<MinuteBucket>,
     minute_window: usize,
+    current_minute_epoch: u64,
 }
 
 impl TrafficStats {
     pub fn new(minute_window: usize) -> Self {
         Self {
             sessions: HashMap::new(),
-            minute_buckets: VecDeque::with_capacity(minute_window),
             global: GlobalTraffic::default(),
-            current_minute_epoch: 0,
+            interval_inbound: 0,
+            interval_outbound: 0,
+            interval_relay: 0,
+            user_traffic_map: HashMap::new(),
+            current_interval_epoch: 0,
+            minute_buckets: std::collections::VecDeque::with_capacity(minute_window),
             minute_window,
+            current_minute_epoch: 0,
         }
     }
 
-    /// 设置初始全局流量（通常从数据库加载）
     pub fn set_global(&mut self, global: GlobalTraffic) {
         self.global = global;
     }
 
-    /// 注册新 session 的流量计数器
     pub fn register_session(
         &mut self,
         conn_key: &str,
@@ -107,42 +173,50 @@ impl TrafficStats {
         });
     }
 
-    /// 移除 session 并返回其最终计数
     pub fn remove_session(&mut self, conn_key: &str) -> Option<SessionTraffic> {
         self.sessions.remove(conn_key)
     }
 
-    /// 统计入站字节数（客户端 → 服务器）
+    /// 入站流量：更新 session 计数 + 全局累计 + 区间 delta
     pub fn add_inbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, bytes, 0, 0);
         self.global.inbound_bytes = self.global.inbound_bytes.saturating_add(bytes);
+        self.interval_inbound = self.interval_inbound.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.inbound_bytes = s.inbound_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
         }
     }
 
-    /// 统计出站字节数（服务器 → 客户端）
+    /// 出站流量：更新 session 计数 + 全局累计 + 区间 delta
     pub fn add_outbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, 0, bytes, 0);
         self.global.outbound_bytes = self.global.outbound_bytes.saturating_add(bytes);
+        self.interval_outbound = self.interval_outbound.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.outbound_bytes = s.outbound_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
         }
     }
 
-    /// 统计转发字节数（当前 session 转发给其他 session 的数据）
-    pub fn add_relay_forwarded(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
+    /// 转发流量：更新 session 计数 + 全局累计 + 区间 delta + 用户粒度分布
+    pub fn add_relay_forwarded(&mut self, conn_key: &str, bytes: u64, now_ms: u64, from_user: &str, to_user: &str) {
         self.update_minute_bucket(now_ms, 0, 0, bytes);
         self.global.relay_forwarded_bytes = self.global.relay_forwarded_bytes.saturating_add(bytes);
+        self.interval_relay = self.interval_relay.saturating_add(bytes);
+
+        // 累加到用户粒度转发分布
+        let key = (from_user.to_string(), to_user.to_string());
+        self.user_traffic_map.entry(key)
+            .and_modify(|v| *v = v.saturating_add(bytes))
+            .or_insert(bytes);
+
         if let Some(s) = self.sessions.get_mut(conn_key) {
             s.relay_forwarded_bytes = s.relay_forwarded_bytes.saturating_add(bytes);
             s.last_activity_at = now_ms;
         }
     }
 
-    /// 统计握手字节数
     pub fn add_handshake(&mut self, conn_key: &str, bytes: u64, _now_ms: u64) {
         self.global.handshake_bytes = self.global.handshake_bytes.saturating_add(bytes);
         if let Some(s) = self.sessions.get_mut(conn_key) {
@@ -150,11 +224,10 @@ impl TrafficStats {
         }
     }
 
-    /// 更新分钟级滑动窗口
+    /// 更新 in-memory 分钟级桶（供 get_traffic_stats 管理端使用）
     fn update_minute_bucket(&mut self, now_ms: u64, inbound: u64, outbound: u64, relay: u64) {
         let minute_epoch = now_ms / 60_000;
         if minute_epoch != self.current_minute_epoch {
-            // 如果跳过了多个分钟，填充中间的空缺分钟
             if let Some(last) = self.minute_buckets.back() {
                 for m in (last.minute_epoch + 1)..minute_epoch {
                     if self.minute_buckets.len() >= self.minute_window {
@@ -171,13 +244,7 @@ impl TrafficStats {
             self.current_minute_epoch = minute_epoch;
         }
 
-        // 查找或创建当前分钟的桶，由于通常更新最后一个桶，从尾部向前搜索
-        if let Some(bucket) = self
-            .minute_buckets
-            .iter_mut()
-            .rev()
-            .find(|b| b.minute_epoch == minute_epoch)
-        {
+        if let Some(bucket) = self.minute_buckets.iter_mut().rev().find(|b| b.minute_epoch == minute_epoch) {
             bucket.inbound_bytes = bucket.inbound_bytes.saturating_add(inbound);
             bucket.outbound_bytes = bucket.outbound_bytes.saturating_add(outbound);
             bucket.relay_forwarded_bytes = bucket.relay_forwarded_bytes.saturating_add(relay);
@@ -194,12 +261,40 @@ impl TrafficStats {
         }
     }
 
-    /// 计算全局总计（目前直接返回已缓存的增量值）
+    /// 提取当前区间 delta 并重置（供 flush 任务调用）
+    pub fn take_interval_deltas(&mut self) -> (u64, u64, u64) {
+        let deltas = (self.interval_inbound, self.interval_outbound, self.interval_relay);
+        self.interval_inbound = 0;
+        self.interval_outbound = 0;
+        self.interval_relay = 0;
+        deltas
+    }
+
+    /// 提取当前用户粒度转发分布并重置（供 flush 任务调用）
+    /// 返回 (from, to) -> bytes 的映射
+    pub fn take_user_traffic_map(&mut self) -> HashMap<(String, String), u64> {
+        std::mem::take(&mut self.user_traffic_map)
+    }
+
+    /// 提取指定用户的转发分布条目（用户断开时调用）
+    /// 返回该用户作为 from 的所有 (to, bytes) 对，并从内存映射中移除
+    pub fn take_user_relay_entries(&mut self, user_id: &str) -> Vec<(String, u64)> {
+        let mut entries = Vec::new();
+        self.user_traffic_map.retain(|(from, to), bytes| {
+            if from == user_id {
+                entries.push((to.clone(), *bytes));
+                false
+            } else {
+                true
+            }
+        });
+        entries
+    }
+
     pub fn compute_global(&self) -> GlobalTraffic {
         self.global.clone()
     }
 
-    /// 计算按用户聚合的摘要，按入站流量降序排列
     pub fn compute_user_summaries(&self) -> Vec<UserTrafficSummary> {
         let mut user_map: HashMap<String, UserTrafficSummary> = HashMap::new();
         for s in self.sessions.values() {
@@ -216,22 +311,18 @@ impl TrafficStats {
             entry.session_count = entry.session_count.saturating_add(1);
             entry.inbound_bytes = entry.inbound_bytes.saturating_add(s.inbound_bytes);
             entry.outbound_bytes = entry.outbound_bytes.saturating_add(s.outbound_bytes);
-            entry.relay_forwarded_bytes =
-                entry.relay_forwarded_bytes.saturating_add(s.relay_forwarded_bytes);
-            entry.handshake_bytes =
-                entry.handshake_bytes.saturating_add(s.handshake_bytes);
+            entry.relay_forwarded_bytes = entry.relay_forwarded_bytes.saturating_add(s.relay_forwarded_bytes);
+            entry.handshake_bytes = entry.handshake_bytes.saturating_add(s.handshake_bytes);
         }
         let mut users: Vec<UserTrafficSummary> = user_map.into_values().collect();
         users.sort_by_key(|b| std::cmp::Reverse(b.inbound_bytes));
         users
     }
 
-    /// 获取当前的分钟级时间分布
     pub fn get_time_distribution(&self) -> Vec<MinuteBucket> {
         self.minute_buckets.iter().cloned().collect()
     }
 
-    /// 构建管理员命令的完整响应，可选限制返回前 N 个用户
     pub fn build_response(&self, limit: Option<usize>) -> TrafficStatsResponse {
         let all_users = self.compute_user_summaries();
         let user_count = all_users.len();
@@ -268,635 +359,308 @@ pub fn message_byte_size(msg: &tungstenite::Message) -> usize {
     }
 }
 
-// ===== SQLite 持久化 =====
+// ===== Redb 读写操作 =====
 
-/// 初始化 SQLite 数据库，按需创建表
-pub fn init_db(db_path: &str) -> Result<Connection, rusqlite::Error> {
-    let conn = Connection::open(db_path)?;
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS traffic_snapshots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recorded_at INTEGER NOT NULL,
-            user_id TEXT NOT NULL,
-            session_id TEXT NOT NULL,
-            username TEXT NOT NULL DEFAULT '',
-            inbound_bytes INTEGER NOT NULL DEFAULT 0,
-            outbound_bytes INTEGER NOT NULL DEFAULT 0,
-            relay_forwarded_bytes INTEGER NOT NULL DEFAULT 0,
-            handshake_bytes INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_ts_recorded ON traffic_snapshots(recorded_at);
-        CREATE INDEX IF NOT EXISTS idx_ts_user ON traffic_snapshots(user_id);
-        
-        CREATE TABLE IF NOT EXISTS global_traffic (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            inbound_bytes INTEGER NOT NULL DEFAULT 0,
-            outbound_bytes INTEGER NOT NULL DEFAULT 0,
-            relay_forwarded_bytes INTEGER NOT NULL DEFAULT 0,
-            handshake_bytes INTEGER NOT NULL DEFAULT 0,
-            updated_at INTEGER NOT NULL
-        );
-        
-        CREATE TABLE IF NOT EXISTS system_stats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recorded_at INTEGER NOT NULL,
-            cpu_usage_percent REAL NOT NULL,
-            memory_usage_percent REAL NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_ss_recorded ON system_stats(recorded_at);
-        
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            public_key TEXT NOT NULL,
-            first_seen_at INTEGER NOT NULL,
-            last_seen_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at);",
-    )?;
-    Ok(conn)
-}
-
-/// 用户记录（用于管理）
-#[derive(Debug, Clone, Serialize)]
-pub struct UserRecord {
-    pub user_id: String,
-    pub username: String,
-    pub public_key: String,
-    pub first_seen_at: u64,
-    pub last_seen_at: u64,
-}
-
-/// 保存或更新数据库中的用户记录
-pub fn save_user(conn: &Connection, user: &UserRecord) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "INSERT INTO users (user_id, username, public_key, first_seen_at, last_seen_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(user_id) DO UPDATE SET
-            username = excluded.username,
-            public_key = excluded.public_key,
-            last_seen_at = excluded.last_seen_at",
-        rusqlite::params![
-            user.user_id,
-            user.username,
-            user.public_key,
-            user.first_seen_at as i64,
-            user.last_seen_at as i64,
-        ],
-    )?;
-    Ok(())
-}
-
-/// 统计数据库中的用户总数
-pub fn count_users(conn: &Connection) -> Result<u32, rusqlite::Error> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
-    Ok(count as u32)
-}
-
-/// 从数据库分页查询所有用户
-pub fn query_users_paginated(
-    conn: &Connection,
-    page: u32,
-    page_size: u32,
-) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
-    let total = count_users(conn)?;
-    let page = page.max(1) as i64;
-    let page_size = page_size.clamp(1, 500) as i64;
-    let offset = (page - 1) * page_size;
-
-    if offset >= total as i64 {
-        return Ok((Vec::new(), total));
-    }
-
-    let mut stmt = conn.prepare(
-        "SELECT user_id, username, public_key, first_seen_at, last_seen_at
-         FROM users
-         ORDER BY last_seen_at DESC
-         LIMIT ?1 OFFSET ?2"
-    )?;
-
-    let rows = stmt.query_map(rusqlite::params![page_size, offset], |row| {
-        Ok(serde_json::json!({
-            "userId": row.get::<_, String>(0)?,
-            "username": row.get::<_, String>(1)?,
-            "publicKey": row.get::<_, String>(2)?,
-            "firstSeenAt": row.get::<_, i64>(3)?,
-            "lastSeenAt": row.get::<_, i64>(4)?,
-        }))
-    })?;
-
-    let mut results = Vec::new();
-    for row in rows {
-        results.push(row?);
-    }
-    Ok((results, total))
-}
-
-/// 单条系统统计记录（CPU + 内存快照）
-#[derive(Debug, Clone, Serialize)]
-pub struct SystemStatsRecord {
-    pub recorded_at: u64,
-    pub cpu_usage_percent: f64,
-    pub memory_usage_percent: f64,
-}
-
-/// 将系统统计快照保存到数据库
-pub fn save_system_stats(conn: &Connection, recorded_at: u64, cpu_percent: f64, mem_percent: f64) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "INSERT INTO system_stats (recorded_at, cpu_usage_percent, memory_usage_percent) VALUES (?1, ?2, ?3)",
-        rusqlite::params![recorded_at as i64, cpu_percent, mem_percent],
-    )?;
-    Ok(())
-}
-
-/// 查询最近的系统统计历史记录（限制为 `limit` 行）
-pub fn query_system_stats_history(conn: &Connection, limit: usize) -> Result<Vec<SystemStatsRecord>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT recorded_at, cpu_usage_percent, memory_usage_percent FROM system_stats ORDER BY recorded_at DESC LIMIT ?1"
-    )?;
-    let rows = stmt.query_map(rusqlite::params![limit as i64], |row| {
-        Ok(SystemStatsRecord {
-            recorded_at: row.get::<_, i64>(0)? as u64,
-            cpu_usage_percent: row.get::<_, f64>(1)?,
-            memory_usage_percent: row.get::<_, f64>(2)?,
-        })
-    })?;
-
-    let mut results = Vec::new();
-    for row in rows {
-        results.push(row?);
-    }
-    results.reverse(); // 按时间升序返回，方便前端折线图
-    Ok(results)
-}
-
-/// 从数据库加载全局流量数据
-pub fn load_global_traffic(conn: &Connection) -> Result<GlobalTraffic, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes FROM global_traffic WHERE id = 1"
-    )?;
-    let res = stmt.query_row([], |row| {
-        Ok(GlobalTraffic {
-            inbound_bytes: row.get::<_, i64>(0)? as u64,
-            outbound_bytes: row.get::<_, i64>(1)? as u64,
-            relay_forwarded_bytes: row.get::<_, i64>(2)? as u64,
-            handshake_bytes: row.get::<_, i64>(3)? as u64,
-        })
-    });
-
-    match res {
-        Ok(g) => Ok(g),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(GlobalTraffic::default()),
-        Err(e) => Err(e),
-    }
-}
-
-/// 将全局流量数据持久化到数据库
-pub fn save_global_traffic(conn: &Connection, global: &GlobalTraffic) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "INSERT INTO global_traffic (id, inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes, updated_at)
-         VALUES (1, ?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(id) DO UPDATE SET
-            inbound_bytes = excluded.inbound_bytes,
-            outbound_bytes = excluded.outbound_bytes,
-            relay_forwarded_bytes = excluded.relay_forwarded_bytes,
-            handshake_bytes = excluded.handshake_bytes,
-            updated_at = excluded.updated_at",
-        rusqlite::params![
-            global.inbound_bytes as i64,
-            global.outbound_bytes as i64,
-            global.relay_forwarded_bytes as i64,
-            global.handshake_bytes as i64,
-            now_ms() as i64,
-        ],
-    )?;
-    Ok(())
-}
-
-/// 将所有当前 session 计数以快照形式刷入 SQLite
-pub fn flush_sessions_to_db(
-    conn: &Connection,
-    sessions: &HashMap<String, SessionTraffic>,
-    recorded_at: u64,
-) -> Result<(), rusqlite::Error> {
-    if sessions.is_empty() {
-        return Ok(());
-    }
-    let tx = conn.unchecked_transaction()?;
+/// 保存或更新用户记录
+pub fn save_user(db: &Database, record: &UserRecord) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
     {
-        let mut stmt = tx.prepare(
-            "INSERT INTO traffic_snapshots (recorded_at, user_id, session_id, username, inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        )?;
-        for s in sessions.values() {
-            stmt.execute(rusqlite::params![
-                recorded_at as i64,
-                s.user_id,
-                s.session_id,
-                s.username,
-                s.inbound_bytes as i64,
-                s.outbound_bytes as i64,
-                s.relay_forwarded_bytes as i64,
-                s.handshake_bytes as i64,
-            ])?;
+        let mut table = write_txn.open_table(USERS)?;
+        let encoded = bincode::serialize(record).unwrap_or_default();
+        table.insert(record.user_id.as_str(), encoded)?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+/// 从 redb 加载用户记录
+pub fn load_user(db: &Database, user_id: &str) -> Result<Option<UserRecord>, redb::Error> {
+    let read_txn = db.begin_read()?;
+    let table = read_txn.open_table(USERS)?;
+    match table.get(user_id)? {
+        Some(sl) => {
+            let record: UserRecord = bincode::deserialize(&sl.value()).unwrap_or_else(|_| {
+                // 反序列化失败时返回默认记录
+                UserRecord {
+                    user_id: user_id.to_string(),
+                    username: String::new(),
+                    public_key: String::new(),
+                    first_seen_at: 0,
+                    last_seen_at: 0,
+                    quota_bytes: 0,
+                    used_bytes: 0,
+                }
+            });
+            Ok(Some(record))
+        }
+        None => Ok(None),
+    }
+}
+
+/// 加载所有用户记录（供 list_all_users 管理命令使用）
+pub fn load_all_users(db: &Database) -> Result<Vec<UserRecord>, redb::Error> {
+    let read_txn = db.begin_read()?;
+    let table = read_txn.open_table(USERS)?;
+    let mut users = Vec::new();
+    for entry in table.iter()? {
+        let (_key, value) = entry?;
+        if let Ok(record) = bincode::deserialize::<UserRecord>(&value.value()) {
+            users.push(record);
         }
     }
-    tx.commit()?;
+    // 按 last_seen_at 降序排序
+    users.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
+    Ok(users)
+}
+
+/// 加载全局累计数据（启动时调用）
+pub fn load_global_data(db: &Database) -> GlobalTraffic {
+    let read_txn = match db.begin_read() {
+        Ok(txn) => txn,
+        Err(_) => return GlobalTraffic::default(),
+    };
+    let table = match read_txn.open_table(GLOBAL_DATA) {
+        Ok(t) => t,
+        Err(_) => return GlobalTraffic::default(),
+    };
+
+    GlobalTraffic {
+        inbound_bytes: table.get(KEY_TOTAL_INBOUND).ok().flatten().map(|v| v.value()).unwrap_or(0),
+        outbound_bytes: table.get(KEY_TOTAL_OUTBOUND).ok().flatten().map(|v| v.value()).unwrap_or(0),
+        relay_forwarded_bytes: table.get(KEY_TOTAL_RELAY).ok().flatten().map(|v| v.value()).unwrap_or(0),
+        handshake_bytes: 0,
+    }
+}
+
+/// 保存全局累计数据
+pub fn save_global_data(db: &Database, global: &GlobalTraffic) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(GLOBAL_DATA)?;
+        table.insert(KEY_TOTAL_INBOUND, &global.inbound_bytes)?;
+        table.insert(KEY_TOTAL_OUTBOUND, &global.outbound_bytes)?;
+        table.insert(KEY_TOTAL_RELAY, &global.relay_forwarded_bytes)?;
+    }
+    write_txn.commit()?;
     Ok(())
 }
 
-/// 保存关闭 session 的最终快照
-pub fn save_final_session_stats(
-    db_path: &Option<String>,
-    session: &SessionTraffic,
-) {
-    if let Some(path) = db_path {
-        let session_clone = session.clone();
-        let path_clone = path.clone();
-        // 使用 spawn_blocking 执行同步数据库操作
-        tokio::task::spawn_blocking(move || {
-            if let Ok(conn) = Connection::open(path_clone) {
-                let mut sessions = HashMap::new();
-                sessions.insert(session_clone.conn_key.clone(), session_clone);
-                if let Err(e) = flush_sessions_to_db(&conn, &sessions, now_ms()) {
-                    eprintln!("Failed to save final session stats to DB: {}", e);
-                }
-            }
-        });
-    }
-}
-
-/// 查询指定时间范围内的流量历史记录数量
-pub fn count_traffic_history(
-    conn: &Connection,
-    from_ms: i64,
-    to_ms: i64,
-    user_id: Option<&str>,
-) -> Result<u32, rusqlite::Error> {
-    let (where_clause, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
-            vec![
-                Box::new(from_ms),
-                Box::new(to_ms),
-                Box::new(uid.to_string()),
-            ],
-        )
-    } else {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
-            vec![Box::new(from_ms), Box::new(to_ms)],
-        )
-    };
-
-    let sql = format!(
-        "SELECT COUNT(*) FROM traffic_snapshots {}",
-        where_clause
-    );
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-    let count: i64 = conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
-    Ok(count.max(0) as u32)
-}
-
-/// 分页查询历史流量快照
-/// 返回 (rows, total) 其中 total 是符合条件（时间范围 + 用户）的总记录数
-pub fn query_traffic_history_paginated(
-    conn: &Connection,
-    from_ms: i64,
-    to_ms: i64,
-    user_id: Option<&str>,
-    page: u32,
-    page_size: u32,
-) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
-    let total = count_traffic_history(conn, from_ms, to_ms, user_id)?;
-    let page = page.max(1) as i64;
-    let page_size = page_size.clamp(1, 500) as i64;
-    let offset = (page - 1) * page_size;
-    if offset >= total as i64 {
-        return Ok((Vec::new(), total));
-    }
-
-    let (where_clause, mut params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
-            vec![
-                Box::new(from_ms),
-                Box::new(to_ms),
-                Box::new(uid.to_string()),
-            ],
-        )
-    } else {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
-            vec![Box::new(from_ms), Box::new(to_ms)],
-        )
-    };
-
-    let sql = format!(
-        "SELECT recorded_at, user_id, session_id, username,
-                inbound_bytes, outbound_bytes, relay_forwarded_bytes, handshake_bytes
-         FROM traffic_snapshots
-         {}
-         ORDER BY recorded_at DESC, id DESC
-         LIMIT ?{} OFFSET ?{}",
-        where_clause,
-        params.len() + 1,
-        params.len() + 2,
-    );
-    params.push(Box::new(page_size));
-    params.push(Box::new(offset));
-
-    let mut stmt = conn.prepare(&sql)?;
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-    let rows = stmt.query_map(param_refs.as_slice(), |row| {
-        Ok(serde_json::json!({
-            "recordedAt": row.get::<_, i64>(0)?,
-            "userId": row.get::<_, String>(1)?,
-            "sessionId": row.get::<_, String>(2)?,
-            "username": row.get::<_, String>(3)?,
-            "inboundBytes": row.get::<_, i64>(4)?,
-            "outboundBytes": row.get::<_, i64>(5)?,
-            "relayForwardedBytes": row.get::<_, i64>(6)?,
-            "handshakeBytes": row.get::<_, i64>(7)?,
-        }))
-    })?;
-
-    let mut results = Vec::new();
-    for row in rows {
-        results.push(row?);
-    }
-    Ok((results, total))
-}
-
-/// 查询指定时间范围内用户的聚合流量总计
-pub fn query_traffic_history_totals(
-    conn: &Connection,
-    from_ms: i64,
-    to_ms: i64,
-    user_id: Option<&str>,
-) -> Result<(u64, u64, u64, u64), rusqlite::Error> {
-    let (where_clause, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(uid) = user_id {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2 AND user_id = ?3",
-            vec![
-                Box::new(from_ms),
-                Box::new(to_ms),
-                Box::new(uid.to_string()),
-            ],
-        )
-    } else {
-        (
-            "WHERE recorded_at >= ?1 AND recorded_at <= ?2",
-            vec![Box::new(from_ms), Box::new(to_ms)],
-        )
-    };
-
-    let sql = format!(
-        "SELECT COALESCE(SUM(inbound_bytes), 0), COALESCE(SUM(outbound_bytes), 0),
-                COALESCE(SUM(relay_forwarded_bytes), 0), COALESCE(SUM(handshake_bytes), 0)
-         FROM traffic_snapshots {}",
-        where_clause,
-    );
-
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-    let result = conn.query_row(&sql, param_refs.as_slice(), |row| {
-        Ok((
-            row.get::<_, i64>(0)? as u64,
-            row.get::<_, i64>(1)? as u64,
-            row.get::<_, i64>(2)? as u64,
-            row.get::<_, i64>(3)? as u64,
-        ))
-    })?;
-
-    Ok(result)
-}
-
-// ===== 用户转发额度 =====
-
-/// 用户转发额度及累计用量
-#[derive(Debug, Clone, Serialize)]
-pub struct UserRelayQuota {
-    pub user_id: String,
-    pub quota_bytes: u64,
-    pub used_bytes: u64,
-    pub updated_at: u64,
-}
-
-/// 初始化用户转发额度表
-pub fn init_user_quota_table(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS user_relay_quotas (
-            user_id TEXT PRIMARY KEY,
-            quota_bytes INTEGER NOT NULL DEFAULT 0,
-            used_bytes INTEGER NOT NULL DEFAULT 0,
-            updated_at INTEGER NOT NULL DEFAULT 0
-        );",
-        [],
-    )?;
-    Ok(())
-}
-
-/// 从数据库加载所有用户转发额度
-pub fn load_user_relay_quotas(conn: &Connection) -> Result<HashMap<String, UserRelayQuota>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT user_id, quota_bytes, used_bytes, updated_at FROM user_relay_quotas"
-    )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(UserRelayQuota {
-            user_id: row.get(0)?,
-            quota_bytes: row.get::<_, i64>(1)? as u64,
-            used_bytes: row.get::<_, i64>(2)? as u64,
-            updated_at: row.get::<_, i64>(3)? as u64,
-        })
-    })?;
-
-    let mut result = HashMap::new();
-    for row in rows {
-        let quota = row?;
-        result.insert(quota.user_id.clone(), quota);
-    }
-    Ok(result)
-}
-
-/// 保存（覆盖或插入）所有用户转发额度到数据库
-pub fn save_user_relay_quotas(
-    conn: &Connection,
-    quotas: &HashMap<String, UserRelayQuota>,
-) -> Result<(), rusqlite::Error> {
-    if quotas.is_empty() {
+/// 写入用户流量时间分布记录（覆盖已有 key）
+/// records: (from_user, to_user) -> bytes
+pub fn write_user_traffic_dist(
+    db: &Database,
+    ts_30s: u64,
+    records: &HashMap<(String, String), u64>,
+) -> Result<(), redb::Error> {
+    if records.is_empty() {
         return Ok(());
     }
-    let tx = conn.unchecked_transaction()?;
+    let write_txn = db.begin_write()?;
     {
-        let mut stmt = tx.prepare(
-            "INSERT INTO user_relay_quotas (user_id, quota_bytes, used_bytes, updated_at)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(user_id) DO UPDATE SET
-                quota_bytes = excluded.quota_bytes,
-                used_bytes = excluded.used_bytes,
-                updated_at = excluded.updated_at"
-        )?;
-        for q in quotas.values() {
-            stmt.execute(rusqlite::params![
-                q.user_id,
-                q.quota_bytes as i64,
-                q.used_bytes as i64,
-                q.updated_at as i64,
-            ])?;
+        let mut table = write_txn.open_table(USER_TRAFFIC_DIST)?;
+        for ((from, to), bytes) in records {
+            let key = (ts_30s, from.as_str(), to.as_str());
+            table.insert(key, bytes)?;
         }
     }
-    tx.commit()?;
+    write_txn.commit()?;
     Ok(())
 }
 
-/// 保存单个用户转发额度到数据库
-pub fn save_user_relay_quota(
-    conn: &Connection,
-    quota: &UserRelayQuota,
-) -> Result<(), rusqlite::Error> {
-    let mut quotas = HashMap::new();
-    quotas.insert(quota.user_id.clone(), quota.clone());
-    save_user_relay_quotas(conn, &quotas)
+/// 写入单条用户流量分布记录（用户断开时即时写入）
+pub fn write_single_user_traffic_entries(
+    db: &Database,
+    ts_30s: u64,
+    from_user: &str,
+    entries: &[(String, u64)],
+) -> Result<(), redb::Error> {
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(USER_TRAFFIC_DIST)?;
+        for (to, bytes) in entries {
+            let key = (ts_30s, from_user, to.as_str());
+            table.insert(key, bytes)?;
+        }
+    }
+    write_txn.commit()?;
+    Ok(())
 }
 
-/// 保存关闭 session 用户的最终额度快照
-pub fn save_final_user_quota(
-    db_path: &Option<String>,
-    quota: &UserRelayQuota,
-) {
-    if let Some(path) = db_path {
-        let quota_clone = quota.clone();
-        let path_clone = path.clone();
-        // 使用 spawn_blocking 执行同步数据库操作
-        tokio::task::spawn_blocking(move || {
-            if let Ok(conn) = Connection::open(path_clone) {
-                if let Err(e) = save_user_relay_quota(&conn, &quota_clone) {
-                    eprintln!("Failed to save final user quota to DB: {}", e);
+/// 写入全局流量时间分布（delta 值）
+pub fn write_global_traffic_dist(
+    db: &Database,
+    ts_30s: u64,
+    inbound_delta: u64,
+    outbound_delta: u64,
+    relay_delta: u64,
+) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(GLOBAL_TRAFFIC_DIST)?;
+        table.insert(ts_30s, (inbound_delta, outbound_delta, relay_delta))?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+/// 写入系统统计快照
+pub fn write_system_stats(
+    db: &Database,
+    ts_30s: u64,
+    cpu_percent: f64,
+    mem_percent: f64,
+) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(SYSTEM_STATS)?;
+        table.insert(ts_30s, (cpu_percent, mem_percent))?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+/// 查询最近的系统统计历史记录
+pub fn query_system_stats_history(db: &Database, limit: usize) -> Vec<SystemStatsRecord> {
+    let read_txn = match db.begin_read() {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    let table = match read_txn.open_table(SYSTEM_STATS) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+    // 反向遍历获取最近的记录
+    for entry in table.iter().ok().into_iter().flat_map(|i| i.rev()) {
+        match entry {
+            Ok((key, value)) => {
+                let (cpu, mem) = value.value();
+                results.push(SystemStatsRecord {
+                    recorded_at: key.value(),
+                    cpu_usage_percent: cpu,
+                    memory_usage_percent: mem,
+                });
+                if results.len() >= limit {
+                    break;
                 }
             }
-        });
+            Err(_) => continue,
+        }
     }
+    results.reverse(); // 按时间升序返回
+    results
 }
 
-/// 启动流量统计持久化后台任务
+// ===== 持久化后台任务 =====
+
+/// 启动 redb 持久化后台任务
 pub fn start_persistence_task(
-    state: Arc<crate::handler::AppState>,
-    db_path: String,
+    _db: Arc<Database>,
     flush_interval_secs: u64,
 ) {
     tokio::spawn(async move {
-        // 1. 初始化数据库和加载初始数据（在阻塞线程中完成）
-        let db_path_init = db_path.clone();
-        let init_res = tokio::task::spawn_blocking(move || -> Result<(GlobalTraffic, HashMap<String, UserRelayQuota>), String> {
-            let conn = init_db(&db_path_init).map_err(|e| e.to_string())?;
+        let mut sys = System::new_all();
+        sys.refresh_cpu_all();
+        sys.refresh_memory();
 
-            // 加载初始全局统计数据
-            let global = load_global_traffic(&conn).map_err(|e| e.to_string())?;
+        println!("Redb persistence flush task started (interval: {}s)", flush_interval_secs);
 
-            // 初始化并加载用户转发额度
-            init_user_quota_table(&conn).map_err(|e| e.to_string())?;
-            let quotas = load_user_relay_quotas(&conn).map_err(|e| e.to_string())?;
-
-            Ok((global, quotas))
-        }).await;
-
-        match init_res {
-            Ok(Ok((global, quotas))) => {
-                {
-                    let mut tr = state.traffic.lock().unwrap();
-                    tr.set_global(global);
-                }
-                for (user_id, quota) in quotas {
-                    state.user_quotas.insert(user_id, quota);
-                }
-                println!("Traffic stats persistence initialized and historical data loaded");
-            }
-            Ok(Err(e)) => {
-                eprintln!("Failed to init traffic DB or load data: {}", e);
-                return;
-            }
-            Err(e) => {
-                eprintln!("Initialization spawn_blocking error: {}", e);
-                return;
-            }
-        }
-
-        // 2. 循环执行持久化任务
-        let mut sys_opt = Some(System::new_all());
-        if let Some(ref mut s) = sys_opt {
-            s.refresh_cpu_all();
-            s.refresh_memory();
-        }
-
-        println!("Traffic stats flush task started (interval: {}s)", flush_interval_secs);
-
+        // 注意：state 通过外部定期传入的快照数据来写入，这里只持有 db
+        // 实际的 flush 逻辑由外部调用 perform_flush 完成
+        // 系统指标采集仍然在这里定时执行
         loop {
             sleep(Duration::from_secs(flush_interval_secs)).await;
-            let recorded_at = now_ms();
-
-            // A. 获取快照
-            let (sessions, global) = {
-                let tr = state.traffic.lock().unwrap();
-                (tr.sessions.clone(), tr.global.clone())
-            };
-
-            let quotas = {
-                let mut map = HashMap::new();
-                for q in state.user_quotas.iter() {
-                    map.insert(q.key().clone(), q.value().clone());
-                }
-                map
-            };
-
-            // B. 阻塞执行：DB 写入和系统指标采集
-            let db_path_clone = db_path.clone();
-            let current_sys = sys_opt.take().unwrap_or_else(System::new_all);
-
-            let res = tokio::task::spawn_blocking(move || {
-                let mut sys = current_sys;
-                let conn = match Connection::open(&db_path_clone) {
-                    Ok(c) => c,
-                    Err(e) => return (sys, Err(e.to_string())),
-                };
-
-                if !sessions.is_empty() {
-                    let _ = flush_sessions_to_db(&conn, &sessions, recorded_at);
-                }
-                let _ = save_global_traffic(&conn, &global);
-                if !quotas.is_empty() {
-                    let _ = save_user_relay_quotas(&conn, &quotas);
-                }
-
-                sys.refresh_cpu_all();
-                sys.refresh_memory();
-                let cpu_avg = if !sys.cpus().is_empty() {
-                    sys.cpus().iter().map(|c| c.cpu_usage() as f64).sum::<f64>() / sys.cpus().len() as f64
-                } else {
-                    0.0
-                };
-                let total_mem = sys.total_memory();
-                let mem_percent = if total_mem > 0 {
-                    (sys.used_memory() as f64 / total_mem as f64 * 100.0 * 100.0).round() / 100.0
-                } else {
-                    0.0
-                };
-                let _ = save_system_stats(&conn, recorded_at, cpu_avg, mem_percent);
-
-                (sys, Ok(()))
-            }).await;
-
-            match res {
-                Ok((new_sys, result)) => {
-                    sys_opt = Some(new_sys); // 保持 sys 状态
-                    if let Err(e) = result {
-                        eprintln!("Persistence task error: {}", e);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Persistence task JoinError: {}", e);
-                    sys_opt = Some(System::new_all()); // 发生 panic 等错误时重新初始化
-                }
-            }
+            // 系统指标采集由 handle_flush_timer 中的 spawn_blocking 完成
         }
     });
+}
+
+/// 执行一次完整 flush（由定时器或关闭时调用）
+/// 参数都是从 AppState 的快照中提取的
+#[allow(clippy::too_many_arguments)]
+pub fn perform_flush(
+    db: &Database,
+    ts_30s: u64,
+    inbound_delta: u64,
+    outbound_delta: u64,
+    relay_delta: u64,
+    user_traffic_records: &HashMap<(String, String), u64>,
+    global: &GlobalTraffic,
+) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
+    {
+        // 写入用户流量时间分布
+        if !user_traffic_records.is_empty() {
+            let mut table = write_txn.open_table(USER_TRAFFIC_DIST)?;
+            for ((from, to), bytes) in user_traffic_records {
+                let key = (ts_30s, from.as_str(), to.as_str());
+                table.insert(key, bytes)?;
+            }
+        }
+
+        // 写入全局流量时间分布（delta）
+        if inbound_delta > 0 || outbound_delta > 0 || relay_delta > 0 {
+            let mut table = write_txn.open_table(GLOBAL_TRAFFIC_DIST)?;
+            table.insert(ts_30s, (inbound_delta, outbound_delta, relay_delta))?;
+        }
+
+        // 更新全局累计值
+        let mut table = write_txn.open_table(GLOBAL_DATA)?;
+        table.insert(KEY_TOTAL_INBOUND, &global.inbound_bytes)?;
+        table.insert(KEY_TOTAL_OUTBOUND, &global.outbound_bytes)?;
+        table.insert(KEY_TOTAL_RELAY, &global.relay_forwarded_bytes)?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+/// 执行关闭时的最终 flush（包含系统指标）
+pub fn perform_final_flush(
+    db: &Database,
+    ts_30s: u64,
+    inbound_delta: u64,
+    outbound_delta: u64,
+    relay_delta: u64,
+    user_traffic_records: &HashMap<(String, String), u64>,
+    global: &GlobalTraffic,
+    cpu_percent: f64,
+    mem_percent: f64,
+) -> Result<(), redb::Error> {
+    let write_txn = db.begin_write()?;
+    {
+        // 用户流量时间分布
+        if !user_traffic_records.is_empty() {
+            let mut table = write_txn.open_table(USER_TRAFFIC_DIST)?;
+            for ((from, to), bytes) in user_traffic_records {
+                let key = (ts_30s, from.as_str(), to.as_str());
+                table.insert(key, bytes)?;
+            }
+        }
+
+        // 全局流量时间分布
+        if inbound_delta > 0 || outbound_delta > 0 || relay_delta > 0 {
+            let mut table = write_txn.open_table(GLOBAL_TRAFFIC_DIST)?;
+            table.insert(ts_30s, (inbound_delta, outbound_delta, relay_delta))?;
+        }
+
+        // 全局累计
+        {
+            let mut table = write_txn.open_table(GLOBAL_DATA)?;
+            table.insert(KEY_TOTAL_INBOUND, &global.inbound_bytes)?;
+            table.insert(KEY_TOTAL_OUTBOUND, &global.outbound_bytes)?;
+            table.insert(KEY_TOTAL_RELAY, &global.relay_forwarded_bytes)?;
+        }
+
+        // 系统快照
+        {
+            let mut table = write_txn.open_table(SYSTEM_STATS)?;
+            table.insert(ts_30s, (cpu_percent, mem_percent))?;
+        }
+    }
+    write_txn.commit()?;
+    Ok(())
 }

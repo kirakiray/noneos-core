@@ -72,24 +72,17 @@ pub struct AdminResponse {
 }
 
 impl AppState {
-    /// 设置用户转发额度（admin 用），并立即持久化到 DB（如果配置了 DB）
-    pub fn set_user_relay_quota(&self, user_id: &str, quota_bytes: u64) -> traffic::UserRelayQuota {
+    /// 设置用户转发额度（admin 用），并立即持久化到 redb
+    pub fn set_user_relay_quota(&self, user_id: &str, quota_bytes: u64) -> traffic::UserRecord {
         let now = traffic::now_ms();
         let mut quota = self.get_or_create_user_quota(user_id);
         quota.quota_bytes = quota_bytes;
-        quota.updated_at = now;
+        quota.last_seen_at = now;
         self.user_quotas.insert(user_id.to_string(), quota.clone());
 
-        if let Some(ref db_path) = self.config.traffic_db_path {
-            let quota_clone = quota.clone();
-            let path_clone = db_path.clone();
-            tokio::task::spawn_blocking(move || {
-                if let Ok(conn) = rusqlite::Connection::open(path_clone) {
-                    if let Err(e) = traffic::save_user_relay_quota(&conn, &quota_clone) {
-                        eprintln!("Failed to save user quota to DB: {}", e);
-                    }
-                }
-            });
+        // 立即同步写入 redb
+        if let Err(e) = traffic::save_user(&self.db, &quota) {
+            eprintln!("Failed to save user quota to redb: {}", e);
         }
 
         quota
@@ -375,68 +368,68 @@ pub async fn handle_admin_command(
             }
         }
         "list_all_users" => {
-            // 从数据库查询所有用户（包括离线的）
-            if let Some(ref db_path) = state.config.traffic_db_path {
-                let db_path_clone = db_path.clone();
-                let page = admin_cmd.page;
-                let page_size = admin_cmd.page_size;
-                
-                let db_res = tokio::task::spawn_blocking(move || {
-                    let conn = rusqlite::Connection::open(db_path_clone)?;
-                    traffic::query_users_paginated(&conn, page, page_size)
-                }).await;
+            // 从 redb 查询所有用户（包括离线的）
+            let db = state.db.clone();
+            let page = admin_cmd.page;
+            let page_size = admin_cmd.page_size;
+            
+            let db_res = tokio::task::spawn_blocking(move || {
+                let all_users = traffic::load_all_users(&db)?;
+                let total = all_users.len() as u32;
+                Ok::<(Vec<traffic::UserRecord>, u32), redb::Error>((all_users, total))
+            }).await;
 
-                match db_res {
-                    Ok(Ok((mut users, total))) => {
-                        // 为查询结果添加在线状态标记
-                        for user in users.iter_mut() {
-                            if let Some(user_id_val) = user.get("userId").and_then(|v| v.as_str()) {
-                                let prefix = format!("{}:", user_id_val);
-                                let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
-                                if let Some(obj) = user.as_object_mut() {
-                                    obj.insert("isOnline".to_string(), serde_json::Value::Bool(is_online));
-                                }
-                            }
-                        }
+            match db_res {
+                Ok(Ok((all_users, total))) => {
+                    // 分页
+                    let page = page.max(1) as usize;
+                    let page_size = page_size.clamp(1, 100) as usize;
+                    let start = (page - 1) * page_size;
 
-                        AdminResponse {
-                            msg_type: "admin_response".to_string(),
-                            action: "list_all_users".to_string(),
-                            status: "ok".to_string(),
-                            message: Some(format!("Found {} total user(s) in database", total)),
-                            users: Some(users),
-                            total: Some(total),
-                            page: Some(admin_cmd.page),
-                            page_size: Some(admin_cmd.page_size),
-                            ..Default::default()
-                        }
-                    }
-                    Ok(Err(e)) => {
-                        AdminResponse {
-                            msg_type: "admin_response".to_string(),
-                            action: "list_all_users".to_string(),
-                            status: "error".to_string(),
-                            message: Some(format!("Database query error: {}", e)),
-                            ..Default::default()
-                        }
-                    }
-                    Err(e) => {
-                        AdminResponse {
-                            msg_type: "admin_response".to_string(),
-                            action: "list_all_users".to_string(),
-                            status: "error".to_string(),
-                            message: Some(format!("Spawn blocking error: {}", e)),
-                            ..Default::default()
-                        }
+                    let users: Vec<serde_json::Value> = all_users.iter().skip(start).take(page_size).map(|u| {
+                        let prefix = format!("{}:", u.user_id);
+                        let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
+                        serde_json::json!({
+                            "userId": u.user_id,
+                            "username": u.username,
+                            "publicKey": u.public_key,
+                            "firstSeenAt": u.first_seen_at,
+                            "lastSeenAt": u.last_seen_at,
+                            "quotaBytes": u.quota_bytes,
+                            "usedBytes": u.used_bytes,
+                            "isOnline": is_online,
+                        })
+                    }).collect();
+
+                    AdminResponse {
+                        msg_type: "admin_response".to_string(),
+                        action: "list_all_users".to_string(),
+                        status: "ok".to_string(),
+                        message: Some(format!("Found {} total user(s) in database", total)),
+                        users: Some(users),
+                        total: Some(total),
+                        page: Some(admin_cmd.page),
+                        page_size: Some(admin_cmd.page_size),
+                        ..Default::default()
                     }
                 }
-            } else {
-                AdminResponse {
-                    msg_type: "admin_response".to_string(),
-                    action: "list_all_users".to_string(),
-                    status: "error".to_string(),
-                    message: Some("Traffic database is not configured".to_string()),
-                    ..Default::default()
+                Ok(Err(e)) => {
+                    AdminResponse {
+                        msg_type: "admin_response".to_string(),
+                        action: "list_all_users".to_string(),
+                        status: "error".to_string(),
+                        message: Some(format!("Database query error: {}", e)),
+                        ..Default::default()
+                    }
+                }
+                Err(e) => {
+                    AdminResponse {
+                        msg_type: "admin_response".to_string(),
+                        action: "list_all_users".to_string(),
+                        status: "error".to_string(),
+                        message: Some(format!("Spawn blocking error: {}", e)),
+                        ..Default::default()
+                    }
                 }
             }
         }
@@ -536,91 +529,41 @@ pub async fn handle_admin_command(
             }
         }
         "get_traffic_history" => {
+            // 在新的设计下，不再有每个 session 的流量快照
+            // 返回全局流量时间分布数据代替
             let to_ms = traffic::now_ms() as i64;
-            // from_ms 由客户端明确传入；不传则默认查最近 1 小时
-            let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3_600_000);
-            let db_path = state.config.traffic_db_path.clone();
-            let page = admin_cmd.page;
-            let page_size = admin_cmd.page_size;
-            let target_user_id = admin_cmd.user_id.clone();
-
-            let (history_result, total, total_inbound, total_outbound, total_relay, total_handshake) = if let Some(path) = db_path {
-                let res = tokio::task::spawn_blocking(move || {
-                    let conn = rusqlite::Connection::open(path)?;
-                    let history = traffic::query_traffic_history_paginated(
-                        &conn,
-                        from_ms,
-                        to_ms,
-                        target_user_id.as_deref(),
-                        page,
-                        page_size,
-                    )?;
-                    let totals = traffic::query_traffic_history_totals(
-                        &conn,
-                        from_ms,
-                        to_ms,
-                        target_user_id.as_deref(),
-                    )?;
-                    Ok::<(Vec<serde_json::Value>, u32, u64, u64, u64, u64), rusqlite::Error>((
-                        history.0, history.1, totals.0, totals.1, totals.2, totals.3
-                    ))
-                }).await;
-
-                match res {
-                    Ok(Ok(data)) => data,
-                    Ok(Err(e)) => (
-                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})],
-                        0, 0, 0, 0, 0,
-                    ),
-                    Err(e) => (
-                        vec![serde_json::json!({"error": format!("Spawn blocking error: {}", e)})],
-                        0, 0, 0, 0, 0,
-                    ),
-                }
-            } else {
-                (Vec::new(), 0, 0, 0, 0, 0)
-            };
+            let _from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3_600_000);
 
             AdminResponse {
                 msg_type: "admin_response".to_string(),
                 action: "get_traffic_history".to_string(),
                 status: "ok".to_string(),
-                message: Some(format!("Found {} history record(s) in range [{} ~ {}]", history_result.len(), from_ms, to_ms)),
-                history: Some(history_result),
-                total: Some(total),
+                message: Some("Traffic history data is now exported via redb file. Use data export tool to pull data to local relational DB for analysis.".to_string()),
+                history: Some(Vec::new()),
+                total: Some(0),
                 page: Some(admin_cmd.page),
                 page_size: Some(admin_cmd.page_size),
-                total_inbound_bytes: Some(total_inbound),
-                total_outbound_bytes: Some(total_outbound),
-                total_relay_forwarded_bytes: Some(total_relay),
-                total_handshake_bytes: Some(total_handshake),
                 ..Default::default()
             }
         }
         "get_system_stats_history" => {
             let limit = admin_cmd.limit.unwrap_or(60);
-            let db_path = state.config.traffic_db_path.clone();
-            let stats_result: Vec<serde_json::Value> = if let Some(path) = db_path {
+            let db = state.db.clone();
+            let stats_result: Vec<serde_json::Value> = {
                 let res = tokio::task::spawn_blocking(move || {
-                    let conn = rusqlite::Connection::open(path)?;
-                    traffic::query_system_stats_history(&conn, limit)
+                    traffic::query_system_stats_history(&db, limit)
                 }).await;
 
                 match res {
-                    Ok(Ok(rows)) => rows.iter().map(|r| serde_json::json!({
+                    Ok(rows) => rows.iter().map(|r| serde_json::json!({
                         "recordedAt": r.recorded_at,
                         "cpuUsagePercent": r.cpu_usage_percent,
                         "memoryUsagePercent": r.memory_usage_percent,
                     })).collect(),
-                    Ok(Err(e)) => {
-                        vec![serde_json::json!({"error": format!("Query failed: {}", e)})]
-                    }
                     Err(e) => {
                         vec![serde_json::json!({"error": format!("Spawn blocking error: {}", e)})]
                     }
                 }
-            } else {
-                Vec::new()
             };
             AdminResponse {
                 msg_type: "admin_response".to_string(),

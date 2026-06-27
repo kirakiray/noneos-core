@@ -14,6 +14,7 @@ use rand::distributions::Alphanumeric;
 
 use dashmap::DashMap;
 use crate::admin;
+use redb::Database;
 
 /// 挑战信息格式
 #[derive(Serialize)]
@@ -46,7 +47,8 @@ pub struct AppState {
     pub admin_user_id: Option<String>,
     pub config: Config,
     pub traffic: std::sync::Mutex<traffic::TrafficStats>,
-    pub user_quotas: DashMap<String, traffic::UserRelayQuota>,
+    pub user_quotas: DashMap<String, traffic::UserRecord>,
+    pub db: Arc<Database>,
     pub(crate) users: DashMap<String, UserSession>,
     /// 用户当前 session 计数：userId -> count
     pub(crate) user_session_counts: DashMap<String, usize>,
@@ -59,16 +61,17 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(admin_user_id: Option<String>, config: Config) -> Self {
+    pub fn new(admin_user_id: Option<String>, config: Config, db: Arc<Database>) -> Self {
         Self {
             admin_user_id: admin_user_id.clone(),
-            traffic: std::sync::Mutex::new(traffic::TrafficStats::new(config.traffic_minute_window)),
+            traffic: std::sync::Mutex::new(traffic::TrafficStats::new(60)),
             config,
             users: DashMap::new(),
             user_quotas: DashMap::new(),
             user_session_counts: DashMap::new(),
             watchers: DashMap::new(),
             watch_targets: DashMap::new(),
+            db,
         }
     }
 
@@ -78,18 +81,23 @@ impl AppState {
     }
 
     /// 获取或创建用户的转发额度（内存中）
-    pub fn get_or_create_user_quota(&self, user_id: &str) -> traffic::UserRelayQuota {
+    pub fn get_or_create_user_quota(&self, user_id: &str) -> traffic::UserRecord {
         if let Some(q) = self.user_quotas.get(user_id) {
             return q.clone();
         }
-        let quota = traffic::UserRelayQuota {
+        let now = traffic::now_ms();
+        // 尝试从 redb 加载
+        let record = traffic::load_user(&self.db, user_id).ok().flatten().unwrap_or_else(|| traffic::UserRecord {
             user_id: user_id.to_string(),
+            username: String::new(),
+            public_key: String::new(),
+            first_seen_at: now,
+            last_seen_at: now,
             quota_bytes: self.config.default_relay_quota_bytes,
             used_bytes: 0,
-            updated_at: traffic::now_ms(),
-        };
-        self.user_quotas.insert(user_id.to_string(), quota.clone());
-        quota
+        });
+        self.user_quotas.insert(user_id.to_string(), record.clone());
+        record
     }
 
     /// 检查用户是否允许转发指定大小的消息。
@@ -115,13 +123,16 @@ impl AppState {
             .entry(user_id.to_string())
             .and_modify(|q| {
                 q.used_bytes = q.used_bytes.saturating_add(bytes);
-                q.updated_at = now;
+                q.last_seen_at = now;
             })
-            .or_insert_with(|| traffic::UserRelayQuota {
+            .or_insert_with(|| traffic::UserRecord {
                 user_id: user_id.to_string(),
+                username: String::new(),
+                public_key: String::new(),
+                first_seen_at: now,
+                last_seen_at: now,
                 quota_bytes: self.config.default_relay_quota_bytes,
                 used_bytes: bytes,
-                updated_at: now,
             });
     }
 
@@ -565,29 +576,27 @@ pub async fn handle_connection(
 
             // 在流量统计中注册该 session
             {
-                let mut tr = state.traffic.lock().unwrap();
+                let mut tr = state.traffic.lock().unwrap_or_else(|e| e.into_inner());
                 let now_ms = traffic::now_ms();
                 tr.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
                 tr.add_handshake(&conn_key, handshake_size as u64, now_ms);
             }
 
-            // 持久化用户信息到数据库（异步阻塞线程中执行）
-            if let Some(ref db_path) = state.config.traffic_db_path {
-                let db_path_clone = db_path.clone();
-                let user_record = traffic::UserRecord {
+            // 持久化用户信息到 redb（单 key 写入，直接同步）
+            {
+                let now = traffic::now_ms();
+                let record = traffic::UserRecord {
                     user_id: user_id.clone(),
                     username: username.clone(),
                     public_key: public_key.clone(),
-                    first_seen_at: traffic::now_ms(),
-                    last_seen_at: traffic::now_ms(),
+                    first_seen_at: now,
+                    last_seen_at: now,
+                    quota_bytes: state.config.default_relay_quota_bytes,
+                    used_bytes: 0,
                 };
-                tokio::task::spawn_blocking(move || {
-                    if let Ok(conn) = rusqlite::Connection::open(db_path_clone) {
-                        if let Err(e) = traffic::save_user(&conn, &user_record) {
-                            eprintln!("Failed to persist user {} to DB: {}", user_record.user_id, e);
-                        }
-                    }
-                });
+                if let Err(e) = traffic::save_user(&state.db, &record) {
+                    eprintln!("Failed to persist user {} to redb: {}", user_id, e);
+                }
             }
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
@@ -617,7 +626,7 @@ pub async fn handle_connection(
                             // 统计出站流量（转发给当前连接的消息）
                             let out_size = traffic::message_byte_size(&forward_msg) as u64;
                             if out_size > 0 {
-                                state.traffic.lock().unwrap().add_outbound(&conn_key, out_size, traffic::now_ms());
+                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_outbound(&conn_key, out_size, traffic::now_ms());
                             }
                             ws_sender.send(forward_msg).await?;
                         }
@@ -650,7 +659,7 @@ pub async fn handle_connection(
 
                                             // 统计入站流量
                                             {
-                                                state.traffic.lock().unwrap().add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
                                             }
 
                                             // 尝试解析为 JSON 命令
@@ -828,7 +837,7 @@ pub async fn handle_connection(
                                                         if delivered {
                                                             // 统计转发流量（计入源连接）并记录额度用量
                                                             {
-                                                                state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_text_len, traffic::now_ms());
+                                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(&conn_key, forward_text_len, traffic::now_ms(), &user_id, target_user);
                                                             }
                                                             state.record_relay_usage(&user_id, forward_text_len);
                                                             let resp = serde_json::json!({
@@ -927,7 +936,7 @@ pub async fn handle_connection(
                                     Message::Binary(data) => {
                                         // 统计入站流量（不论消息大小）
                                         {
-                                            state.traffic.lock().unwrap().add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
+                                            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
                                         }
 
                                         // 检查二进制消息总大小
@@ -1048,7 +1057,7 @@ pub async fn handle_connection(
                                                 if delivered {
                                                     // 统计转发流量（计入源连接）并记录额度用量
                                                     {
-                                                        state.traffic.lock().unwrap().add_relay_forwarded(&conn_key, forward_frame_size, traffic::now_ms());
+                                                        state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(&conn_key, forward_frame_size, traffic::now_ms(), &user_id, target_user);
                                                     }
                                                     state.record_relay_usage(&user_id, forward_frame_size);
                                                     let resp = serde_json::json!({
@@ -1115,12 +1124,32 @@ pub async fn handle_connection(
                 state.remove_user(&conn_key);
                 // 通知关注该用户的所有 watcher：此 session 已从本服务器断开
                 state.notify_watchers_session_left(&user_id, &session_id, &username);
-                if let Some(session) = state.traffic.lock().unwrap().remove_session(&conn_key) {
-                    // 最终落盘：确保即使是短连接也会被持久化
-                    traffic::save_final_session_stats(&state.config.traffic_db_path, &session);
-                }
-                if let Some(quota) = state.user_quotas.get(&user_id) {
-                    traffic::save_final_user_quota(&state.config.traffic_db_path, &quota);
+                // 移除 session 流量统计
+                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_session(&conn_key);
+
+                // 检查该用户是否所有 session 都已断开
+                let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+                if session_count == 0 {
+                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额
+                    let now = traffic::now_ms();
+                    let ts_30s = now / 30_000;
+
+                    // 取出该用户在当前窗口内的转发分布条目
+                    let entries = state.traffic.lock().unwrap_or_else(|e| e.into_inner()).take_user_relay_entries(&user_id);
+                    if !entries.is_empty() {
+                        if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
+                            eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                        }
+                    }
+
+                    // 持久化用户信息（包含配额用量）
+                    if let Some(quota) = state.user_quotas.get(&user_id) {
+                        let mut record = quota.clone();
+                        record.last_seen_at = now;
+                        if let Err(e) = traffic::save_user(&state.db, &record) {
+                            eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                        }
+                    }
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
