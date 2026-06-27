@@ -602,98 +602,99 @@ pub async fn handle_connection(
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
 
-            // 8. 通信循环
-            loop {
-                tokio::select! {
-                    // 接收 disconnect 信号
-                    _ = &mut disconnect_rx => {
-                        println!("User {}:{} ({}) disconnected by admin", user_id, session_id, username);
-                        let _ = ws_sender.send(Message::Close(None)).await;
-                        break;
-                    }
-                    // 接收转发消息（其他用户通过 relay 发送过来的数据）
-                    Some(forward_msg) = data_rx.recv() => {
-                        // 统计出站流量（转发给当前连接的消息）
-                        let out_size = traffic::message_byte_size(&forward_msg) as u64;
-                        if out_size > 0 {
-                            state.traffic.lock().unwrap().add_outbound(&conn_key, out_size, traffic::now_ms());
+            // 8. 通信循环（包裹在 Result 块中，确保 ? 不会跳过清理代码）
+            let comm_result: std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
+                loop {
+                    tokio::select! {
+                        // 接收 disconnect 信号
+                        _ = &mut disconnect_rx => {
+                            println!("User {}:{} ({}) disconnected by admin", user_id, session_id, username);
+                            let _ = ws_sender.send(Message::Close(None)).await;
+                            break;
                         }
-                        ws_sender.send(forward_msg).await?;
-                    }
-                    // 接收客户端消息
-                    msg = ws_receiver.next() => {
-                        match msg {
-                            Some(Ok(msg)) => {
-                                match msg {
-                                    Message::Text(text) => {
-                                        // 检查文本消息大小，防止 OOM
-                                        let text_max_size = state.config.text_message_max_size;
-                                        if text.len() > text_max_size {
-                                            println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
-                                            let resp = serde_json::json!({
-                                                "type": "error",
-                                                "status": "error",
-                                                "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), text_max_size)
-                                            });
-                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                            continue;
-                                        }
+                        // 接收转发消息（其他用户通过 relay 发送过来的数据）
+                        Some(forward_msg) = data_rx.recv() => {
+                            // 统计出站流量（转发给当前连接的消息）
+                            let out_size = traffic::message_byte_size(&forward_msg) as u64;
+                            if out_size > 0 {
+                                state.traffic.lock().unwrap().add_outbound(&conn_key, out_size, traffic::now_ms());
+                            }
+                            ws_sender.send(forward_msg).await?;
+                        }
+                        // 接收客户端消息
+                        msg = ws_receiver.next() => {
+                            match msg {
+                                Some(Ok(msg)) => {
+                                    match msg {
+                                        Message::Text(text) => {
+                                            // 检查文本消息大小，防止 OOM
+                                            let text_max_size = state.config.text_message_max_size;
+                                            if text.len() > text_max_size {
+                                                println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
+                                                let resp = serde_json::json!({
+                                                    "type": "error",
+                                                    "status": "error",
+                                                    "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), text_max_size)
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                continue;
+                                            }
 
-                                        // 截断日志输出，避免打印超长消息
-                                        let log_text = if text.len() > 500 {
-                                            format!("{}... ({} bytes total)", &text[..500], text.len())
-                                        } else {
-                                            text.clone()
-                                        };
-                                        println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
+                                            // 截断日志输出，避免打印超长消息
+                                            let log_text = if text.len() > 500 {
+                                                format!("{}... ({} bytes total)", &text[..500], text.len())
+                                            } else {
+                                                text.clone()
+                                            };
+                                            println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
 
-                                        // 统计入站流量
-                                        {
-                                            state.traffic.lock().unwrap().add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
-                                        }
+                                            // 统计入站流量
+                                            {
+                                                state.traffic.lock().unwrap().add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                            }
 
-                                        // 尝试解析为 JSON 命令
-                                        if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
-                                            let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                            // 尝试解析为 JSON 命令
+                                            if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
+                                                let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
-                                            // 处理管理命令
-                                            if msg_type == "admin" {
-                                                if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
-                                                    if !is_admin {
-                                                        let resp = admin::AdminResponse {
-                                                            msg_type: "admin_response".to_string(),
-                                                            action: admin_cmd.action,
-                                                            status: "error".to_string(),
-                                                            message: Some("Permission denied: not an admin".to_string()),
-                                                            ..Default::default()
-                                                        };
+                                                // 处理管理命令
+                                                if msg_type == "admin" {
+                                                    if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
+                                                        if !is_admin {
+                                                            let resp = admin::AdminResponse {
+                                                                msg_type: "admin_response".to_string(),
+                                                                action: admin_cmd.action,
+                                                                status: "error".to_string(),
+                                                                message: Some("Permission denied: not an admin".to_string()),
+                                                                ..Default::default()
+                                                            };
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            continue;
+                                                        }
+
+                                                        let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
                                                         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                         continue;
                                                     }
-
-                                                    let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    continue;
                                                 }
-                                            }
 
-                                            // 处理查询命令：查询用户是否在线
-                                            if msg_type == "query" {
-                                                let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                                                if action == "user_online" {
-                                                    let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                    if target_user_id.is_empty() {
-                                                        let resp = serde_json::json!({
-                                                            "type": "query_response",
-                                                            "action": "user_online",
-                                                            "status": "error",
-                                                            "message": "Missing user_id"
-                                                        });
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    } else {
-                                                        let session_info = state.get_user_sessions_with_latency(target_user_id);
-                                                        let online = !session_info.is_empty();
-                                                        let sessions: Vec<String> = session_info.iter()
+                                                // 处理查询命令：查询用户是否在线
+                                                if msg_type == "query" {
+                                                    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                                                    if action == "user_online" {
+                                                        let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+                                                        if target_user_id.is_empty() {
+                                                            let resp = serde_json::json!({
+                                                                "type": "query_response",
+                                                                "action": "user_online",
+                                                                "status": "error",
+                                                                "message": "Missing user_id"
+                                                            });
+                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                        } else {
+                                                            let session_info = state.get_user_sessions_with_latency(target_user_id);
+                                                            let online = !session_info.is_empty();
+                                                            let sessions: Vec<String> = session_info.iter()
                                                             .filter_map(|s| s["sessionId"].as_str().map(String::from))
                                                             .collect();
                                                         let resp = serde_json::json!({
@@ -1092,19 +1093,21 @@ pub async fn handle_connection(
                                         break;
                                     }
                                     Message::Frame(_) => {}
+                                    }
                                 }
+                                Some(Err(e)) => {
+                                    eprintln!("WebSocket error for {}:{} ({}): {}", user_id, session_id, addr, e);
+                                    break;
+                                }
+                                None => break,
                             }
-                            Some(Err(e)) => {
-                                eprintln!("WebSocket error for {}:{} ({}): {}", user_id, session_id, addr, e);
-                                break;
-                            }
-                            None => break,
                         }
                     }
                 }
-            }
+                Ok(())
+            }.await;
 
-            // 9. 清理：连接关闭后从状态中移除用户和流量计数，并保存额度快照
+            // 9. 无论通信循环是否出错，始终执行清理
             {
                 // 通知关注该用户的所有 watcher：此 session 已从本服务器断开
                 state.notify_watchers_session_left(&user_id, &session_id, &username);
@@ -1121,6 +1124,9 @@ pub async fn handle_connection(
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
+
+            // 如果通信循环因 send 错误提前退出，传播错误
+            comm_result?;
         }
         Err(e) => {
             eprintln!("Handshake: User {}:{} authentication FAILED: {}", user_id, session_id, e);
