@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CopyTo Method Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>CopyTo Method Tests</h1>
+
+    <sb-test name="Test copy single file">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-copy");
+
+            const sourceFile = await testDir.get("source.txt", { create: "file" });
+            await sourceFile.write("Hello, World!");
+
+            const targetDir = await testDir.get("target", { create: "dir" });
+
+            const copiedFile = await sourceFile.copyTo(targetDir, "copied.txt");
+
+            const content = await copiedFile.text();
+
+            return {
+              assert: content === "Hello, World!",
+              content: `Copied file content: ${content}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Test copy directory with contents">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-copy");
+
+            const sourceDir = await testDir.get("sourceDir", { create: "dir" });
+            const file1 = await sourceDir.get("file1.txt", { create: "file" });
+            const subDir = await sourceDir.get("subDir", { create: "dir" });
+            const file2 = await subDir.get("file2.txt", { create: "file" });
+
+            await file1.write("Content 1");
+            await file2.write("Content 2");
+
+            const targetDir = await testDir.get("targetDir", { create: "dir" });
+            const copiedDir = await sourceDir.copyTo(targetDir);
+
+            const copiedFile1 = await copiedDir.get("file1.txt");
+            const copiedSubDir = await copiedDir.get("subDir");
+            const copiedFile2 = await copiedSubDir.get("file2.txt");
+
+            const content1 = await copiedFile1.text();
+            const content2 = await copiedFile2.text();
+
+            return {
+              assert: content1 === "Content 1" && content2 === "Content 2",
+              content: `Copied structure verified:\nfile1: ${content1}\nfile2: ${content2}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Test copy with rename in same directory">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-copy");
+
+            const sourceFile = await testDir.get("original.txt", {
+              create: "file",
+            });
+            await sourceFile.write("Original content");
+
+            const copiedFile = await sourceFile.copyTo("renamed.txt");
+            const content = await copiedFile.text();
+
+            return {
+              assert: content === "Original content",
+              content: `Renamed file content: ${content}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Test copy error cases">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-copy");
+
+            const sourceDir = await testDir.get("sourceDir", { create: "dir" });
+            const targetDir = await testDir.get("sourceDir/subDir", {
+              create: "dir",
+            });
+
+            try {
+              await sourceDir.copyTo(targetDir);
+              return {
+                assert: false,
+                content:
+                  "Should not be able to copy directory into its subdirectory",
+              };
+            } catch (error) {
+              return {
+                assert: error.message.includes("Cannot copy"),
+                content: `Expected error caught: ${error.message}`,
+              };
+            }
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

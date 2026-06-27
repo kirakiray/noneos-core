@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cross-Tab Observe Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>Cross-Tab Observe Tests</h1>
+
+    <iframe id="testFrame" style="width: 0; height: 0; border: none"></iframe>
+
+    <sb-test name="Test cross-tab file observation">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-cross-tab");
+
+            const events = [];
+
+            const unobserve = await testDir.observe((event) => {
+              events.push(event);
+            });
+
+            const iframe = document.getElementById("testFrame");
+
+            await new Promise((resolve) => {
+              iframe.src = import.meta.resolve("./observe-frame.html");
+              iframe.onload = resolve;
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            unobserve();
+
+            return {
+              assert: events.length > 0,
+              content: `Received ${events.length} events from other tab:\n${events
+                .map((e) => `- Type: ${e.type}, Path: ${e.path}`)
+                .join("\n")}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

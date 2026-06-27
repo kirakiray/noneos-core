@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Get GH Source Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <sb-test name="Get GitHub Source">
+      <template>
+        <script>
+          import registration from "/_install/register.js";
+          await registration;
+
+          console.log("registration: ", registration);
+
+          await new Promise((resolve) => setTimeout(resolve, 200));
+
+          const { default: ofa } =
+            await import("/gh/kirakiray/ofa.js/dist/ofa.mjs");
+
+          return {
+            assert: !!ofa,
+            content: "Expected ofa.js to be loaded successfully",
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

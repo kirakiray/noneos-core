@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Some Method Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>Some Method Tests</h1>
+
+    <sb-test name="Test DirHandle some method">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-some");
+
+            const file1 = await testDir.get("file1.txt", { create: "file" });
+            const file2 = await testDir.get("file2.txt", { create: "file" });
+            const file3 = await testDir.get("file3.txt", { create: "file" });
+
+            await file1.write("content1");
+            await file2.write("target content");
+            await file3.write("content3");
+
+            let foundTarget = false;
+            let count = 0;
+
+            await testDir.some(async (handle, name) => {
+              count++;
+              if (handle.kind === "file") {
+                if (count === 2) {
+                  foundTarget = true;
+                  return true;
+                }
+              }
+              return false;
+            });
+
+            return {
+              assert: foundTarget && count === 2,
+              content: `Found target: ${foundTarget}, Iterations: ${count}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

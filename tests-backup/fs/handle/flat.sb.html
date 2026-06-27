@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flat Method Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>Flat Method Tests</h1>
+
+    <sb-test name="Test DirHandle flat method">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-flat");
+
+            const file1 = await testDir.get("file1.txt", { create: "file" });
+            const subDir1 = await testDir.get("subDir1", { create: "dir" });
+            const file2 = await testDir.get("subDir1/file2.txt", {
+              create: "file",
+            });
+            const subDir2 = await testDir.get("subDir1/subDir2", { create: "dir" });
+            const file3 = await testDir.get("subDir1/subDir2/file3.txt", {
+              create: "file",
+            });
+
+            await file1.write("root file");
+            await file2.write("level 1 file");
+            await file3.write("level 2 file");
+
+            const allFiles = await testDir.flat();
+
+            const fileContents = await Promise.all(
+              allFiles.map(async (file) => ({
+                path: file.path,
+                content: await file.read(),
+              }))
+            );
+
+            const expectedPaths = [
+              "test-dir-flat/file1.txt",
+              "test-dir-flat/subDir1/file2.txt",
+              "test-dir-flat/subDir1/subDir2/file3.txt",
+            ];
+
+            const isMatch = fileContents.every(
+              (file) =>
+                expectedPaths.includes(file.path) && file.content.includes("file")
+            );
+
+            return {
+              assert: isMatch && allFiles.length === 3,
+              content: `Found ${allFiles.length} files:\n${fileContents
+                .map((f) => `${f.path}: ${f.content}`)
+                .join("\n")}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

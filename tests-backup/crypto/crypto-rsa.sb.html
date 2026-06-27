@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RSA Util Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>RSA Util Tests</h1>
+
+    <sb-test name="RSA Key Generation Test">
+      <template>
+        <script>
+          import {
+            generateRSAKeyPair,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { publicKey, privateKey } = await generateRSAKeyPair();
+
+            return {
+              assert: !!publicKey && !!privateKey,
+              content: {
+                message: "RSA密钥对生成成功",
+                publicKeyLength: publicKey.length,
+                privateKeyLength: privateKey.length,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="RSA Encryption and Decryption Test">
+      <template>
+        <script>
+          import {
+            generateRSAKeyPair,
+            encryptMessage,
+            decryptMessage,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { publicKey, privateKey } = await generateRSAKeyPair();
+            const testMessage = "Hello, RSA Test!";
+
+            const encrypted = await encryptMessage(publicKey, testMessage);
+
+            const decrypted = await decryptMessage(privateKey, encrypted);
+
+            return {
+              assert: decrypted === testMessage,
+              content: {
+                message: "RSA加解密测试成功",
+                originalMessage: testMessage,
+                encryptedLength: encrypted.length,
+                decryptedMessage: decrypted,
+                matched: decrypted === testMessage,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="RSA Invalid Input Test">
+      <template>
+        <script>
+          import {
+            generateRSAKeyPair,
+            decryptMessage,
+          } from "/nos/crypto/crypto-rsa.js";
+          {
+            const { privateKey } = await generateRSAKeyPair();
+
+            let decryptError = null;
+
+            try {
+              await decryptMessage(privateKey, "invalid-encrypted-data");
+            } catch (error) {
+              decryptError = error.message;
+            }
+
+            return {
+              assert: !!decryptError,
+              content: {
+                message: "RSA无效输入测试成功",
+                decryptError,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fetch Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>Fetch Tests</h1>
+
+    <sb-test name="Create, Write and Fetch File">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          
+          import registration from "/_install/register.js";
+          await registration;
+
+          {
+            const testDir = await init("test-dir3");
+
+            const file1 = await testDir.get("file1.txt", { create: "file" });
+            console.log("文件创建成功: file1.txt");
+
+            const someText = "Write some text " + Math.random();
+            await file1.write(someText);
+            console.log("文件写入成功，内容: " + someText);
+
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            console.log("等待300ms完成");
+
+            const content = await fetch("/$test-dir3/file1.txt").then((e) =>
+              e.text(),
+            );
+            console.log("文件内容获取成功: " + content);
+
+            return {
+              assert: content === someText,
+              content: `Expected: ${someText}, Got: ${content}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

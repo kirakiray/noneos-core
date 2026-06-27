@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Data By Server Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Agent Data By Server Tests</h1>
+
+    <!-- ============================================================ -->
+    <!-- 使用说明                                                     -->
+    <!-- ============================================================ -->
+    <!--
+    任意用户可以通过服务器查询其他用户的在线状态，并通过服务器转发数据。
+
+    ## 1. 查询用户在线状态
+
+    发送：
+        { "type": "query", "action": "user_online", "user_id": "<targetUserId>" }
+
+    响应（在线）：
+        {
+          "type": "query_response",
+          "action": "user_online",
+          "status": "ok",
+          "online": true,
+          "sessions": ["s-xxxx", "s-yyyy"]
+        }
+
+    响应（离线）：
+        {
+          "type": "query_response",
+          "action": "user_online",
+          "status": "ok",
+          "online": false,
+          "sessions": []
+        }
+
+    ## 2. 通过服务器转发数据到指定用户 session
+
+    发送：
+        {
+          "type": "relay",
+          "action": "send_data",
+          "target_user_id": "<targetUserId>",
+          "target_session_id": "<targetSessionId>",
+          "data": <any JSON value>
+        }
+
+    响应（成功）：
+        {
+          "type": "relay_response",
+          "action": "send_data",
+          "status": "ok",
+          "message": "Data delivered to target"
+        }
+
+    响应（失败）：
+        {
+          "type": "relay_response",
+          "action": "send_data",
+          "status": "error",
+          "message": "Target session not found or offline"
+        }
+
+    ## 3. 目标用户接收转发数据
+
+    目标用户将收到：
+        {
+          "type": "relay",
+          "from_user_id": "<senderUserId>",
+          "from_session_id": "<senderSessionId>",
+          "data": <any JSON value>
+        }
+    -->
+
+    <!-- ============================================================ -->
+    <!-- Test 1: 查询用户在线状态（自己查询自己）                      -->
+    <!-- ============================================================ -->
+    <sb-test name="Query Self Online Status">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const t1Ns = "agent-t1-ns";
+          const t1User = new LocalUser(t1Ns);
+          await t1User.ready();
+
+          const t1Url = "ws://localhost:8081";
+
+          // 连接服务器
+          await t1User.server.connect(t1Url);
+
+          // 查询自己的在线状态
+          const t1Result = await t1User.server.queryUserOnline(t1Url, t1User.userId);
+
+          const t1Online = t1Result.online === true;
+          const t1SessionIsArray = Array.isArray(t1Result.sessions);
+          const t1SessionCount = t1Result.sessions?.length;
+          const t1SessionIdMatch = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
+          const t1HasSession = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
+
+          t1User.server.disconnectAll();
+
+          return {
+            assert: t1Online && t1HasSession,
+            content: {
+              message:
+                t1Online && t1HasSession
+                  ? "Self online query succeeded"
+                  : "Self online query failed",
+              online: t1Result.online,
+              sessions: t1Result.sessions,
+              expectedSessionId: t1User.sessionId,
+              checks: {
+                t1Online,
+                t1SessionIsArray,
+                t1SessionCount,
+                t1SessionIdMatch,
+                t1HasSession,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 2: 查询离线用户（应返回 online=false）                    -->
+    <!-- ============================================================ -->
+    <sb-test name="Query Offline User">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const t2Ns = "agent-t2-ns";
+          const t2User = new LocalUser(t2Ns);
+          await t2User.ready();
+
+          const t2Url = "ws://localhost:8081";
+
+          // 连接服务器
+          await t2User.server.connect(t2Url);
+
+          // 查询一个不存在的 userId（离线状态）
+          const t2FakeUserId =
+            "nonexistent-user-" + Math.random().toString(36).substring(2, 10);
+          const t2Result = await t2User.server.queryUserOnline(t2Url, t2FakeUserId);
+
+          const t2Offline = t2Result.online === false;
+          const t2SessionIsArray = Array.isArray(t2Result.sessions);
+          const t2SessionCount = t2Result.sessions?.length;
+          const t2EmptySessions = t2SessionIsArray && t2SessionCount === 0;
+
+          t2User.server.disconnectAll();
+
+          return {
+            assert: t2Offline && t2EmptySessions,
+            content: {
+              message:
+                t2Offline && t2EmptySessions
+                  ? "Offline user query correctly returned online=false"
+                  : "Offline user query unexpected result",
+              online: t2Result.online,
+              sessions: t2Result.sessions,
+              queriedUserId: t2FakeUserId,
+              checks: {
+                t2Offline,
+                t2SessionIsArray,
+                t2SessionCount,
+                t2EmptySessions,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 3: 查询其他在线用户（应返回 true 和 sessionId 列表）      -->
+    <!-- ============================================================ -->
+    <sb-test name="Query Other User Online">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 用户 A：查询者
+          const t3aNs = "agent-t3a-ns";
+          const t3aUser = new LocalUser(t3aNs);
+          await t3aUser.ready();
+
+          // 用户 B：被查询者
+          const t3bNs = "agent-t3b-ns";
+          const t3bUser = new LocalUser(t3bNs);
+          await t3bUser.ready();
+
+          const t3Url = "ws://localhost:8081";
+
+          // 两个用户都连接服务器
+          await t3aUser.server.connect(t3Url);
+          await t3bUser.server.connect(t3Url);
+
+          // 用户 A 查询用户 B
+          const t3Result = await t3aUser.server.queryUserOnline(t3Url, t3bUser.userId);
+
+          const t3Online = t3Result.online === true;
+          const t3SessionIsArray = Array.isArray(t3Result.sessions);
+          const t3SessionCount = t3Result.sessions?.length;
+          const t3SessionIdMatch = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
+          const t3HasSession = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
+
+          t3aUser.server.disconnectAll();
+          t3bUser.server.disconnectAll();
+
+          return {
+            assert: t3Online && t3HasSession,
+            content: {
+              message:
+                t3Online && t3HasSession
+                  ? "Other user online query succeeded"
+                  : "Other user online query failed",
+              online: t3Result.online,
+              sessions: t3Result.sessions,
+              targetUserId: t3bUser.userId,
+              expectedSessionId: t3bUser.sessionId,
+              checks: {
+                t3Online,
+                t3SessionIsArray,
+                t3SessionCount,
+                t3SessionIdMatch,
+                t3HasSession,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 4: 通过服务器转发数据到指定用户 session                   -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay Data to Target User Session">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 发送方用户
+          const t4SendNs = "agent-t4send-ns";
+          const t4Sender = new LocalUser(t4SendNs);
+          await t4Sender.ready();
+
+          // 接收方用户
+          const t4RecvNs = "agent-t4recv-ns";
+          const t4Receiver = new LocalUser(t4RecvNs);
+          await t4Receiver.ready();
+
+          const t4Url = "ws://localhost:8081";
+
+          // 两个用户都连接服务器
+          await t4Sender.server.connect(t4Url);
+          await t4Receiver.server.connect(t4Url);
+
+          // 接收方监听 relay 事件
+          const t4RecvPromise = new Promise((resolve) => {
+            const t4Handler = (e) => {
+              let data;
+              try {
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
+              } catch {
+                return;
+              }
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t4Sender.userId
+              ) {
+                t4Receiver.removeEventListener("message", t4Handler);
+                resolve(data);
+              }
+            };
+            t4Receiver.addEventListener("message", t4Handler);
+
+            setTimeout(() => {
+              t4Receiver.removeEventListener("message", t4Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送数据
+          const t4Payload = {
+            text: "Hello from sender!",
+            number: 42,
+            timestamp: Date.now(),
+          };
+
+          const t4SendResult = await t4Sender.server.relayToUserViaServer(
+            t4Url,
+            t4Receiver.userId,
+            t4Receiver.sessionId,
+            t4Payload,
+          );
+
+          // 等待接收方收到
+          const t4Received = await t4RecvPromise;
+
+          const t4SendOk = t4SendResult.status === "ok";
+          const t4ReceivedNotNull = t4Received !== null;
+          const t4TextMatch = t4Received?.data?.text === t4Payload.text;
+          const t4NumMatch = t4Received?.data?.number === t4Payload.number;
+          const t4RecvOk = t4ReceivedNotNull && t4TextMatch && t4NumMatch;
+
+          t4Sender.server.disconnectAll();
+          t4Receiver.server.disconnectAll();
+
+          return {
+            assert: t4SendOk && t4RecvOk,
+            content: {
+              message:
+                t4SendOk && t4RecvOk
+                  ? "Data successfully relayed from sender to receiver"
+                  : "Relay test failed",
+              sendStatus: t4SendResult.status,
+              sendMessage: t4SendResult.message,
+              receivedPayload: t4Received,
+              expectedPayload: t4Payload,
+              checks: {
+                t4SendOk,
+                t4ReceivedNotNull,
+                t4TextMatch,
+                t4NumMatch,
+                t4RecvOk,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 5: 发送到离线 session（应返回错误）                       -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay Data to Offline Session (Should Fail)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const t5Ns = "agent-t5-ns";
+          const t5User = new LocalUser(t5Ns);
+          await t5User.ready();
+
+          const t5Url = "ws://localhost:8081";
+          await t5User.server.connect(t5Url);
+
+          // 尝试发送到不存在的 session
+          const t5FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t5FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
+
+          let t5Error = null;
+          try {
+            await t5User.server.relayToUserViaServer(t5Url, t5FakeUserId, t5FakeSessionId, {
+              test: true,
+            });
+          } catch (e) {
+            t5Error = e;
+          }
+
+          const t5IsTimeout = t5Error?.message?.includes("timed out");
+
+          t5User.server.disconnectAll();
+
+          return {
+            assert: !t5IsTimeout,
+            content: {
+              message: t5Error
+                ? "Send to offline session correctly threw error"
+                : "Send to offline session should return an error response",
+              error: t5Error?.message || t5Error,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 6: 目标用户通过 message 事件接收 relay 数据              -->
+    <!-- ============================================================ -->
+    <sb-test name="Receiver Gets Relay Data via Message Event">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 发送方
+          const t6SendNs = "agent-t6send-ns";
+          const t6Sender = new LocalUser(t6SendNs);
+          await t6Sender.ready();
+
+          // 接收方
+          const t6RecvNs = "agent-t6recv-ns";
+          const t6Receiver = new LocalUser(t6RecvNs);
+          await t6Receiver.ready();
+
+          const t6Url = "ws://localhost:8081";
+
+          await t6Sender.server.connect(t6Url);
+          await t6Receiver.server.connect(t6Url);
+
+          // 接收方等待 message 事件
+          const t6MsgPromise = new Promise((resolve) => {
+            const t6Handler = (e) => {
+              let data;
+              try {
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
+              } catch {
+                return;
+              }
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t6Sender.userId
+              ) {
+                t6Receiver.removeEventListener("message", t6Handler);
+                resolve(data);
+              }
+            };
+            t6Receiver.addEventListener("message", t6Handler);
+
+            setTimeout(() => {
+              t6Receiver.removeEventListener("message", t6Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送数据
+          const t6Payload = {
+            msg: "Hello via event!",
+            seq: 1,
+          };
+          const t6SendResponse = await t6Sender.server.relayToUserViaServer(
+            t6Url,
+            t6Receiver.userId,
+            t6Receiver.sessionId,
+            t6Payload,
+          );
+
+          // 等待接收
+          const t6ReceivedData = await t6MsgPromise;
+
+          const t6SendOk = t6SendResponse?.status === "ok";
+          const t6ReceivedNotNull = t6ReceivedData !== null;
+          const t6FromUserIdMatch = t6ReceivedData?.from_user_id === t6Sender.userId;
+          const t6MsgMatch = t6ReceivedData?.data?.msg === "Hello via event!";
+          const t6SeqMatch = t6ReceivedData?.data?.seq === 1;
+          const t6RecvOk = t6ReceivedNotNull && t6FromUserIdMatch && t6MsgMatch && t6SeqMatch;
+
+          t6Sender.server.disconnectAll();
+          t6Receiver.server.disconnectAll();
+
+          return {
+            assert: t6SendOk && t6RecvOk,
+            content: {
+              message:
+                t6SendOk && t6RecvOk
+                  ? "Receiver correctly got relay data via message event"
+                  : "Receiver event test failed",
+              sendResponse: t6SendResponse,
+              receivedData: t6ReceivedData,
+              expectedUserId: t6Sender.userId,
+              checks: {
+                t6SendOk,
+                t6ReceivedNotNull,
+                t6FromUserIdMatch,
+                t6MsgMatch,
+                t6SeqMatch,
+                t6RecvOk,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+    <!-- ============================================================ -->
+    <!-- Test 7: 通过服务器转发二进制 Uint8Array（0-255 全字节值）      -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay Binary Uint8Array (0-255) to Target User Session">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 发送方
+          const t7SendNs = "agent-t7send-ns";
+          const t7Sender = new LocalUser(t7SendNs);
+          await t7Sender.ready();
+
+          // 接收方
+          const t7RecvNs = "agent-t7recv-ns";
+          const t7Receiver = new LocalUser(t7RecvNs);
+          await t7Receiver.ready();
+
+          const t7Url = "ws://localhost:8081";
+
+          await t7Sender.server.connect(t7Url);
+          await t7Receiver.server.connect(t7Url);
+
+          // 构造 0-255 全字节值
+          const t7ExpectedBytes = new Uint8Array(256);
+          for (let i = 0; i < 256; i++) {
+            t7ExpectedBytes[i] = i;
+          }
+
+          // 辅助函数：解析二进制 relay 帧
+          const t7ParseBinaryRelay = async (blob) => {
+            const buffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = bytes.slice(4, 4 + headerLen);
+            const headerText = new TextDecoder().decode(headerBytes);
+            const header = JSON.parse(headerText);
+            const payload = bytes.slice(4 + headerLen);
+            return { header, payload };
+          };
+
+          const t7RecvPromise = new Promise((resolve) => {
+            const t7Handler = async (e) => {
+              if (typeof e.detail.data === "string") {
+                return;
+              }
+              const t7Parsed = await t7ParseBinaryRelay(e.detail.data);
+              if (
+                t7Parsed.header?.type === "relay" &&
+                t7Parsed.header?.from_user_id === t7Sender.userId
+              ) {
+                t7Receiver.removeEventListener("message", t7Handler);
+                resolve(t7Parsed);
+              }
+            };
+            t7Receiver.addEventListener("message", t7Handler);
+
+            setTimeout(() => {
+              t7Receiver.removeEventListener("message", t7Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送二进制数据
+          const t7SendResult = await t7Sender.server.relayToUserViaServer(
+            t7Url,
+            t7Receiver.userId,
+            t7Receiver.sessionId,
+            t7ExpectedBytes,
+          );
+
+          const t7Received = await t7RecvPromise;
+
+          const t7SendOk = t7SendResult.status === "ok";
+          const t7ReceivedNotNull = t7Received !== null;
+          const t7PayloadLenMatch = t7ReceivedNotNull && t7Received.payload.length === t7ExpectedBytes.length;
+          const t7PayloadContentMatch = t7PayloadLenMatch && t7Received.payload.every((v, i) => v === t7ExpectedBytes[i]);
+          const t7RecvOk = t7ReceivedNotNull && t7PayloadLenMatch && t7PayloadContentMatch;
+
+          t7Sender.server.disconnectAll();
+          t7Receiver.server.disconnectAll();
+
+          return {
+            assert: t7SendOk && t7RecvOk,
+            content: {
+              message:
+                t7SendOk && t7RecvOk
+                  ? "Binary Uint8Array (0-255) successfully relayed"
+                  : "Binary Uint8Array relay failed",
+              sendStatus: t7SendResult.status,
+              sendMessage: t7SendResult.message,
+              receivedHeader: t7Received?.header,
+              receivedLength: t7Received?.payload?.length,
+              expectedLength: t7ExpectedBytes.length,
+              checks: {
+                t7SendOk,
+                t7ReceivedNotNull,
+                t7PayloadLenMatch,
+                t7PayloadContentMatch,
+                t7RecvOk,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 8: 通过服务器转发 ArrayBuffer                             -->
+    <!-- ============================================================ -->
+    <sb-test name="Relay ArrayBuffer to Target User Session">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 发送方
+          const t8SendNs = "agent-t8send-ns";
+          const t8Sender = new LocalUser(t8SendNs);
+          await t8Sender.ready();
+
+          // 接收方
+          const t8RecvNs = "agent-t8recv-ns";
+          const t8Receiver = new LocalUser(t8RecvNs);
+          await t8Receiver.ready();
+
+          const t8Url = "ws://localhost:8081";
+
+          await t8Sender.server.connect(t8Url);
+          await t8Receiver.server.connect(t8Url);
+
+          // 构造 ArrayBuffer 测试数据
+          const t8ExpectedBytes = new Uint8Array([
+            0, 1, 2, 3, 255, 254, 253, 252, 128, 127,
+          ]);
+          const t8ArrayBuffer = t8ExpectedBytes.buffer;
+
+          // 辅助函数：解析二进制 relay 帧
+          const t8ParseBinaryRelay = async (blob) => {
+            const buffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const headerLen = view.getUint32(0, false);
+            const headerBytes = bytes.slice(4, 4 + headerLen);
+            const headerText = new TextDecoder().decode(headerBytes);
+            const header = JSON.parse(headerText);
+            const payload = bytes.slice(4 + headerLen);
+            return { header, payload };
+          };
+
+          const t8RecvPromise = new Promise((resolve) => {
+            const t8Handler = async (e) => {
+              if (typeof e.detail.data === "string") {
+                return;
+              }
+              const t8Parsed = await t8ParseBinaryRelay(e.detail.data);
+              if (
+                t8Parsed.header?.type === "relay" &&
+                t8Parsed.header?.from_user_id === t8Sender.userId
+              ) {
+                t8Receiver.removeEventListener("message", t8Handler);
+                resolve(t8Parsed);
+              }
+            };
+            t8Receiver.addEventListener("message", t8Handler);
+
+            setTimeout(() => {
+              t8Receiver.removeEventListener("message", t8Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 发送 ArrayBuffer
+          const t8SendResult = await t8Sender.server.relayToUserViaServer(
+            t8Url,
+            t8Receiver.userId,
+            t8Receiver.sessionId,
+            t8ArrayBuffer,
+          );
+
+          const t8Received = await t8RecvPromise;
+
+          const t8SendOk = t8SendResult.status === "ok";
+          const t8ReceivedNotNull = t8Received !== null;
+          const t8PayloadLenMatch = t8ReceivedNotNull && t8Received.payload.length === t8ExpectedBytes.length;
+          const t8PayloadContentMatch = t8PayloadLenMatch && t8Received.payload.every((v, i) => v === t8ExpectedBytes[i]);
+          const t8RecvOk = t8ReceivedNotNull && t8PayloadLenMatch && t8PayloadContentMatch;
+
+          t8Sender.server.disconnectAll();
+          t8Receiver.server.disconnectAll();
+
+          return {
+            assert: t8SendOk && t8RecvOk,
+            content: {
+              message:
+                t8SendOk && t8RecvOk
+                  ? "ArrayBuffer successfully relayed"
+                  : "ArrayBuffer relay failed",
+              sendStatus: t8SendResult.status,
+              sendMessage: t8SendResult.message,
+              receivedHeader: t8Received?.header,
+              receivedLength: t8Received?.payload?.length,
+              expectedLength: t8ExpectedBytes.length,
+              checks: {
+                t8SendOk,
+                t8ReceivedNotNull,
+                t8PayloadLenMatch,
+                t8PayloadContentMatch,
+                t8RecvOk,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 9: 自动选择服务器转发数据（sendToUser 无 url 参数）      -->
+    <!-- ============================================================ -->
+    <sb-test name="Auto-Select Server via sendToUser (No URL)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          // 发送方
+          const t9SendNs = "agent-t9send-ns";
+          const t9Sender = new LocalUser(t9SendNs);
+          await t9Sender.ready();
+
+          // 接收方
+          const t9RecvNs = "agent-t9recv-ns";
+          const t9Receiver = new LocalUser(t9RecvNs);
+          await t9Receiver.ready();
+
+          const t9Url1 = "ws://localhost:8081";
+          const t9Url2 = "ws://localhost:8082";
+
+          // 发送方连接两台服务器
+          await t9Sender.server.connect(t9Url1);
+          await t9Sender.server.connect(t9Url2);
+
+          // 接收方只连接第一台服务器
+          await t9Receiver.server.connect(t9Url1);
+
+          // 接收方监听 relay 事件
+          const t9RecvPromise = new Promise((resolve) => {
+            const t9Handler = (e) => {
+              let data;
+              try {
+                data =
+                  typeof e.detail.data === "string"
+                    ? JSON.parse(e.detail.data)
+                    : e.detail.data;
+              } catch {
+                return;
+              }
+              if (
+                data?.type === "relay" &&
+                data?.from_user_id === t9Sender.userId
+              ) {
+                t9Receiver.removeEventListener("message", t9Handler);
+                resolve(data);
+              }
+            };
+            t9Receiver.addEventListener("message", t9Handler);
+
+            setTimeout(() => {
+              t9Receiver.removeEventListener("message", t9Handler);
+              resolve(null);
+            }, 5000);
+          });
+
+          // 使用 sendToUser（无 url 参数）自动选择服务器
+          const t9Payload = {
+            text: "Auto-select server test!",
+            value: 99,
+          };
+          const t9SendResult = await t9Sender.server.sendToUser(
+            t9Receiver.userId,
+            t9Receiver.sessionId,
+            t9Payload,
+          );
+
+          // 等待接收方收到
+          const t9Received = await t9RecvPromise;
+
+          const t9SendOk = t9SendResult.status === "ok";
+          const t9ReceivedNotNull = t9Received !== null;
+          const t9TextMatch = t9Received?.data?.text === t9Payload.text;
+          const t9ValueMatch = t9Received?.data?.value === t9Payload.value;
+          const t9RecvOk = t9ReceivedNotNull && t9TextMatch && t9ValueMatch;
+
+          t9Sender.server.disconnectAll();
+          t9Receiver.server.disconnectAll();
+
+          return {
+            assert: t9SendOk && t9RecvOk,
+            content: {
+              message:
+                t9SendOk && t9RecvOk
+                  ? "sendToUser auto-selected server and relayed successfully"
+                  : "sendToUser auto-select test failed",
+              sendStatus: t9SendResult.status,
+              sendMessage: t9SendResult.message,
+              receivedPayload: t9Received,
+              expectedPayload: t9Payload,
+              checks: {
+                t9SendOk,
+                t9ReceivedNotNull,
+                t9TextMatch,
+                t9ValueMatch,
+                t9RecvOk,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 10: sendToUser 目标不在线应该抛出错误                    -->
+    <!-- ============================================================ -->
+    <sb-test name="sendToUser Target Offline (Should Throw)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const t10Ns = "agent-t10-ns";
+          const t10User = new LocalUser(t10Ns);
+          await t10User.ready();
+
+          const t10Url = "ws://localhost:8081";
+          await t10User.server.connect(t10Url);
+
+          // 尝试发送到不存在的用户（离线）
+          const t10FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t10FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
+
+          let t10Error = null;
+          try {
+            await t10User.server.sendToUser(t10FakeUserId, t10FakeSessionId, {
+              test: true,
+            });
+          } catch (e) {
+            t10Error = e;
+          }
+
+          t10User.server.disconnectAll();
+
+          return {
+            assert: t10Error !== null,
+            content: {
+              message: t10Error
+                ? "sendToUser correctly threw error for offline target"
+                : "sendToUser should throw when target is offline",
+              error: t10Error?.message || t10Error,
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============================================================ -->
+    <!-- Test 11: sendToUser 无可用连接应抛出错误                      -->
+    <!-- ============================================================ -->
+    <sb-test name="sendToUser No Connection (Should Throw)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const t11Ns = "agent-t11-ns";
+          const t11User = new LocalUser(t11Ns);
+          await t11User.ready();
+
+          const t11FakeUserId =
+            "fake-user-" + Math.random().toString(36).substring(2, 10);
+          const t11FakeSessionId =
+            "s-fake-" + Math.random().toString(36).substring(2, 10);
+
+          let t11Error = null;
+          try {
+            await t11User.server.sendToUser(t11FakeUserId, t11FakeSessionId, {
+              test: true,
+            });
+          } catch (e) {
+            t11Error = e;
+          }
+
+          const t11ErrorThrown = t11Error !== null;
+          const t11MessageMatch = t11Error?.message?.includes("No connected servers");
+
+          return {
+            assert: t11ErrorThrown && t11MessageMatch,
+            content: {
+              message: t11Error
+                ? "sendToUser correctly threw error when no server connected"
+                : "sendToUser should throw when no server connected",
+              error: t11Error?.message || t11Error,
+              checks: {
+                t11ErrorThrown,
+                t11MessageMatch,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
