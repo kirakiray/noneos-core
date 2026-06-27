@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::sync::OnceLock;
 use std::time::Duration;
 use sysinfo::{System, Disks};
@@ -164,7 +163,7 @@ impl AppState {
         let all_users = self.get_all_users();
         let total = all_users.len() as u32;
         let page = page.max(1) as usize;
-        let page_size = page_size.max(1).min(100) as usize;
+        let page_size = page_size.clamp(1, 100) as usize;
         let start = (page - 1) * page_size;
         if start >= all_users.len() {
             return (Vec::new(), total);
@@ -215,7 +214,7 @@ impl AppState {
 
         // 分页
         let page = page.max(1) as usize;
-        let page_size = page_size.max(1).min(100) as usize;
+        let page_size = page_size.clamp(1, 100) as usize;
         let start = (page - 1) * page_size;
         if start >= all_groups.len() {
             return (Vec::new(), total);
@@ -539,7 +538,7 @@ pub async fn handle_admin_command(
         "get_traffic_history" => {
             let to_ms = traffic::now_ms() as i64;
             // from_ms 由客户端明确传入；不传则默认查最近 1 小时
-            let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3600_000);
+            let from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3_600_000);
             let db_path = state.config.traffic_db_path.clone();
             let page = admin_cmd.page;
             let page_size = admin_cmd.page_size;

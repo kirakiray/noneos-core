@@ -222,7 +222,7 @@ impl TrafficStats {
                 entry.handshake_bytes.saturating_add(s.handshake_bytes);
         }
         let mut users: Vec<UserTrafficSummary> = user_map.into_values().collect();
-        users.sort_by(|a, b| b.inbound_bytes.cmp(&a.inbound_bytes));
+        users.sort_by_key(|b| std::cmp::Reverse(b.inbound_bytes));
         users
     }
 
@@ -361,7 +361,7 @@ pub fn query_users_paginated(
 ) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
     let total = count_users(conn)?;
     let page = page.max(1) as i64;
-    let page_size = page_size.max(1).min(500) as i64;
+    let page_size = page_size.clamp(1, 500) as i64;
     let offset = (page - 1) * page_size;
 
     if offset >= total as i64 {
@@ -570,7 +570,7 @@ pub fn query_traffic_history_paginated(
 ) -> Result<(Vec<serde_json::Value>, u32), rusqlite::Error> {
     let total = count_traffic_history(conn, from_ms, to_ms, user_id)?;
     let page = page.max(1) as i64;
-    let page_size = page_size.max(1).min(500) as i64;
+    let page_size = page_size.clamp(1, 500) as i64;
     let offset = (page - 1) * page_size;
     if offset >= total as i64 {
         return Ok((Vec::new(), total));
@@ -850,7 +850,7 @@ pub fn start_persistence_task(
 
             // B. 阻塞执行：DB 写入和系统指标采集
             let db_path_clone = db_path.clone();
-            let current_sys = sys_opt.take().unwrap_or_else(|| System::new_all());
+            let current_sys = sys_opt.take().unwrap_or_else(System::new_all);
 
             let res = tokio::task::spawn_blocking(move || {
                 let mut sys = current_sys;

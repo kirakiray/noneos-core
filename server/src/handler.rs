@@ -188,10 +188,10 @@ impl AppState {
 
     /// 注册关注者：watcher（由其 conn_key 标识）关注 watched_user_id 的下线通知
     pub fn add_watcher(&self, watcher_conn_key: &str, watched_user_id: &str, data_tx: mpsc::UnboundedSender<Message>) {
-        let watchers = self.watchers.entry(watched_user_id.to_string()).or_insert_with(|| DashMap::new());
+        let watchers = self.watchers.entry(watched_user_id.to_string()).or_default();
         watchers.insert(watcher_conn_key.to_string(), data_tx);
 
-        let mut targets = self.watch_targets.entry(watcher_conn_key.to_string()).or_insert_with(Vec::new);
+        let mut targets = self.watch_targets.entry(watcher_conn_key.to_string()).or_default();
         if !targets.contains(&watched_user_id.to_string()) {
             targets.push(watched_user_id.to_string());
         }
@@ -333,6 +333,7 @@ struct HandshakeResponse {
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
+#[allow(clippy::result_large_err)]
 pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
