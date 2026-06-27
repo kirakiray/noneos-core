@@ -66,11 +66,11 @@ jobs:
 
       - name: Start handshake server 8081
         working-directory: server
-        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+        run: nohup cargo run -- --config test-space/rust/config.example.toml > server1.log 2>&1 &
 
       - name: Start handshake server 8082
         working-directory: server
-        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+        run: nohup cargo run -- --config test-space/rust/config2.toml > server2.log 2>&1 &
 
       - name: Wait for handshake servers
         run: |
