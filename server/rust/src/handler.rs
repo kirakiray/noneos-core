@@ -1109,12 +1109,12 @@ pub async fn handle_connection(
 
             // 9. 无论通信循环是否出错，始终执行清理
             {
+                // 先移除此用户 session，再通知 watcher
+                // 顺序重要：先 remove_user 再 notify，避免 watcher 回查时该用户 session 尚未清除
+                state.remove_all_watchers(&conn_key);
+                state.remove_user(&conn_key);
                 // 通知关注该用户的所有 watcher：此 session 已从本服务器断开
                 state.notify_watchers_session_left(&user_id, &session_id, &username);
-                // 清理此连接自己注册的所有关注关系
-                state.remove_all_watchers(&conn_key);
-                // 移除此用户 session
-                state.remove_user(&conn_key);
                 if let Some(session) = state.traffic.lock().unwrap().remove_session(&conn_key) {
                     // 最终落盘：确保即使是短连接也会被持久化
                     traffic::save_final_session_stats(&state.config.traffic_db_path, &session);
