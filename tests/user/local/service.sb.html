@@ -64,6 +64,8 @@
 
         // 清理
         svcReg1.unregister();
+        userSvc1.server.disconnectAll();
+        userSvc1b.server.disconnectAll();
 
         return {
           assert: foundSession && msgReceived && ctxHasUserId && ctxHasSessionId && ctxHasRemoteUser,
@@ -135,6 +137,9 @@
 
         const specificResultOk = resultsSvc2.length === 1 && resultsSvc2[0].sessionId === targetSessionId && resultsSvc2[0].status === "ok";
         const specificMsgReceived = receivedMsgSvc2 !== null && receivedMsgSvc2.text === "specific session only";
+
+        userSvc2.server.disconnectAll();
+        userSvc2b.server.disconnectAll();
 
         return {
           assert: specificResultOk && specificMsgReceived,
@@ -224,6 +229,10 @@
         const broadcastSentToBoth = broadcastResults.length >= 2;
         const allResultsOk = broadcastResults.every((r) => r.status === "ok");
 
+        userSvc3a.server.disconnectAll();
+        userSvc3b1.server.disconnectAll();
+        userSvc3b2.server.disconnectAll();
+
         return {
           assert: foundBothSessions && bothReceived && broadcastSentToBoth && allResultsOk,
           content: {
@@ -302,6 +311,9 @@
 
         const replyOk = msgFromSvc4 !== null && msgFromSvc4.reply === "reply from hello";
 
+        userSvc4.server.disconnectAll();
+        userSvc4b.server.disconnectAll();
+
         return {
           assert: replyOk,
           content: {
@@ -371,6 +383,9 @@
         const ghostNotReceived = !receivedGhostApp;
         const realReceived = receivedRightApp !== null && receivedRightApp.text === "should arrive";
 
+        userSvc5.server.disconnectAll();
+        userSvc5b.server.disconnectAll();
+
         return {
           assert: ghostNotReceived && realReceived,
           content: {
@@ -436,6 +451,10 @@
         const appXCount = sessionsX.length >= 2;
         const appYCount = sessionsY.length >= 1;
         const appZEmpty = sessionsZ.length === 0;
+
+        userSvc6a.server.disconnectAll();
+        // userSvc6b 和 userSvc6c 共享 namespace（同一用户的不同 session）
+        userSvc6b.server.disconnectAll();
 
         return {
           assert: appXCount && appYCount && appZEmpty,

@@ -71,6 +71,9 @@
 
         const messageReceived = receivedMessage === "hello from A";
 
+        userA.server.disconnectAll();
+        userB.server.disconnectAll();
+
         return {
           assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
           content: {
@@ -165,6 +168,9 @@
           localMessageDetail.fromUserId === userD.userId &&
           localMessageDetail.data === "hello from D";
 
+        userC.server.disconnectAll();
+        userD.server.disconnectAll();
+
         return {
           assert: remoteEventReceived && localEventReceived,
           content: {
@@ -254,6 +260,9 @@
           receivedBinary.every((b, i) => b === binaryPayload[i]);
         const fromUserMatch = receivedFromUserId === userE.userId;
         const fromSessionMatch = receivedFromSessionId === userE.sessionId;
+
+        userE.server.disconnectAll();
+        userF.server.disconnectAll();
 
         return {
           assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
@@ -357,6 +366,8 @@
 
         // 清理
         await userG.card.delete(userH.userId);
+        userG.server.disconnectAll();
+        userH.server.disconnectAll();
 
         const allCardChecks = cardHasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
           && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
@@ -489,6 +500,9 @@
 
         const e2eeAllPassed = haveBothCards && haveBothKeys && rawIsBinary && messageCorrect;
 
+        userI.server.disconnectAll();
+        userJ.server.disconnectAll();
+
         return {
           assert: e2eeAllPassed,
           content: {
@@ -600,6 +614,9 @@
           bestRttBothValid &&
           rttEventValid &&
           unknownRttValid;
+
+        userPingA.server.disconnectAll();
+        userPingB.server.disconnectAll();
 
         return {
           assert: allPingPassed,

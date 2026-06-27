@@ -102,7 +102,8 @@
 
           const getqAllOk = getqSingleOk && batchOk;
 
-          getqAdmin.server.disconnect(getqUrl);
+          getqAdmin.server.disconnectAll();
+          getqUser.server.disconnectAll();
 
           return {
             assert: getqAllOk,
@@ -159,7 +160,8 @@
             && setzResult?.quota?.user_id === setzUser.userId
             && setzResult?.quota?.quota_bytes === 0;
 
-          setzAdmin.server.disconnect(setzUrl);
+          setzAdmin.server.disconnectAll();
+          setzUser.server.disconnectAll();
 
           return {
             assert: setzOk,
@@ -234,7 +236,8 @@
 
           const offAllOk = offOk && getOk;
 
-          offAdmin.server.disconnect(offUrl);
+          offAdmin.server.disconnectAll();
+          offUser.server.disconnectAll();
 
           return {
             assert: offAllOk,
@@ -319,9 +322,9 @@
 
           const bigrRejected = bigrResult?.status === "quota_exceeded";
 
-          bigrAdmin.server.disconnect(bigrUrl);
-          bigrUserA.server.disconnect(bigrUrl);
-          bigrUserB.server.disconnect(bigrUrl);
+          bigrAdmin.server.disconnectAll();
+          bigrUserA.server.disconnectAll();
+          bigrUserB.server.disconnectAll();
 
           return {
             assert: bigrRejected,
@@ -398,9 +401,9 @@
 
           const smallaAllowed = smallaResult?.status === "ok";
 
-          smallaAdmin.server.disconnect(smallaUrl);
-          smallaUserA.server.disconnect(smallaUrl);
-          smallaUserB.server.disconnect(smallaUrl);
+          smallaAdmin.server.disconnectAll();
+          smallaUserA.server.disconnectAll();
+          smallaUserB.server.disconnectAll();
 
           return {
             assert: smallaAllowed,
@@ -473,8 +476,8 @@
 
           const adminnlAllowed = adminnlResult?.status === "ok";
 
-          adminnlAdmin.server.disconnect(adminnlUrl);
-          adminnlUser.server.disconnect(adminnlUrl);
+          adminnlAdmin.server.disconnectAll();
+          adminnlUser.server.disconnectAll();
 
           return {
             assert: adminnlAllowed,
@@ -562,9 +565,9 @@
 
           const raiseqAllOk = raiseqWasBlocked && raiseqAllowed;
 
-          raiseqAdmin.server.disconnect(raiseqUrl);
-          raiseqUserA.server.disconnect(raiseqUrl);
-          raiseqUserB.server.disconnect(raiseqUrl);
+          raiseqAdmin.server.disconnectAll();
+          raiseqUserA.server.disconnectAll();
+          raiseqUserB.server.disconnectAll();
 
           return {
             assert: raiseqAllOk,

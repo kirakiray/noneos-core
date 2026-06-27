@@ -67,6 +67,8 @@
           const d2Result = await d2User.server.connect("ws://localhost:8081");
           const d2Connected = d2Result && d2Result.success === true;
 
+          d2User.server.disconnectAll();
+
           return {
             assert: d2Connected === true,
             content: {

@@ -154,7 +154,7 @@ export class ServerManager {
           const err = new Error("Handshake timeout");
           reject(err);
         }
-      }, 5000);
+      }, 15000);
 
       ws.onopen = () => {
         // 等待服务器发送握手挑战 (Challenge)

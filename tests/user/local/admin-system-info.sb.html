@@ -89,6 +89,8 @@
           const sysIsUserIdMatch = sysImportedUser.userId === sysData.info.userId;
           const sysIsUsernameMatch = sysImportedInfo.username === sysData.info.username;
 
+          sysImportedUser.server.disconnectAll();
+
           return {
             assert: sysIsUserIdMatch && sysIsUsernameMatch,
             content: {
@@ -150,8 +152,8 @@
             && typeof sysInfoResponse.system_info.cpu.core_count === "number";
           const disksValid = hasDisks && sysInfoResponse.system_info.disks.length > 0;
 
-          // 退出登录：断开服务器连接
-          sysInfoUser.server.disconnect(sysInfoUrl);
+          // 退出登录：断开所有服务器连接
+          sysInfoUser.server.disconnectAll();
 
           return {
             assert: sysIsOk && hasSystemInfo && memoryFields && cpuFields && disksValid,
@@ -218,8 +220,8 @@
           const sysIsDenied = sysNormAdminResp?.status === "error"
             && sysNormAdminResp?.message?.includes("Permission denied");
 
-          // 退出登录：断开连接
-          sysNormUser.server.disconnect(sysNormUrl);
+          // 退出登录：断开所有服务器连接
+          sysNormUser.server.disconnectAll();
 
           return {
             assert: sysIsDenied,
