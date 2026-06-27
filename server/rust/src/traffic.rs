@@ -433,6 +433,7 @@ pub fn load_global_data(db: &Database) -> GlobalTraffic {
 }
 
 /// 保存全局累计数据
+#[allow(dead_code)]
 pub fn save_global_data(db: &Database, global: &GlobalTraffic) -> Result<(), redb::Error> {
     let write_txn = db.begin_write()?;
     {
@@ -447,6 +448,7 @@ pub fn save_global_data(db: &Database, global: &GlobalTraffic) -> Result<(), red
 
 /// 写入用户流量时间分布记录（覆盖已有 key）
 /// records: (from_user, to_user) -> bytes
+#[allow(dead_code)]
 pub fn write_user_traffic_dist(
     db: &Database,
     ts_30s: u64,
@@ -490,6 +492,7 @@ pub fn write_single_user_traffic_entries(
 }
 
 /// 写入全局流量时间分布（delta 值）
+#[allow(dead_code)]
 pub fn write_global_traffic_dist(
     db: &Database,
     ts_30s: u64,
@@ -558,6 +561,7 @@ pub fn query_system_stats_history(db: &Database, limit: usize) -> Vec<SystemStat
 // ===== 持久化后台任务 =====
 
 /// 启动 redb 持久化后台任务
+#[allow(dead_code)]
 pub fn start_persistence_task(
     _db: Arc<Database>,
     flush_interval_secs: u64,
@@ -619,6 +623,7 @@ pub fn perform_flush(
 }
 
 /// 执行关闭时的最终 flush（包含系统指标）
+#[allow(dead_code)]
 pub fn perform_final_flush(
     db: &Database,
     ts_30s: u64,
