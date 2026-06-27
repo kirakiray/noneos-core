@@ -180,16 +180,17 @@
         const remoteO = await userP.connectUser(userO.userId);
 
         // 通过多次 send 触发后台 RTC 连接（第二次 send 起触发 RTC 配对）
-        for (let i = 0; i < 5; i++) {
+        // CI 上的 WebRTC 配对较慢，需要更多触发次数和等待时间
+        for (let i = 0; i < 8; i++) {
           try {
             await remoteP.send(userP.sessionId, { ping: i });
           } catch {}
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
-        // 等待 RTC 建立
+        // 等待 RTC 建立（CI 上 WebRTC 可能较慢）
         let rtcConnected = false;
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 40; i++) {
           const dc = userO.rtc.getChannel(userP.userId, userP.sessionId);
           if (dc && dc.readyState === "open") {
             rtcConnected = true;

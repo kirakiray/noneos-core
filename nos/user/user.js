@@ -185,7 +185,13 @@ export class LocalUser extends BaseUser {
       }
       if (parsed.type === "session_server_left") {
         event.stopImmediatePropagation();
-        this.#handleSessionServerLeft(parsed);
+        // fire-and-forget，但必须 catch 未捕获异常，防止 session_left 事件链静默断裂
+        this.#handleSessionServerLeft(parsed).catch((err) => {
+          console.warn(
+            "[User] session_server_left handler failed:",
+            err,
+          );
+        });
       }
     });
   }
@@ -211,19 +217,39 @@ export class LocalUser extends BaseUser {
 
   /**
    * 检查指定 userId 的 sessionId 是否在其他服务器或 RTC 上仍在线
+   *
+   * 在慢速机器上，服务器端状态变更可能尚未完全传播到查询路径，
+   * 因此当第一次查询全部返回 online 时，会进行一次短延迟重试。
+   *
    * @returns {Promise<boolean>} true 表示真的下线了，false 表示还在
    */
   async #checkSessionReallyOffline(userId, sessionId) {
-    // 1. 检查其他已连接服务器上该 session 是否还在
-    const urls = this.#server.connectedUrls;
-    for (const url of urls) {
-      try {
-        const result = await this.#server.queryUserOnline(url, userId);
-        if (result.online && result.sessions.includes(sessionId)) {
-          return false; // 在其他服务器上还在
+    // 最多尝试 2 次，覆盖服务器状态传播延迟
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const urls = this.#server.connectedUrls;
+      let anyFoundOnline = false;
+
+      for (const url of urls) {
+        try {
+          const result = await this.#server.queryUserOnline(url, userId);
+          if (result.online && result.sessions.includes(sessionId)) {
+            anyFoundOnline = true;
+            // 继续检查其他服务器（可能这个服务器上已下线，但其他服务器还在）
+          }
+        } catch {
+          // 查询失败的服务器跳过
         }
-      } catch {
-        // 查询失败的服务器跳过
+      }
+
+      // 只要有一个服务器上该 session 被确认还在线，说明未真正下线
+      if (anyFoundOnline) {
+        return false;
+      }
+
+      // 第一次查询全部未找到，但可能是服务器状态的短暂窗口
+      // 等待一小段时间后重试，兼顾慢速 CI 机器
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
 
