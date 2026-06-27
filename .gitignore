@@ -160,4 +160,4 @@ Cargo.lock
 _prompt*.md
 .webkit-test-data
 .chrome-test-data
-server/*.db
+server/**/*.db
