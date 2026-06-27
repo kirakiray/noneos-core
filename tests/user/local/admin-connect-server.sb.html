@@ -106,6 +106,8 @@
           const isUserIdMatch = adminImportedUser.userId === adminData.info.userId;
           const isUsernameMatch = adminImportedInfo.username === adminData.info.username;
 
+          adminImportedUser.server.disconnectAll();
+
           return {
             assert: isUserIdMatch && isUsernameMatch,
             content: {
@@ -159,6 +161,7 @@
 
           // 退出登录：断开服务器连接
           adminConUser.server.disconnect(adminConUrl);
+          adminConUser.server.disconnectAll();
 
           return {
             assert: isAdminAuth,
