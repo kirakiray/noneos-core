@@ -412,13 +412,26 @@ async fn handle_client_message(
                         });
                         let _ = ws_sender.send(Message::Text(resp.to_string())).await;
                     } else {
-                        state.add_watcher(conn_key, target, data_tx_for_watcher.clone());
+                        // 竞态保护：若目标用户已离线，不注册 watcher，直接补发 session_server_left
+                        let sessions = state.add_watcher_and_check(conn_key, target, data_tx_for_watcher.clone());
+                        if sessions.is_empty() {
+                            let notify = serde_json::json!({
+                                "type": "session_server_left",
+                                "user_id": target,
+                                "session_id": "",
+                                "username": "",
+                            });
+                            let _ = data_tx_for_watcher.send(Message::Text(notify.to_string()));
+                            eprintln!("[watch] {}:{} -> {} (target already offline, sent immediate notification)", user_id, session_id, target);
+                        }
                         let resp = serde_json::json!({
                             "type": "watch_user_response", "status": "ok",
                             "message": format!("Now watching user {}", target)
                         });
                         let _ = ws_sender.send(Message::Text(resp.to_string())).await;
-                        eprintln!("[watch] {}:{} -> {}", user_id, session_id, target);
+                        if !sessions.is_empty() {
+                            eprintln!("[watch] {}:{} -> {}", user_id, session_id, target);
+                        }
                     }
                 }
 

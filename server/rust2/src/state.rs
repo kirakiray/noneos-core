@@ -290,6 +290,22 @@ impl AppState {
 
     // ── 关注者系统 ──
 
+    /// 注册关注者，返回 target 的 session 信息列表。
+    /// 若 target 没有在线 session，返回空列表（此时 watcher 不应该注册，调用方应立即补发 session_server_left）。
+    pub fn add_watcher_and_check(
+        &self,
+        watcher_conn_key: &str,
+        watched_user_id: &str,
+        data_tx: mpsc::UnboundedSender<Message>,
+    ) -> Vec<serde_json::Value> {
+        let sessions = self.get_user_sessions_with_latency(watched_user_id);
+        if sessions.is_empty() {
+            return sessions; // target 不在线，不应注册 watcher
+        }
+        self.add_watcher(watcher_conn_key, watched_user_id, data_tx);
+        sessions
+    }
+
     pub fn add_watcher(&self, watcher_conn_key: &str, watched_user_id: &str, data_tx: mpsc::UnboundedSender<Message>) {
         let watchers = self.watchers.entry(watched_user_id.to_string()).or_default();
         watchers.insert(watcher_conn_key.to_string(), data_tx);
