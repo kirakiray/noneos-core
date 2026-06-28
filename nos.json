@@ -1,7 +1,7 @@
 {
   "version": "4.1.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782633426845,
+  "signTime": 1782636408978,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -145,8 +145,8 @@
     },
     {
       "path": "publish/data-publisher.js",
-      "hash": "91c2ba307b9bc47840cdf255a95fe9d5c00be31a980a51da6653ec91b3d6e5b9",
-      "size": 22789
+      "hash": "49c9c211b7619083a1fe3750ad1f2240df83b8e28352aac2e4e38c29976919dc",
+      "size": 21723
     },
     {
       "path": "publish/db.js",
@@ -215,8 +215,8 @@
     },
     {
       "path": "user/user.js",
-      "hash": "80d3251495ae70e62005e938c1da5040561a311849917f6526ea63a5679822ce",
-      "size": 22957
+      "hash": "4735ea570059a0207ecd10dab56785e91fee6dd97a616f7bf82a236fb96ee402",
+      "size": 17039
     },
     {
       "path": "util/async-pool.js",
@@ -264,5 +264,5 @@
       "size": 2117
     }
   ],
-  "signature": "sXteqWrcNmE0YQF6KDIzAekF4F4qfJbtSvXHEE32FnPVrHQHzVAsUxC5W2KFaoo/ntjPefSUH4eBPpZ8MANg0g=="
+  "signature": "0MTT4lpmrIb9buyheYxsT+LkG15gEFtPyqAXhVdOpHBD1ReGmFTseWhENCM/uo8ysAvNN3QvawYjRZVohlEv6A=="
 }

@@ -52,12 +52,6 @@ pub struct AppState {
     pub(crate) users: DashMap<String, UserSession>,
     /// 用户当前 session 计数：userId -> count
     pub(crate) user_session_counts: DashMap<String, usize>,
-    /// 关注者映射：watched_user_id -> { watcher_conn_key -> data_tx }
-    /// 当被关注用户的某个 session 断开时，通知所有关注者（每个关注者 conn_key 对应一个 WebSocket 连接）
-    pub(crate) watchers: DashMap<String, DashMap<String, mpsc::UnboundedSender<Message>>>,
-    /// 反向索引：watcher_conn_key -> [watched_user_id]
-    /// 用于 watcher 连接断开时清理所有关注关系
-    pub(crate) watch_targets: DashMap<String, Vec<String>>,
 }
 
 impl AppState {
@@ -69,8 +63,6 @@ impl AppState {
             users: DashMap::new(),
             user_quotas: DashMap::new(),
             user_session_counts: DashMap::new(),
-            watchers: DashMap::new(),
-            watch_targets: DashMap::new(),
             db,
         }
     }
@@ -194,58 +186,6 @@ impl AppState {
             Some(session)
         } else {
             None
-        }
-    }
-
-    /// 注册关注者：watcher（由其 conn_key 标识）关注 watched_user_id 的下线通知
-    pub fn add_watcher(&self, watcher_conn_key: &str, watched_user_id: &str, data_tx: mpsc::UnboundedSender<Message>) {
-        let watchers = self.watchers.entry(watched_user_id.to_string()).or_default();
-        watchers.insert(watcher_conn_key.to_string(), data_tx);
-
-        let mut targets = self.watch_targets.entry(watcher_conn_key.to_string()).or_default();
-        if !targets.contains(&watched_user_id.to_string()) {
-            targets.push(watched_user_id.to_string());
-        }
-    }
-
-    /// 取消关注：watcher 不再关注 watched_user_id
-    pub fn remove_watcher(&self, watcher_conn_key: &str, watched_user_id: &str) {
-        if let Some(watchers) = self.watchers.get_mut(watched_user_id) {
-            watchers.remove(watcher_conn_key);
-        }
-        if let Some(mut targets) = self.watch_targets.get_mut(watcher_conn_key) {
-            targets.retain(|id| id != watched_user_id);
-        }
-    }
-
-    /// 清理 watcher 的所有关注关系（watcher 连接断开时调用）
-    pub fn remove_all_watchers(&self, watcher_conn_key: &str) {
-        if let Some(targets) = self.watch_targets.get(watcher_conn_key) {
-            let watched_ids: Vec<String> = targets.clone();
-            drop(targets);
-            for watched_id in &watched_ids {
-                if let Some(watchers) = self.watchers.get_mut(watched_id) {
-                    watchers.remove(watcher_conn_key);
-                }
-            }
-        }
-        self.watch_targets.remove(watcher_conn_key);
-    }
-
-    /// 通知关注该 userId 的所有 watcher：其某个 session 已从本服务器断开
-    pub fn notify_watchers_session_left(&self, user_id: &str, session_id: &str, username: &str) {
-        if let Some(watchers) = self.watchers.get(user_id) {
-            let notify = serde_json::json!({
-                "type": "session_server_left",
-                "user_id": user_id,
-                "session_id": session_id,
-                "username": username,
-            });
-            if let Ok(text) = serde_json::to_string(&notify) {
-                for w in watchers.iter() {
-                    let _ = w.value().send(Message::Text(text.clone()));
-                }
-            }
         }
     }
 
@@ -560,7 +500,6 @@ pub async fn handle_connection(
             // 创建 disconnect 通道 and data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
-            let data_tx_for_watcher = data_tx.clone();
             if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
@@ -726,52 +665,6 @@ pub async fn handle_connection(
                                                     "message": format!("Unknown query action: {}", action)
                                                 });
                                                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                continue;
-                                            }
-
-                                            // 处理 watch_user：注册关注者，关注目标用户 session 的下线通知
-                                            if msg_type == "watch_user" {
-                                                let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                if target_user.is_empty() {
-                                                    let resp = serde_json::json!({
-                                                        "type": "watch_user_response",
-                                                        "status": "error",
-                                                        "message": "Missing target_user_id"
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                } else {
-                                                    state.add_watcher(&conn_key, target_user, data_tx_for_watcher.clone());
-                                                    let resp = serde_json::json!({
-                                                        "type": "watch_user_response",
-                                                        "status": "ok",
-                                                        "message": format!("Now watching user {}", target_user)
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    println!("Watcher added: {}:{} -> {}", user_id, session_id, target_user);
-                                                }
-                                                continue;
-                                            }
-
-                                            // 处理 unwatch_user：取消关注
-                                            if msg_type == "unwatch_user" {
-                                                let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                if target_user.is_empty() {
-                                                    let resp = serde_json::json!({
-                                                        "type": "unwatch_user_response",
-                                                        "status": "error",
-                                                        "message": "Missing target_user_id"
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                } else {
-                                                    state.remove_watcher(&conn_key, target_user);
-                                                    let resp = serde_json::json!({
-                                                        "type": "unwatch_user_response",
-                                                        "status": "ok",
-                                                        "message": format!("Stopped watching user {}", target_user)
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    println!("Watcher removed: {}:{} -> {}", user_id, session_id, target_user);
-                                                }
                                                 continue;
                                             }
 
@@ -1118,12 +1011,8 @@ pub async fn handle_connection(
 
             // 9. 无论通信循环是否出错，始终执行清理
             {
-                // 先移除此用户 session，再通知 watcher
-                // 顺序重要：先 remove_user 再 notify，避免 watcher 回查时该用户 session 尚未清除
-                state.remove_all_watchers(&conn_key);
+                // 移除此用户 session
                 state.remove_user(&conn_key);
-                // 通知关注该用户的所有 watcher：此 session 已从本服务器断开
-                state.notify_watchers_session_left(&user_id, &session_id, &username);
                 // 移除 session 流量统计
                 state.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_session(&conn_key);
 

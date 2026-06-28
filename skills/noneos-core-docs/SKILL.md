@@ -181,7 +181,6 @@ if (update?.hasUpdate) {
 ### 通信详细操作
 
 - [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
-- [Session 管理](references/connect-session.md) — 下线通知、多服务器、RTC 保活
 - [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 
 ---

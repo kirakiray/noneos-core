@@ -297,7 +297,6 @@ export class DataPublisher {
   /**
    * 请求远程用户的文件清单
    * 先查本地 DB，没有再发起网络请求
-   * session_left 事件中只对当前使用的 sessionId 做出响应，
    * 其他 session 下线不影响当前请求。
    * 当前 session 断开后自动重试一次。
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
@@ -350,18 +349,7 @@ export class DataPublisher {
 
     const sid = sessionId || (await this.#resolveSessionId(remoteUser));
 
-    const unbind = remoteUser.bind("session_left", (event) => {
-      // 只对当前使用的 sessionId 做出响应
-      if (event.detail.sessionId !== sid) return;
-      clearTimeout(timer);
-      this.#manifestRequestMap.delete(fileHash);
-      this.#invalidateSessionCache(remoteUser, sid);
-      reject(
-        new Error(`Session ${sid} disconnected, manifest request failed: ${fileHash}`),
-      );
-    });
-
-    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind });
+    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise });
 
     try {
       await remoteUser.send(
@@ -371,7 +359,6 @@ export class DataPublisher {
       );
     } catch (err) {
       clearTimeout(timer);
-      unbind();
       this.#manifestRequestMap.delete(fileHash);
       throw err;
     }
@@ -428,7 +415,6 @@ export class DataPublisher {
   /**
    * 请求远程用户的块数据
    * 先查本地 DB，没有再发起网络请求
-   * session_left 事件中只对当前使用的 sessionId 做出响应。
    * 当前 session 断开后自动重试一次。
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
    * @param {string} chunkHash - 块哈希
@@ -482,7 +468,6 @@ export class DataPublisher {
 
       const cleanup = () => {
         messageUnbind();
-        sessionLeftUnbind();
       };
 
       const timer = setTimeout(() => {
@@ -533,17 +518,6 @@ export class DataPublisher {
           cleanup();
           reject(new Error(data.error || "Chunk not found"));
         }
-      });
-
-      const sessionLeftUnbind = remoteUser.bind("session_left", (event) => {
-        // 只对当前使用的 sessionId 做出响应
-        if (event.detail.sessionId !== sid) return;
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        cleanup();
-        this.#invalidateSessionCache(remoteUser, sid);
-        reject(new Error(`Session ${sid} disconnected, chunk request failed: ${chunkHash}`));
       });
 
       // 发送请求（raw 模式跳过 E2EE）

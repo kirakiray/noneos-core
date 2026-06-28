@@ -55,9 +55,6 @@ export class LocalUser extends BaseUser {
 
     // 设置 RTC 直连消息并分发给对应的 RemoteUser 实例
     this.#setupRTCDispatch();
-    // 监听服务器的 session_server_left 通知，聚合后触发 session_left 事件
-    // 必须在 setupRelayDispatch 之前注册，确保优先拦截
-    this.#setupServerNotificationDispatch();
     // 监听 relay 消息并分发给对应的 RemoteUser 实例
     this.#setupRelayDispatch();
     // 监听 RTC 建立/断开事件，触发对应 RemoteUser 重新测量 RTT
@@ -164,174 +161,6 @@ export class LocalUser extends BaseUser {
         .then((remoteUser) => remoteUser.recalcRTT(sessionId))
         .catch(() => {});
     });
-  }
-
-  /**
-   * 监听服务端推送的 session_server_left 通知。
-   * 当收到的消息 type 为 session_server_left 时，拦截并做聚合决策：
-   * 1. 查其他已连接服务器上该 session 是否还在
-   * 2. 查 RTC DataChannel 是否还连通
-   * 只有所有链路都不通时才触发 session_left 事件
-   *
-   * 同时会触发 session_server_left 事件（在聚合前），
-   * 让外部监听者可以感知某台服务器上特定 session 已断开。
-   */
-  #setupServerNotificationDispatch() {
-    this.bind("message", (event) => {
-      const detail = event.detail;
-      if (typeof detail.data !== "string") return;
-      let parsed;
-      try {
-        parsed = JSON.parse(detail.data);
-      } catch {
-        return;
-      }
-      if (parsed.type === "session_server_left") {
-        event.stopImmediatePropagation();
-        
-        // 避免在 message 事件处理中同步派发新的 CustomEvent，
-        // 解决 Firefox/Safari 在非 DOM EventTarget 上嵌套派发事件和 stopImmediatePropagation 的冲突
-        queueMicrotask(() => {
-          // 先触发 per-server 事件（聚合前），带上服务器 URL 和 session 信息
-          this._trigger("session_server_left", {
-            url: detail.url,
-            userId: parsed.user_id,
-            sessionId: parsed.session_id,
-            username: parsed.username || "",
-          });
-          // fire-and-forget，但必须 catch 未捕获异常，防止 session_left 事件链静默断裂
-          this.#handleSessionServerLeft(parsed).catch((err) => {
-            console.warn(
-              "[User] session_server_left handler failed:",
-              err,
-            );
-          });
-        });
-      }
-    });
-  }
-
-  /**
-   * 收到 session_server_left 通知后，聚合判断是否真的下线
-   */
-  async #handleSessionServerLeft(data) {
-    const { user_id, session_id, username } = data;
-    const reallyOffline = await this.#checkSessionReallyOffline(
-      user_id,
-      session_id,
-    );
-    if (reallyOffline) {
-      this._trigger("session_left", {
-        userId: user_id,
-        sessionId: session_id,
-        username: username || "",
-      });
-      this.#dispatchSessionLeftToRemote(user_id, session_id, username || "");
-    }
-  }
-
-  /**
-   * 检查指定 userId 的 sessionId 是否在其他服务器或 RTC 上仍在线
-   *
-   * 在慢速机器上，服务器端状态变更可能尚未完全传播到查询路径，
-   * 因此当第一次查询全部返回 online 时，会进行一次短延迟重试。
-   *
-   * @returns {Promise<boolean>} true 表示真的下线了，false 表示还在
-   */
-  async #checkSessionReallyOffline(userId, sessionId) {
-    // 最多尝试 2 次，覆盖服务器状态传播延迟
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const urls = this.#server.connectedUrls;
-      let anyFoundOnline = false;
-
-      for (const url of urls) {
-        try {
-          const result = await this.#server.queryUserOnline(url, userId);
-          if (result.online && result.sessions.includes(sessionId)) {
-            anyFoundOnline = true;
-            // 继续检查其他服务器（可能这个服务器上已下线，但其他服务器还在）
-          }
-        } catch {
-          // 查询失败的服务器跳过
-        }
-      }
-
-      // 只要有一个服务器上该 session 被确认还在线，说明未真正下线
-      if (anyFoundOnline) {
-        if (attempt === 0) {
-          // 如果第一轮查到在线，可能是其他服务器状态传播延迟，等待 500ms 重试
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          continue;
-        }
-        return false;
-      }
-
-      // 第一次查询全部未找到，但可能是服务器状态的短暂窗口
-      // 等待一小段时间后重试，兼顾慢速 CI 机器
-      if (attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-    }
-
-    // 2. 检查 RTC DataChannel 是否还连通
-    const dc = this.#rtc.getChannel(userId, sessionId);
-    if (dc && dc.readyState === "open") {
-      return false; // RTC 还通着
-    }
-
-    return true; // 所有链路都不通，真的下线了
-  }
-
-  /**
-   * 将 session_left 事件分发给缓存的 RemoteUser 实例
-   */
-  #dispatchSessionLeftToRemote(userId, sessionId, username) {
-    if (!this.#remoteUserCache.has(userId)) return;
-    const remoteUserPromise = this.#remoteUserCache.get(userId);
-    Promise.resolve(remoteUserPromise).then((remoteUser) => {
-      remoteUser._trigger("session_left", {
-        sessionId,
-        username,
-      });
-    });
-  }
-
-  /**
-   * 向所有已连接服务器注册关注（watch）指定 userId 的下线通知
-   */
-  async #watchUser(userId) {
-    for (const url of this.#server.connectedUrls) {
-      try {
-        this.#server.sendToServer(
-          url,
-          JSON.stringify({
-            type: "watch_user",
-            target_user_id: userId,
-          }),
-        );
-      } catch {
-        // 发送失败的服务器跳过
-      }
-    }
-  }
-
-  /**
-   * 向所有已连接服务器取消关注（unwatch）指定 userId 的下线通知
-   */
-  async #unwatchUser(userId) {
-    for (const url of this.#server.connectedUrls) {
-      try {
-        this.#server.sendToServer(
-          url,
-          JSON.stringify({
-            type: "unwatch_user",
-            target_user_id: userId,
-          }),
-        );
-      } catch {
-        // 发送失败的服务器跳过
-      }
-    }
   }
 
   /**
@@ -473,7 +302,6 @@ export class LocalUser extends BaseUser {
         // 无法 connect 时创建一个轻量 RemoteUser（不查在线状态）
         remoteUser = new RemoteUser(fromUserId, this);
         this.#remoteUserCache.set(fromUserId, Promise.resolve(remoteUser));
-        this.#watchUser(fromUserId);
       }
     }
 
@@ -682,8 +510,6 @@ export class LocalUser extends BaseUser {
       throw new Error(`User ${userId} is not online on any connected server`);
     }
     const remoteUser = new RemoteUser(userId, this);
-    // 自动在所有已连接服务器注册关注，以便接收对方 session 的下线通知
-    this.#watchUser(userId);
     return remoteUser;
   }
 
@@ -693,7 +519,6 @@ export class LocalUser extends BaseUser {
    * @param {string} userId - 目标用户的 userId
    */
   async disconnectUser(userId) {
-    await this.#unwatchUser(userId);
     this.#remoteUserCache.delete(userId);
   }
 
