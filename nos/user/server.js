@@ -115,10 +115,10 @@ export class ServerManager {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
-   * @param {number} [retries=1] - 连接失败后的重试次数
+   * @param {number} [retries=3] - 连接失败后的重试次数
    * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
-  async connect(url, retries = 1) {
+  async connect(url, retries = 3) {
     // 检查是否已有可用连接
     if (this.#wsMap.has(url)) {
       const existingWs = this.#wsMap.get(url);
@@ -150,7 +150,7 @@ export class ServerManager {
       let lastError;
       for (let i = 0; i <= retries; i++) {
         if (i > 0) {
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 200));
           console.warn(
             `[ServerManager] Retrying connection to ${url} (attempt ${i + 1}/${retries})`,
           );
