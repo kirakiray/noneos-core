@@ -1,0 +1,133 @@
+name: Build Rust Server
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-linux:
+    name: Linux (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compiler (ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build
+        working-directory: server/rust
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noneos-handshake-${{ matrix.target }}
+          path: server/rust/target/${{ matrix.target }}/release/noneos-handshake
+          compression-level: 0
+
+  build-windows:
+    name: Windows (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-gnu
+          - aarch64-pc-windows-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install MinGW
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+          # 为 ARM64 Windows 额外安装
+          if [ "${{ matrix.target }}" = "aarch64-pc-windows-gnu" ]; then
+            sudo apt-get install -y gcc-mingw-w64-aarch64
+          fi
+
+      - name: Build
+        working-directory: server/rust
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noneos-handshake-${{ matrix.target }}
+          path: server/rust/target/${{ matrix.target }}/release/noneos-handshake.exe
+          compression-level: 0
+
+  build-macos:
+    name: macOS (aarch64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build
+        working-directory: server/rust
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noneos-handshake-aarch64-apple-darwin
+          path: server/rust/target/aarch64-apple-darwin/release/noneos-handshake
+          compression-level: 0
+
+  upload-release:
+    name: Upload to release
+    needs: [build-linux, build-windows, build-macos]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure
+        run: ls -laR artifacts
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for dir in artifacts/*/; do
+            dirname=$(basename "$dir")
+            asset_name="${dirname}.tar.gz"
+            if ls "$dir"/*.exe 1> /dev/null 2>&1; then
+              asset_name="${dirname}.zip"
+              (cd "$dir" && zip -q "$GITHUB_WORKSPACE/$asset_name" ./*)
+            else
+              tar czf "$asset_name" -C "$dir" .
+            fi
+            gh release upload "${{ github.event.release.tag_name }}" "$asset_name" --clobber
+          done
