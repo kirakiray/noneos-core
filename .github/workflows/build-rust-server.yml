@@ -143,5 +143,5 @@ jobs:
               tar czf "$asset_name" -C "$dir" .
             fi
             TAG="${{ github.event.release.tag_name || github.event.inputs.release_tag }}"
-            gh release upload "$TAG" "$asset_name" --clobber --repo ${{ github.repository }}
+            gh release upload "$TAG" "$asset_name" --repo "$GITHUB_REPOSITORY" --clobber
           done
