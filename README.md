@@ -24,43 +24,47 @@ await remote.send(sessionId, { text: "Hello from NoneOS!" });
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    Browser (ofajs app)                    │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────────────┐  │
-│  │  nos/fs   │  │ nos/user │  │ nos/publish           │  │
-│  │ (OPFS-    │  │ (decent- │  │ (DataPublisher        │  │
-│  │  backed)  │  │ ralized  │  │  & AppManager)        │  │
-│  │           │  │ identity)│  │                       │  │
-│  └──────────┘  └────┬─────┘  └───────────────────────┘  │
-│                      │ WebSocket relay / RTC signaling   │
-├──────────────────────┼──────────────────────────────────┤
-│              Service Worker (sw/)                        │
-│         (fetch interception, caching, routing)           │
-└──────────────────────┼──────────────────────────────────┘
-                       │ WebSocket (wss://)
-┌──────────────────────┼──────────────────────────────────┐
-│         Rust Relay Server (server/rust/)                 │
-│  ┌──────────┐ ┌───────────┐ ┌────────────────────────┐  │
-│  │Handshake │ │  Message  │ │ Traffic Stats          │  │
-│  │(ECDSA    │ │  Relay    │ │ (redb persistence)     │  │
-│  │Challenge)│ │           │ │                        │  │
-│  └──────────┘ ├───────────┤ ├────────────────────────┤  │
-│               │ RTC Sig-  │ │ Quota / Abuse          │  │
-│               │ nal Tunnel│ │ Protection             │  │
-│               │(transpar- │ │                        │  │
-│               │ ent pass- │ │                        │  │
-│               │ through)  │ │                        │  │
-│  ┌──────────┐ └───────────┘ └────────────────────────┘  │
-│  │ Admin    │ ┌───────────┐ ┌────────────────────────┐  │
-│  │ Commands │ │ Heartbeat │ │ Memory Overload        │  │
-│  │          │ │ Detection │ │ Protection             │  │
-│  └──────────┘ └───────────┘ └────────────────────────┘  │
-└──────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                         Browser (ofajs app)                           │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │                    ofa.js Framework                           │    │
+│  │             (Web Components, data binding, routing)           │    │
+│  └─────────────────────┬────────────────────────────────────────┘    │
+│                        │                                              │
+│  ┌──────────┐  ┌──────┴──────┐  ┌────────────────────────────────┐   │
+│  │  nos/fs   │  │  nos/user  │  │  nos/publish                  │   │
+│  │ (OPFS-    │  │ (decent-   │  │ (DataPublisher & AppManager)  │   │
+│  │  backed)  │  │  ralized   │  │                                │   │
+│  │           │  │  identity) │  │                                │   │
+│  └──────────┘  └──────┬─────┘  └────────────────────────────────┘   │
+│                        │ WebSocket relay / RTC signaling             │
+├────────────────────────┼────────────────────────────────────────────┤
+│                   Service Worker (sw/)                               │
+│               (fetch interception, caching, routing)                 │
+└────────────────────────┼────────────────────────────────────────────┘
+                         │ WebSocket (wss://)
+┌────────────────────────┼────────────────────────────────────────────┐
+│                Rust Relay Server (server/rust/)                      │
+│  ┌──────────┐  ┌──────┴──────┐  ┌──────────────────────────────┐   │
+│  │ Handshake│  │  Message    │  │  Traffic Stats               │   │
+│  │ (ECDSA   │  │  Relay      │  │  (redb persistence)          │   │
+│  │ P-256)   │  │             │  │                              │   │
+│  └──────────┘  ├─────────────┤  ├──────────────────────────────┤   │
+│                │ RTC Signal  │  │  Quota / Abuse               │   │
+│                │ Tunnel      │  │  Protection                  │   │
+│                │(transparent │  │                              │   │
+│                │ pass-through│  └──────────────────────────────┘   │
+│  ┌──────────┐  └─────────────┘  ┌──────────────────────────────┐   │
+│  │  Admin   │  ┌─────────────┐  │  Memory Overload             │   │
+│  │ Commands │  │  Heartbeat  │  │  Protection                  │   │
+│  └──────────┘  │  Detection  │  └──────────────────────────────┘   │
+│                └─────────────┘                                     │
+└────────────────────────────────────────────────────────────────────┘
 
-     ─ ─ ─  WebRTC direct (once negotiated via server) ─ ─ ─
-     │                                                     │
-     ▼                                                     ▼
-  Browser A                                         Browser B
+      ─ ─ ─  WebRTC direct (once negotiated via server) ─ ─ ─
+      │                                                          │
+      ▼                                                          ▼
+   Browser A                                               Browser B
 ```
 
 The Rust relay server provides **challenge-response authentication** (ECDSA P-256), **message relay**, and **RTC signaling tunnel** between users. Server-negotiated relay is always available as a fallback, but once peers discover each other they can switch to direct **WebRTC** connections — the relay server transparently passes SDP/ICE signaling messages as ordinary relay data, with no server-side awareness of the signaling protocol.
