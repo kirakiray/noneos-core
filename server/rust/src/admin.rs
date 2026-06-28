@@ -110,7 +110,7 @@ impl AppState {
         if count > 0 {
             self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(count));
             // 清理流量统计中的对应 session 条目
-            self.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_sessions_by_prefix(&prefix);
+            self.traffic.remove_sessions_by_prefix(&prefix);
         }
         
         count
@@ -126,7 +126,7 @@ impl AppState {
             }
             self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
             // 清理流量统计
-            self.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_session(&conn_key);
+            self.traffic.remove_session(&conn_key);
             true
         } else {
             false
@@ -493,7 +493,7 @@ pub async fn handle_admin_command(
             }
         }
         "get_traffic_stats" => {
-            let traffic_resp = state.traffic.lock().unwrap().build_response(admin_cmd.limit);
+            let traffic_resp = state.traffic.build_response(admin_cmd.limit);
             AdminResponse {
                 msg_type: "admin_response".to_string(),
                 action: "get_traffic_stats".to_string(),

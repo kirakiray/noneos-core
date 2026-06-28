@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use redb::{Database, ReadableTable, TableDefinition, ReadableDatabase};
+use std::sync::atomic::{AtomicU64, Ordering};
+use dashmap::DashMap;
 
 // ===== Redb 表定义 =====
 
@@ -41,19 +43,13 @@ pub struct UserRecord {
     pub used_bytes: u64,
 }
 
-/// 单个 session 的流量计数器（纯内存，不再持久化到 DB）
+/// 分钟级流量桶（用于 get_traffic_stats 响应）
 #[derive(Debug, Clone, Serialize)]
-pub struct SessionTraffic {
-    pub conn_key: String,
-    pub user_id: String,
-    pub session_id: String,
-    pub username: String,
+pub struct MinuteBucket {
+    pub minute_epoch: u64,
     pub inbound_bytes: u64,
     pub outbound_bytes: u64,
     pub relay_forwarded_bytes: u64,
-    pub handshake_bytes: u64,
-    pub created_at: u64,
-    pub last_activity_at: u64,
 }
 
 /// 按用户聚合的流量摘要
@@ -62,15 +58,6 @@ pub struct UserTrafficSummary {
     pub user_id: String,
     pub username: String,
     pub session_count: usize,
-    pub inbound_bytes: u64,
-    pub outbound_bytes: u64,
-    pub relay_forwarded_bytes: u64,
-    pub handshake_bytes: u64,
-}
-
-/// 全局流量汇总（内存 + DB 全局累计值）
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct GlobalTraffic {
     pub inbound_bytes: u64,
     pub outbound_bytes: u64,
     pub relay_forwarded_bytes: u64,
@@ -86,15 +73,6 @@ pub struct TrafficStatsResponse {
     pub user_count: usize,
 }
 
-/// 分钟级流量桶（用于 get_traffic_stats 响应）
-#[derive(Debug, Clone, Serialize)]
-pub struct MinuteBucket {
-    pub minute_epoch: u64,
-    pub inbound_bytes: u64,
-    pub outbound_bytes: u64,
-    pub relay_forwarded_bytes: u64,
-}
-
 /// 系统统计记录
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemStatsRecord {
@@ -103,118 +81,169 @@ pub struct SystemStatsRecord {
     pub memory_usage_percent: f64,
 }
 
-/// 流量统计容器（纯内存，存于 AppState.traffic）
+/// 单个 session 的流量计数器
+#[derive(Debug, Serialize)]
+pub struct SessionTraffic {
+    pub conn_key: String,
+    pub user_id: String,
+    pub session_id: String,
+    pub username: String,
+    pub inbound_bytes: AtomicU64,
+    pub outbound_bytes: AtomicU64,
+    pub relay_forwarded_bytes: AtomicU64,
+    pub handshake_bytes: AtomicU64,
+    pub created_at: u64,
+    pub last_activity_at: AtomicU64,
+}
+
+impl Clone for SessionTraffic {
+    fn clone(&self) -> Self {
+        Self {
+            conn_key: self.conn_key.clone(),
+            user_id: self.user_id.clone(),
+            session_id: self.session_id.clone(),
+            username: self.username.clone(),
+            inbound_bytes: AtomicU64::new(self.inbound_bytes.load(Ordering::Relaxed)),
+            outbound_bytes: AtomicU64::new(self.outbound_bytes.load(Ordering::Relaxed)),
+            relay_forwarded_bytes: AtomicU64::new(self.relay_forwarded_bytes.load(Ordering::Relaxed)),
+            handshake_bytes: AtomicU64::new(self.handshake_bytes.load(Ordering::Relaxed)),
+            created_at: self.created_at,
+            last_activity_at: AtomicU64::new(self.last_activity_at.load(Ordering::Relaxed)),
+        }
+    }
+}
+
+/// 全局流量汇总（原子版本）
+#[derive(Debug, Default)]
+pub struct AtomicGlobalTraffic {
+    pub inbound_bytes: AtomicU64,
+    pub outbound_bytes: AtomicU64,
+    pub relay_forwarded_bytes: AtomicU64,
+    pub handshake_bytes: AtomicU64,
+}
+
+/// 全局流量汇总（纯数据版本，用于序列化）
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct GlobalTraffic {
+    pub inbound_bytes: u64,
+    pub outbound_bytes: u64,
+    pub relay_forwarded_bytes: u64,
+    pub handshake_bytes: u64,
+}
+
+/// 流量统计容器（高性能并发版）
 pub struct TrafficStats {
-    pub sessions: HashMap<String, SessionTraffic>,
-    pub global: GlobalTraffic,
+    pub sessions: DashMap<String, SessionTraffic>,
+    pub global: AtomicGlobalTraffic,
 
     // ---- 以下字段用于 30s 周期 flush ----
 
-    /// 当前 30s 窗口内的 delta 累计值（每次 flush 后重置）
-    interval_inbound: u64,
-    interval_outbound: u64,
-    interval_relay: u64,
+    /// 当前 30s 窗口内的 delta 累计值
+    interval_inbound: AtomicU64,
+    interval_outbound: AtomicU64,
+    interval_relay: AtomicU64,
 
     /// 当前 30s 窗口内的用户粒度转发聚合：(from_user, to_user) -> bytes
-    /// 双路径：定时 flush + 用户断开时即时写入
-    user_traffic_map: HashMap<(String, String), u64>,
+    /// 使用 DashMap 减少锁竞争
+    user_traffic_map: DashMap<(String, String), u64>,
 
-    /// 当前 30s 窗口的 epoch（now_ms / 30000），暂未使用
-    #[allow(dead_code)]
-    current_interval_epoch: u64,
     /// 当前分钟窗口（只用于 in-memory 的 get_traffic_stats）
-    minute_buckets: std::collections::VecDeque<MinuteBucket>,
+    /// 这里的队列操作相对低频，可以用 Mutex 保护
+    minute_buckets: std::sync::Mutex<std::collections::VecDeque<MinuteBucket>>,
     minute_window: usize,
-    current_minute_epoch: u64,
+    current_minute_epoch: AtomicU64,
 }
 
 impl TrafficStats {
     pub fn new(minute_window: usize) -> Self {
         Self {
-            sessions: HashMap::new(),
-            global: GlobalTraffic::default(),
-            interval_inbound: 0,
-            interval_outbound: 0,
-            interval_relay: 0,
-            user_traffic_map: HashMap::new(),
-            current_interval_epoch: 0,
-            minute_buckets: std::collections::VecDeque::with_capacity(minute_window),
+            sessions: DashMap::new(),
+            global: AtomicGlobalTraffic::default(),
+            interval_inbound: AtomicU64::new(0),
+            interval_outbound: AtomicU64::new(0),
+            interval_relay: AtomicU64::new(0),
+            user_traffic_map: DashMap::new(),
+            minute_buckets: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(minute_window)),
             minute_window,
-            current_minute_epoch: 0,
+            current_minute_epoch: AtomicU64::new(0),
         }
     }
 
-    pub fn set_global(&mut self, global: GlobalTraffic) {
-        self.global = global;
+    pub fn set_global(&self, global: GlobalTraffic) {
+        self.global.inbound_bytes.store(global.inbound_bytes, Ordering::Relaxed);
+        self.global.outbound_bytes.store(global.outbound_bytes, Ordering::Relaxed);
+        self.global.relay_forwarded_bytes.store(global.relay_forwarded_bytes, Ordering::Relaxed);
+        self.global.handshake_bytes.store(global.handshake_bytes, Ordering::Relaxed);
     }
 
     pub fn register_session(
-        &mut self,
+        &self,
         conn_key: &str,
         user_id: &str,
         session_id: &str,
         username: &str,
         now_ms: u64,
     ) {
-        self.sessions.entry(conn_key.to_string()).or_insert(SessionTraffic {
+        self.sessions.insert(conn_key.to_string(), SessionTraffic {
             conn_key: conn_key.to_string(),
             user_id: user_id.to_string(),
             session_id: session_id.to_string(),
             username: username.to_string(),
-            inbound_bytes: 0,
-            outbound_bytes: 0,
-            relay_forwarded_bytes: 0,
-            handshake_bytes: 0,
+            inbound_bytes: AtomicU64::new(0),
+            outbound_bytes: AtomicU64::new(0),
+            relay_forwarded_bytes: AtomicU64::new(0),
+            handshake_bytes: AtomicU64::new(0),
             created_at: now_ms,
-            last_activity_at: now_ms,
+            last_activity_at: AtomicU64::new(now_ms),
         });
     }
 
-    pub fn remove_session(&mut self, conn_key: &str) -> Option<SessionTraffic> {
-        self.sessions.remove(conn_key)
+    pub fn remove_session(&self, conn_key: &str) -> Option<SessionTraffic> {
+        self.sessions.remove(conn_key).map(|(_, s)| s)
     }
 
     /// 移除所有 conn_key 以指定前缀开头的 session（用于管理员按 userId 批量踢出）
     /// 返回被移除的 session 数量
-    pub fn remove_sessions_by_prefix(&mut self, prefix: &str) -> usize {
-        let keys: Vec<String> = self.sessions.keys()
-            .filter(|k| k.starts_with(prefix))
-            .cloned()
-            .collect();
-        let count = keys.len();
-        for key in keys {
-            self.sessions.remove(&key);
-        }
+    pub fn remove_sessions_by_prefix(&self, prefix: &str) -> usize {
+        let mut count = 0;
+        self.sessions.retain(|k, _| {
+            if k.starts_with(prefix) {
+                count += 1;
+                false
+            } else {
+                true
+            }
+        });
         count
     }
 
     /// 入站流量：更新 session 计数 + 全局累计 + 区间 delta
-    pub fn add_inbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
+    pub fn add_inbound(&self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, bytes, 0, 0);
-        self.global.inbound_bytes = self.global.inbound_bytes.saturating_add(bytes);
-        self.interval_inbound = self.interval_inbound.saturating_add(bytes);
-        if let Some(s) = self.sessions.get_mut(conn_key) {
-            s.inbound_bytes = s.inbound_bytes.saturating_add(bytes);
-            s.last_activity_at = now_ms;
+        self.global.inbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.interval_inbound.fetch_add(bytes, Ordering::Relaxed);
+        if let Some(s) = self.sessions.get(conn_key) {
+            s.inbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+            s.last_activity_at.store(now_ms, Ordering::Relaxed);
         }
     }
 
     /// 出站流量：更新 session 计数 + 全局累计 + 区间 delta
-    pub fn add_outbound(&mut self, conn_key: &str, bytes: u64, now_ms: u64) {
+    pub fn add_outbound(&self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, 0, bytes, 0);
-        self.global.outbound_bytes = self.global.outbound_bytes.saturating_add(bytes);
-        self.interval_outbound = self.interval_outbound.saturating_add(bytes);
-        if let Some(s) = self.sessions.get_mut(conn_key) {
-            s.outbound_bytes = s.outbound_bytes.saturating_add(bytes);
-            s.last_activity_at = now_ms;
+        self.global.outbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.interval_outbound.fetch_add(bytes, Ordering::Relaxed);
+        if let Some(s) = self.sessions.get(conn_key) {
+            s.outbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+            s.last_activity_at.store(now_ms, Ordering::Relaxed);
         }
     }
 
     /// 转发流量：更新 session 计数 + 全局累计 + 区间 delta + 用户粒度分布
-    pub fn add_relay_forwarded(&mut self, conn_key: &str, bytes: u64, now_ms: u64, from_user: &str, to_user: &str) {
+    pub fn add_relay_forwarded(&self, conn_key: &str, bytes: u64, now_ms: u64, from_user: &str, to_user: &str) {
         self.update_minute_bucket(now_ms, 0, 0, bytes);
-        self.global.relay_forwarded_bytes = self.global.relay_forwarded_bytes.saturating_add(bytes);
-        self.interval_relay = self.interval_relay.saturating_add(bytes);
+        self.global.relay_forwarded_bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.interval_relay.fetch_add(bytes, Ordering::Relaxed);
 
         // 累加到用户粒度转发分布
         let key = (from_user.to_string(), to_user.to_string());
@@ -222,48 +251,56 @@ impl TrafficStats {
             .and_modify(|v| *v = v.saturating_add(bytes))
             .or_insert(bytes);
 
-        if let Some(s) = self.sessions.get_mut(conn_key) {
-            s.relay_forwarded_bytes = s.relay_forwarded_bytes.saturating_add(bytes);
-            s.last_activity_at = now_ms;
+        if let Some(s) = self.sessions.get(conn_key) {
+            s.relay_forwarded_bytes.fetch_add(bytes, Ordering::Relaxed);
+            s.last_activity_at.store(now_ms, Ordering::Relaxed);
         }
     }
 
-    pub fn add_handshake(&mut self, conn_key: &str, bytes: u64, _now_ms: u64) {
-        self.global.handshake_bytes = self.global.handshake_bytes.saturating_add(bytes);
-        if let Some(s) = self.sessions.get_mut(conn_key) {
-            s.handshake_bytes = s.handshake_bytes.saturating_add(bytes);
+    pub fn add_handshake(&self, conn_key: &str, bytes: u64, _now_ms: u64) {
+        self.global.handshake_bytes.fetch_add(bytes, Ordering::Relaxed);
+        if let Some(s) = self.sessions.get(conn_key) {
+            s.handshake_bytes.fetch_add(bytes, Ordering::Relaxed);
         }
     }
 
     /// 更新 in-memory 分钟级桶（供 get_traffic_stats 管理端使用）
-    fn update_minute_bucket(&mut self, now_ms: u64, inbound: u64, outbound: u64, relay: u64) {
+    fn update_minute_bucket(&self, now_ms: u64, inbound: u64, outbound: u64, relay: u64) {
         let minute_epoch = now_ms / 60_000;
-        if minute_epoch != self.current_minute_epoch {
-            if let Some(last) = self.minute_buckets.back() {
-                for m in (last.minute_epoch + 1)..minute_epoch {
-                    if self.minute_buckets.len() >= self.minute_window {
-                        self.minute_buckets.pop_front();
+        let mut current_epoch = self.current_minute_epoch.load(Ordering::Relaxed);
+        
+        if minute_epoch != current_epoch {
+            let mut buckets = self.minute_buckets.lock().unwrap();
+            // 双重检查，防止加锁期间已被其他线程更新
+            current_epoch = self.current_minute_epoch.load(Ordering::Relaxed);
+            if minute_epoch != current_epoch {
+                if let Some(last) = buckets.back() {
+                    for m in (last.minute_epoch + 1)..minute_epoch {
+                        if buckets.len() >= self.minute_window {
+                            buckets.pop_front();
+                        }
+                        buckets.push_back(MinuteBucket {
+                            minute_epoch: m,
+                            inbound_bytes: 0,
+                            outbound_bytes: 0,
+                            relay_forwarded_bytes: 0,
+                        });
                     }
-                    self.minute_buckets.push_back(MinuteBucket {
-                        minute_epoch: m,
-                        inbound_bytes: 0,
-                        outbound_bytes: 0,
-                        relay_forwarded_bytes: 0,
-                    });
                 }
+                self.current_minute_epoch.store(minute_epoch, Ordering::Relaxed);
             }
-            self.current_minute_epoch = minute_epoch;
         }
 
-        if let Some(bucket) = self.minute_buckets.iter_mut().rev().find(|b| b.minute_epoch == minute_epoch) {
+        let mut buckets = self.minute_buckets.lock().unwrap();
+        if let Some(bucket) = buckets.iter_mut().rev().find(|b| b.minute_epoch == minute_epoch) {
             bucket.inbound_bytes = bucket.inbound_bytes.saturating_add(inbound);
             bucket.outbound_bytes = bucket.outbound_bytes.saturating_add(outbound);
             bucket.relay_forwarded_bytes = bucket.relay_forwarded_bytes.saturating_add(relay);
         } else {
-            if self.minute_buckets.len() >= self.minute_window {
-                self.minute_buckets.pop_front();
+            if buckets.len() >= self.minute_window {
+                buckets.pop_front();
             }
-            self.minute_buckets.push_back(MinuteBucket {
+            buckets.push_back(MinuteBucket {
                 minute_epoch,
                 inbound_bytes: inbound,
                 outbound_bytes: outbound,
@@ -273,23 +310,27 @@ impl TrafficStats {
     }
 
     /// 提取当前区间 delta 并重置（供 flush 任务调用）
-    pub fn take_interval_deltas(&mut self) -> (u64, u64, u64) {
-        let deltas = (self.interval_inbound, self.interval_outbound, self.interval_relay);
-        self.interval_inbound = 0;
-        self.interval_outbound = 0;
-        self.interval_relay = 0;
-        deltas
+    pub fn take_interval_deltas(&self) -> (u64, u64, u64) {
+        (
+            self.interval_inbound.swap(0, Ordering::Relaxed),
+            self.interval_outbound.swap(0, Ordering::Relaxed),
+            self.interval_relay.swap(0, Ordering::Relaxed),
+        )
     }
 
     /// 提取当前用户粒度转发分布并重置（供 flush 任务调用）
-    /// 返回 (from, to) -> bytes 的映射
-    pub fn take_user_traffic_map(&mut self) -> HashMap<(String, String), u64> {
-        std::mem::take(&mut self.user_traffic_map)
+    pub fn take_user_traffic_map(&self) -> HashMap<(String, String), u64> {
+        let mut map = HashMap::new();
+        // DashMap 的 retain 会锁住分段，但在 flush 这种低频任务中可以接受
+        self.user_traffic_map.retain(|k, v| {
+            map.insert(k.clone(), *v);
+            false // 全部移除
+        });
+        map
     }
 
     /// 提取指定用户的转发分布条目（用户断开时调用）
-    /// 返回该用户作为 from 的所有 (to, bytes) 对，并从内存映射中移除
-    pub fn take_user_relay_entries(&mut self, user_id: &str) -> Vec<(String, u64)> {
+    pub fn take_user_relay_entries(&self, user_id: &str) -> Vec<(String, u64)> {
         let mut entries = Vec::new();
         self.user_traffic_map.retain(|(from, to), bytes| {
             if from == user_id {
@@ -303,12 +344,18 @@ impl TrafficStats {
     }
 
     pub fn compute_global(&self) -> GlobalTraffic {
-        self.global.clone()
+        GlobalTraffic {
+            inbound_bytes: self.global.inbound_bytes.load(Ordering::Relaxed),
+            outbound_bytes: self.global.outbound_bytes.load(Ordering::Relaxed),
+            relay_forwarded_bytes: self.global.relay_forwarded_bytes.load(Ordering::Relaxed),
+            handshake_bytes: self.global.handshake_bytes.load(Ordering::Relaxed),
+        }
     }
 
     pub fn compute_user_summaries(&self) -> Vec<UserTrafficSummary> {
         let mut user_map: HashMap<String, UserTrafficSummary> = HashMap::new();
-        for s in self.sessions.values() {
+        for r in self.sessions.iter() {
+            let s = r.value();
             let entry = user_map.entry(s.user_id.clone()).or_insert(UserTrafficSummary {
                 user_id: s.user_id.clone(),
                 username: String::new(),
@@ -320,10 +367,10 @@ impl TrafficStats {
             });
             entry.username = s.username.clone();
             entry.session_count = entry.session_count.saturating_add(1);
-            entry.inbound_bytes = entry.inbound_bytes.saturating_add(s.inbound_bytes);
-            entry.outbound_bytes = entry.outbound_bytes.saturating_add(s.outbound_bytes);
-            entry.relay_forwarded_bytes = entry.relay_forwarded_bytes.saturating_add(s.relay_forwarded_bytes);
-            entry.handshake_bytes = entry.handshake_bytes.saturating_add(s.handshake_bytes);
+            entry.inbound_bytes = entry.inbound_bytes.saturating_add(s.inbound_bytes.load(Ordering::Relaxed));
+            entry.outbound_bytes = entry.outbound_bytes.saturating_add(s.outbound_bytes.load(Ordering::Relaxed));
+            entry.relay_forwarded_bytes = entry.relay_forwarded_bytes.saturating_add(s.relay_forwarded_bytes.load(Ordering::Relaxed));
+            entry.handshake_bytes = entry.handshake_bytes.saturating_add(s.handshake_bytes.load(Ordering::Relaxed));
         }
         let mut users: Vec<UserTrafficSummary> = user_map.into_values().collect();
         users.sort_by_key(|b| std::cmp::Reverse(b.inbound_bytes));
@@ -331,7 +378,7 @@ impl TrafficStats {
     }
 
     pub fn get_time_distribution(&self) -> Vec<MinuteBucket> {
-        self.minute_buckets.iter().cloned().collect()
+        self.minute_buckets.lock().unwrap().iter().cloned().collect()
     }
 
     pub fn build_response(&self, limit: Option<usize>) -> TrafficStatsResponse {

@@ -49,7 +49,7 @@ pub(crate) struct UserSession {
 pub struct AppState {
     pub admin_user_id: Option<String>,
     pub config: Config,
-    pub traffic: std::sync::Mutex<traffic::TrafficStats>,
+    pub traffic: traffic::TrafficStats,
     pub user_quotas: DashMap<String, traffic::UserRecord>,
     pub db: Arc<Database>,
     pub(crate) users: DashMap<String, UserSession>,
@@ -61,7 +61,7 @@ impl AppState {
     pub fn new(admin_user_id: Option<String>, config: Config, db: Arc<Database>) -> Self {
         Self {
             admin_user_id: admin_user_id.clone(),
-            traffic: std::sync::Mutex::new(traffic::TrafficStats::new(60)),
+            traffic: traffic::TrafficStats::new(60),
             config,
             users: DashMap::new(),
             user_quotas: DashMap::new(),
@@ -306,6 +306,7 @@ async fn relay_deliver_and_finalize(
     forward_size: u64,
     message: Message,
     success_label: &str,
+    silent: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 检查转发额度
     if !state.check_relay_quota(user_id, forward_size) {
@@ -330,16 +331,21 @@ async fn relay_deliver_and_finalize(
 
     if delivered {
         {
-            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
+            state.traffic.add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
         }
         state.record_relay_usage(user_id, forward_size);
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "ok",
-            "message": format!("{} data delivered to target", if success_label == "Binary relay" { "Binary" } else { "Data" })
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        
+        // 只有在非静默模式下才返回成功响应
+        if !silent {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "ok",
+                "message": format!("{} data delivered to target", if success_label == "Binary relay" { "Binary" } else { "Data" })
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        }
+        
         println!("{}: {}:{} -> {}:{}", success_label, user_id, session_id, target_user, target_session);
         state.reset_relay_failure(conn_key);
     } else {
@@ -387,6 +393,7 @@ async fn handle_relay_send_data_text(
     let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
     let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
     let relay_data = cmd.get("data");
+    let silent = cmd.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
 
     if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
         let resp = serde_json::json!({
@@ -414,6 +421,7 @@ async fn handle_relay_send_data_text(
         forward_text_len,
         Message::Text(forward_text),
         "Relay",
+        silent,
     ).await
 }
 
@@ -466,6 +474,7 @@ async fn handle_relay_send_data_binary(
 
     let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
     let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+    let silent = header.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
 
     if target_user.is_empty() || target_session.is_empty() {
         let resp = serde_json::json!({
@@ -510,6 +519,7 @@ async fn handle_relay_send_data_binary(
         forward_frame_size,
         Message::Binary(forward_frame),
         "Binary relay",
+        silent,
     ).await
 }
 
@@ -861,10 +871,9 @@ pub async fn handle_connection(
 
             // 在流量统计中注册该 session
             {
-                let mut tr = state.traffic.lock().unwrap_or_else(|e| e.into_inner());
                 let now_ms = traffic::now_ms();
-                tr.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
-                tr.add_handshake(&conn_key, handshake_size as u64, now_ms);
+                state.traffic.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
+                state.traffic.add_handshake(&conn_key, handshake_size as u64, now_ms);
             }
 
             // 持久化用户信息到 redb（单 key 写入，直接同步）
@@ -924,7 +933,7 @@ pub async fn handle_connection(
                             // 统计出站流量（转发给当前连接的消息）
                             let out_size = traffic::message_byte_size(&forward_msg) as u64;
                             if out_size > 0 {
-                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_outbound(&conn_key, out_size, traffic::now_ms());
+                                state.traffic.add_outbound(&conn_key, out_size, traffic::now_ms());
                             }
                             ws_sender.send(forward_msg).await?;
                         }
@@ -960,7 +969,7 @@ pub async fn handle_connection(
 
                                             // 统计入站流量
                                             {
-                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                                state.traffic.add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
                                             }
 
                                             // 尝试解析为 JSON 命令并分派给对应的处理器
@@ -1005,13 +1014,13 @@ pub async fn handle_connection(
                                             }
                                         }
                                         Message::Binary(data) => {
-                                            // 统计入站流量（不论消息大小）
-                                            {
-                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
-                                            }
-                                            // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
-                                            handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
+                                        // 统计入站流量（不论消息大小）
+                                        {
+                                            state.traffic.add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
                                         }
+                                        // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
+                                        handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
+                                    }
                                         Message::Ping(data) => {
                                             ws_sender.send(Message::Pong(data)).await?;
                                         }
@@ -1053,7 +1062,7 @@ pub async fn handle_connection(
                 // 移除此用户 session
                 state.remove_user(&conn_key);
                 // 移除 session 流量统计
-                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_session(&conn_key);
+                state.traffic.remove_session(&conn_key);
 
                 // 检查该用户是否所有 session 都已断开
                 let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
@@ -1063,7 +1072,7 @@ pub async fn handle_connection(
                     let ts_30s = now / 30_000;
 
                     // 取出该用户在当前窗口内的转发分布条目
-                    let entries = state.traffic.lock().unwrap_or_else(|e| e.into_inner()).take_user_relay_entries(&user_id);
+                    let entries = state.traffic.take_user_relay_entries(&user_id);
                     if !entries.is_empty() {
                         if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
                             eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);

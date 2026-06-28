@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(AppState::new(config.admin_user_id.clone(), config.clone(), db.clone()));
 
     // 将加载的全局数据写入 TrafficStats
-    state.traffic.lock().unwrap_or_else(|e| e.into_inner()).set_global(global_data);
+    state.traffic.set_global(global_data);
 
     // 创建关闭通知器，用于优雅关闭
     let shutdown = Arc::new(Notify::new());
@@ -123,13 +123,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_traffic_records;
     let global;
     {
-        let mut tr = state.traffic.lock().unwrap_or_else(|e| e.into_inner());
-        let deltas = tr.take_interval_deltas();
+        let deltas = state.traffic.take_interval_deltas();
         inbound_delta = deltas.0;
         outbound_delta = deltas.1;
         relay_delta = deltas.2;
-        user_traffic_records = tr.take_user_traffic_map();
-        global = tr.compute_global();
+        user_traffic_records = state.traffic.take_user_traffic_map();
+        global = state.traffic.compute_global();
     }
     let db_final = state.db.clone();
     let _ = tokio::task::spawn_blocking(move || {
@@ -176,13 +175,12 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
         let user_traffic_records;
         let global;
         {
-            let mut tr = state.traffic.lock().unwrap_or_else(|e| e.into_inner());
-            let deltas = tr.take_interval_deltas();
+            let deltas = state.traffic.take_interval_deltas();
             inbound_delta = deltas.0;
             outbound_delta = deltas.1;
             relay_delta = deltas.2;
-            user_traffic_records = tr.take_user_traffic_map();
-            global = tr.compute_global();
+            user_traffic_records = state.traffic.take_user_traffic_map();
+            global = state.traffic.compute_global();
         }
 
         // 采集系统指标
