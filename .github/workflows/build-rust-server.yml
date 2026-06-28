@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to upload assets to ...'
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -113,7 +117,7 @@ jobs:
   upload-release:
     name: Upload to release
     needs: [build-linux, build-windows, build-macos]
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -138,5 +142,6 @@ jobs:
             else
               tar czf "$asset_name" -C "$dir" .
             fi
-            gh release upload "${{ github.event.release.tag_name }}" "$asset_name" --clobber
+            TAG="${{ github.event.release.tag_name || github.event.inputs.release_tag }}"
+            gh release upload "$TAG" "$asset_name" --clobber
           done
