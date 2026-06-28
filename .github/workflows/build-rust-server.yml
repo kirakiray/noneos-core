@@ -20,7 +20,7 @@ jobs:
           - x86_64-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -36,7 +36,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-${{ matrix.target }}
           path: server/rust/target/${{ matrix.target }}/release/noneos-handshake
@@ -52,28 +52,32 @@ jobs:
           - x86_64-pc-windows-gnu
           - aarch64-pc-windows-gnu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install MinGW
+      - name: Install MinGW (x86_64)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y mingw-w64
-          # 为 ARM64 Windows 额外安装
-          if [ "${{ matrix.target }}" = "aarch64-pc-windows-gnu" ]; then
-            sudo apt-get install -y gcc-mingw-w64-aarch64
-          fi
+
+      - name: Install LLVM-MinGW (ARM64)
+        if: matrix.target == 'aarch64-pc-windows-gnu'
+        run: |
+          wget -q https://github.com/mstorsjo/llvm-mingw/releases/download/20251007/llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64.tar.xz
+          tar xf llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64.tar.xz
+          echo "$PWD/llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64/bin" >> $GITHUB_PATH
 
       - name: Build
         working-directory: server/rust
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-${{ matrix.target }}
           path: server/rust/target/${{ matrix.target }}/release/noneos-handshake.exe
@@ -83,7 +87,7 @@ jobs:
     name: macOS (aarch64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -95,7 +99,7 @@ jobs:
         run: cargo build --release --target aarch64-apple-darwin
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-aarch64-apple-darwin
           path: server/rust/target/aarch64-apple-darwin/release/noneos-handshake
@@ -109,7 +113,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
