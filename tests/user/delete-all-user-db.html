@@ -77,6 +77,18 @@
       background-color: #c0392b;
     }
 
+    .btn-service {
+      background-color: #6f42c1;
+    }
+
+    .btn-service:hover {
+      background-color: #5a32a3;
+    }
+
+    .btn-service:active {
+      background-color: #4a2787;
+    }
+
     .status {
       margin-top: 20px;
       padding: 15px;
@@ -159,6 +171,21 @@
       <div class="db-list" id="publishDbList">
         <h3>已删除的数据库：</h3>
         <div id="publishDbItems"></div>
+      </div>
+    </div>
+
+    <!-- Service Worker 区域 -->
+    <div class="section">
+      <h2>注销 Service Worker</h2>
+      <p>此操作将注销当前域名下所有已注册的 Service Worker。</p>
+
+      <button class="btn btn-service" id="swUnregisterBtn">注销所有 Service Worker</button>
+
+      <div class="status" id="swStatus"></div>
+
+      <div class="db-list" id="swList">
+        <h3>已注销的 Service Worker：</h3>
+        <div id="swItems"></div>
       </div>
     </div>
   </div>
@@ -275,6 +302,91 @@
     // 创建两个独立的区域
     createSection('user', 'nos_user');
     createSection('publish', 'nos_publish');
+
+    // Service Worker 注销逻辑
+    const swUnregisterBtn = document.getElementById('swUnregisterBtn');
+    const swStatus = document.getElementById('swStatus');
+    const swList = document.getElementById('swList');
+    const swItems = document.getElementById('swItems');
+
+    let pendingRegistrations = [];
+
+    function showSwStatus(message, type) {
+      swStatus.textContent = message;
+      swStatus.className = `status ${type}`;
+    }
+
+    function showSwList(registrations) {
+      if (registrations.length === 0) {
+        swItems.innerHTML = '<p>没有已注册的 Service Worker</p>';
+      } else {
+        swItems.innerHTML = registrations.map((reg, i) => {
+          const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || `注册 #${i + 1}`;
+          return `<div class="db-item">${url}</div>`;
+        }).join('');
+      }
+      swList.classList.add('show');
+    }
+
+    swUnregisterBtn.addEventListener('click', async () => {
+      try {
+        if (pendingRegistrations.length > 0) {
+          const confirmed = confirm(
+            '⚠️ 警告：此操作不可逆！\n\n' +
+            '即将注销当前域名下所有已注册的 Service Worker。\n\n' +
+            '请确认是否继续？'
+          );
+          if (!confirmed) return;
+
+          showSwStatus(`正在注销 ${pendingRegistrations.length} 个 Service Worker...`, 'info');
+
+          const results = await Promise.allSettled(
+            pendingRegistrations.map(reg => reg.unregister())
+          );
+
+          const succeeded = results.filter(r => r.status === 'fulfilled' && r.value).length;
+          showSwStatus(`成功注销 ${succeeded}/${pendingRegistrations.length} 个 Service Worker`, 'success');
+
+          pendingRegistrations = [];
+          swUnregisterBtn.textContent = '注销所有 Service Worker';
+          return;
+        }
+      } catch (error) {
+        console.error('注销 Service Worker 时出错:', error);
+        showSwStatus(`错误：${error.message}`, 'error');
+      }
+    });
+
+    // 初始化：扫描 Service Worker
+    async function initSw() {
+      try {
+        if (!('serviceWorker' in navigator)) {
+          showSwStatus('当前浏览器不支持 Service Worker', 'info');
+          showSwList([]);
+          return;
+        }
+
+        showSwStatus('正在扫描 Service Worker...', 'info');
+
+        const registrations = await navigator.serviceWorker.getRegistrations();
+
+        if (registrations.length === 0) {
+          showSwStatus('没有已注册的 Service Worker', 'info');
+          showSwList([]);
+          return;
+        }
+
+        showSwStatus(`找到 ${registrations.length} 个 Service Worker，请确认注销`, 'info');
+        showSwList(registrations);
+        pendingRegistrations = registrations;
+        swUnregisterBtn.textContent = '确认注销';
+      } catch (error) {
+        console.error('扫描 Service Worker 时出错:', error);
+        showSwStatus(`错误：${error.message}`, 'error');
+      }
+    }
+
+    initSw();
   </script>
 </body>
 
