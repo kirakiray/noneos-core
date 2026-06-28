@@ -13,6 +13,7 @@ use sysinfo::System;
 use config::{Args, Config};
 use handler::{handle_connection, AppState};
 use redb::Database;
+use tokio::sync::Notify;
 
 /// WebSocket 服务器主入口函数
 /// 使用 tokio 运行时驱动异步 IO
@@ -57,11 +58,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 将加载的全局数据写入 TrafficStats
     state.traffic.lock().unwrap_or_else(|e| e.into_inner()).set_global(global_data);
 
+    // 创建关闭通知器，用于优雅关闭
+    let shutdown = Arc::new(Notify::new());
+    let shutdown_listener = shutdown.clone();
+
+    // 注册 Ctrl+C 信号处理器
+    let shutdown_signal = shutdown.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        println!("\nShutdown signal received. Stopping new connections...");
+        shutdown_signal.notify_waiters();
+    });
+
     // 6. 启动 flush 定时器（每 config.traffic_flush_interval_secs 秒）
     let flush_state = Arc::clone(&state);
     let flush_interval = Duration::from_secs(config.traffic_flush_interval_secs);
+    let flush_shutdown = shutdown.clone();
     let _flush_handle = tokio::spawn(async move {
-        handle_flush_timer(flush_state, flush_interval).await;
+        handle_flush_timer(flush_state, flush_interval, flush_shutdown).await;
     });
 
     // 7. 初始化网络监听
@@ -73,29 +87,86 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Admin user configured: {}", admin_id);
     }
     println!("Redb persistence enabled (flush interval: {}s)", config.traffic_flush_interval_secs);
+    println!("Press Ctrl+C to stop the server gracefully.");
 
-    // 8. 服务器主循环：持续接受新的连接请求
-    while let Ok((stream, addr)) = listener.accept().await {
-        let state = Arc::clone(&state);
-        // 为每一个新连接创建一个独立的 tokio 任务（轻量级线程）进行处理
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, addr, state, config.handshake_timeout_secs).await {
-                eprintln!("Error handling connection from {}: {}", addr, e);
+    // 8. 服务器主循环：持续接受新的连接请求，直到收到关闭信号
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                match result {
+                    Ok((stream, addr)) => {
+                        let state = Arc::clone(&state);
+                        // 为每一个新连接创建一个独立的 tokio 任务（轻量级线程）进行处理
+                        tokio::spawn(async move {
+                            if let Err(e) = handle_connection(stream, addr, state, config.handshake_timeout_secs).await {
+                                eprintln!("Error handling connection from {}: {}", addr, e);
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        eprintln!("Error accepting connection: {}", e);
+                    }
+                }
             }
-        });
+            _ = shutdown_listener.notified() => {
+                println!("No longer accepting new connections.");
+                break;
+            }
+        }
     }
 
+    // 9. 执行最终 flush，确保所有数据落盘
+    println!("Performing final data flush before shutdown...");
+    let now = traffic::now_ms();
+    let ts_30s = now / 30_000;
+    let (inbound_delta, outbound_delta, relay_delta);
+    let user_traffic_records;
+    let global;
+    {
+        let mut tr = state.traffic.lock().unwrap_or_else(|e| e.into_inner());
+        let deltas = tr.take_interval_deltas();
+        inbound_delta = deltas.0;
+        outbound_delta = deltas.1;
+        relay_delta = deltas.2;
+        user_traffic_records = tr.take_user_traffic_map();
+        global = tr.compute_global();
+    }
+    let db_final = state.db.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        if let Err(e) = traffic::perform_flush(
+            &db_final,
+            ts_30s,
+            inbound_delta,
+            outbound_delta,
+            relay_delta,
+            &user_traffic_records,
+            &global,
+        ) {
+            eprintln!("Final redb flush error: {}", e);
+        }
+    }).await;
+
+    println!("Server shutdown complete.");
     Ok(())
 }
 
 /// 定期 flush 定时器，每 flush_interval 执行一次完整落盘
-async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration) {
+/// 收到 shutdown 信号后执行最后一次 flush 并退出
+async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shutdown: Arc<Notify>) {
     let mut sys = System::new_all();
     sys.refresh_cpu_all();
     sys.refresh_memory();
 
     loop {
-        tokio::time::sleep(flush_interval).await;
+        tokio::select! {
+            _ = tokio::time::sleep(flush_interval) => {
+                // 正常定时 flush
+            }
+            _ = shutdown.notified() => {
+                println!("Flush timer: shutdown signal received, performing final flush...");
+                break;
+            }
+        }
 
         let now = traffic::now_ms();
         let ts_30s = now / 30_000;

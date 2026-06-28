@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use sysinfo::System;
-use std::sync::Arc;
-use tokio::time::{sleep, Duration};
 use redb::{Database, ReadableTable, TableDefinition, ReadableDatabase};
 
 // ===== Redb 表定义 =====
@@ -175,6 +172,20 @@ impl TrafficStats {
 
     pub fn remove_session(&mut self, conn_key: &str) -> Option<SessionTraffic> {
         self.sessions.remove(conn_key)
+    }
+
+    /// 移除所有 conn_key 以指定前缀开头的 session（用于管理员按 userId 批量踢出）
+    /// 返回被移除的 session 数量
+    pub fn remove_sessions_by_prefix(&mut self, prefix: &str) -> usize {
+        let keys: Vec<String> = self.sessions.keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect();
+        let count = keys.len();
+        for key in keys {
+            self.sessions.remove(&key);
+        }
+        count
     }
 
     /// 入站流量：更新 session 计数 + 全局累计 + 区间 delta
@@ -432,43 +443,6 @@ pub fn load_global_data(db: &Database) -> GlobalTraffic {
     }
 }
 
-/// 保存全局累计数据
-#[allow(dead_code)]
-pub fn save_global_data(db: &Database, global: &GlobalTraffic) -> Result<(), redb::Error> {
-    let write_txn = db.begin_write()?;
-    {
-        let mut table = write_txn.open_table(GLOBAL_DATA)?;
-        table.insert(KEY_TOTAL_INBOUND, &global.inbound_bytes)?;
-        table.insert(KEY_TOTAL_OUTBOUND, &global.outbound_bytes)?;
-        table.insert(KEY_TOTAL_RELAY, &global.relay_forwarded_bytes)?;
-    }
-    write_txn.commit()?;
-    Ok(())
-}
-
-/// 写入用户流量时间分布记录（覆盖已有 key）
-/// records: (from_user, to_user) -> bytes
-#[allow(dead_code)]
-pub fn write_user_traffic_dist(
-    db: &Database,
-    ts_30s: u64,
-    records: &HashMap<(String, String), u64>,
-) -> Result<(), redb::Error> {
-    if records.is_empty() {
-        return Ok(());
-    }
-    let write_txn = db.begin_write()?;
-    {
-        let mut table = write_txn.open_table(USER_TRAFFIC_DIST)?;
-        for ((from, to), bytes) in records {
-            let key = (ts_30s, from.as_str(), to.as_str());
-            table.insert(key, bytes)?;
-        }
-    }
-    write_txn.commit()?;
-    Ok(())
-}
-
 /// 写入单条用户流量分布记录（用户断开时即时写入）
 pub fn write_single_user_traffic_entries(
     db: &Database,
@@ -486,24 +460,6 @@ pub fn write_single_user_traffic_entries(
             let key = (ts_30s, from_user, to.as_str());
             table.insert(key, bytes)?;
         }
-    }
-    write_txn.commit()?;
-    Ok(())
-}
-
-/// 写入全局流量时间分布（delta 值）
-#[allow(dead_code)]
-pub fn write_global_traffic_dist(
-    db: &Database,
-    ts_30s: u64,
-    inbound_delta: u64,
-    outbound_delta: u64,
-    relay_delta: u64,
-) -> Result<(), redb::Error> {
-    let write_txn = db.begin_write()?;
-    {
-        let mut table = write_txn.open_table(GLOBAL_TRAFFIC_DIST)?;
-        table.insert(ts_30s, (inbound_delta, outbound_delta, relay_delta))?;
     }
     write_txn.commit()?;
     Ok(())
@@ -560,29 +516,6 @@ pub fn query_system_stats_history(db: &Database, limit: usize) -> Vec<SystemStat
 
 // ===== 持久化后台任务 =====
 
-/// 启动 redb 持久化后台任务
-#[allow(dead_code)]
-pub fn start_persistence_task(
-    _db: Arc<Database>,
-    flush_interval_secs: u64,
-) {
-    tokio::spawn(async move {
-        let mut sys = System::new_all();
-        sys.refresh_cpu_all();
-        sys.refresh_memory();
-
-        println!("Redb persistence flush task started (interval: {}s)", flush_interval_secs);
-
-        // 注意：state 通过外部定期传入的快照数据来写入，这里只持有 db
-        // 实际的 flush 逻辑由外部调用 perform_flush 完成
-        // 系统指标采集仍然在这里定时执行
-        loop {
-            sleep(Duration::from_secs(flush_interval_secs)).await;
-            // 系统指标采集由 handle_flush_timer 中的 spawn_blocking 完成
-        }
-    });
-}
-
 /// 执行一次完整 flush（由定时器或关闭时调用）
 /// 参数都是从 AppState 的快照中提取的
 #[allow(clippy::too_many_arguments)]
@@ -606,10 +539,15 @@ pub fn perform_flush(
             }
         }
 
-        // 写入全局流量时间分布（delta）
+        // 写入全局流量时间分布（delta），累加而非覆盖，避免同一窗口多次 flush 丢失数据
         if inbound_delta > 0 || outbound_delta > 0 || relay_delta > 0 {
             let mut table = write_txn.open_table(GLOBAL_TRAFFIC_DIST)?;
-            table.insert(ts_30s, (inbound_delta, outbound_delta, relay_delta))?;
+            let existing = table.get(ts_30s)?.map(|v| v.value()).unwrap_or((0, 0, 0));
+            table.insert(ts_30s, (
+                existing.0.saturating_add(inbound_delta),
+                existing.1.saturating_add(outbound_delta),
+                existing.2.saturating_add(relay_delta),
+            ))?;
         }
 
         // 更新全局累计值

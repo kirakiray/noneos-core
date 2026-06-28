@@ -110,8 +110,9 @@ fn default_port() -> u16 {
 }
 
 /// 获取默认监听地址的辅助函数
+/// 使用空字符串监听所有网络接口，避免 IPv4/IPv6 兼容性问题
 fn default_host() -> String {
-    "localhost".to_string()
+    "".to_string()
 }
 
 /// 获取默认握手超时时间的辅助函数

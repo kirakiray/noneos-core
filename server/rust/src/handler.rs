@@ -16,6 +16,9 @@ use dashmap::DashMap;
 use crate::admin;
 use redb::Database;
 
+/// WebSocket 发送端类型别名，用于简化函数签名
+type WsSender = futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, Message>;
+
 /// 挑战信息格式
 #[derive(Serialize)]
 pub struct HandshakeChallenge {
@@ -129,30 +132,32 @@ impl AppState {
     }
 
     /// 添加用户连接
-    /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换
+    /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换（重连，不增加计数）
     /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
+    ///   （仅对全新连接检查，同 key 重连不受限制）
     pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
         // 解析 userId
         let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
 
-        // 如果相同 key 已存在，先踢掉旧连接（同一 session 重连）
+        // 判断是否为同 key 重连（不增加计数，不受 max_sessions 限制）
+        let is_reconnect = self.users.contains_key(conn_key);
+
+        if !is_reconnect {
+            let current_count = self.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+            if current_count >= self.config.max_sessions_per_user {
+                return Err(format!(
+                    "User {} has reached the maximum number of concurrent sessions ({}), please disconnect some sessions first",
+                    user_id, self.config.max_sessions_per_user
+                ));
+            }
+        }
+
+        // 如果相同 key 已存在，先踢掉旧连接
         if let Some((_, mut old_session)) = self.users.remove(conn_key) {
             if let Some(tx) = old_session.disconnect_tx.take() {
                 let _ = tx.send(());
             }
-            // 注意：这里不需要减少计数，因为马上会增加或在 Error 时由 remove_user 处理
-            // 实际上 remove 会减少计数，所以这里要小心
-            self.user_session_counts.entry(user_id.clone()).and_modify(|c| *c = c.saturating_sub(1));
-        }
-
-        // 检查该 userId 的当前 session 数 (O(1) 复杂度)
-        let current_count = self.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
-        
-        if current_count >= self.config.max_sessions_per_user {
-            return Err(format!(
-                "User {} has reached the maximum number of concurrent sessions ({}), please disconnect some sessions first",
-                user_id, self.config.max_sessions_per_user
-            ));
+            // 重连场景：不调整计数（remove 不会影响计数，且替换后 count 不变）
         }
 
         let now = std::time::SystemTime::now()
@@ -173,8 +178,10 @@ impl AppState {
             services: Vec::new(),
         });
         
-        // 增加计数
-        self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
+        // 只有全新连接才增加计数；重连不改变计数
+        if !is_reconnect {
+            self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
+        }
         
         Ok(())
     }
@@ -281,6 +288,366 @@ struct HandshakeResponse {
     is_admin: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
+}
+
+// ===== 消息处理器函数（提取自 handle_connection，用于拆分 God function） =====
+
+/// 处理 relay 消息中的 send_data 文本逻辑
+async fn handle_relay_send_data_text(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    _username: &str,
+    _role_str: &str,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    if action != "send_data" {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": action,
+            "status": "error",
+            "message": format!("Unknown relay action: {}", action)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+    let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+    let relay_data = cmd.get("data");
+
+    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Missing target_user_id, target_session_id, or data"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let forward_msg = serde_json::json!({
+        "type": "relay",
+        "from_user_id": user_id,
+        "from_session_id": session_id,
+        "data": relay_data
+    });
+    let forward_text = serde_json::to_string(&forward_msg)?;
+    let forward_text_len = forward_text.len() as u64;
+
+    // 检查转发额度
+    if !state.check_relay_quota(user_id, forward_text_len) {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "quota_exceeded",
+            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
+                state.get_or_create_user_quota(user_id).used_bytes,
+                state.get_or_create_user_quota(user_id).quota_bytes,
+                state.config.relay_small_message_max_bytes)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+        tx.send(Message::Text(forward_text)).is_ok()
+    } else {
+        false
+    };
+
+    if delivered {
+        {
+            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_text_len, traffic::now_ms(), user_id, target_user);
+        }
+        state.record_relay_usage(user_id, forward_text_len);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "ok",
+            "message": "Data delivered to target"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        state.reset_relay_failure(conn_key);
+    } else {
+        println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Target session not found or offline"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        let should_kick = state.handle_relay_failure(user_id, session_id);
+        if should_kick {
+            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
+            let _ = ws_sender.send(Message::Close(None)).await;
+            // 返回 Err 让外层循环退出
+            return Err("User kicked due to relay abuse".into());
+        }
+    }
+    Ok(())
+}
+
+/// 处理二进制 relay 帧中的 send_data 逻辑
+async fn handle_relay_send_data_binary(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    _username: &str,
+    data: &[u8],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if data.len() < 4 {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Invalid binary relay frame: too short"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let header_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    if 4 + header_len > data.len() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Invalid binary relay frame: header length out of bounds"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let header: serde_json::Value = match serde_json::from_slice(&data[4..4 + header_len]) {
+        Ok(v) => v,
+        Err(_) => {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "error",
+                "message": "Invalid binary relay frame: header JSON parse failed"
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Ok(());
+        }
+    };
+
+    let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+    let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+
+    if target_user.is_empty() || target_session.is_empty() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Missing target_user_id or target_session_id"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let payload = &data[4 + header_len..];
+    if payload.len() > state.config.binary_payload_max_size {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), state.config.binary_payload_max_size)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let forward_header = serde_json::json!({
+        "type": "relay",
+        "from_user_id": user_id,
+        "from_session_id": session_id,
+    });
+    let forward_header_bytes = serde_json::to_vec(&forward_header)?;
+    let forward_header_len = forward_header_bytes.len() as u32;
+
+    let mut forward_frame = Vec::with_capacity(4 + forward_header_bytes.len() + payload.len());
+    forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
+    forward_frame.extend_from_slice(&forward_header_bytes);
+    forward_frame.extend_from_slice(payload);
+    let forward_frame_size = forward_frame.len() as u64;
+
+    if !state.check_relay_quota(user_id, forward_frame_size) {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "quota_exceeded",
+            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
+                state.get_or_create_user_quota(user_id).used_bytes,
+                state.get_or_create_user_quota(user_id).quota_bytes,
+                state.config.relay_small_message_max_bytes)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+        tx.send(Message::Binary(forward_frame)).is_ok()
+    } else {
+        false
+    };
+
+    if delivered {
+        {
+            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_frame_size, traffic::now_ms(), user_id, target_user);
+        }
+        state.record_relay_usage(user_id, forward_frame_size);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "ok",
+            "message": "Binary data delivered to target"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        state.reset_relay_failure(conn_key);
+    } else {
+        println!("Binary relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Target session not found or offline"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        let should_kick = state.handle_relay_failure(user_id, session_id);
+        if should_kick {
+            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("User kicked due to relay abuse".into());
+        }
+    }
+    Ok(())
+}
+
+/// 处理 query 消息（如查询用户在线状态）
+async fn handle_query_message(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    match action {
+        "user_online" => {
+            let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+            if target_user_id.is_empty() {
+                let resp = serde_json::json!({
+                    "type": "query_response",
+                    "action": "user_online",
+                    "status": "error",
+                    "message": "Missing user_id"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            } else {
+                let session_info = state.get_user_sessions_with_latency(target_user_id);
+                let online = !session_info.is_empty();
+                let sessions: Vec<String> = session_info.iter()
+                    .filter_map(|s| s["sessionId"].as_str().map(String::from))
+                    .collect();
+                let resp = serde_json::json!({
+                    "type": "query_response",
+                    "action": "user_online",
+                    "status": "ok",
+                    "online": online,
+                    "sessions": sessions,
+                    "sessionInfo": session_info
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            }
+        }
+        _ => {
+            let resp = serde_json::json!({
+                "type": "query_response",
+                "action": action,
+                "status": "error",
+                "message": format!("Unknown query action: {}", action)
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        }
+    }
+    Ok(())
+}
+
+/// 处理 update_services 消息
+fn handle_update_services(state: &AppState, user_id: &str, session_id: &str, cmd: &serde_json::Value) {
+    let services: Vec<String> = cmd.get("services")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    state.update_services(user_id, session_id, services.clone());
+    if !services.is_empty() {
+        println!("Services updated for {}:{} — {:?}", user_id, session_id, services);
+    }
+}
+
+/// 处理 latency_test 消息
+async fn handle_latency_test(
+    ws_sender: &mut WsSender,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let resp = serde_json::json!({
+        "type": "latency_test_response",
+        "client_time": client_time,
+        "server_recv_time": now_ms,
+        "server_send_time": now_ms
+    });
+    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+    Ok(())
+}
+
+/// 处理 latency_report 消息
+async fn handle_latency_report(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    user_id: &str,
+    session_id: &str,
+    username: &str,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+    let client_recv_time = cmd.get("client_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
+
+    let rtt = if client_time > 0 && client_recv_time > client_time {
+        client_recv_time - client_time
+    } else {
+        0
+    };
+    if rtt > 0 {
+        let one_way_ms = rtt / 2;
+        println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
+        state.update_latency(user_id, session_id, rtt);
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let ack = serde_json::json!({
+        "type": "latency_report_ack",
+        "server_recv_time": now_ms,
+        "status": "ok"
+    });
+    ws_sender.send(Message::Text(serde_json::to_string(&ack)?)).await?;
+    Ok(())
 }
 
 /// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
@@ -522,16 +889,22 @@ pub async fn handle_connection(
             }
 
             // 持久化用户信息到 redb（单 key 写入，直接同步）
+            // 优先加载已有记录以保留 used_bytes 和 quota_bytes，避免每次重连重置配额
             {
                 let now = traffic::now_ms();
+                let existing = traffic::load_user(&state.db, &user_id).ok().flatten();
+                let (existing_used, existing_quota, first_seen) = match existing {
+                    Some(ref r) => (r.used_bytes, r.quota_bytes, r.first_seen_at),
+                    None => (0, state.config.default_relay_quota_bytes, now),
+                };
                 let record = traffic::UserRecord {
                     user_id: user_id.clone(),
                     username: username.clone(),
                     public_key: public_key.clone(),
-                    first_seen_at: now,
+                    first_seen_at: first_seen,
                     last_seen_at: now,
-                    quota_bytes: state.config.default_relay_quota_bytes,
-                    used_bytes: 0,
+                    quota_bytes: existing_quota,
+                    used_bytes: existing_used,
                 };
                 if let Err(e) = traffic::save_user(&state.db, &record) {
                     eprintln!("Failed to persist user {} to redb: {}", user_id, e);
@@ -601,390 +974,54 @@ pub async fn handle_connection(
                                                 state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
                                             }
 
-                                            // 尝试解析为 JSON 命令
+                                            // 尝试解析为 JSON 命令并分派给对应的处理器
                                             if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
                                                 let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
-                                                // 处理管理命令
-                                                if msg_type == "admin" {
-                                                    if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
-                                                        if !is_admin {
-                                                            let resp = admin::AdminResponse {
-                                                                msg_type: "admin_response".to_string(),
-                                                                action: admin_cmd.action,
-                                                                status: "error".to_string(),
-                                                                message: Some("Permission denied: not an admin".to_string()),
-                                                                ..Default::default()
-                                                            };
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            continue;
-                                                        }
-
-                                                        let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                        continue;
-                                                    }
-                                                }
-
-                                                // 处理查询命令：查询用户是否在线
-                                                if msg_type == "query" {
-                                                    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                                                    if action == "user_online" {
-                                                        let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                        if target_user_id.is_empty() {
-                                                            let resp = serde_json::json!({
-                                                                "type": "query_response",
-                                                                "action": "user_online",
-                                                                "status": "error",
-                                                                "message": "Missing user_id"
-                                                            });
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                        } else {
-                                                            let session_info = state.get_user_sessions_with_latency(target_user_id);
-                                                            let online = !session_info.is_empty();
-                                                            let sessions: Vec<String> = session_info.iter()
-                                                            .filter_map(|s| s["sessionId"].as_str().map(String::from))
-                                                            .collect();
-                                                        let resp = serde_json::json!({
-                                                            "type": "query_response",
-                                                            "action": "user_online",
-                                                            "status": "ok",
-                                                            "online": online,
-                                                            "sessions": sessions,
-                                                            "sessionInfo": session_info
-                                                        });
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    }
-                                                    continue;
-                                                }
-                                                // 未知 query action
-                                                let resp = serde_json::json!({
-                                                    "type": "query_response",
-                                                    "action": action,
-                                                    "status": "error",
-                                                    "message": format!("Unknown query action: {}", action)
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                continue;
-                                            }
-
-                                            // 处理 update_services：更新该 session 公开的应用服务列表（exposeToServer 模式）
-                                            if msg_type == "update_services" {
-                                                let services: Vec<String> = cmd.get("services")
-                                                    .and_then(|v| v.as_array())
-                                                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(String::from)).collect())
-                                                    .unwrap_or_default();
-                                                state.update_services(&user_id, &session_id, services.clone());
-                                                if !services.is_empty() {
-                                                    println!("Services updated for {}:{} — {:?}", user_id, session_id, services);
-                                                }
-                                                continue;
-                                            }
-
-                                            // 处理 relay 命令：转发数据到指定用户 session
-                                            if msg_type == "relay" {
-                                                let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                                                if action == "send_data" {
-                                                    let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                    let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
-                                                    let relay_data = cmd.get("data");
-
-                                                    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
-                                                        let resp = serde_json::json!({
-                                                            "type": "relay_response",
-                                                            "action": "send_data",
-                                                            "status": "error",
-                                                            "message": "Missing target_user_id, target_session_id, or data"
-                                                        });
-                                                        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    } else {
-                                                        // 构造要转发给目标的消息
-                                                        let forward_msg = serde_json::json!({
-                                                            "type": "relay",
-                                                            "from_user_id": user_id,
-                                                            "from_session_id": session_id,
-                                                            "data": relay_data
-                                                        });
-                                                        let forward_text = serde_json::to_string(&forward_msg)?;
-                                                        let forward_text_len = forward_text.len() as u64;
-
-                                                        // 检查转发额度
-                                                        if !state.check_relay_quota(&user_id, forward_text_len) {
-                                                            let resp = serde_json::json!({
-                                                                "type": "relay_response",
-                                                                "action": "send_data",
-                                                                "status": "quota_exceeded",
-                                                                "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed", state.get_or_create_user_quota(&user_id).used_bytes, state.get_or_create_user_quota(&user_id).quota_bytes, state.config.relay_small_message_max_bytes)
-                                                            });
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            continue;
-                                                        }
-
-                                                        // 获取目标的 data_tx 并发送
-                                                        let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-                                                            tx.send(Message::Text(forward_text)).is_ok()
-                                                        } else {
-                                                            false
-                                                        };
-
-                                                        if delivered {
-                                                            // 统计转发流量（计入源连接）并记录额度用量
-                                                            {
-                                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(&conn_key, forward_text_len, traffic::now_ms(), &user_id, target_user);
-                                                            }
-                                                            state.record_relay_usage(&user_id, forward_text_len);
-                                                            let resp = serde_json::json!({
-                                                                "type": "relay_response",
-                                                                "action": "send_data",
-                                                                "status": "ok",
-                                                                "message": "Data delivered to target"
-                                                            });
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-                                                            // relay 成功：重置失败计数
-                                                            state.reset_relay_failure(&conn_key);
-                                                        } else {
-                                                            println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-                                                            let resp = serde_json::json!({
-                                                                "type": "relay_response",
-                                                                "action": "send_data",
-                                                                "status": "error",
-                                                                "message": "Target session not found or offline"
-                                                            });
-                                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
-                                                            let should_kick = state.handle_relay_failure(&user_id, &session_id);
-                                                            if should_kick {
-                                                                println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
-                                                                let _ = ws_sender.send(Message::Close(None)).await;
-                                                                break;
+                                                match msg_type {
+                                                    "admin" => {
+                                                        if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
+                                                            if !is_admin {
+                                                                let resp = admin::AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: admin_cmd.action,
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Permission denied: not an admin".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
                                                             }
                                                         }
                                                     }
-                                                    continue;
+                                                    "query" => {
+                                                        handle_query_message(&mut ws_sender, &state, &cmd).await?;
+                                                    }
+                                                    "update_services" => {
+                                                        handle_update_services(&state, &user_id, &session_id, &cmd);
+                                                    }
+                                                    "relay" => {
+                                                        handle_relay_send_data_text(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, role_str, &cmd).await?;
+                                                    }
+                                                    "latency_test" => {
+                                                        handle_latency_test(&mut ws_sender, &cmd).await?;
+                                                    }
+                                                    "latency_report" => {
+                                                        handle_latency_report(&mut ws_sender, &state, &user_id, &session_id, &username, &cmd).await?;
+                                                    }
+                                                    _ => {}
                                                 }
-                                                // 未知 relay action
-                                                let resp = serde_json::json!({
-                                                    "type": "relay_response",
-                                                    "action": action,
-                                                    "status": "error",
-                                                    "message": format!("Unknown relay action: {}", action)
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                continue;
                                             }
-
-                                            // 处理 latency_test 命令：测量客户端到服务器的延迟
-                                            if msg_type == "latency_test" {
-                                                let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                let now_ms = std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_millis() as u64;
-                                                let resp = serde_json::json!({
-                                                    "type": "latency_test_response",
-                                                    "client_time": client_time,
-                                                    "server_recv_time": now_ms,
-                                                    "server_send_time": now_ms
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                continue;
-                                            }
-
-                                            // 处理 latency_report：客户端报告完整的延迟数据，服务器据此计算自身的延迟认知
-                                            if msg_type == "latency_report" {
-                                                let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                let _server_recv_time = cmd.get("server_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                let _server_send_time = cmd.get("server_send_time").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                let client_recv_time = cmd.get("client_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
-
-                                                let rtt = if client_time > 0 && client_recv_time > client_time {
-                                                    client_recv_time - client_time
-                                                } else {
-                                                    0
-                                                };
-                                                if rtt > 0 {
-                                                    let one_way_ms = rtt / 2;
-                                                    println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
-                                                    // 保存延迟到状态
-                                                    state.update_latency(&user_id, &session_id, rtt);
-                                                }
-
-                                                let now_ms = std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_millis() as u64;
-                                                let ack = serde_json::json!({
-                                                    "type": "latency_report_ack",
-                                                    "server_recv_time": now_ms,
-                                                    "status": "ok"
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&ack)?)).await?;
-                                                continue;
-                                            }
-                                        }
-
-                                        // 忽略未知类型的消息
                                     }
                                     Message::Binary(data) => {
                                         // 统计入站流量（不论消息大小）
                                         {
                                             state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
                                         }
-
-                                        // 检查二进制消息总大小
-                                        let binary_max_size = state.config.binary_payload_max_size;
-                                        let total_binary_max = binary_max_size + 4096; // payload + header 开销
-                                        if data.len() > total_binary_max {
-                                            println!("Oversized binary message ({} bytes) from {}:{} ({}), rejected", data.len(), user_id, session_id, username);
-                                            let resp = serde_json::json!({
-                                                "type": "relay_response",
-                                                "action": "send_data",
-                                                "status": "error",
-                                                "message": format!("Binary message too large: {} bytes (max {} bytes)", data.len(), total_binary_max)
-                                            });
-                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                            continue;
-                                        }
-
-                                        // 解析二进制 relay 帧：[4 字节 header JSON 长度 u32 BE] + [header JSON bytes] + [原始 payload]
-                                        if data.len() < 4 {
-                                            let resp = serde_json::json!({
-                                                "type": "relay_response",
-                                                "action": "send_data",
-                                                "status": "error",
-                                                "message": "Invalid binary relay frame: too short"
-                                            });
-                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                            continue;
-                                        }
-
-                                        let header_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
-                                        if header_len > data.len() - 4 {
-                                            let resp = serde_json::json!({
-                                                "type": "relay_response",
-                                                "action": "send_data",
-                                                "status": "error",
-                                                "message": "Invalid binary relay frame: header length out of bounds"
-                                            });
-                                            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                            continue;
-                                        }
-
-                                        let header: serde_json::Value = match serde_json::from_slice(&data[4..4 + header_len]) {
-                                            Ok(v) => v,
-                                            Err(_) => {
-                                                let resp = serde_json::json!({
-                                                    "type": "relay_response",
-                                                    "action": "send_data",
-                                                    "status": "error",
-                                                    "message": "Invalid binary relay frame: header JSON parse failed"
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                continue;
-                                            }
-                                        };
-
-                                        let msg_type = header.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                                        let action = header.get("action").and_then(|v| v.as_str()).unwrap_or("");
-
-                                        if msg_type == "relay" && action == "send_data" {
-                                            let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
-                                            let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
-
-                                            if target_user.is_empty() || target_session.is_empty() {
-                                                let resp = serde_json::json!({
-                                                    "type": "relay_response",
-                                                    "action": "send_data",
-                                                    "status": "error",
-                                                    "message": "Missing target_user_id or target_session_id"
-                                                });
-                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                            } else {
-                                                let payload = &data[4 + header_len..];
-
-                                                // 检查 relay 负载大小
-                                                if payload.len() > binary_max_size {
-                                                    let resp = serde_json::json!({
-                                                        "type": "relay_response",
-                                                        "action": "send_data",
-                                                        "status": "error",
-                                                        "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), binary_max_size)
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    continue;
-                                                }
-
-                                                let forward_header = serde_json::json!({
-                                                    "type": "relay",
-                                                    "from_user_id": user_id,
-                                                    "from_session_id": session_id,
-                                                });
-                                                let forward_header_bytes = serde_json::to_vec(&forward_header)?;
-                                                let forward_header_len = forward_header_bytes.len() as u32;
-
-                                                let mut forward_frame = Vec::with_capacity(4 + forward_header_bytes.len() + payload.len());
-                                                forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
-                                                forward_frame.extend_from_slice(&forward_header_bytes);
-                                                forward_frame.extend_from_slice(payload);
-                                                let forward_frame_size = forward_frame.len() as u64;
-
-                                                // 检查转发额度
-                                                if !state.check_relay_quota(&user_id, forward_frame_size) {
-                                                    let resp = serde_json::json!({
-                                                        "type": "relay_response",
-                                                        "action": "send_data",
-                                                        "status": "quota_exceeded",
-                                                        "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed", state.get_or_create_user_quota(&user_id).used_bytes, state.get_or_create_user_quota(&user_id).quota_bytes, state.config.relay_small_message_max_bytes)
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    continue;
-                                                }
-
-                                                let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-                                                    tx.send(Message::Binary(forward_frame)).is_ok()
-                                                } else {
-                                                    false
-                                                };
-
-                                                if delivered {
-                                                    // 统计转发流量（计入源连接）并记录额度用量
-                                                    {
-                                                        state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(&conn_key, forward_frame_size, traffic::now_ms(), &user_id, target_user);
-                                                    }
-                                                    state.record_relay_usage(&user_id, forward_frame_size);
-                                                    let resp = serde_json::json!({
-                                                        "type": "relay_response",
-                                                        "action": "send_data",
-                                                        "status": "ok",
-                                                        "message": "Binary data delivered to target"
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-                                                    // relay 成功：重置失败计数
-                                                    state.reset_relay_failure(&conn_key);
-                                                } else {
-                                                    println!("Binary relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-                                                    let resp = serde_json::json!({
-                                                        "type": "relay_response",
-                                                        "action": "send_data",
-                                                        "status": "error",
-                                                        "message": "Target session not found or offline"
-                                                    });
-                                                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                    // 中继风暴防护：累计失败次数，达到阈值时踢出该连接
-                                                    let should_kick = state.handle_relay_failure(&user_id, &session_id);
-                                                    if should_kick {
-                                                        println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
-                                                        let _ = ws_sender.send(Message::Close(None)).await;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            // 非 relay 二进制帧保持原样回显
-                                            ws_sender.send(Message::Binary(data)).await?;
-                                        }
+                                        // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
+                                        handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
                                     }
                                     Message::Ping(data) => {
                                         ws_sender.send(Message::Pong(data)).await?;

@@ -89,6 +89,7 @@ impl AppState {
     }
 
     /// 根据 userId 踢掉该用户的所有连接（用于管理员断开用户）
+    /// 同时清理流量统计中的对应 session 条目
     pub fn disconnect_user_by_id(&self, target_user_id: &str) -> usize {
         let prefix = format!("{}:", target_user_id);
         let mut count = 0;
@@ -108,12 +109,15 @@ impl AppState {
 
         if count > 0 {
             self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(count));
+            // 清理流量统计中的对应 session 条目
+            self.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_sessions_by_prefix(&prefix);
         }
         
         count
     }
 
     /// 断开指定 session（conn_key = userId:sessionId）
+    /// 同时清理流量统计中的对应 session 条目
     pub fn disconnect_session(&self, target_user_id: &str, target_session_id: &str) -> bool {
         let conn_key = format!("{}:{}", target_user_id, target_session_id);
         if let Some((_, mut session)) = self.users.remove(&conn_key) {
@@ -121,6 +125,8 @@ impl AppState {
                 let _ = tx.send(());
             }
             self.user_session_counts.entry(target_user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
+            // 清理流量统计
+            self.traffic.lock().unwrap_or_else(|e| e.into_inner()).remove_session(&conn_key);
             true
         } else {
             false
