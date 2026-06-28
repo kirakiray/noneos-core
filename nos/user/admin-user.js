@@ -40,7 +40,7 @@ export class AdminUser extends LocalUser {
           unbind();
           reject(new Error(`Admin command "${action}" timed out`));
         }
-      }, 5000);
+      }, 15000);
     });
   }
 

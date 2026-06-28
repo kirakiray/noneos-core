@@ -324,7 +324,7 @@ export class ServerManager {
    * @param {Object} request - 请求对象
    * @param {string} responseType - 期望的响应 type
    * @param {string} [responseAction] - 可选的响应 action 匹配
-   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @param {number} [timeout=15000] - 超时时间（毫秒）
    * @returns {Promise<Object>} 响应对象
    */
   async #sendJsonCommand(
@@ -332,7 +332,7 @@ export class ServerManager {
     request,
     responseType,
     responseAction,
-    timeout = 5000,
+    timeout = 15000,
   ) {
     await this.connect(url);
 
@@ -683,10 +683,10 @@ export class ServerManager {
    * 两端都知道延迟，不存在伪造。
    *
    * @param {string} url - 服务器 WebSocket 地址
-   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @param {number} [timeout=15000] - 超时时间（毫秒）
    * @returns {Promise<{rtt: number, oneWayLatency: number, clientTime: number, serverRecvTime: number, serverSendTime: number, clientRecvTime: number}>}
    */
-  async testLatency(url, timeout = 5000) {
+  async testLatency(url, timeout = 15000) {
     // 确保已连接
     await this.connect(url);
 
