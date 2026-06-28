@@ -38,7 +38,10 @@
           // 监听 session_server_left 事件（per-server，聚合前触发）
           const leftPms = new Promise((resolve, reject) => {
             psUserA.bind("session_server_left", (event) => {
-              resolve(event.detail);
+              // 确保只处理目标服务器的事件，避免多服务器自动连接干扰
+              if (event.detail.url === psServerUrl) {
+                resolve(event.detail);
+              }
             });
 
             setTimeout(() => {

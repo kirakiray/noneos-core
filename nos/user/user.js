@@ -188,20 +188,25 @@ export class LocalUser extends BaseUser {
       }
       if (parsed.type === "session_server_left") {
         event.stopImmediatePropagation();
-        // 先触发 per-server 事件（聚合前），带上服务器 URL 和 session 信息
-        this._trigger("session_server_left", {
-          url: detail.url,
-          userId: parsed.user_id,
-          sessionId: parsed.session_id,
-          username: parsed.username || "",
-        });
-        // fire-and-forget，但必须 catch 未捕获异常，防止 session_left 事件链静默断裂
-        this.#handleSessionServerLeft(parsed).catch((err) => {
-          console.warn(
-            "[User] session_server_left handler failed:",
-            err,
-          );
-        });
+        
+        // 避免在 message 事件处理中同步派发新的 CustomEvent，
+        // 解决 Firefox/Safari 在非 DOM EventTarget 上嵌套派发事件和 stopImmediatePropagation 的冲突
+        setTimeout(() => {
+          // 先触发 per-server 事件（聚合前），带上服务器 URL 和 session 信息
+          this._trigger("session_server_left", {
+            url: detail.url,
+            userId: parsed.user_id,
+            sessionId: parsed.session_id,
+            username: parsed.username || "",
+          });
+          // fire-and-forget，但必须 catch 未捕获异常，防止 session_left 事件链静默断裂
+          this.#handleSessionServerLeft(parsed).catch((err) => {
+            console.warn(
+              "[User] session_server_left handler failed:",
+              err,
+            );
+          });
+        }, 0);
       }
     });
   }
@@ -210,11 +215,13 @@ export class LocalUser extends BaseUser {
    * 收到 session_server_left 通知后，聚合判断是否真的下线
    */
   async #handleSessionServerLeft(data) {
+    console.log("[User] handleSessionServerLeft called with:", data);
     const { user_id, session_id, username } = data;
     const reallyOffline = await this.#checkSessionReallyOffline(
       user_id,
       session_id,
     );
+    console.log(`[User] checkSessionReallyOffline for ${session_id} returned:`, reallyOffline);
     if (reallyOffline) {
       this._trigger("session_left", {
         userId: user_id,
@@ -225,15 +232,8 @@ export class LocalUser extends BaseUser {
     }
   }
 
-  /**
-   * 检查指定 userId 的 sessionId 是否在其他服务器或 RTC 上仍在线
-   *
-   * 在慢速机器上，服务器端状态变更可能尚未完全传播到查询路径，
-   * 因此当第一次查询全部返回 online 时，会进行一次短延迟重试。
-   *
-   * @returns {Promise<boolean>} true 表示真的下线了，false 表示还在
-   */
   async #checkSessionReallyOffline(userId, sessionId) {
+    console.log(`[User] checkSessionReallyOffline starting for ${sessionId}`);
     // 最多尝试 2 次，覆盖服务器状态传播延迟
     for (let attempt = 0; attempt < 2; attempt++) {
       const urls = this.#server.connectedUrls;
@@ -242,15 +242,17 @@ export class LocalUser extends BaseUser {
       for (const url of urls) {
         try {
           const result = await this.#server.queryUserOnline(url, userId);
+          console.log(`[User] queryUserOnline attempt ${attempt} on ${url} returned:`, result);
           if (result.online && result.sessions.includes(sessionId)) {
             anyFoundOnline = true;
             // 继续检查其他服务器（可能这个服务器上已下线，但其他服务器还在）
           }
-        } catch {
-          // 查询失败的服务器跳过
+        } catch (err) {
+          console.log(`[User] queryUserOnline attempt ${attempt} on ${url} failed:`, err);
         }
       }
 
+      console.log(`[User] attempt ${attempt} anyFoundOnline:`, anyFoundOnline);
       // 只要有一个服务器上该 session 被确认还在线，说明未真正下线
       if (anyFoundOnline) {
         return false;
@@ -266,9 +268,11 @@ export class LocalUser extends BaseUser {
     // 2. 检查 RTC DataChannel 是否还连通
     const dc = this.#rtc.getChannel(userId, sessionId);
     if (dc && dc.readyState === "open") {
+      console.log(`[User] RTC still open for ${sessionId}`);
       return false; // RTC 还通着
     }
 
+    console.log(`[User] ${sessionId} really offline!`);
     return true; // 所有链路都不通，真的下线了
   }
 
