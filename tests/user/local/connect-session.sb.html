@@ -1,89 +1,95 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect Session Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Connect Session Test</title>
-  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
-</head>
+  <body>
+    <h1>Connect Session Tests</h1>
 
-<body>
-  <h1>Connect Session Tests</h1>
+    <sb-test name="Per-Server Session Left Event Test">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
 
-  <sb-test name="Per-Server Session Left Event Test">
-    <template>
-      <script type="module">
-        import { LocalUser } from "/nos/user/user.js";
+          const psNsA = "srv-left-a";
+          const psNsB = "srv-left-b";
+          const psServerUrl = "ws://localhost:8081";
 
-        const psNsA = "srv-left-a";
-        const psNsB = "srv-left-b";
-        const psServerUrl = "ws://localhost:8081";
+          const psUserA = new LocalUser(psNsA);
+          const psUserB = new LocalUser(psNsB);
 
-        const psUserA = new LocalUser(psNsA);
-        const psUserB = new LocalUser(psNsB);
+          await Promise.all([psUserA.ready(), psUserB.ready()]);
 
-        await Promise.all([psUserA.ready(), psUserB.ready()]);
+          await Promise.all([
+            psUserA.server.connect(psServerUrl),
+            psUserB.server.connect(psServerUrl),
+          ]);
 
-        await Promise.all([
-          psUserA.server.connect(psServerUrl),
-          psUserB.server.connect(psServerUrl),
-        ]);
+          // psUserA 连接 psUserB（自动 watch）
+          await psUserA.connectUser(psUserB.userId);
 
-        // psUserA 连接 psUserB（自动 watch）
-        await psUserA.connectUser(psUserB.userId);
+          // 监听 session_server_left 事件（per-server，聚合前触发）
+          const leftPms = new Promise((resolve, reject) => {
+            psUserA.bind("session_server_left", (event) => {
+              resolve(event.detail);
+            });
 
-        // 监听 session_server_left 事件（per-server，聚合前触发）
-        let psServerLeftEvent = null;
-        psUserA.bind("session_server_left", (event) => {
-          psServerLeftEvent = event.detail;
-        });
+            setTimeout(() => {
+              reject("session_server_left 事件未触发");
+            }, 10000);
+          });
 
-        // 断开 psUserB 的所有服务器连接
-        psUserB.server.disconnectAll();
+          // 断开 psUserB 的所有服务器连接
+          psUserB.server.disconnectAll();
 
-        // 等待 session_server_left 事件触发
-        for (let i = 0; i < 30; i++) {
-          if (psServerLeftEvent !== null) break;
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+          // 等待 session_server_left 事件触发
+          const psServerLeftEvent = await leftPms;
 
-        const psEventReceived = psServerLeftEvent !== null;
-        const psUrlMatch = psServerLeftEvent?.url === psServerUrl;
-        const psUserIdMatch = psServerLeftEvent?.userId === psUserB.userId;
-        const psSessionIdMatch = psServerLeftEvent?.sessionId === psUserB.sessionId;
-        const psAllPassed = psEventReceived && psUrlMatch && psUserIdMatch && psSessionIdMatch;
+          const psEventReceived = psServerLeftEvent !== null;
+          const psUrlMatch = psServerLeftEvent?.url === psServerUrl;
+          const psUserIdMatch = psServerLeftEvent?.userId === psUserB.userId;
+          const psSessionIdMatch =
+            psServerLeftEvent?.sessionId === psUserB.sessionId;
+          const psAllPassed =
+            psEventReceived && psUrlMatch && psUserIdMatch && psSessionIdMatch;
 
-        psUserA.server.disconnectAll();
+          psUserA.server.disconnectAll();
 
-        return {
-          assert: psAllPassed,
-          content: {
-            message: psAllPassed
-              ? "Per-server session_server_left 事件测试成功"
-              : "Per-server session_server_left 事件测试失败",
-            userAId: psUserA.userId,
-            userBId: psUserB.userId,
-            serverLeftEvent: psServerLeftEvent,
-            checks: {
-              eventReceived: psEventReceived,
-              urlMatch: psUrlMatch,
-              userIdMatch: psUserIdMatch,
-              sessionIdMatch: psSessionIdMatch,
-              expectedUrl: psServerUrl,
-              actualUrl: psServerLeftEvent?.url,
-              expectedUserId: psUserB.userId,
-              actualUserId: psServerLeftEvent?.userId,
-              expectedSessionId: psUserB.sessionId,
-              actualSessionId: psServerLeftEvent?.sessionId,
+          return {
+            assert: psAllPassed,
+            content: {
+              message: psAllPassed
+                ? "Per-server session_server_left 事件测试成功"
+                : "Per-server session_server_left 事件测试失败",
+              userAId: psUserA.userId,
+              userBId: psUserB.userId,
+              serverLeftEvent: psServerLeftEvent,
+              checks: {
+                eventReceived: psEventReceived,
+                urlMatch: psUrlMatch,
+                userIdMatch: psUserIdMatch,
+                sessionIdMatch: psSessionIdMatch,
+                expectedUrl: psServerUrl,
+                actualUrl: psServerLeftEvent?.url,
+                expectedUserId: psUserB.userId,
+                actualUserId: psServerLeftEvent?.userId,
+                expectedSessionId: psUserB.sessionId,
+                actualSessionId: psServerLeftEvent?.sessionId,
+              },
             },
-          },
-        };
-      </script>
-    </template>
-  </sb-test>
+          };
+        </script>
+      </template>
+    </sb-test>
 
-  <sb-test name="Session Left Notification Test">
+    <sb-test name="Session Left Notification Test">
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
@@ -265,7 +271,7 @@
             rtcConnected = true;
             break;
           }
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
 
         // 监听 session_left 事件，不应触发
@@ -314,6 +320,5 @@
       </script>
     </template>
   </sb-test>
-</body>
-
+  </body>
 </html>
