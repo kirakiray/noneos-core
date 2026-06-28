@@ -416,14 +416,14 @@
               }, 300);
             };
 
-            // 安全阀：10秒后强制结束
+            // 安全阀：30秒后强制结束（服务器 handshake_timeout_secs=15，足够收到响应）
             setTimeout(() => {
               ws.close();
               safeResolve({
                 status: "timeout",
                 serverResponse: serverResponse6,
               });
-            }, 10000);
+            }, 30000);
           });
 
           const isTimeoutHandled =

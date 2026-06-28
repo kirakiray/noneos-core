@@ -1,7 +1,7 @@
 port = 8081
 host = "0.0.0.0"
 admin_user_id = "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c981"
-handshake_timeout_secs = 5
+handshake_timeout_secs = 15
 
 # 握手响应最大字节数
 handshake_max_size = 1048576
