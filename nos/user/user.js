@@ -172,6 +172,9 @@ export class LocalUser extends BaseUser {
    * 1. 查其他已连接服务器上该 session 是否还在
    * 2. 查 RTC DataChannel 是否还连通
    * 只有所有链路都不通时才触发 session_left 事件
+   *
+   * 同时会触发 session_server_left 事件（在聚合前），
+   * 让外部监听者可以感知某台服务器上特定 session 已断开。
    */
   #setupServerNotificationDispatch() {
     this.bind("message", (event) => {
@@ -185,6 +188,13 @@ export class LocalUser extends BaseUser {
       }
       if (parsed.type === "session_server_left") {
         event.stopImmediatePropagation();
+        // 先触发 per-server 事件（聚合前），带上服务器 URL 和 session 信息
+        this._trigger("session_server_left", {
+          url: detail.url,
+          userId: parsed.user_id,
+          sessionId: parsed.session_id,
+          username: parsed.username || "",
+        });
         // fire-and-forget，但必须 catch 未捕获异常，防止 session_left 事件链静默断裂
         this.#handleSessionServerLeft(parsed).catch((err) => {
           console.warn(

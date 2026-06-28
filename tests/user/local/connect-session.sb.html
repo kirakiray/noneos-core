@@ -11,6 +11,78 @@
 <body>
   <h1>Connect Session Tests</h1>
 
+  <sb-test name="Per-Server Session Left Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const psNsA = "srv-left-a";
+        const psNsB = "srv-left-b";
+        const psServerUrl = "ws://localhost:8081";
+
+        const psUserA = new LocalUser(psNsA);
+        const psUserB = new LocalUser(psNsB);
+
+        await Promise.all([psUserA.ready(), psUserB.ready()]);
+
+        await Promise.all([
+          psUserA.server.connect(psServerUrl),
+          psUserB.server.connect(psServerUrl),
+        ]);
+
+        // psUserA 连接 psUserB（自动 watch）
+        await psUserA.connectUser(psUserB.userId);
+
+        // 监听 session_server_left 事件（per-server，聚合前触发）
+        let psServerLeftEvent = null;
+        psUserA.bind("session_server_left", (event) => {
+          psServerLeftEvent = event.detail;
+        });
+
+        // 断开 psUserB 的所有服务器连接
+        psUserB.server.disconnectAll();
+
+        // 等待 session_server_left 事件触发
+        for (let i = 0; i < 30; i++) {
+          if (psServerLeftEvent !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        const psEventReceived = psServerLeftEvent !== null;
+        const psUrlMatch = psServerLeftEvent?.url === psServerUrl;
+        const psUserIdMatch = psServerLeftEvent?.userId === psUserB.userId;
+        const psSessionIdMatch = psServerLeftEvent?.sessionId === psUserB.sessionId;
+        const psAllPassed = psEventReceived && psUrlMatch && psUserIdMatch && psSessionIdMatch;
+
+        psUserA.server.disconnectAll();
+
+        return {
+          assert: psAllPassed,
+          content: {
+            message: psAllPassed
+              ? "Per-server session_server_left 事件测试成功"
+              : "Per-server session_server_left 事件测试失败",
+            userAId: psUserA.userId,
+            userBId: psUserB.userId,
+            serverLeftEvent: psServerLeftEvent,
+            checks: {
+              eventReceived: psEventReceived,
+              urlMatch: psUrlMatch,
+              userIdMatch: psUserIdMatch,
+              sessionIdMatch: psSessionIdMatch,
+              expectedUrl: psServerUrl,
+              actualUrl: psServerLeftEvent?.url,
+              expectedUserId: psUserB.userId,
+              actualUserId: psServerLeftEvent?.userId,
+              expectedSessionId: psUserB.sessionId,
+              actualSessionId: psServerLeftEvent?.sessionId,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
   <sb-test name="Session Left Notification Test">
     <template>
       <script type="module">
@@ -41,10 +113,7 @@
 
         // 断开 userL 的 WebSocket，模拟 session 下线
         // 通过关闭 userL 的所有服务器连接实现
-        for (const url of userL.server.connectedUrls) {
-          // 直接关闭底层 WebSocket
-          userL.server.disconnect(url);
-        }
+        userL.server.disconnectAll();
 
         // 等待 session_left 事件触发（聚合检测需要时间）
         for (let i = 0; i < 30; i++) {
