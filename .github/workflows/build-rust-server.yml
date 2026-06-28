@@ -65,23 +65,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64
 
-      - name: Install Zig (ARM64 MSVC)
-        if: matrix.target == 'aarch64-pc-windows-msvc'
-        run: |
-          wget -q https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
-          tar xf zig-linux-x86_64-0.13.0.tar.xz
-          echo "$PWD/zig-linux-x86_64-0.13.0" >> $GITHUB_PATH
-
-      - name: Install cargo-zigbuild (ARM64 MSVC)
+      - name: Install cargo-xwin (ARM64 MSVC)
         if: matrix.target == 'aarch64-pc-windows-msvc'
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-zigbuild
+          tool: cargo-xwin
 
       - name: Build (MSVC target)
         if: matrix.target == 'aarch64-pc-windows-msvc'
         working-directory: server/rust
-        run: cargo zigbuild --release --target aarch64-pc-windows-msvc
+        run: cargo xwin build --release --target aarch64-pc-windows-msvc
 
       - name: Build (GNU target)
         if: matrix.target != 'aarch64-pc-windows-msvc'
