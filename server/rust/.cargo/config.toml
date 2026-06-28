@@ -5,4 +5,4 @@ linker = "aarch64-linux-gnu-gcc"
 linker = "x86_64-w64-mingw32-gcc"
 
 [target.aarch64-pc-windows-gnu]
-linker = "aarch64-w64-mingw32-gcc"
+linker = "aarch64-w64-windows-gnu-clang"
