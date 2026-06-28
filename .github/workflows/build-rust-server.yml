@@ -50,7 +50,7 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-gnu
-          - aarch64-pc-windows-gnu
+          - aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v6
 
@@ -65,14 +65,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64
 
-      - name: Install LLVM-MinGW (ARM64)
-        if: matrix.target == 'aarch64-pc-windows-gnu'
+      - name: Install Zig (ARM64 MSVC)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
         run: |
-          wget -q https://github.com/mstorsjo/llvm-mingw/releases/download/20251007/llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64.tar.xz
-          tar xf llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64.tar.xz
-          echo "$PWD/llvm-mingw-20251007-ucrt-ubuntu-22.04-x86_64/bin" >> $GITHUB_PATH
+          wget -q https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
+          tar xf zig-linux-x86_64-0.13.0.tar.xz
+          echo "$PWD/zig-linux-x86_64-0.13.0" >> $GITHUB_PATH
 
-      - name: Build
+      - name: Install cargo-zigbuild (ARM64 MSVC)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
+      - name: Build (MSVC target)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        working-directory: server/rust
+        run: cargo zigbuild --release --target aarch64-pc-windows-msvc
+
+      - name: Build (GNU target)
+        if: matrix.target != 'aarch64-pc-windows-msvc'
         working-directory: server/rust
         run: cargo build --release --target ${{ matrix.target }}
 
