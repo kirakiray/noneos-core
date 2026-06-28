@@ -349,7 +349,7 @@ export class DataPublisher {
 
     const sid = sessionId || (await this.#resolveSessionId(remoteUser));
 
-    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise });
+    this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind: () => {} });
 
     try {
       await remoteUser.send(
