@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-4.1.2-blue.svg)](package.json)
 [![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
-[![Documentation](https://img.shields.io/badge/docs-core.noneos.com-green.svg)](https://core.noneos.com)
+[![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
 
 **NoneOS Core** is a browser-based virtual operating system core that provides a **virtual filesystem** and a **decentralized user interconnection** system — no server-side installation required for basic usage. Applications built on NoneOS Core can read/write files in a sandboxed virtual filesystem and communicate peer-to-peer between users.
 
