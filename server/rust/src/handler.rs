@@ -292,6 +292,75 @@ struct HandshakeResponse {
 
 // ===== 消息处理器函数（提取自 handle_connection，用于拆分 God function） =====
 
+/// 公共 relay 投递逻辑：检查配额、发送到目标 session、记录流量、处理失败/风暴防护
+/// 返回 Ok(()) 表示正常完成；返回 Err 表示需要踢出当前连接（由调用方退出循环）
+/// `success_label` 用于日志输出，如 "Relay" 或 "Binary relay"
+async fn relay_deliver_and_finalize(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    target_user: &str,
+    target_session: &str,
+    forward_size: u64,
+    message: Message,
+    success_label: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // 检查转发额度
+    if !state.check_relay_quota(user_id, forward_size) {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "quota_exceeded",
+            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
+                state.get_or_create_user_quota(user_id).used_bytes,
+                state.get_or_create_user_quota(user_id).quota_bytes,
+                state.config.relay_small_message_max_bytes)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+        tx.send(message).is_ok()
+    } else {
+        false
+    };
+
+    if delivered {
+        {
+            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
+        }
+        state.record_relay_usage(user_id, forward_size);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "ok",
+            "message": format!("{} data delivered to target", if success_label == "Binary relay" { "Binary" } else { "Data" })
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        println!("{}: {}:{} -> {}:{}", success_label, user_id, session_id, target_user, target_session);
+        state.reset_relay_failure(conn_key);
+    } else {
+        println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Target session not found or offline"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        let should_kick = state.handle_relay_failure(user_id, session_id);
+        if should_kick {
+            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("User kicked due to relay abuse".into());
+        }
+    }
+    Ok(())
+}
+
 /// 处理 relay 消息中的 send_data 文本逻辑
 async fn handle_relay_send_data_text(
     ws_sender: &mut WsSender,
@@ -339,59 +408,13 @@ async fn handle_relay_send_data_text(
     let forward_text = serde_json::to_string(&forward_msg)?;
     let forward_text_len = forward_text.len() as u64;
 
-    // 检查转发额度
-    if !state.check_relay_quota(user_id, forward_text_len) {
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "quota_exceeded",
-            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
-                state.get_or_create_user_quota(user_id).used_bytes,
-                state.get_or_create_user_quota(user_id).quota_bytes,
-                state.config.relay_small_message_max_bytes)
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        return Ok(());
-    }
-
-    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-        tx.send(Message::Text(forward_text)).is_ok()
-    } else {
-        false
-    };
-
-    if delivered {
-        {
-            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_text_len, traffic::now_ms(), user_id, target_user);
-        }
-        state.record_relay_usage(user_id, forward_text_len);
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "ok",
-            "message": "Data delivered to target"
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        println!("Relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-        state.reset_relay_failure(conn_key);
-    } else {
-        println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "error",
-            "message": "Target session not found or offline"
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        let should_kick = state.handle_relay_failure(user_id, session_id);
-        if should_kick {
-            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
-            let _ = ws_sender.send(Message::Close(None)).await;
-            // 返回 Err 让外层循环退出
-            return Err("User kicked due to relay abuse".into());
-        }
-    }
-    Ok(())
+    relay_deliver_and_finalize(
+        ws_sender, state, conn_key, user_id, session_id,
+        target_user, target_session,
+        forward_text_len,
+        Message::Text(forward_text),
+        "Relay",
+    ).await
 }
 
 /// 处理二进制 relay 帧中的 send_data 逻辑
@@ -481,57 +504,13 @@ async fn handle_relay_send_data_binary(
     forward_frame.extend_from_slice(payload);
     let forward_frame_size = forward_frame.len() as u64;
 
-    if !state.check_relay_quota(user_id, forward_frame_size) {
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "quota_exceeded",
-            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
-                state.get_or_create_user_quota(user_id).used_bytes,
-                state.get_or_create_user_quota(user_id).quota_bytes,
-                state.config.relay_small_message_max_bytes)
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        return Ok(());
-    }
-
-    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-        tx.send(Message::Binary(forward_frame)).is_ok()
-    } else {
-        false
-    };
-
-    if delivered {
-        {
-            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_relay_forwarded(conn_key, forward_frame_size, traffic::now_ms(), user_id, target_user);
-        }
-        state.record_relay_usage(user_id, forward_frame_size);
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "ok",
-            "message": "Binary data delivered to target"
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        println!("Binary relay: {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-        state.reset_relay_failure(conn_key);
-    } else {
-        println!("Binary relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
-        let resp = serde_json::json!({
-            "type": "relay_response",
-            "action": "send_data",
-            "status": "error",
-            "message": "Target session not found or offline"
-        });
-        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-        let should_kick = state.handle_relay_failure(user_id, session_id);
-        if should_kick {
-            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
-            let _ = ws_sender.send(Message::Close(None)).await;
-            return Err("User kicked due to relay abuse".into());
-        }
-    }
-    Ok(())
+    relay_deliver_and_finalize(
+        ws_sender, state, conn_key, user_id, session_id,
+        target_user, target_session,
+        forward_frame_size,
+        Message::Binary(forward_frame),
+        "Binary relay",
+    ).await
 }
 
 /// 处理 query 消息（如查询用户在线状态）
@@ -924,6 +903,13 @@ pub async fn handle_connection(
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
 
             // 8. 通信循环（包裹在 Result 块中，确保 ? 不会跳过清理代码）
+            let heartbeat_interval = Duration::from_secs(state.config.heartbeat_interval_secs);
+            let heartbeat_timeout = Duration::from_secs(state.config.heartbeat_timeout_secs);
+            let mut heartbeat_ticker = tokio::time::interval(heartbeat_interval);
+            heartbeat_ticker.tick().await; // 跳过首次立即触发
+            // 记录最近一次收到客户端消息的时间，用于心跳检测
+            let mut last_activity_at = std::time::Instant::now();
+
             let comm_result: std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
                 loop {
                     tokio::select! {
@@ -946,6 +932,9 @@ pub async fn handle_connection(
                         msg = ws_receiver.next() => {
                             match msg {
                                 Some(Ok(msg)) => {
+                                    // 收到任何客户端消息都更新活跃时间
+                                    last_activity_at = std::time::Instant::now();
+
                                     match msg {
                                         Message::Text(text) => {
                                             // 检查文本消息大小，防止 OOM
@@ -1014,24 +1003,24 @@ pub async fn handle_connection(
                                                     _ => {}
                                                 }
                                             }
-                                    }
-                                    Message::Binary(data) => {
-                                        // 统计入站流量（不论消息大小）
-                                        {
-                                            state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
                                         }
-                                        // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
-                                        handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
-                                    }
-                                    Message::Ping(data) => {
-                                        ws_sender.send(Message::Pong(data)).await?;
-                                    }
-                                    Message::Pong(_) => {}
-                                    Message::Close(_) => {
-                                        println!("Connection closed by client: {}:{} ({})", user_id, session_id, addr);
-                                        break;
-                                    }
-                                    Message::Frame(_) => {}
+                                        Message::Binary(data) => {
+                                            // 统计入站流量（不论消息大小）
+                                            {
+                                                state.traffic.lock().unwrap_or_else(|e| e.into_inner()).add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
+                                            }
+                                            // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
+                                            handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
+                                        }
+                                        Message::Ping(data) => {
+                                            ws_sender.send(Message::Pong(data)).await?;
+                                        }
+                                        Message::Pong(_) => {} // Pong 已更新 last_activity_at
+                                        Message::Close(_) => {
+                                            println!("Connection closed by client: {}:{} ({})", user_id, session_id, addr);
+                                            break;
+                                        }
+                                        Message::Frame(_) => {}
                                     }
                                 }
                                 Some(Err(e)) => {
@@ -1039,6 +1028,19 @@ pub async fn handle_connection(
                                     break;
                                 }
                                 None => break,
+                            }
+                        }
+                        // 心跳检测：定期发送 Ping，超时未活跃则断开
+                        _ = heartbeat_ticker.tick() => {
+                            if last_activity_at.elapsed() >= heartbeat_timeout {
+                                println!("Heartbeat timeout: {}:{} ({}) — no message for {}s, closing connection",
+                                    user_id, session_id, username, heartbeat_timeout.as_secs());
+                                let _ = ws_sender.send(Message::Close(None)).await;
+                                break;
+                            }
+                            // 发送 Ping 检测连接活性
+                            if ws_sender.send(Message::Ping(vec![])).await.is_err() {
+                                break;
                             }
                         }
                     }
@@ -1056,7 +1058,7 @@ pub async fn handle_connection(
                 // 检查该用户是否所有 session 都已断开
                 let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
                 if session_count == 0 {
-                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额
+                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
                     let now = traffic::now_ms();
                     let ts_30s = now / 30_000;
 
@@ -1068,7 +1070,7 @@ pub async fn handle_connection(
                         }
                     }
 
-                    // 持久化用户信息（包含配额用量）
+                    // 持久化用户信息（包含配额用量）并从内存缓存中移除
                     if let Some(quota) = state.user_quotas.get(&user_id) {
                         let mut record = quota.clone();
                         record.last_seen_at = now;
@@ -1076,6 +1078,8 @@ pub async fn handle_connection(
                             eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
                         }
                     }
+                    // 从内存配额缓存中移除，避免长期运行泄漏
+                    state.user_quotas.remove(&user_id);
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);

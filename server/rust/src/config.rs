@@ -86,12 +86,23 @@ pub struct Config {
 
     // ===== 数据持久化 =====
     /// redb 数据库文件路径，用于持久化流量统计数据
-    /// 只能通过配置文件指定，无默认值，必须配置
+    /// 未指定时默认使用 "./noneos-handshake.redb"
+    #[serde(default = "default_redb_path")]
     pub redb_path: String,
     /// 流量统计数据落盘间隔（秒）
     /// 默认 30 秒
     #[serde(default = "default_traffic_flush_interval")]
     pub traffic_flush_interval_secs: u64,
+
+    // ===== 心跳检测 =====
+    /// 服务端发送 Ping 的间隔（秒），用于检测僵尸连接
+    /// 默认 15 秒
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval_secs: u64,
+    /// 客户端无任何消息响应的超时时间（秒），超过此时间主动断开
+    /// 默认 60 秒
+    #[serde(default = "default_heartbeat_timeout")]
+    pub heartbeat_timeout_secs: u64,
 }
 
 /// 默认流量落盘间隔
@@ -160,6 +171,21 @@ fn default_relay_small_message_max_bytes() -> u64 {
     1024
 }
 
+/// 默认 redb 数据库路径
+fn default_redb_path() -> String {
+    "./noneos-handshake.redb".to_string()
+}
+
+/// 默认心跳发送间隔：15 秒
+fn default_heartbeat_interval() -> u64 {
+    15
+}
+
+/// 默认心跳超时：60 秒
+fn default_heartbeat_timeout() -> u64 {
+    60
+}
+
 /// 为 Config 实现 Default trait，方便在未提供配置文件时创建默认配置实例
 impl Default for Config {
     fn default() -> Self {
@@ -177,8 +203,10 @@ impl Default for Config {
             max_memory_usage_percent: default_max_memory_usage_percent(),
             default_relay_quota_bytes: default_default_relay_quota_bytes(),
             relay_small_message_max_bytes: default_relay_small_message_max_bytes(),
-            redb_path: "".to_string(),
+            redb_path: default_redb_path(),
             traffic_flush_interval_secs: default_traffic_flush_interval(),
+            heartbeat_interval_secs: default_heartbeat_interval(),
+            heartbeat_timeout_secs: default_heartbeat_timeout(),
         }
     }
 }

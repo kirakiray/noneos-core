@@ -223,6 +223,12 @@ impl AppState {
     }
 }
 
+/// 共享的 sysinfo::System 实例（懒初始化），避免每个函数各自创建
+fn shared_system() -> std::sync::MutexGuard<'static, System> {
+    static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
+    SYSTEM.get_or_init(|| std::sync::Mutex::new(System::new_all())).lock().unwrap()
+}
+
 /// 获取当前内存使用率百分比（带 1 秒缓存，减少频繁调用开销）
 pub async fn get_memory_usage_percent() -> f64 {
     static CACHE: OnceLock<std::sync::Mutex<(f64, std::time::Instant)>> = OnceLock::new();
@@ -237,20 +243,11 @@ pub async fn get_memory_usage_percent() -> f64 {
         }
     }
 
-    // 将阻塞的刷新操作移至 spawn_blocking
     let usage = tokio::task::spawn_blocking(|| {
-        static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
-        let mut system = SYSTEM.get_or_init(|| {
-            std::sync::Mutex::new(System::new_all())
-        }).lock().unwrap();
-
+        let mut system = shared_system();
         system.refresh_memory();
         let total = system.total_memory();
-        if total == 0 {
-            0.0
-        } else {
-            (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
-        }
+        if total == 0 { 0.0 } else { (system.used_memory() as f64 / total as f64 * 100.0 * 100.0).round() / 100.0 }
     }).await.unwrap_or(0.0);
 
     let mut cache = cache_mutex.lock().unwrap();
@@ -259,47 +256,27 @@ pub async fn get_memory_usage_percent() -> f64 {
     usage
 }
 
-/// 收集系统信息（内存、CPU、磁盘使用情况，带 1 秒缓存）
+/// 收集系统信息（内存、CPU、磁盘使用情况）
+/// 仅在管理命令中调用，频率低，无需缓存
 pub async fn collect_system_info() -> serde_json::Value {
-    static CACHE: OnceLock<std::sync::Mutex<(serde_json::Value, std::time::Instant)>> = OnceLock::new();
-    let cache_mutex = CACHE.get_or_init(|| {
-        std::sync::Mutex::new((serde_json::Value::Null, std::time::Instant::now() - Duration::from_secs(10)))
-    });
+    tokio::task::spawn_blocking(|| {
+        let mut system = shared_system();
 
-    {
-        let cache = cache_mutex.lock().unwrap();
-        if cache.1.elapsed() < Duration::from_secs(1) {
-            return cache.0.clone();
-        }
-    }
-
-    let info = tokio::task::spawn_blocking(|| {
-        static SYSTEM: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
-        let mut system = SYSTEM.get_or_init(|| {
-            std::sync::Mutex::new(System::new_all())
-        }).lock().unwrap();
-
-        // 刷新内存（快照型，一次即可）
         system.refresh_memory();
-        // 刷新 CPU：至少需要两次刷新才能得到有意义的差值
+        // CPU 需要两次刷新才能得到有意义的差值
+        system.refresh_cpu_all();
         system.refresh_cpu_all();
         let disks = Disks::new_with_refreshed_list();
 
-        // 内存信息（字节）
         let total_memory = system.total_memory();
         let used_memory = system.used_memory();
         let available_memory = system.available_memory();
 
-        // CPU 信息：返回每个核心的单独占用率
         let cpu_count = system.cpus().len();
         let cores: Vec<serde_json::Value> = system.cpus().iter().enumerate().map(|(i, cpu)| {
-            serde_json::json!({
-                "index": i,
-                "usage_percent": (cpu.cpu_usage() * 100.0).round() / 100.0,
-            })
+            serde_json::json!({ "index": i, "usage_percent": (cpu.cpu_usage() * 100.0).round() / 100.0 })
         }).collect();
 
-        // 磁盘信息
         let disk_list: Vec<serde_json::Value> = disks.iter().map(|disk| {
             serde_json::json!({
                 "mount_point": disk.mount_point().to_string_lossy(),
@@ -314,24 +291,16 @@ pub async fn collect_system_info() -> serde_json::Value {
                 "total": total_memory,
                 "used": used_memory,
                 "available": available_memory,
-                "usage_percent": if total_memory > 0 {
-                    (used_memory as f64 / total_memory as f64 * 100.0 * 100.0).round() / 100.0
-                } else {
-                    0.0
-                },
+                "usage_percent": if total_memory > 0 { (used_memory as f64 / total_memory as f64 * 100.0 * 100.0).round() / 100.0 } else { 0.0 },
             },
             "cpu": {
                 "core_count": cpu_count,
                 "cores": cores,
+                "global_usage_percent": (system.global_cpu_usage() * 100.0).round() / 100.0,
             },
             "disks": disk_list,
         })
-    }).await.unwrap_or(serde_json::Value::Null);
-
-    let mut cache = cache_mutex.lock().unwrap();
-    cache.0 = info.clone();
-    cache.1 = std::time::Instant::now();
-    info
+    }).await.unwrap_or(serde_json::Value::Null)
 }
 
 pub async fn handle_admin_command(
