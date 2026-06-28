@@ -1,14 +1,6 @@
 name: Build Rust Server
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "server/rust/**"
-  pull_request:
-    branches: [main, master]
-    paths:
-      - "server/rust/**"
   release:
     types: [published]
   workflow_dispatch:
