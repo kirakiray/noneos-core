@@ -1,6 +1,6 @@
 # NoneOS Core
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-4.1.2-blue.svg)](package.json)
 [![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
@@ -213,4 +213,4 @@ For bugs and feature requests, please [open an issue](https://github.com/kirakir
 
 ## License
 
-[Apache 2.0](LICENSE) © NoneOS Contributors
+[Apache 2.0 with additional terms](LICENSE) © NoneOS Contributors
