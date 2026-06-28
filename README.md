@@ -1,6 +1,6 @@
 # NoneOS Core
 
-NoneOS Core is a lightweight core engine designed specifically for running ofa.js applications. It allows one-click startup, development, and debugging of ofa.js projects without the need to install any additional software.
+NoneOS Core is a lightweight core engine designed specifically for decentralized applications. It allows one-click startup, development, and debugging of ofa.js projects without the need to install any additional software.
 
 The engine originates from NoneOS3, undergoing deep streamlining and architectural restructuring to achieve complete decoupling between the system and applications.
 
@@ -50,8 +50,8 @@ A virtual filesystem backed by Service Worker + IndexedDB, supporting file read/
 ### User System (`nos/user/`)
 Decentralized user identity with ECDSA (P-256) key pair generation, user cards, certificates, and peer-to-peer connection via WebSocket relay server.
 
-### Hybrid Data (`nos/hybrid-data/`)
-A dual-storage layer that preserves data in IndexedDB and mirrors it as regular files for app access — enabling both efficient queries and direct file reads.
+### Hybrid Data (`nos/hybrid-data/`) ⚠️ Experimental
+A dual-storage layer that preserves data in IndexedDB and mirrors it as regular files for app access — enabling both efficient queries and direct file reads. **This module is experimental and may be deprecated in future releases.**
 
 ### Crypto (`nos/crypto/`)
 Web Crypto API wrappers for ECDSA signing/verification, E2EE, RSA, and AES encryption.
@@ -68,13 +68,6 @@ A secure WebSocket relay server with challenge-response authentication, multi-se
 | `npm run bump` | Increment version number across all files |
 | `npm run ws` | Start two Rust handshake servers (test mode) |
 | `npm run test` | Run browser-based test suites |
-
-## Documentation
-
-Multi-language documentation is available in the `docs/` directory:
-- [English](docs/en/)
-- [中文](docs/cn/)
-- [日本語](docs/ja/)
 
 ## License
 
