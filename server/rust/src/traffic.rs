@@ -267,31 +267,39 @@ impl TrafficStats {
     /// 更新 in-memory 分钟级桶（供 get_traffic_stats 管理端使用）
     fn update_minute_bucket(&self, now_ms: u64, inbound: u64, outbound: u64, relay: u64) {
         let minute_epoch = now_ms / 60_000;
-        let mut current_epoch = self.current_minute_epoch.load(Ordering::Relaxed);
+        let mut buckets = self.minute_buckets.lock().unwrap();
         
+        // 检查是否需要切换到新的分钟窗口
+        let current_epoch = self.current_minute_epoch.load(Ordering::Relaxed);
         if minute_epoch != current_epoch {
-            let mut buckets = self.minute_buckets.lock().unwrap();
-            // 双重检查，防止加锁期间已被其他线程更新
-            current_epoch = self.current_minute_epoch.load(Ordering::Relaxed);
-            if minute_epoch != current_epoch {
-                if let Some(last) = buckets.back() {
-                    for m in (last.minute_epoch + 1)..minute_epoch {
-                        if buckets.len() >= self.minute_window {
-                            buckets.pop_front();
-                        }
-                        buckets.push_back(MinuteBucket {
-                            minute_epoch: m,
-                            inbound_bytes: 0,
-                            outbound_bytes: 0,
-                            relay_forwarded_bytes: 0,
-                        });
+            // 填充跳过的空白分钟（如果服务器空闲了几分钟）
+            if let Some(last) = buckets.back() {
+                for m in (last.minute_epoch + 1)..minute_epoch {
+                    if buckets.len() >= self.minute_window {
+                        buckets.pop_front();
                     }
+                    buckets.push_back(MinuteBucket {
+                        minute_epoch: m,
+                        inbound_bytes: 0,
+                        outbound_bytes: 0,
+                        relay_forwarded_bytes: 0,
+                    });
                 }
-                self.current_minute_epoch.store(minute_epoch, Ordering::Relaxed);
             }
+            // 确保当前分钟的桶存在
+            if buckets.len() >= self.minute_window {
+                buckets.pop_front();
+            }
+            buckets.push_back(MinuteBucket {
+                minute_epoch,
+                inbound_bytes: 0,
+                outbound_bytes: 0,
+                relay_forwarded_bytes: 0,
+            });
+            self.current_minute_epoch.store(minute_epoch, Ordering::Relaxed);
         }
 
-        let mut buckets = self.minute_buckets.lock().unwrap();
+        // 累加数据到当前分钟桶（不存在时兜底创建，确保不丢数据）
         if let Some(bucket) = buckets.iter_mut().rev().find(|b| b.minute_epoch == minute_epoch) {
             bucket.inbound_bytes = bucket.inbound_bytes.saturating_add(inbound);
             bucket.outbound_bytes = bucket.outbound_bytes.saturating_add(outbound);
