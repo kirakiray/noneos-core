@@ -1,7 +1,7 @@
 {
   "version": "4.1.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782641684918,
+  "signTime": 1782656487361,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -165,8 +165,8 @@
     },
     {
       "path": "user/admin-user.js",
-      "hash": "1e9d52025a9d00b0ec22f3f1306a2298bd939e9579fdf7bffdd00195131e2aae",
-      "size": 6195
+      "hash": "f661c1def43fe09bf93fddddc90187893c94d1db96c9cfe54802faf0d23f851c",
+      "size": 6196
     },
     {
       "path": "user/base-user.js",
@@ -205,8 +205,8 @@
     },
     {
       "path": "user/server.js",
-      "hash": "39333d377649dcb6eb193c0e63fdedd4565726eab2f9475d1b3c261212643640",
-      "size": 25477
+      "hash": "c98f6dd90f7d3d3bdf96c41d03da580efc764cc85bb8881e6b2db0880374d273",
+      "size": 26328
     },
     {
       "path": "user/service-registry.js",
@@ -264,5 +264,5 @@
       "size": 2117
     }
   ],
-  "signature": "hfnBBlqE3sDHZ7/6RUNuLv6RxTUO+YwlVbvGPeLY0pLcR/BmjBEEmy4RHV+8YwKZWUfSNzNCEuNiWKzA2wo/QA=="
+  "signature": "4+vdyPAcT9VHkKNMe7Yc74oxATMS7xFsd9zp1DGzaZYTY8fOPUDEFPcml6Db84P/5Rysz0PPcus3q58EWEd0HA=="
 }
