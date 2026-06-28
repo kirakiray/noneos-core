@@ -4,9 +4,9 @@ import {
   deleteCertFromDb,
   iterateCerts,
   countCerts,
-} from "../db.js";
-import { createVerifier } from "../../crypto/crypto-ecdsa.js";
-import { getHash } from "../../util/hash/get-hash.js";
+} from "./db.js";
+import { createVerifier } from "../crypto/crypto-ecdsa.js";
+import { getHash } from "../util/hash/get-hash.js";
 
 export class CertManager {
   #user;

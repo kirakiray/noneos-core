@@ -14,7 +14,7 @@
   <sb-test name="Certificate Issue, Save and Query">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         // 创建两个用户：一个作为签发者(admin)，一个作为接收者(normal)
         const adminUser = new LocalUser("cert_test_admin");
@@ -78,7 +78,7 @@
   <sb-test name="Certificate Delete">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const deleteUser = new LocalUser("cert_delete_test");
         await deleteUser.ready();
@@ -115,7 +115,7 @@
   <sb-test name="Invalid Certificate Validation">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const hacker = new LocalUser("cert_hacker");
         const victim = new LocalUser("cert_victim");
@@ -156,7 +156,7 @@
   <sb-test name="Certificate Count">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const countUser = new LocalUser("cert_count_test");
         await countUser.ready();
@@ -205,7 +205,7 @@
   <sb-test name="Certificate Values Iteration">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const valuesUser = new LocalUser("cert_values_test");
         await valuesUser.ready();

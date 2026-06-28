@@ -1,7 +1,7 @@
 {
-  "version": "4.1.1",
+  "version": "4.1.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782240701019,
+  "signTime": 1782656487361,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -134,19 +134,39 @@
       "size": 1444
     },
     {
+      "path": "publish/README.md",
+      "hash": "63ae584d36f7b30bf3b73ea51fec75e4e3fff62833ceb6c0cafc5d1dd7f6906e",
+      "size": 25955
+    },
+    {
+      "path": "publish/app-manager.js",
+      "hash": "385466d92b882451dc1f611e7dbcbf22f36d4a8b42b49e7199731915853ec1e2",
+      "size": 23546
+    },
+    {
+      "path": "publish/data-publisher.js",
+      "hash": "138f26bbe76619c863096a6750bc88214fc5f714186bb34fa724036c462c70c5",
+      "size": 21741
+    },
+    {
+      "path": "publish/db.js",
+      "hash": "05db5094a22e02bea0966c1ea4916943da0ba835bd01ccf0ebf7f3738e7c9660",
+      "size": 15698
+    },
+    {
       "path": "root-cert.json",
       "hash": "9a63f4c8c49b868fab18273986c81778e543a5c0f9d0b657ded7352fbcd3cf0d",
       "size": 325
     },
     {
       "path": "user/README.md",
-      "hash": "0a69564108089bcb7a2c18035f3d20533c32eac76a3f800fe9b0afa02f5658fa",
-      "size": 16698
+      "hash": "a66de1de6038844c14db1eeec6b29e77b98f9c2bd1c0266eb4668b5fdc5ccfcf",
+      "size": 21762
     },
     {
       "path": "user/admin-user.js",
-      "hash": "a8bcf0b0e860fdd018ee8ecf3e914cdd5356dc93f79dce93069a851f6e203c03",
-      "size": 6201
+      "hash": "f661c1def43fe09bf93fddddc90187893c94d1db96c9cfe54802faf0d23f851c",
+      "size": 6196
     },
     {
       "path": "user/base-user.js",
@@ -154,44 +174,49 @@
       "size": 5760
     },
     {
+      "path": "user/card.js",
+      "hash": "86afb401ad22d3c31fe3d1a792d32898fbd07a0cb6410c1bb0b5c370f4ae1b79",
+      "size": 7624
+    },
+    {
+      "path": "user/cert.js",
+      "hash": "84ac005e0ffcefe162df43b88ccacd663fe6bc6f17c8b457420f9fd7ee6d5e01",
+      "size": 4299
+    },
+    {
       "path": "user/db.js",
       "hash": "722724473b04f1293baef7507c3cd1109d49ccbcca7a614c6c20773a6569136b",
       "size": 18189
     },
     {
-      "path": "user/local/card.js",
-      "hash": "684dfa3bab966c4add4b86fd233a3bedfb1bbc4bc5963e2f22f5ba8aaaae785b",
-      "size": 7631
+      "path": "user/main.js",
+      "hash": "d19be4ac862924d58ec10a8f88b6c54e40f267377e46943e2d6d0bbd80ccf071",
+      "size": 5890
     },
     {
-      "path": "user/local/cert.js",
-      "hash": "2294794cf3e3f4a8086b100ad90cfe76ee5ff6288ad314be02ff04431601e3be",
-      "size": 4306
+      "path": "user/remote-user.js",
+      "hash": "e860163253b14a36f4ad53ba91b2ab81216e39095d5ec01609e087d6a28e964b",
+      "size": 14621
     },
     {
-      "path": "user/local/remote-user.js",
-      "hash": "dc505b10c606a14f01dc07c082fb0f71c28a3b148ba1b5adaa87c369c3538b6a",
-      "size": 10881
-    },
-    {
-      "path": "user/local/rtc.js",
+      "path": "user/rtc.js",
       "hash": "ef95c471e77db9a2b49aa990ccc17f4e32f46bf4fa22ba5f9a2da9e9735392ac",
       "size": 6021
     },
     {
-      "path": "user/local/server.js",
-      "hash": "9091bc45da21696bd7edd41baf47c9ae1caf4a6d2869675fb15ad20b67f26676",
-      "size": 25477
+      "path": "user/server.js",
+      "hash": "c98f6dd90f7d3d3bdf96c41d03da580efc764cc85bb8881e6b2db0880374d273",
+      "size": 26328
     },
     {
-      "path": "user/local/user.js",
-      "hash": "846be997b86247a65cebe887d4d96e41fdfa44dd36e00661222367e932859465",
-      "size": 13163
+      "path": "user/service-registry.js",
+      "hash": "882683f455b2f523cdf18a19e0124ba8869797b1c8699ee1285785ec97895d5f",
+      "size": 3249
     },
     {
-      "path": "user/main.js",
-      "hash": "f1ff9359701e45a2665954cb6c7e42d617699cc2204f1760648f5cb5f612e60b",
-      "size": 5896
+      "path": "user/user.js",
+      "hash": "4735ea570059a0207ecd10dab56785e91fee6dd97a616f7bf82a236fb96ee402",
+      "size": 17039
     },
     {
       "path": "util/async-pool.js",
@@ -239,5 +264,5 @@
       "size": 2117
     }
   ],
-  "signature": "AuR+zF/9oTca+q8CYOgwsS1eRg5nTxeYTOnwEyZvRjHy4jxhfXz7BE/Fpusg4bUx9XOy8MKzzmgDC3v17c2LVw=="
+  "signature": "4+vdyPAcT9VHkKNMe7Yc74oxATMS7xFsd9zp1DGzaZYTY8fOPUDEFPcml6Db84P/5Rysz0PPcus3q58EWEd0HA=="
 }

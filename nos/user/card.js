@@ -4,9 +4,9 @@ import {
   deleteCardFromDb,
   iterateCards,
   countCards,
-} from "../db.js";
-import { verifyData } from "../../crypto/crypto-verify.js";
-import { getHash } from "../../util/hash/get-hash.js";
+} from "./db.js";
+import { verifyData } from "../crypto/crypto-verify.js";
+import { getHash } from "../util/hash/get-hash.js";
 
 /**
  * 名片管理器

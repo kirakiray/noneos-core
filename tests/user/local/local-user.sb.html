@@ -14,7 +14,7 @@
   <sb-test name="Create and Initialize LocalUser Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         // 使用静态命名空间
         const ns1 = "test_user_1";
@@ -50,7 +50,7 @@
   <sb-test name="Persistence Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const ns2 = "persistence_test_user_1";
         
@@ -88,7 +88,7 @@
   <sb-test name="Sign and Verify Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const ns3 = "sign_test_user_1";
         const signingUser = new LocalUser(ns3);
@@ -142,7 +142,7 @@
   <sb-test name="Get Session IDs Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsSession = "session_test_user_1";
 

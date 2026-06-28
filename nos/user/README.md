@@ -436,10 +436,10 @@ console.log("文档签名有效:", await admin.verify(signedDoc));
 
 ## LocalUser 类
 
-如果需要直接使用 LocalUser 类（例如需要控制初始化时机），可以从 `/nos/user/local/user.js` 引入：
+如果需要直接使用 LocalUser 类（例如需要控制初始化时机），可以从 `/nos/user/user.js` 引入：
 
 ```javascript
-import { LocalUser } from "/nos/user/local/user.js";
+import { LocalUser } from "/nos/user/user.js";
 ```
 
 ### 构造函数
@@ -637,3 +637,163 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
 - [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
+
+---
+
+## 应用服务（Service Registry）
+
+应用服务层在 User ↔ Session 之间提供了一个逻辑抽象，让应用开发者可以**以 appId 为单位**进行通信，无需关心对方的具体 sessionId。
+
+### 核心概念
+
+- **appId** — 应用唯一标识，由应用开发者自定义，如 `"chat-v1"`、`"whiteboard"` 等
+- **registerService** — 在本地注册一个服务实例，收到的消息会路由到 `onMessage` 回调
+- **ServiceChannel** — 通过 `sendToService()` 向对方应用发送数据，自动包裹 `appId` 路由
+
+### 注册服务
+
+```javascript
+import { getUser } from "/nos/user/main.js";
+
+const user = await getUser("my-app");
+
+const svc = user.registerService("chat-v1", {
+  // 收到对方应用发来的消息
+  onMessage(data, ctx) {
+    // data: 对方业务数据（已剥去协议层）
+    // ctx: { fromUserId, fromSessionId, remoteUser }
+    console.log("收到来自", ctx.fromUserId, "的消息:", data);
+
+    // 通过 ctx.remoteUser 回复给对方（仅回复给当前 session）
+    ctx.remoteUser.send(ctx.fromSessionId, { reply: "收到" });
+  },
+});
+
+// 取消注册
+// svc.unregister();
+```
+
+**参数说明：**
+
+```javascript
+user.registerService(appId, options)
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `appId` | string | 必填 | 应用唯一标识 |
+| `options.exposeToServer` | boolean | `false` | 是否将 appId 暴露给服务端 |
+| `options.onMessage` | function | `null` | `(data, ctx) => {}` |
+
+`onMessage` 的 `ctx` 对象：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ctx.fromUserId` | string | 消息来源用户 ID |
+| `ctx.fromSessionId` | string | 消息来源 session ID |
+| `ctx.remoteUser` | RemoteUser | 对应 `fromUserId` 的 RemoteUser 实例，可用来发送消息 |
+
+### 发送消息到对方应用
+
+通过 `RemoteUser` 实例发送：
+
+```javascript
+const remoteUser = await user.connectUser(targetUserId);
+
+// 方式一：发送到所有注册了该应用的 session（推荐）
+const results = await remoteUser.sendToService("chat-v1", {
+  text: "你好",
+  type: "text",
+});
+
+// 方式二：发送到特定的 session
+await remoteUser.sendToService("chat-v1", { text: "你好" }, {
+  sessionId: "s-abc123",
+});
+```
+
+**返回值：** 数组，每个元素包含 `{ sessionId, status, via?, error? }`。
+
+### 发现对方应用
+
+查询对方哪些 session 运行了指定应用：
+
+```javascript
+const sessions = await remoteUser.getServiceSessions("chat-v1");
+// → [{ sessionId: "s-abc" }, { sessionId: "s-def" }]
+```
+
+> **注意：** `getServiceSessions` 通过 relay 查询，不依赖服务器。只有**私密模式**下的服务可被发现。
+
+### 公开模式（暴露给服务端）
+
+默认注册的服务是**私密**的，appId 只存在于本地，通过 relay 查询发现。如果希望服务端也知道你的 app 列表，可以开启 `exposeToServer`：
+
+```javascript
+user.registerService("chat-v1", {
+  exposeToServer: true, // 默认 false
+  onMessage(data, ctx) { },
+});
+```
+
+开启后，服务端会在 `query_user_online` 响应中返回该 session 的 `services` 列表，适合需要快速发现或服务端辅助路由的场景。
+
+### 完整示例
+
+```javascript
+import { getUser } from "/nos/user/main.js";
+
+// 用户 A：注册聊天服务
+const userA = await getUser("alice");
+userA.registerService("chat-v1", {
+  onMessage(data, ctx) {
+    console.log("Alice 收到:", data);
+    ctx.remoteUser.send(ctx.fromSessionId, { reply: "你好 " + data.name });
+  },
+});
+
+// 用户 B：连接到 Alice 并发送消息
+const userB = await getUser("bob");
+const remoteA = await userB.connectUser(userA.userId);
+
+// 发送消息到 Alice 的聊天应用
+const results = await remoteA.sendToService("chat-v1", { name: "Bob" });
+console.log("发送结果:", results);
+
+// 监听回复
+remoteA.bind("message", (event) => {
+  const { data } = event.detail;
+  if (data?.__app === "chat-v1") {
+    console.log("收到回复:", data.__data);
+  }
+});
+```
+
+### 跨标签页（多 Session）场景
+
+当对方在多个标签页中注册了同一应用，`sendToService` 不指定 `sessionId` 时会广播到所有 session，每个 session 的 `onMessage` 独立触发：
+
+```javascript
+// 用户 B 在 2 个标签页都注册了 chat-v1
+// 用户 A 发送消息：
+const results = await remoteB.sendToService("chat-v1", { text: "大家好" });
+// → 两个标签页都会收到，results 包含 2 条发送结果
+```
+
+如需只发给某个 session，指定 `sessionId` 即可：
+
+```javascript
+await remoteB.sendToService("chat-v1", { text: "私聊" }, {
+  sessionId: "s-abc",
+});
+```
+
+### 安全说明
+
+- 所有服务通信消息通过 `sendToService()` 发送时，数据会以 `__app` / `__data` 字段包裹，接收方据此路由
+- 服务端只看到加密后的二进制帧或普通 relay 数据，**不感知 appId**（私密模式下）
+- 即使公开模式下，服务端也仅知道 `appId` 字符串，不接触消息内容
+
+### 测试
+
+- [应用服务测试](../../tests/user/local/service.sb.html)

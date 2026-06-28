@@ -178,7 +178,7 @@
       await load("/nos/locale-text/locale-text.html");
 
       (async () => {
-        const { LocalUser } = await import("/nos/user/local/user.js");
+        const { LocalUser } = await import("/nos/user/user.js");
         const user = new LocalUser("default");
         const infoContainer = $("#user-info");
 

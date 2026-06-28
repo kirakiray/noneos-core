@@ -106,6 +106,8 @@
           const isUserIdMatch = adminImportedUser.userId === adminData.info.userId;
           const isUsernameMatch = adminImportedInfo.username === adminData.info.username;
 
+          adminImportedUser.server.disconnectAll();
+
           return {
             assert: isUserIdMatch && isUsernameMatch,
             content: {
@@ -150,7 +152,7 @@
           let listResult;
           let listError;
           try {
-            listResult = await adminConUser.listUsers(adminConUrl);
+            listResult = await adminConUser.listUsers(adminConUrl, { pageSize: 100 });
           } catch (e) {
             listError = e;
           }
@@ -158,7 +160,7 @@
           const isAdminAuth = listResult?.status === "ok" && Array.isArray(listResult?.users);
 
           // 退出登录：断开服务器连接
-          adminConUser.server.disconnect(adminConUrl);
+          adminConUser.server.disconnectAll();
 
           return {
             assert: isAdminAuth,
@@ -199,7 +201,7 @@
 
           const adminListUrl = "ws://localhost:8081";
 
-          const adminListResponse = await adminListUser.listUsers(adminListUrl);
+          const adminListResponse = await adminListUser.listUsers(adminListUrl, { pageSize: 100 });
           // 也测试显式指定分页参数
           const adminListResponse2 = await adminListUser.listUsers(adminListUrl, { page: 1, pageSize: 10 });
 
@@ -212,13 +214,13 @@
           // 验证分页字段
           const hasPaginationFields = adminListResponse.total != null
             && adminListResponse.page === 1
-            && adminListResponse.page_size === 20;
+            && adminListResponse.page_size === 100;
           // 带分页参数的响应也正确
           const paginationWithParamsOK = adminListResponse2?.page === 1
             && adminListResponse2?.page_size === 10;
 
           // 退出登录：断开服务器连接
-          adminListUser.server.disconnect(adminListUrl);
+          adminListUser.server.disconnectAll();
 
           return {
             assert: isListOK && selfInList && hasPaginationFields && paginationWithParamsOK,
@@ -250,7 +252,7 @@
     <sb-test name="Non-Admin Connect Identity Verification">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const normNs = "norm-connect-ns";
           const normUser = new LocalUser(normNs);
@@ -350,7 +352,7 @@
     <sb-test name="Non-Admin Permission Denied for Admin Commands">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const norm2Ns = "norm-deny-ns";
           const norm2User = new LocalUser(norm2Ns);
@@ -387,7 +389,7 @@
             && norm2AdminResp?.message?.includes("Permission denied");
 
           // 退出登录：断开连接
-          norm2User.server.disconnect(norm2Url);
+          norm2User.server.disconnectAll();
 
           return {
             assert: isDenied,
@@ -411,7 +413,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 准备管理员用户
           const adminData6 = await fetch("/tests/user/local/admin.json").then(r => r.json());
@@ -453,8 +455,8 @@
             && adminDiscResult?.action === "disconnect_user";
 
           // 退出登录：断开管理员的连接和 victim 的连接
-          adminDiscUser.server.disconnect(discUrl);
-          victimUser.server.disconnect(discUrl);
+          adminDiscUser.server.disconnectAll();
+          victimUser.server.disconnectAll();
 
           return {
             assert: isDisconnectOK && victimClosed,
@@ -481,7 +483,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const adminHistData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const adminHistNs = "admin-hist-list-ns";
@@ -533,7 +535,8 @@
           const adminRecord = isHistOK ? histResponse.users.find(u => u.userId === adminHistUser.userId) : null;
           const adminOnline = adminRecord && adminRecord.isOnline === true;
 
-          adminHistUser.server.disconnect(histUrl);
+          adminHistUser.server.disconnectAll();
+          victimHistUser.server.disconnectAll();
 
           return {
             assert: isHistOK && hasVictim && victimOffline && adminOnline,
@@ -561,7 +564,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 准备管理员用户
           const adminDataSess = await fetch("/tests/user/local/admin.json").then(r => r.json());
@@ -649,7 +652,7 @@
           const ws2 = await sess2Promise;
 
           // 管理员使用 AdminUser API 分步操作
-          const adminSessListResult = await adminSessUser.listUsers(sessUrl);
+          const adminSessListResult = await adminSessUser.listUsers(sessUrl, { pageSize: 100 });
 
           let adminSessDisconnectResult = null;
           let adminSessAfterList = null;
@@ -666,7 +669,7 @@
               targetSessions[0].sessionId,
             );
             // 再次 list_users 确认只有一个 session 剩余
-            adminSessAfterList = await adminSessUser.listUsers(sessUrl);
+            adminSessAfterList = await adminSessUser.listUsers(sessUrl, { pageSize: 100 });
           } else {
             adminSessDisconnectResult = { status: "error", message: "Fake session not found in list" };
           }
@@ -691,8 +694,8 @@
           // 清理：关闭原始 WebSocket 连接
           if (ws2 && ws2.readyState === WebSocket.OPEN) ws2.close();
           // 退出登录：断开管理员和普通用户的连接
-          adminSessUser.server.disconnect(sessUrl);
-          sessUser1.server.disconnect(sessUrl);
+          adminSessUser.server.disconnectAll();
+          sessUser1.server.disconnectAll();
 
           return {
             assert: disconnectOK && session1StillConnected && session2Disconnected && onlyOneSessionLeft && hasPagination,

@@ -14,7 +14,7 @@
   <sb-test name="Default Username Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         // 使用固定的命名空间测试新用户
         const ns_default = "test_info_user_default";
@@ -60,7 +60,7 @@
   <sb-test name="Update Info Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const ns_update = "test_info_user_update";
         const user_update = new LocalUser(ns_update);
@@ -112,7 +112,7 @@
   <sb-test name="Merge Update Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const ns_merge = "test_info_user_merge";
         const user_merge = new LocalUser(ns_merge);
@@ -165,7 +165,7 @@
   <sb-test name="Signature Verification Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const ns_verify = "test_info_user_verify";
         const user_verify = new LocalUser(ns_verify);

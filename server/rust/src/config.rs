@@ -84,29 +84,30 @@ pub struct Config {
     #[serde(default = "default_relay_small_message_max_bytes")]
     pub relay_small_message_max_bytes: u64,
 
-    // ===== 流量统计 =====
-    /// SQLite 数据库文件路径，用于持久化流量统计数据
-    /// 如果未指定，则不启用持久化（仅内存统计）
-    #[serde(default)]
-    pub traffic_db_path: Option<String>,
+    // ===== 数据持久化 =====
+    /// redb 数据库文件路径，用于持久化流量统计数据
+    /// 未指定时默认使用 "./noneos-handshake.redb"
+    #[serde(default = "default_redb_path")]
+    pub redb_path: String,
     /// 流量统计数据落盘间隔（秒）
-    /// 默认 60 秒
+    /// 默认 30 秒
     #[serde(default = "default_traffic_flush_interval")]
     pub traffic_flush_interval_secs: u64,
-    /// 流量统计分钟级分布保留窗口（分钟）
-    /// 默认 60 分钟
-    #[serde(default = "default_traffic_minute_window")]
-    pub traffic_minute_window: usize,
+
+    // ===== 心跳检测 =====
+    /// 服务端发送 Ping 的间隔（秒），用于检测僵尸连接
+    /// 默认 15 秒
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval_secs: u64,
+    /// 客户端无任何消息响应的超时时间（秒），超过此时间主动断开
+    /// 默认 60 秒
+    #[serde(default = "default_heartbeat_timeout")]
+    pub heartbeat_timeout_secs: u64,
 }
 
 /// 默认流量落盘间隔
 fn default_traffic_flush_interval() -> u64 {
     30
-}
-
-/// 默认流量分钟窗口大小
-fn default_traffic_minute_window() -> usize {
-    60
 }
 
 /// 默认最大内存使用率
@@ -120,8 +121,9 @@ fn default_port() -> u16 {
 }
 
 /// 获取默认监听地址的辅助函数
+/// 使用空字符串监听所有网络接口，避免 IPv4/IPv6 兼容性问题
 fn default_host() -> String {
-    "localhost".to_string()
+    "".to_string()
 }
 
 /// 获取默认握手超时时间的辅助函数
@@ -169,6 +171,21 @@ fn default_relay_small_message_max_bytes() -> u64 {
     1024
 }
 
+/// 默认 redb 数据库路径
+fn default_redb_path() -> String {
+    "./noneos-handshake.redb".to_string()
+}
+
+/// 默认心跳发送间隔：15 秒
+fn default_heartbeat_interval() -> u64 {
+    15
+}
+
+/// 默认心跳超时：60 秒
+fn default_heartbeat_timeout() -> u64 {
+    60
+}
+
 /// 为 Config 实现 Default trait，方便在未提供配置文件时创建默认配置实例
 impl Default for Config {
     fn default() -> Self {
@@ -186,9 +203,10 @@ impl Default for Config {
             max_memory_usage_percent: default_max_memory_usage_percent(),
             default_relay_quota_bytes: default_default_relay_quota_bytes(),
             relay_small_message_max_bytes: default_relay_small_message_max_bytes(),
-            traffic_db_path: None,
+            redb_path: default_redb_path(),
             traffic_flush_interval_secs: default_traffic_flush_interval(),
-            traffic_minute_window: default_traffic_minute_window(),
+            heartbeat_interval_secs: default_heartbeat_interval(),
+            heartbeat_timeout_secs: default_heartbeat_timeout(),
         }
     }
 }

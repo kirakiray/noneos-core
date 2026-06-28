@@ -1,4 +1,4 @@
-import { getServerList, saveServerList } from "../db.js";
+import { getServerList, saveServerList } from "./db.js";
 
 const DEFAULT_SERVERS = (() => {
   const hostname =
@@ -115,9 +115,10 @@ export class ServerManager {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
+   * @param {number} [retries=3] - 连接失败后的重试次数
    * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
-  async connect(url) {
+  async connect(url, retries = 3) {
     // 检查是否已有可用连接
     if (this.#wsMap.has(url)) {
       const existingWs = this.#wsMap.get(url);
@@ -144,7 +145,45 @@ export class ServerManager {
       return this.#connectPromises.get(url);
     }
 
-    const promise = new Promise((resolve, reject) => {
+    // 带重试的连接逻辑
+    const connectWithRetry = async () => {
+      let lastError;
+      for (let i = 0; i <= retries; i++) {
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 200));
+          console.warn(
+            `[ServerManager] Retrying connection to ${url} (attempt ${i + 1}/${retries})`,
+          );
+        }
+        try {
+          return await this.#connectOnce(url);
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError;
+    };
+
+    const promise = connectWithRetry();
+    this.#connectPromises.set(url, promise);
+    promise.finally(() => {
+      this.#connectPromises.delete(url);
+    });
+    return promise;
+  }
+
+  /**
+   * 执行单次 WebSocket 连接与握手
+   * @param {string} url
+   * @returns {Promise<{success: boolean, version: string|null}>}
+   */
+  async #connectOnce(url) {
+    const userInfo = await this.#user.getInfo();
+    if (!userInfo) {
+      throw new Error("User info not found");
+    }
+
+    return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       let isHandshaked = false;
 
@@ -154,7 +193,7 @@ export class ServerManager {
           const err = new Error("Handshake timeout");
           reject(err);
         }
-      }, 5000);
+      }, 30000);
 
       ws.onopen = () => {
         // 等待服务器发送握手挑战 (Challenge)
@@ -264,16 +303,6 @@ export class ServerManager {
         }
       };
     });
-
-    // 缓存正在进行的连接 Promise
-    this.#connectPromises.set(url, promise);
-
-    // 连接完成后清理缓存
-    promise.finally(() => {
-      this.#connectPromises.delete(url);
-    });
-
-    return promise;
   }
 
   /**
@@ -295,7 +324,7 @@ export class ServerManager {
    * @param {Object} request - 请求对象
    * @param {string} responseType - 期望的响应 type
    * @param {string} [responseAction] - 可选的响应 action 匹配
-   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @param {number} [timeout=15000] - 超时时间（毫秒）
    * @returns {Promise<Object>} 响应对象
    */
   async #sendJsonCommand(
@@ -303,7 +332,7 @@ export class ServerManager {
     request,
     responseType,
     responseAction,
-    timeout = 5000,
+    timeout = 15000,
   ) {
     await this.connect(url);
 
@@ -654,10 +683,10 @@ export class ServerManager {
    * 两端都知道延迟，不存在伪造。
    *
    * @param {string} url - 服务器 WebSocket 地址
-   * @param {number} [timeout=5000] - 超时时间（毫秒）
+   * @param {number} [timeout=15000] - 超时时间（毫秒）
    * @returns {Promise<{rtt: number, oneWayLatency: number, clientTime: number, serverRecvTime: number, serverSendTime: number, clientRecvTime: number}>}
    */
-  async testLatency(url, timeout = 5000) {
+  async testLatency(url, timeout = 15000) {
     // 确保已连接
     await this.connect(url);
 

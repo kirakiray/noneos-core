@@ -118,7 +118,7 @@
           const emptyAllOk = emptyAllFields && emptyGlobalOK;
 
           // 退出登录：断开连接
-          emptyAdmin.server.disconnect(emptyUrl);
+          emptyAdmin.server.disconnectAll();
 
           return {
             assert: emptyAllOk,
@@ -153,7 +153,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const hsAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const hsAdminNs = "admin-ts-hs-ns";
@@ -213,9 +213,9 @@
           const hsAllOk = hsHasThree && hsAllHandshake && hsGlobalOK;
 
           // 退出登录：断开所有连接
-          hsAdmin.server.disconnect(hsUrl);
-          hsUserA.server.disconnect(hsUrl);
-          hsUserB.server.disconnect(hsUrl);
+          hsAdmin.server.disconnectAll();
+          hsUserA.server.disconnectAll();
+          hsUserB.server.disconnectAll();
 
           return {
             assert: hsAllOk,
@@ -246,7 +246,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const relayAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const relayAdminNs = "admin-ts-relay-ns";
@@ -313,9 +313,9 @@
           const relayAllOk = relayOk && relayAForwarded && relayGlobalForward && relayGlobalOut;
 
           // 退出登录：断开所有连接
-          relayAdmin.server.disconnect(relayUrl);
-          relayUserA.server.disconnect(relayUrl);
-          relayUserB.server.disconnect(relayUrl);
+          relayAdmin.server.disconnectAll();
+          relayUserA.server.disconnectAll();
+          relayUserB.server.disconnectAll();
 
           return {
             assert: relayAllOk,
@@ -349,7 +349,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const tdAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const tdAdminNs = "admin-ts-time-ns";
@@ -403,8 +403,8 @@
           const tdAllOk = tdHasDist && tdBucketsValid;
 
           // 退出登录：断开连接
-          tdAdmin.server.disconnect(tdUrl);
-          tdUser.server.disconnect(tdUrl);
+          tdAdmin.server.disconnectAll();
+          tdUser.server.disconnectAll();
 
           return {
             assert: tdAllOk,
@@ -432,7 +432,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const corrAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const corrAdminNs = "admin-ts-corr-ns";
@@ -491,8 +491,8 @@
           const corrOk = corrConsistent && corrAllSessions;
 
           // 退出登录：断开连接
-          corrAdmin.server.disconnect(corrUrl);
-          corrUser.server.disconnect(corrUrl);
+          corrAdmin.server.disconnectAll();
+          corrUser.server.disconnectAll();
 
           return {
             assert: corrOk,
@@ -532,7 +532,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const histAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const histAdminNs = "admin-ts-hist-ns";
@@ -578,8 +578,8 @@
           const histHasHistory = Array.isArray(histResult?.history);
 
           // 退出登录：断开连接
-          histAdmin.server.disconnect(histUrl);
-          histUser.server.disconnect(histUrl);
+          histAdmin.server.disconnectAll();
+          histUser.server.disconnectAll();
 
           // 如果数据库未配置，history 将为空数组
           return {

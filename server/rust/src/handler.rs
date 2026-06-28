@@ -1,0 +1,1115 @@
+use futures_util::{SinkExt, StreamExt};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::net::TcpStream;
+use tokio::sync::{oneshot, mpsc};
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::{accept_hdr_async, tungstenite::{protocol::Message, handshake::server::{Request, Response, ErrorResponse}}};
+use serde::Serialize;
+use crate::crypto::verify_signature;
+use crate::config::Config;
+use crate::traffic;
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
+
+use dashmap::DashMap;
+use crate::admin;
+use redb::Database;
+
+/// WebSocket 发送端类型别名，用于简化函数签名
+type WsSender = futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, Message>;
+
+/// 挑战信息格式
+#[derive(Serialize)]
+pub struct HandshakeChallenge {
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    pub challenge: String,
+}
+
+/// 已连接用户的信息
+pub(crate) struct UserSession {
+    pub(crate) username: String,
+    pub(crate) host: String,
+    pub(crate) addr: SocketAddr,
+    pub(crate) disconnect_tx: Option<oneshot::Sender<()>>,
+    pub(crate) data_tx: mpsc::UnboundedSender<Message>, // 用于转发消息的目标通道
+    pub(crate) latency_ms: Option<u64>,                  // 最近一次延迟测量的 RTT（毫秒）
+    pub(crate) connected_at: u64,                        // 连接建立时的 Unix 时间戳（毫秒）
+    /// 当前 relay 失败计数窗口内，已发生 relay 到不存在 session 的次数
+    pub(crate) relay_fail_count: u32,
+    /// relay 失败计数窗口开始时间（Unix 毫秒）
+    pub(crate) relay_fail_window_start: u64,
+    /// 该 session 公开注册的应用服务列表（exposeToServer 模式）
+    pub(crate) services: Vec<String>,
+}
+
+/// 应用共享状态，存储所有已连接用户和管理员配置
+/// 用户以 "userId:sessionId" 为 key 存储，同一 userId 的不同 sessionId 可同时连接
+pub struct AppState {
+    pub admin_user_id: Option<String>,
+    pub config: Config,
+    pub traffic: traffic::TrafficStats,
+    pub user_quotas: DashMap<String, traffic::UserRecord>,
+    pub db: Arc<Database>,
+    pub(crate) users: DashMap<String, UserSession>,
+    /// 用户当前 session 计数：userId -> count
+    pub(crate) user_session_counts: DashMap<String, usize>,
+}
+
+impl AppState {
+    pub fn new(admin_user_id: Option<String>, config: Config, db: Arc<Database>) -> Self {
+        Self {
+            admin_user_id: admin_user_id.clone(),
+            traffic: traffic::TrafficStats::new(60),
+            config,
+            users: DashMap::new(),
+            user_quotas: DashMap::new(),
+            user_session_counts: DashMap::new(),
+            db,
+        }
+    }
+
+    /// 判断指定用户是否为管理员
+    pub fn is_admin(&self, user_id: &str) -> bool {
+        self.admin_user_id.as_deref() == Some(user_id)
+    }
+
+    /// 获取或创建用户的转发额度（内存中）
+    pub fn get_or_create_user_quota(&self, user_id: &str) -> traffic::UserRecord {
+        if let Some(q) = self.user_quotas.get(user_id) {
+            return q.clone();
+        }
+        let now = traffic::now_ms();
+        // 尝试从 redb 加载
+        let record = traffic::load_user(&self.db, user_id).ok().flatten().unwrap_or_else(|| traffic::UserRecord {
+            user_id: user_id.to_string(),
+            username: String::new(),
+            public_key: String::new(),
+            first_seen_at: now,
+            last_seen_at: now,
+            quota_bytes: self.config.default_relay_quota_bytes,
+            used_bytes: 0,
+        });
+        self.user_quotas.insert(user_id.to_string(), record.clone());
+        record
+    }
+
+    /// 检查用户是否允许转发指定大小的消息。
+    /// 管理员始终允许；未超额允许；超额后仅允许 <= small_message_max_bytes 的消息。
+    pub fn check_relay_quota(&self, user_id: &str, msg_size: u64) -> bool {
+        if self.is_admin(user_id) {
+            return true;
+        }
+        let quota = self.get_or_create_user_quota(user_id);
+        if quota.used_bytes < quota.quota_bytes {
+            return true;
+        }
+        msg_size <= self.config.relay_small_message_max_bytes
+    }
+
+    /// 记录用户转发用量
+    pub fn record_relay_usage(&self, user_id: &str, bytes: u64) {
+        if self.is_admin(user_id) {
+            return;
+        }
+        let now = traffic::now_ms();
+        self.user_quotas
+            .entry(user_id.to_string())
+            .and_modify(|q| {
+                q.used_bytes = q.used_bytes.saturating_add(bytes);
+                q.last_seen_at = now;
+            })
+            .or_insert_with(|| traffic::UserRecord {
+                user_id: user_id.to_string(),
+                username: String::new(),
+                public_key: String::new(),
+                first_seen_at: now,
+                last_seen_at: now,
+                quota_bytes: self.config.default_relay_quota_bytes,
+                used_bytes: bytes,
+            });
+    }
+
+    /// 添加用户连接
+    /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换（重连，不增加计数）
+    /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
+    ///   （仅对全新连接检查，同 key 重连不受限制）
+    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
+        // 解析 userId
+        let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+
+        // 判断是否为同 key 重连（不增加计数，不受 max_sessions 限制）
+        let is_reconnect = self.users.contains_key(conn_key);
+
+        if !is_reconnect {
+            let current_count = self.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+            if current_count >= self.config.max_sessions_per_user {
+                return Err(format!(
+                    "User {} has reached the maximum number of concurrent sessions ({}), please disconnect some sessions first",
+                    user_id, self.config.max_sessions_per_user
+                ));
+            }
+        }
+
+        // 如果相同 key 已存在，先踢掉旧连接
+        if let Some((_, mut old_session)) = self.users.remove(conn_key) {
+            if let Some(tx) = old_session.disconnect_tx.take() {
+                let _ = tx.send(());
+            }
+            // 重连场景：不调整计数（remove 不会影响计数，且替换后 count 不变）
+        }
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        
+        self.users.insert(conn_key.to_string(), UserSession {
+            username: username.to_string(),
+            host: host.to_string(),
+            addr,
+            disconnect_tx: Some(disconnect_tx),
+            data_tx,
+            latency_ms: None,
+            connected_at: now,
+            relay_fail_count: 0,
+            relay_fail_window_start: now,
+            services: Vec::new(),
+        });
+        
+        // 只有全新连接才增加计数；重连不改变计数
+        if !is_reconnect {
+            self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
+        }
+        
+        Ok(())
+    }
+
+    pub fn remove_user(&self, conn_key: &str) -> Option<UserSession> {
+        if let Some((_, session)) = self.users.remove(conn_key) {
+            let user_id = conn_key.split(':').next().unwrap_or(conn_key);
+            self.user_session_counts.entry(user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
+            Some(session)
+        } else {
+            None
+        }
+    }
+
+    /// 获取指定 userId 的所有 sessionId 及其延迟数据
+    pub fn get_user_sessions_with_latency(&self, user_id: &str) -> Vec<serde_json::Value> {
+        let prefix = format!("{}:", user_id);
+        self.users.iter()
+            .filter(|r| r.key().starts_with(&prefix))
+            .map(|r| {
+                let k = r.key();
+                let session = r.value();
+                let parts: Vec<&str> = k.splitn(2, ':').collect();
+                let session_id = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
+                serde_json::json!({
+                    "sessionId": session_id,
+                    "latencyMs": session.latency_ms,
+                    "services": session.services,
+                })
+            })
+            .collect()
+    }
+
+    /// 获取指定 session 的 data_tx 通道
+    pub fn get_session_data_tx(&self, user_id: &str, session_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        self.users.get(&conn_key).map(|s| s.data_tx.clone())
+    }
+
+    /// 更新指定 session 的延迟数据
+    pub fn update_latency(&self, user_id: &str, session_id: &str, rtt: u64) {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        if let Some(mut session) = self.users.get_mut(&conn_key) {
+            session.latency_ms = Some(rtt);
+        }
+    }
+
+    /// 记录一次 relay 到不存在 session 的失败，返回是否达到踢出阈值
+    pub fn record_relay_failure(&self, conn_key: &str) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let window_ms = self.config.relay_fail_window_secs * 1000;
+
+        if let Some(mut session) = self.users.get_mut(conn_key) {
+            if now.saturating_sub(session.relay_fail_window_start) >= window_ms {
+                // 窗口已过期，重置
+                session.relay_fail_window_start = now;
+                session.relay_fail_count = 1;
+            } else {
+                session.relay_fail_count = session.relay_fail_count.saturating_add(1);
+            }
+            session.relay_fail_count >= self.config.relay_fail_limit
+        } else {
+            false
+        }
+    }
+
+    /// relay 成功时重置失败计数（目标 session 存在，转发成功）
+    pub fn reset_relay_failure(&self, conn_key: &str) {
+        if let Some(mut session) = self.users.get_mut(conn_key) {
+            session.relay_fail_count = 0;
+        }
+    }
+
+    /// 处理一次 relay 失败：累加计数，达到踢出阈值时移除 session 并返回 true
+    pub fn handle_relay_failure(&self, user_id: &str, session_id: &str) -> bool {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        let should_kick = self.record_relay_failure(&conn_key);
+        if should_kick {
+            self.disconnect_session(user_id, session_id);
+        }
+        should_kick
+    }
+
+    /// 更新指定 session 的公开服务列表（exposeToServer 模式）
+    pub fn update_services(&self, user_id: &str, session_id: &str, services: Vec<String>) {
+        let conn_key = format!("{}:{}", user_id, session_id);
+        if let Some(mut session) = self.users.get_mut(&conn_key) {
+            session.services = services;
+        }
+    }
+}
+
+/// 握手阶段返回给客户端的响应格式
+#[derive(Serialize)]
+struct HandshakeResponse {
+    #[serde(rename = "type")]
+    msg_type: String,
+    status: String,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+}
+
+// ===== 消息处理器函数（提取自 handle_connection，用于拆分 God function） =====
+
+/// 公共 relay 投递逻辑：检查配额、发送到目标 session、记录流量、处理失败/风暴防护
+/// 返回 Ok(()) 表示正常完成；返回 Err 表示需要踢出当前连接（由调用方退出循环）
+/// `success_label` 用于日志输出，如 "Relay" 或 "Binary relay"
+async fn relay_deliver_and_finalize(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    target_user: &str,
+    target_session: &str,
+    forward_size: u64,
+    message: Message,
+    success_label: &str,
+    silent: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // 检查转发额度
+    if !state.check_relay_quota(user_id, forward_size) {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "quota_exceeded",
+            "message": format!("Relay quota exceeded: used {} / {} bytes, only messages <= {} bytes are allowed",
+                state.get_or_create_user_quota(user_id).used_bytes,
+                state.get_or_create_user_quota(user_id).quota_bytes,
+                state.config.relay_small_message_max_bytes)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
+        tx.send(message).is_ok()
+    } else {
+        false
+    };
+
+    if delivered {
+        {
+            state.traffic.add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
+        }
+        state.record_relay_usage(user_id, forward_size);
+        
+        // 只有在非静默模式下才返回成功响应
+        if !silent {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "ok",
+                "message": format!("{} data delivered to target", if success_label == "Binary relay" { "Binary" } else { "Data" })
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        }
+        
+        println!("{}: {}:{} -> {}:{}", success_label, user_id, session_id, target_user, target_session);
+        state.reset_relay_failure(conn_key);
+    } else {
+        println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Target session not found or offline"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        let should_kick = state.handle_relay_failure(user_id, session_id);
+        if should_kick {
+            println!("User {}:{} kicked due to relay abuse ({} failures within {}s)", user_id, session_id, state.config.relay_fail_limit, state.config.relay_fail_window_secs);
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("User kicked due to relay abuse".into());
+        }
+    }
+    Ok(())
+}
+
+/// 处理 relay 消息中的 send_data 文本逻辑
+async fn handle_relay_send_data_text(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    _username: &str,
+    _role_str: &str,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    if action != "send_data" {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": action,
+            "status": "error",
+            "message": format!("Unknown relay action: {}", action)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let target_user = cmd.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+    let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+    let relay_data = cmd.get("data");
+    let silent = cmd.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Missing target_user_id, target_session_id, or data"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let forward_msg = serde_json::json!({
+        "type": "relay",
+        "from_user_id": user_id,
+        "from_session_id": session_id,
+        "data": relay_data
+    });
+    let forward_text = serde_json::to_string(&forward_msg)?;
+    let forward_text_len = forward_text.len() as u64;
+
+    relay_deliver_and_finalize(
+        ws_sender, state, conn_key, user_id, session_id,
+        target_user, target_session,
+        forward_text_len,
+        Message::Text(forward_text),
+        "Relay",
+        silent,
+    ).await
+}
+
+/// 处理二进制 relay 帧中的 send_data 逻辑
+async fn handle_relay_send_data_binary(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    conn_key: &str,
+    user_id: &str,
+    session_id: &str,
+    _username: &str,
+    data: &[u8],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if data.len() < 4 {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Invalid binary relay frame: too short"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let header_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    if 4 + header_len > data.len() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Invalid binary relay frame: header length out of bounds"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let header: serde_json::Value = match serde_json::from_slice(&data[4..4 + header_len]) {
+        Ok(v) => v,
+        Err(_) => {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "error",
+                "message": "Invalid binary relay frame: header JSON parse failed"
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Ok(());
+        }
+    };
+
+    let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
+    let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
+    let silent = header.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    if target_user.is_empty() || target_session.is_empty() {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": "Missing target_user_id or target_session_id"
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let payload = &data[4 + header_len..];
+    if payload.len() > state.config.binary_payload_max_size {
+        let resp = serde_json::json!({
+            "type": "relay_response",
+            "action": "send_data",
+            "status": "error",
+            "message": format!("Relay payload too large: {} bytes (max {} bytes)", payload.len(), state.config.binary_payload_max_size)
+        });
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Ok(());
+    }
+
+    let forward_header = serde_json::json!({
+        "type": "relay",
+        "from_user_id": user_id,
+        "from_session_id": session_id,
+    });
+    let forward_header_bytes = serde_json::to_vec(&forward_header)?;
+    let forward_header_len = forward_header_bytes.len() as u32;
+
+    let mut forward_frame = Vec::with_capacity(4 + forward_header_bytes.len() + payload.len());
+    forward_frame.extend_from_slice(&forward_header_len.to_be_bytes());
+    forward_frame.extend_from_slice(&forward_header_bytes);
+    forward_frame.extend_from_slice(payload);
+    let forward_frame_size = forward_frame.len() as u64;
+
+    relay_deliver_and_finalize(
+        ws_sender, state, conn_key, user_id, session_id,
+        target_user, target_session,
+        forward_frame_size,
+        Message::Binary(forward_frame),
+        "Binary relay",
+        silent,
+    ).await
+}
+
+/// 处理 query 消息（如查询用户在线状态）
+async fn handle_query_message(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    match action {
+        "user_online" => {
+            let target_user_id = cmd.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+            if target_user_id.is_empty() {
+                let resp = serde_json::json!({
+                    "type": "query_response",
+                    "action": "user_online",
+                    "status": "error",
+                    "message": "Missing user_id"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            } else {
+                let session_info = state.get_user_sessions_with_latency(target_user_id);
+                let online = !session_info.is_empty();
+                let sessions: Vec<String> = session_info.iter()
+                    .filter_map(|s| s["sessionId"].as_str().map(String::from))
+                    .collect();
+                let resp = serde_json::json!({
+                    "type": "query_response",
+                    "action": "user_online",
+                    "status": "ok",
+                    "online": online,
+                    "sessions": sessions,
+                    "sessionInfo": session_info
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            }
+        }
+        _ => {
+            let resp = serde_json::json!({
+                "type": "query_response",
+                "action": action,
+                "status": "error",
+                "message": format!("Unknown query action: {}", action)
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        }
+    }
+    Ok(())
+}
+
+/// 处理 update_services 消息
+fn handle_update_services(state: &AppState, user_id: &str, session_id: &str, cmd: &serde_json::Value) {
+    let services: Vec<String> = cmd.get("services")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    state.update_services(user_id, session_id, services.clone());
+    if !services.is_empty() {
+        println!("Services updated for {}:{} — {:?}", user_id, session_id, services);
+    }
+}
+
+/// 处理 latency_test 消息
+async fn handle_latency_test(
+    ws_sender: &mut WsSender,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let resp = serde_json::json!({
+        "type": "latency_test_response",
+        "client_time": client_time,
+        "server_recv_time": now_ms,
+        "server_send_time": now_ms
+    });
+    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+    Ok(())
+}
+
+/// 处理 latency_report 消息
+async fn handle_latency_report(
+    ws_sender: &mut WsSender,
+    state: &AppState,
+    user_id: &str,
+    session_id: &str,
+    username: &str,
+    cmd: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client_time = cmd.get("client_time").and_then(|v| v.as_u64()).unwrap_or(0);
+    let client_recv_time = cmd.get("client_recv_time").and_then(|v| v.as_u64()).unwrap_or(0);
+
+    let rtt = if client_time > 0 && client_recv_time > client_time {
+        client_recv_time - client_time
+    } else {
+        0
+    };
+    if rtt > 0 {
+        let one_way_ms = rtt / 2;
+        println!("Latency measurement complete: {}:{} ({}) — RTT: {}ms, one-way: ~{}ms", user_id, session_id, username, rtt, one_way_ms);
+        state.update_latency(user_id, session_id, rtt);
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let ack = serde_json::json!({
+        "type": "latency_report_ack",
+        "server_recv_time": now_ms,
+        "status": "ok"
+    });
+    ws_sender.send(Message::Text(serde_json::to_string(&ack)?)).await?;
+    Ok(())
+}
+
+/// 核心业务函数：处理单个 WebSocket 连接的完整生命周期
+#[allow(clippy::result_large_err)]
+pub async fn handle_connection(
+    raw_stream: TcpStream,
+    addr: SocketAddr,
+    state: Arc<AppState>,
+    handshake_timeout_secs: u64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!("New WebSocket connection attempt from: {}", addr);
+
+    // 1. WebSocket 握手，并捕获 Origin 请求头（由浏览器自动发送，更可信）
+    let client_origin = std::sync::Mutex::new(String::new());
+    let ws_stream = accept_hdr_async(raw_stream, |req: &Request, response: Response| {
+        if let Some(origin_val) = req.headers().get("origin") {
+            if let Ok(origin_str) = origin_val.to_str() {
+                if let Ok(mut origin) = client_origin.lock() {
+                    *origin = origin_str.to_string();
+                }
+            }
+        }
+        Ok::<_, ErrorResponse>(response)
+    }).await?;
+    let client_origin = client_origin.into_inner().unwrap_or_default();
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+
+    // 2. 发送挑战
+    let challenge: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect();
+
+    let challenge_msg = HandshakeChallenge {
+        msg_type: "handshake_challenge".to_string(),
+        challenge: challenge.clone(),
+    };
+    ws_sender.send(Message::Text(serde_json::to_string(&challenge_msg)?)).await?;
+
+    // 3. 接收响应 (可配置超时)
+    let handshake_data = match timeout(Duration::from_secs(handshake_timeout_secs), ws_receiver.next()).await {
+        Ok(Some(Ok(Message::Text(text)))) => {
+            let handshake_max_size = state.config.handshake_max_size;
+            if text.len() > handshake_max_size {
+                let resp = HandshakeResponse {
+                    msg_type: "handshake".to_string(),
+                    status: "error".to_string(),
+                    message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), handshake_max_size),
+                    is_admin: None,
+                    version: None,
+                };
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let _ = ws_sender.send(Message::Close(None)).await;
+                return Err("Handshake failed: Handshake data too large".into());
+            }
+            text
+        }
+        Ok(Some(Ok(_))) => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Expected text message during handshake".to_string(),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("Handshake failed: Unexpected message type".into());
+        }
+        Err(_elapsed) => {
+            // 超时：指定时间内未收到任何响应
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: format!("Handshake timeout: no response within {} seconds", handshake_timeout_secs),
+                is_admin: None,
+                version: None,
+            };
+            let _ = ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await;
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("Handshake failed: timeout waiting for response".into());
+        }
+        _ => {
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err("Handshake failed: Connection closed by client".into());
+        }
+    };
+
+    // 捕获握手数据大小（用于流量统计）
+    let handshake_size = handshake_data.len();
+
+    // 4. 数据解析
+    let mut handshake_obj: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&handshake_data) {
+        Ok(serde_json::Value::Object(v)) => v,
+        _ => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Invalid JSON format or not an object".to_string(),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("Handshake failed: Invalid JSON".into());
+        }
+    };
+
+    // 5. 挑战校验
+    let received_challenge = match handshake_obj.get("challenge").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Missing 'challenge' field".to_string(),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("Handshake failed: Missing challenge".into());
+        }
+    };
+
+    if received_challenge != challenge {
+        let resp = HandshakeResponse {
+            msg_type: "handshake".to_string(),
+            status: "error".to_string(),
+            message: "Challenge mismatch".to_string(),
+            is_admin: None,
+            version: None,
+        };
+        ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+        return Err("Handshake failed: Challenge mismatch".into());
+    }
+
+    // 6. 提取字段
+    let signature = match handshake_obj.get("signature").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Missing 'signature' field".to_string(),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("Handshake failed: Missing signature".into());
+        }
+    };
+
+    let public_key = match handshake_obj.get("publicKey").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => {
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: "Missing 'publicKey' field".to_string(),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            return Err("Handshake failed: Missing publicKey".into());
+        }
+    };
+
+    // 提取 userId、sessionId 和 username
+    let user_id = handshake_obj.get("userId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let session_id = handshake_obj.get("sessionId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let username = handshake_obj.get("username")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // 以 userId + sessionId 作为连接 key，同一 userId 的不同 sessionId 可共存
+    let conn_key = format!("{}:{}", user_id, session_id);
+
+    // 7. 签名验证
+    handshake_obj.remove("signature");
+    let signed_message = serde_json::to_string(&handshake_obj)?;
+
+    match verify_signature(&public_key, &signed_message, &signature) {
+        Ok(_) => {
+            // 判断是否为管理员
+            let is_admin = state.admin_user_id.as_deref() == Some(&user_id);
+
+            // 内存过载保护：非管理员且内存使用率超过阈值时拒绝连接
+            if !is_admin {
+                let threshold = state.config.max_memory_usage_percent;
+                let mem_usage = admin::get_memory_usage_percent().await;
+                if mem_usage > threshold {
+                    let msg = format!(
+                        "Server memory usage is too high ({}% > {}%), connection rejected. Please try again later.",
+                        mem_usage, threshold
+                    );
+                    println!("Rejected connection from {}:{} ({}) — {}", user_id, session_id, username, msg);
+                    let resp = HandshakeResponse {
+                        msg_type: "handshake".to_string(),
+                        status: "error".to_string(),
+                        message: msg,
+                        is_admin: None,
+                        version: None,
+                    };
+                    ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    return Err("Handshake rejected: server memory overload".into());
+                }
+            }
+
+            // 创建 disconnect 通道 and data 转发通道并注册用户（以 userId:sessionId 为 key）
+            let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
+            let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
+            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
+                let resp = HandshakeResponse {
+                    msg_type: "handshake".to_string(),
+                    status: "error".to_string(),
+                    message: e.clone(),
+                    is_admin: None,
+                    version: None,
+                };
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let _ = ws_sender.send(Message::Close(None)).await;
+                return Err(format!("Handshake rejected: {}", e).into());
+            }
+
+            // 在流量统计中注册该 session
+            {
+                let now_ms = traffic::now_ms();
+                state.traffic.register_session(&conn_key, &user_id, &session_id, &username, now_ms);
+                state.traffic.add_handshake(&conn_key, handshake_size as u64, now_ms);
+            }
+
+            // 持久化用户信息到 redb（单 key 写入，直接同步）
+            // 优先加载已有记录以保留 used_bytes 和 quota_bytes，避免每次重连重置配额
+            {
+                let now = traffic::now_ms();
+                let existing = traffic::load_user(&state.db, &user_id).ok().flatten();
+                let (existing_used, existing_quota, first_seen) = match existing {
+                    Some(ref r) => (r.used_bytes, r.quota_bytes, r.first_seen_at),
+                    None => (0, state.config.default_relay_quota_bytes, now),
+                };
+                let record = traffic::UserRecord {
+                    user_id: user_id.clone(),
+                    username: username.clone(),
+                    public_key: public_key.clone(),
+                    first_seen_at: first_seen,
+                    last_seen_at: now,
+                    quota_bytes: existing_quota,
+                    used_bytes: existing_used,
+                };
+                if let Err(e) = traffic::save_user(&state.db, &record) {
+                    eprintln!("Failed to persist user {} to redb: {}", user_id, e);
+                }
+            }
+
+            let role_str = if is_admin { " (ADMIN)" } else { "" };
+            println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
+
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "success".to_string(),
+                message: "Authentication successful".to_string(),
+                is_admin: Some(is_admin),
+                version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+
+            // 8. 通信循环（包裹在 Result 块中，确保 ? 不会跳过清理代码）
+            let heartbeat_interval = Duration::from_secs(state.config.heartbeat_interval_secs);
+            let heartbeat_timeout = Duration::from_secs(state.config.heartbeat_timeout_secs);
+            let mut heartbeat_ticker = tokio::time::interval(heartbeat_interval);
+            heartbeat_ticker.tick().await; // 跳过首次立即触发
+            // 记录最近一次收到客户端消息的时间，用于心跳检测
+            let mut last_activity_at = std::time::Instant::now();
+
+            let comm_result: std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
+                loop {
+                    tokio::select! {
+                        // 接收 disconnect 信号
+                        _ = &mut disconnect_rx => {
+                            println!("User {}:{} ({}) disconnected by admin", user_id, session_id, username);
+                            let _ = ws_sender.send(Message::Close(None)).await;
+                            break;
+                        }
+                        // 接收转发消息（其他用户通过 relay 发送过来的数据）
+                        Some(forward_msg) = data_rx.recv() => {
+                            // 统计出站流量（转发给当前连接的消息）
+                            let out_size = traffic::message_byte_size(&forward_msg) as u64;
+                            if out_size > 0 {
+                                state.traffic.add_outbound(&conn_key, out_size, traffic::now_ms());
+                            }
+                            ws_sender.send(forward_msg).await?;
+                        }
+                        // 接收客户端消息
+                        msg = ws_receiver.next() => {
+                            match msg {
+                                Some(Ok(msg)) => {
+                                    // 收到任何客户端消息都更新活跃时间
+                                    last_activity_at = std::time::Instant::now();
+
+                                    match msg {
+                                        Message::Text(text) => {
+                                            // 检查文本消息大小，防止 OOM
+                                            let text_max_size = state.config.text_message_max_size;
+                                            if text.len() > text_max_size {
+                                                println!("Oversized text message ({} bytes) from {}:{} ({}), rejected", text.len(), user_id, session_id, username);
+                                                let resp = serde_json::json!({
+                                                    "type": "error",
+                                                    "status": "error",
+                                                    "message": format!("Text message too large: {} bytes (max {} bytes)", text.len(), text_max_size)
+                                                });
+                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                continue;
+                                            }
+
+                                            // 截断日志输出，避免打印超长消息
+                                            let log_text = if text.len() > 500 {
+                                                format!("{}... ({} bytes total)", &text[..500], text.len())
+                                            } else {
+                                                text.clone()
+                                            };
+                                            println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
+
+                                            // 统计入站流量
+                                            {
+                                                state.traffic.add_inbound(&conn_key, text.len() as u64, traffic::now_ms());
+                                            }
+
+                                            // 尝试解析为 JSON 命令并分派给对应的处理器
+                                            if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
+                                                let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+                                                match msg_type {
+                                                    "admin" => {
+                                                        if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
+                                                            if !is_admin {
+                                                                let resp = admin::AdminResponse {
+                                                                    msg_type: "admin_response".to_string(),
+                                                                    action: admin_cmd.action,
+                                                                    status: "error".to_string(),
+                                                                    message: Some("Permission denied: not an admin".to_string()),
+                                                                    ..Default::default()
+                                                                };
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            } else {
+                                                                let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
+                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                                                            }
+                                                        }
+                                                    }
+                                                    "query" => {
+                                                        handle_query_message(&mut ws_sender, &state, &cmd).await?;
+                                                    }
+                                                    "update_services" => {
+                                                        handle_update_services(&state, &user_id, &session_id, &cmd);
+                                                    }
+                                                    "relay" => {
+                                                        handle_relay_send_data_text(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, role_str, &cmd).await?;
+                                                    }
+                                                    "latency_test" => {
+                                                        handle_latency_test(&mut ws_sender, &cmd).await?;
+                                                    }
+                                                    "latency_report" => {
+                                                        handle_latency_report(&mut ws_sender, &state, &user_id, &session_id, &username, &cmd).await?;
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                        Message::Binary(data) => {
+                                        // 统计入站流量（不论消息大小）
+                                        {
+                                            state.traffic.add_inbound(&conn_key, data.len() as u64, traffic::now_ms());
+                                        }
+                                        // 将二进制消息委托给专用处理器（解析帧格式、检查大小、转发或回显）
+                                        handle_relay_send_data_binary(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &data).await?;
+                                    }
+                                        Message::Ping(data) => {
+                                            ws_sender.send(Message::Pong(data)).await?;
+                                        }
+                                        Message::Pong(_) => {} // Pong 已更新 last_activity_at
+                                        Message::Close(_) => {
+                                            println!("Connection closed by client: {}:{} ({})", user_id, session_id, addr);
+                                            break;
+                                        }
+                                        Message::Frame(_) => {}
+                                    }
+                                }
+                                Some(Err(e)) => {
+                                    eprintln!("WebSocket error for {}:{} ({}): {}", user_id, session_id, addr, e);
+                                    break;
+                                }
+                                None => break,
+                            }
+                        }
+                        // 心跳检测：定期发送 Ping，超时未活跃则断开
+                        _ = heartbeat_ticker.tick() => {
+                            if last_activity_at.elapsed() >= heartbeat_timeout {
+                                println!("Heartbeat timeout: {}:{} ({}) — no message for {}s, closing connection",
+                                    user_id, session_id, username, heartbeat_timeout.as_secs());
+                                let _ = ws_sender.send(Message::Close(None)).await;
+                                break;
+                            }
+                            // 发送 Ping 检测连接活性
+                            if ws_sender.send(Message::Ping(vec![])).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }.await;
+
+            // 9. 无论通信循环是否出错，始终执行清理
+            {
+                // 移除此用户 session
+                state.remove_user(&conn_key);
+                // 移除 session 流量统计
+                state.traffic.remove_session(&conn_key);
+
+                // 检查该用户是否所有 session 都已断开
+                let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+                if session_count == 0 {
+                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
+                    let now = traffic::now_ms();
+                    let ts_30s = now / 30_000;
+
+                    // 取出该用户在当前窗口内的转发分布条目
+                    let entries = state.traffic.take_user_relay_entries(&user_id);
+                    if !entries.is_empty() {
+                        if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
+                            eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                        }
+                    }
+
+                    // 持久化用户信息（包含配额用量）并从内存缓存中移除
+                    if let Some(quota) = state.user_quotas.get(&user_id) {
+                        let mut record = quota.clone();
+                        record.last_seen_at = now;
+                        if let Err(e) = traffic::save_user(&state.db, &record) {
+                            eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                        }
+                    }
+                    // 从内存配额缓存中移除，避免长期运行泄漏
+                    state.user_quotas.remove(&user_id);
+                }
+            }
+            println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);
+
+            // 如果通信循环因 send 错误提前退出，传播错误
+            comm_result?;
+        }
+        Err(e) => {
+            eprintln!("Handshake: User {}:{} authentication FAILED: {}", user_id, session_id, e);
+            let resp = HandshakeResponse {
+                msg_type: "handshake".to_string(),
+                status: "error".to_string(),
+                message: format!("Verification failed: {}", e),
+                is_admin: None,
+                version: None,
+            };
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            let _ = ws_sender.send(Message::Close(None)).await;
+            return Err(format!("Handshake failed: {}", e).into());
+        }
+    }
+
+    Ok(())
+}

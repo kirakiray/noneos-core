@@ -67,7 +67,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const getqAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const getqAdminNs = "admin-quota-get-ns";
@@ -102,7 +102,8 @@
 
           const getqAllOk = getqSingleOk && batchOk;
 
-          getqAdmin.server.disconnect(getqUrl);
+          getqAdmin.server.disconnectAll();
+          getqUser.server.disconnectAll();
 
           return {
             assert: getqAllOk,
@@ -136,7 +137,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const setzAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const setzAdminNs = "admin-quota-set-ns";
@@ -159,7 +160,8 @@
             && setzResult?.quota?.user_id === setzUser.userId
             && setzResult?.quota?.quota_bytes === 0;
 
-          setzAdmin.server.disconnect(setzUrl);
+          setzAdmin.server.disconnectAll();
+          setzUser.server.disconnectAll();
 
           return {
             assert: setzOk,
@@ -187,7 +189,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const offAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const offAdminNs = "admin-quota-off-ns";
@@ -234,7 +236,8 @@
 
           const offAllOk = offOk && getOk;
 
-          offAdmin.server.disconnect(offUrl);
+          offAdmin.server.disconnectAll();
+          offUser.server.disconnectAll();
 
           return {
             assert: offAllOk,
@@ -266,7 +269,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const bigrAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const bigrAdminNs = "admin-quota-big-ns";
@@ -319,9 +322,9 @@
 
           const bigrRejected = bigrResult?.status === "quota_exceeded";
 
-          bigrAdmin.server.disconnect(bigrUrl);
-          bigrUserA.server.disconnect(bigrUrl);
-          bigrUserB.server.disconnect(bigrUrl);
+          bigrAdmin.server.disconnectAll();
+          bigrUserA.server.disconnectAll();
+          bigrUserB.server.disconnectAll();
 
           return {
             assert: bigrRejected,
@@ -346,7 +349,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const smallaAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const smallaAdminNs = "admin-quota-small-ns";
@@ -398,9 +401,9 @@
 
           const smallaAllowed = smallaResult?.status === "ok";
 
-          smallaAdmin.server.disconnect(smallaUrl);
-          smallaUserA.server.disconnect(smallaUrl);
-          smallaUserB.server.disconnect(smallaUrl);
+          smallaAdmin.server.disconnectAll();
+          smallaUserA.server.disconnectAll();
+          smallaUserB.server.disconnectAll();
 
           return {
             assert: smallaAllowed,
@@ -425,7 +428,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const adminnlAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const adminnlAdminNs = "admin-quota-admin-ns";
@@ -473,8 +476,8 @@
 
           const adminnlAllowed = adminnlResult?.status === "ok";
 
-          adminnlAdmin.server.disconnect(adminnlUrl);
-          adminnlUser.server.disconnect(adminnlUrl);
+          adminnlAdmin.server.disconnectAll();
+          adminnlUser.server.disconnectAll();
 
           return {
             assert: adminnlAllowed,
@@ -499,7 +502,7 @@
           import { saveUserKeys, saveUserInfo } from "/nos/user/db.js";
           import { deleteUser } from "/nos/user/main.js";
           import { AdminUser } from "/nos/user/admin-user.js";
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const raiseqAdminData = await fetch("/tests/user/local/admin.json").then(r => r.json());
           const raiseqAdminNs = "admin-quota-raise-ns";
@@ -562,9 +565,9 @@
 
           const raiseqAllOk = raiseqWasBlocked && raiseqAllowed;
 
-          raiseqAdmin.server.disconnect(raiseqUrl);
-          raiseqUserA.server.disconnect(raiseqUrl);
-          raiseqUserB.server.disconnect(raiseqUrl);
+          raiseqAdmin.server.disconnectAll();
+          raiseqUserA.server.disconnectAll();
+          raiseqUserB.server.disconnectAll();
 
           return {
             assert: raiseqAllOk,

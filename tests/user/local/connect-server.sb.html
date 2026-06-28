@@ -16,7 +16,7 @@
     <sb-test name="User Connect to Handshake Server Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace1 = "test-connect";
           const user1 = new LocalUser(namespace1);
@@ -33,6 +33,8 @@
           }
 
           const isConnected1 = connectResult1 && connectResult1.success === true;
+
+          user1.server.disconnectAll();
 
           return {
             assert: isConnected1 === true,
@@ -57,7 +59,7 @@
     <sb-test name="Server Version Retrieval Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespaceVersion = "test-version";
           const userVersion = new LocalUser(namespaceVersion);
@@ -71,6 +73,8 @@
             versionResult.success === true &&
             typeof versionResult.version === "string" &&
             versionResult.version.length > 0;
+
+          userVersion.server.disconnectAll();
 
           return {
             assert: hasVersion === true,
@@ -94,7 +98,7 @@
     <sb-test name="WebSocket Persistence and Reuse Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace3 = "test-reuse";
           const user3 = new LocalUser(namespace3);
@@ -107,6 +111,8 @@
 
           // 第二次连接（应该直接返回已缓存的结果）
           const secondResult = await user3.server.connect(url3);
+
+          user3.server.disconnectAll();
 
           return {
             assert:
@@ -128,7 +134,7 @@
     <sb-test name="Tampered Data Handshake Test (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace4 = "test-tamper-data";
           const user4 = new LocalUser(namespace4);
@@ -243,7 +249,7 @@
     <sb-test name="Tampered Signature Handshake Test (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace5 = "test-tamper-sig";
           const user5 = new LocalUser(namespace5);
@@ -359,7 +365,7 @@
     <sb-test name="Handshake Timeout Test (No Response to Challenge)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace6 = "test-timeout";
           const user6 = new LocalUser(namespace6);
@@ -410,14 +416,14 @@
               }, 300);
             };
 
-            // 安全阀：10秒后强制结束
+            // 安全阀：30秒后强制结束（服务器 handshake_timeout_secs=15，足够收到响应）
             setTimeout(() => {
               ws.close();
               safeResolve({
                 status: "timeout",
                 serverResponse: serverResponse6,
               });
-            }, 10000);
+            }, 30000);
           });
 
           const isTimeoutHandled =
@@ -450,7 +456,7 @@
     <sb-test name="Latency Measurement Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace7 = "test-latency";
           const user7 = new LocalUser(namespace7);
@@ -479,6 +485,8 @@
 
           const allValid =
             hasValidRtt && hasValidOneWay && timestampsValid && rttPositive;
+
+          user7.server.disconnectAll();
 
           return {
             assert: allValid,
@@ -510,7 +518,7 @@
     <sb-test name="Periodic Latency Monitor Test">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const namespace8 = "test-latency-monitor";
           const user8 = new LocalUser(namespace8);
@@ -548,6 +556,8 @@
 
           user8.server.stopLatencyMonitor();
           cancel();
+
+          user8.server.disconnectAll();
 
           // 验证所有测量结果有效
           const allValid8 = measurements.every(

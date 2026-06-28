@@ -1,4 +1,4 @@
-import { LocalUser } from "./local/user.js";
+import { LocalUser } from "./user.js";
 
 /**
  * 管理员用户类，继承自 LocalUser
@@ -40,7 +40,7 @@ export class AdminUser extends LocalUser {
           unbind();
           reject(new Error(`Admin command "${action}" timed out`));
         }
-      }, 5000);
+      }, 15000);
     });
   }
 

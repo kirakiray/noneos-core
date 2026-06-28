@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Service Registry Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Service Registry Tests</h1>
+
+  <!-- Test 1: Register Service (Private Mode) -->
+  <sb-test name="Service Registration (Private Mode)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc1 = "service-test-svc1";
+        const nsSvc1b = "service-test-svc1b";
+        const svcUrl1 = "ws://localhost:8081";
+
+        const userSvc1 = new LocalUser(nsSvc1);
+        const userSvc1b = new LocalUser(nsSvc1b);
+
+        await Promise.all([userSvc1.ready(), userSvc1b.ready()]);
+
+        await Promise.all([
+          userSvc1.server.connect(svcUrl1),
+          userSvc1b.server.connect(svcUrl1),
+        ]);
+
+        // userSvc1 注册一个私密服务（默认 exposeToServer = false）
+        let receivedMsgSvc1 = null;
+        let receivedCtxSvc1 = null;
+        const svcReg1 = userSvc1.registerService("test-app-v1", {
+          onMessage(data, ctx) {
+            receivedMsgSvc1 = data;
+            receivedCtxSvc1 = ctx;
+          },
+        });
+
+        // userSvc1b 连接 userSvc1 并通过服务发送消息
+        const remoteSvc1 = await userSvc1b.connectUser(userSvc1.userId);
+        const sessionsSvc1 = await remoteSvc1.getServiceSessions("test-app-v1");
+
+        // 发送消息
+        const sendDataSvc1 = { text: "hello private service", num: 1 };
+        await remoteSvc1.sendToService("test-app-v1", sendDataSvc1);
+
+        // 等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedMsgSvc1 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 验证
+        const foundSession = sessionsSvc1.length >= 1;
+        const msgReceived = receivedMsgSvc1 !== null && receivedMsgSvc1.text === "hello private service" && receivedMsgSvc1.num === 1;
+        const ctxHasUserId = receivedCtxSvc1?.fromUserId === userSvc1b.userId;
+        const ctxHasSessionId = typeof receivedCtxSvc1?.fromSessionId === "string" && receivedCtxSvc1.fromSessionId.length > 0;
+        const ctxHasRemoteUser = receivedCtxSvc1?.remoteUser?.userId === userSvc1b.userId;
+
+        // 清理
+        svcReg1.unregister();
+        userSvc1.server.disconnectAll();
+        userSvc1b.server.disconnectAll();
+
+        return {
+          assert: foundSession && msgReceived && ctxHasUserId && ctxHasSessionId && ctxHasRemoteUser,
+          content: {
+            message: foundSession && msgReceived && ctxHasUserId && ctxHasSessionId && ctxHasRemoteUser
+              ? "私密服务注册与发现测试成功"
+              : "私密服务注册与发现测试失败",
+            sessionsFound: sessionsSvc1.toString(),
+            checks: {
+              foundSession,
+              sessionCount: sessionsSvc1.length,
+              msgReceived,
+              receivedText: receivedMsgSvc1?.text,
+              ctxHasUserId,
+              ctxHasSessionId,
+              ctxHasRemoteUser,
+              ctxRemoteUserId: receivedCtxSvc1?.remoteUser?.userId,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: sendToService to Specific Session -->
+  <sb-test name="sendToService to Specific Session">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc2 = "service-test-svc2";
+        const nsSvc2b = "service-test-svc2b";
+        const svcUrl2 = "ws://localhost:8081";
+
+        const userSvc2 = new LocalUser(nsSvc2);
+        const userSvc2b = new LocalUser(nsSvc2b);
+
+        await Promise.all([userSvc2.ready(), userSvc2b.ready()]);
+
+        await Promise.all([
+          userSvc2.server.connect(svcUrl2),
+          userSvc2b.server.connect(svcUrl2),
+        ]);
+
+        // userSvc2b 注册服务
+        let receivedMsgSvc2 = null;
+        let receivedCtxSvc2 = null;
+        userSvc2b.registerService("specific-app", {
+          onMessage(data, ctx) {
+            receivedMsgSvc2 = data;
+            receivedCtxSvc2 = ctx;
+          },
+        });
+
+        const remoteSvc2 = await userSvc2.connectUser(userSvc2b.userId);
+
+        // 发送到特定 session
+        const targetSessionId = userSvc2b.sessionId;
+        const sendDataSvc2 = { text: "specific session only" };
+        const resultsSvc2 = await remoteSvc2.sendToService("specific-app", sendDataSvc2, {
+          sessionId: targetSessionId,
+        });
+
+        // 等待消息到达
+        for (let i = 0; i < 10; i++) {
+          if (receivedMsgSvc2 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const specificResultOk = resultsSvc2.length === 1 && resultsSvc2[0].sessionId === targetSessionId && resultsSvc2[0].status === "ok";
+        const specificMsgReceived = receivedMsgSvc2 !== null && receivedMsgSvc2.text === "specific session only";
+
+        userSvc2.server.disconnectAll();
+        userSvc2b.server.disconnectAll();
+
+        return {
+          assert: specificResultOk && specificMsgReceived,
+          content: {
+            message: specificResultOk && specificMsgReceived
+              ? "sendToService 特定 session 测试成功"
+              : "sendToService 特定 session 测试失败",
+            results: resultsSvc2,
+            receivedMsg: receivedMsgSvc2,
+            checks: {
+              specificResultOk,
+              resultCount: resultsSvc2.length,
+              resultSessionId: resultsSvc2[0]?.sessionId,
+              expectedSessionId: targetSessionId,
+              resultStatus: resultsSvc2[0]?.status,
+              specificMsgReceived,
+              receivedText: receivedMsgSvc2?.text,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: Multiple Sessions with Same Service -->
+  <sb-test name="Multiple Sessions with Same Service">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc3a = "service-test-svc3-a";
+        const nsSvc3b = "service-test-svc3-b";
+        const svcUrl3 = "ws://localhost:8081";
+
+        // userSvc3a 是发送方
+        const userSvc3a = new LocalUser(nsSvc3a);
+        // userSvc3b1 和 userSvc3b2 是同一个用户（相同 namespace）的 2 个 session
+        const userSvc3b1 = new LocalUser(nsSvc3b);
+        const userSvc3b2 = new LocalUser(nsSvc3b);
+
+        await Promise.all([userSvc3a.ready(), userSvc3b1.ready(), userSvc3b2.ready()]);
+
+        await Promise.all([
+          userSvc3a.server.connect(svcUrl3),
+          userSvc3b1.server.connect(svcUrl3),
+          userSvc3b2.server.connect(svcUrl3),
+        ]);
+
+        // userSvc3b1 和 userSvc3b2 是同一用户的不同 session，userId 相同
+        const multiUserId = userSvc3b1.userId;
+
+        // 两个 session 注册同一个服务
+        let receivedMultiCount = 0;
+        const multiReceived = [];
+
+        userSvc3b1.registerService("multi-app", {
+          onMessage(data, ctx) {
+            receivedMultiCount++;
+            multiReceived.push({ session: ctx.fromSessionId, data });
+          },
+        });
+
+        userSvc3b2.registerService("multi-app", {
+          onMessage(data, ctx) {
+            receivedMultiCount++;
+            multiReceived.push({ session: ctx.fromSessionId, data });
+          },
+        });
+
+        const remoteSvc3 = await userSvc3a.connectUser(multiUserId);
+
+        // 查找运行 multi-app 的所有 session
+        const sessionsSvc3 = await remoteSvc3.getServiceSessions("multi-app");
+
+        // 广播发送
+        const broadcastData = { text: "broadcast" };
+        const broadcastResults = await remoteSvc3.sendToService("multi-app", broadcastData);
+
+        // 等待两个 session 都收到
+        for (let i = 0; i < 20; i++) {
+          if (receivedMultiCount >= 2) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const foundBothSessions = sessionsSvc3.length >= 2;
+        const bothReceived = receivedMultiCount >= 2;
+        const broadcastSentToBoth = broadcastResults.length >= 2;
+        const allResultsOk = broadcastResults.every((r) => r.status === "ok");
+
+        userSvc3a.server.disconnectAll();
+        userSvc3b1.server.disconnectAll();
+        userSvc3b2.server.disconnectAll();
+
+        return {
+          assert: foundBothSessions && bothReceived && broadcastSentToBoth && allResultsOk,
+          content: {
+            message: foundBothSessions && bothReceived && broadcastSentToBoth && allResultsOk
+              ? "多 session 广播测试成功"
+              : "多 session 广播测试失败",
+            sessionsFound: sessionsSvc3,
+            receivedCount: receivedMultiCount,
+            received: multiReceived,
+            broadcastResults,
+            checks: {
+              foundBothSessions,
+              sessionCount: sessionsSvc3.length,
+              bothReceived,
+              receivedCount: receivedMultiCount,
+              broadcastSentToBoth,
+              broadcastResultCount: broadcastResults.length,
+              allResultsOk,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: Reply via ctx.remoteUser -->
+  <sb-test name="Reply via ctx.remoteUser">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc4 = "service-test-svc4";
+        const nsSvc4b = "service-test-svc4b";
+        const svcUrl4 = "ws://localhost:8081";
+
+        const userSvc4 = new LocalUser(nsSvc4);
+        const userSvc4b = new LocalUser(nsSvc4b);
+
+        await Promise.all([userSvc4.ready(), userSvc4b.ready()]);
+
+        await Promise.all([
+          userSvc4.server.connect(svcUrl4),
+          userSvc4b.server.connect(svcUrl4),
+        ]);
+
+        // userSvc4 注册服务，收到消息后用 ctx.remoteUser 回复
+        let replyReceived = null;
+        userSvc4.registerService("reply-app", {
+          onMessage(data, ctx) {
+            // 通过 ctx.remoteUser 回复给发送方
+            ctx.remoteUser.send(ctx.fromSessionId, {
+              __app: "reply-app",
+              __data: { reply: "reply from " + data.msg },
+            });
+          },
+        });
+
+        // userSvc4b 注册服务来接收回复
+        let msgFromSvc4 = null;
+        userSvc4b.registerService("reply-app", {
+          onMessage(data, ctx) {
+            msgFromSvc4 = data;
+          },
+        });
+
+        const remoteSvc4 = await userSvc4b.connectUser(userSvc4.userId);
+
+        // 发送消息，期待回复
+        await remoteSvc4.sendToService("reply-app", { msg: "hello" });
+
+        // 等待回复
+        for (let i = 0; i < 20; i++) {
+          if (msgFromSvc4 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const replyOk = msgFromSvc4 !== null && msgFromSvc4.reply === "reply from hello";
+
+        userSvc4.server.disconnectAll();
+        userSvc4b.server.disconnectAll();
+
+        return {
+          assert: replyOk,
+          content: {
+            message: replyOk
+              ? "通过 ctx.remoteUser 回复测试成功"
+              : "通过 ctx.remoteUser 回复测试失败",
+            receivedReply: msgFromSvc4,
+            checks: {
+              replyOk,
+              replyNotNull: msgFromSvc4 !== null,
+              replyText: msgFromSvc4?.reply,
+              expectedReply: "reply from hello",
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 5: Unregistered Service Silently Discarded -->
+  <sb-test name="Unregistered Service Silently Discarded">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc5 = "service-test-svc5";
+        const nsSvc5b = "service-test-svc5b";
+        const svcUrl5 = "ws://localhost:8081";
+
+        const userSvc5 = new LocalUser(nsSvc5);
+        const userSvc5b = new LocalUser(nsSvc5b);
+
+        await Promise.all([userSvc5.ready(), userSvc5b.ready()]);
+
+        await Promise.all([
+          userSvc5.server.connect(svcUrl5),
+          userSvc5b.server.connect(svcUrl5),
+        ]);
+
+        // userSvc5b 注册一个服务，但不注册 "ghost-app"
+        let receivedRightApp = null;
+        let receivedGhostApp = false;
+        userSvc5b.registerService("real-app", {
+          onMessage(data) {
+            receivedRightApp = data;
+          },
+        });
+
+        const remoteSvc5 = await userSvc5.connectUser(userSvc5b.userId);
+
+        // 发送到未注册的 app（应静默丢弃）
+        await remoteSvc5.sendToService("ghost-app", { text: "should be discarded" }, {
+          sessionId: userSvc5b.sessionId,
+        });
+
+        // 发送到已注册的 app（应正常到达）
+        await remoteSvc5.sendToService("real-app", { text: "should arrive" }, {
+          sessionId: userSvc5b.sessionId,
+        });
+
+        // 等待
+        for (let i = 0; i < 10; i++) {
+          if (receivedRightApp !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const ghostNotReceived = !receivedGhostApp;
+        const realReceived = receivedRightApp !== null && receivedRightApp.text === "should arrive";
+
+        userSvc5.server.disconnectAll();
+        userSvc5b.server.disconnectAll();
+
+        return {
+          assert: ghostNotReceived && realReceived,
+          content: {
+            message: ghostNotReceived && realReceived
+              ? "未注册服务静默丢弃测试成功"
+              : "未注册服务静默丢弃测试失败",
+            ghostReceived: receivedGhostApp,
+            realReceived: receivedRightApp,
+            checks: {
+              ghostNotReceived,
+              ghostReceivedFlag: receivedGhostApp,
+              realReceived,
+              realReceivedText: receivedRightApp?.text,
+              expectedRealText: "should arrive",
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 6: getServiceSessions Returns Only Matching Sessions -->
+  <sb-test name="getServiceSessions Filters Correctly">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsSvc6a = "service-test-svc6-a";
+        const nsSvc6b = "service-test-svc6-b";
+        const nsSvc6c = "service-test-svc6-c";
+        const svcUrl6 = "ws://localhost:8081";
+
+        const userSvc6a = new LocalUser(nsSvc6a);
+        const userSvc6b = new LocalUser(nsSvc6b);
+        // userSvc6c 和 userSvc6b 共享 namespace，是同一用户的不同 session
+        const userSvc6c = new LocalUser(nsSvc6b);
+
+        await Promise.all([userSvc6a.ready(), userSvc6b.ready(), userSvc6c.ready()]);
+
+        await Promise.all([
+          userSvc6a.server.connect(svcUrl6),
+          userSvc6b.server.connect(svcUrl6),
+          userSvc6c.server.connect(svcUrl6),
+        ]);
+
+        // userSvc6b 只注册 app-x
+        userSvc6b.registerService("app-x", { onMessage() {} });
+        // userSvc6c（同一用户的不同 session）同时注册 app-x 和 app-y
+        userSvc6c.registerService("app-x", { onMessage() {} });
+        userSvc6c.registerService("app-y", { onMessage() {} });
+
+        const remoteSvc6 = await userSvc6a.connectUser(userSvc6b.userId);
+
+        // 查询 app-x：应返回两个 session
+        const sessionsX = await remoteSvc6.getServiceSessions("app-x");
+
+        // 查询 app-y：应只返回 userSvc6c 的一个 session
+        const sessionsY = await remoteSvc6.getServiceSessions("app-y");
+
+        // 查询 app-z：应返回空
+        const sessionsZ = await remoteSvc6.getServiceSessions("app-z");
+
+        const appXCount = sessionsX.length >= 2;
+        const appYCount = sessionsY.length >= 1;
+        const appZEmpty = sessionsZ.length === 0;
+
+        userSvc6a.server.disconnectAll();
+        // userSvc6b 和 userSvc6c 共享 namespace（同一用户的不同 session）
+        userSvc6b.server.disconnectAll();
+
+        return {
+          assert: appXCount && appYCount && appZEmpty,
+          content: {
+            message: appXCount && appYCount && appZEmpty
+              ? "getServiceSessions 过滤测试成功"
+              : "getServiceSessions 过滤测试失败",
+            sessionsX,
+            sessionsY,
+            sessionsZ,
+            checks: {
+              appXCount,
+              actualAppXCount: sessionsX.length,
+              appYCount,
+              actualAppYCount: sessionsY.length,
+              appZEmpty,
+              actualAppZCount: sessionsZ.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

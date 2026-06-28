@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -18,8 +18,8 @@
     "dev": "npm run static & npm run watch:sw",
     "static": "http-server -p 3002 -c-1 --cors",
     "ws": "npm run ws1 & npm run ws2",
-    "ws1": "cd server && cargo run -- --config test-space/config.example.toml",
-    "ws2": "cd server && cargo run -- --config test-space/config2.toml",
+    "ws1": "cd server/rust && cargo run -- --config test-space/config.example.toml",
+    "ws2": "cd server/rust && cargo run -- --config test-space/config2.toml",
     "bump": "node scripts/bump.js && npm i && npm run build",
     "build": "npm run build:hashes && node scripts/pack-nos.js && npm run build:sw",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
@@ -35,7 +35,7 @@
     "http-server": "^14.1.1",
     "playwright": "^1.59.1",
     "rollup": "^3.0.0",
-    "sibyl-test": "^1.0.4"
+    "sibyl-test": "^1.0.8"
   },
   "dependencies": {
     "selenium-webdriver": "^4.43.0"

@@ -86,7 +86,7 @@
     <sb-test name="Query Self Online Status">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t1Ns = "agent-t1-ns";
           const t1User = new LocalUser(t1Ns);
@@ -105,6 +105,8 @@
           const t1SessionCount = t1Result.sessions?.length;
           const t1SessionIdMatch = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
           const t1HasSession = t1SessionIsArray && t1SessionCount === 1 && t1Result.sessions[0] === t1User.sessionId;
+
+          t1User.server.disconnectAll();
 
           return {
             assert: t1Online && t1HasSession,
@@ -135,7 +137,7 @@
     <sb-test name="Query Offline User">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t2Ns = "agent-t2-ns";
           const t2User = new LocalUser(t2Ns);
@@ -155,6 +157,8 @@
           const t2SessionIsArray = Array.isArray(t2Result.sessions);
           const t2SessionCount = t2Result.sessions?.length;
           const t2EmptySessions = t2SessionIsArray && t2SessionCount === 0;
+
+          t2User.server.disconnectAll();
 
           return {
             assert: t2Offline && t2EmptySessions,
@@ -184,7 +188,7 @@
     <sb-test name="Query Other User Online">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 用户 A：查询者
           const t3aNs = "agent-t3a-ns";
@@ -210,6 +214,9 @@
           const t3SessionCount = t3Result.sessions?.length;
           const t3SessionIdMatch = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
           const t3HasSession = t3SessionIsArray && t3SessionCount === 1 && t3Result.sessions[0] === t3bUser.sessionId;
+
+          t3aUser.server.disconnectAll();
+          t3bUser.server.disconnectAll();
 
           return {
             assert: t3Online && t3HasSession,
@@ -241,7 +248,7 @@
     <sb-test name="Relay Data to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方用户
           const t4SendNs = "agent-t4send-ns";
@@ -310,6 +317,9 @@
           const t4NumMatch = t4Received?.data?.number === t4Payload.number;
           const t4RecvOk = t4ReceivedNotNull && t4TextMatch && t4NumMatch;
 
+          t4Sender.server.disconnectAll();
+          t4Receiver.server.disconnectAll();
+
           return {
             assert: t4SendOk && t4RecvOk,
             content: {
@@ -340,7 +350,7 @@
     <sb-test name="Relay Data to Offline Session (Should Fail)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t5Ns = "agent-t5-ns";
           const t5User = new LocalUser(t5Ns);
@@ -366,6 +376,8 @@
 
           const t5IsTimeout = t5Error?.message?.includes("timed out");
 
+          t5User.server.disconnectAll();
+
           return {
             assert: !t5IsTimeout,
             content: {
@@ -385,7 +397,7 @@
     <sb-test name="Receiver Gets Relay Data via Message Event">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t6SendNs = "agent-t6send-ns";
@@ -452,6 +464,9 @@
           const t6SeqMatch = t6ReceivedData?.data?.seq === 1;
           const t6RecvOk = t6ReceivedNotNull && t6FromUserIdMatch && t6MsgMatch && t6SeqMatch;
 
+          t6Sender.server.disconnectAll();
+          t6Receiver.server.disconnectAll();
+
           return {
             assert: t6SendOk && t6RecvOk,
             content: {
@@ -481,7 +496,7 @@
     <sb-test name="Relay Binary Uint8Array (0-255) to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t7SendNs = "agent-t7send-ns";
@@ -555,6 +570,9 @@
           const t7PayloadContentMatch = t7PayloadLenMatch && t7Received.payload.every((v, i) => v === t7ExpectedBytes[i]);
           const t7RecvOk = t7ReceivedNotNull && t7PayloadLenMatch && t7PayloadContentMatch;
 
+          t7Sender.server.disconnectAll();
+          t7Receiver.server.disconnectAll();
+
           return {
             assert: t7SendOk && t7RecvOk,
             content: {
@@ -586,7 +604,7 @@
     <sb-test name="Relay ArrayBuffer to Target User Session">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t8SendNs = "agent-t8send-ns";
@@ -660,6 +678,9 @@
           const t8PayloadContentMatch = t8PayloadLenMatch && t8Received.payload.every((v, i) => v === t8ExpectedBytes[i]);
           const t8RecvOk = t8ReceivedNotNull && t8PayloadLenMatch && t8PayloadContentMatch;
 
+          t8Sender.server.disconnectAll();
+          t8Receiver.server.disconnectAll();
+
           return {
             assert: t8SendOk && t8RecvOk,
             content: {
@@ -691,7 +712,7 @@
     <sb-test name="Auto-Select Server via sendToUser (No URL)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           // 发送方
           const t9SendNs = "agent-t9send-ns";
@@ -761,6 +782,9 @@
           const t9ValueMatch = t9Received?.data?.value === t9Payload.value;
           const t9RecvOk = t9ReceivedNotNull && t9TextMatch && t9ValueMatch;
 
+          t9Sender.server.disconnectAll();
+          t9Receiver.server.disconnectAll();
+
           return {
             assert: t9SendOk && t9RecvOk,
             content: {
@@ -791,7 +815,7 @@
     <sb-test name="sendToUser Target Offline (Should Throw)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t10Ns = "agent-t10-ns";
           const t10User = new LocalUser(t10Ns);
@@ -815,6 +839,8 @@
             t10Error = e;
           }
 
+          t10User.server.disconnectAll();
+
           return {
             assert: t10Error !== null,
             content: {
@@ -834,7 +860,7 @@
     <sb-test name="sendToUser No Connection (Should Throw)">
       <template>
         <script type="module">
-          import { LocalUser } from "/nos/user/local/user.js";
+          import { LocalUser } from "/nos/user/user.js";
 
           const t11Ns = "agent-t11-ns";
           const t11User = new LocalUser(t11Ns);

@@ -14,7 +14,7 @@
   <sb-test name="Connect to Remote User and Send Message Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsA = "connect-user-a";
         const nsB = "connect-user-b";
@@ -71,6 +71,9 @@
 
         const messageReceived = receivedMessage === "hello from A";
 
+        userA.server.disconnectAll();
+        userB.server.disconnectAll();
+
         return {
           assert: hasB1 && hasB2 && hasB3 && countAtLeast3 && messageReceived,
           content: {
@@ -101,7 +104,7 @@
   <sb-test name="RemoteUser Message Event Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsC = "connect-user-c";
         const nsD = "connect-user-d";
@@ -165,6 +168,9 @@
           localMessageDetail.fromUserId === userD.userId &&
           localMessageDetail.data === "hello from D";
 
+        userC.server.disconnectAll();
+        userD.server.disconnectAll();
+
         return {
           assert: remoteEventReceived && localEventReceived,
           content: {
@@ -195,7 +201,7 @@
   <sb-test name="Binary Relay Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsE = "connect-user-e";
         const nsF = "connect-user-f";
@@ -255,6 +261,9 @@
         const fromUserMatch = receivedFromUserId === userE.userId;
         const fromSessionMatch = receivedFromSessionId === userE.sessionId;
 
+        userE.server.disconnectAll();
+        userF.server.disconnectAll();
+
         return {
           assert: binaryReceived && payloadMatch && fromUserMatch && fromSessionMatch,
           content: {
@@ -289,11 +298,11 @@
   <sb-test name="Card Exchange Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsG = "card-user-g";
         const nsH = "card-user-h";
-        const serverUrl = "ws://localhost:8081";
+        const serverUrl4 = "ws://localhost:8081";
 
         const userG = new LocalUser(nsG);
         const userH = new LocalUser(nsH);
@@ -301,8 +310,8 @@
         await Promise.all([userG.ready(), userH.ready()]);
 
         await Promise.all([
-          userG.server.connect(serverUrl),
-          userH.server.connect(serverUrl),
+          userG.server.connect(serverUrl4),
+          userH.server.connect(serverUrl4),
         ]);
 
         // userG 连接 userH
@@ -333,7 +342,7 @@
         unbind();
 
         // 验证名片数据完整性
-        const hasUserId = card.userId === userH.userId;
+        const cardHasUserId = card.userId === userH.userId;
         const hasPublicKey = typeof card.publicKey === "string" && card.publicKey.length > 0;
         const hasUsername = typeof card.username === "string" && card.username.length > 0;
         const hasSignTime = typeof card.signTime === "number" && card.signTime > 0;
@@ -357,8 +366,10 @@
 
         // 清理
         await userG.card.delete(userH.userId);
+        userG.server.disconnectAll();
+        userH.server.disconnectAll();
 
-        const allCardChecks = hasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+        const allCardChecks = cardHasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
           && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
           && storedMatch && fromCache;
 
@@ -381,7 +392,7 @@
             cachedReturned: fromCache,
             // 错误诊断字段
             checks: {
-              hasUserId,
+              cardHasUserId,
               expectedUserId: userH.userId,
               actualUserId: card.userId,
               hasPublicKey,
@@ -415,7 +426,7 @@
   <sb-test name="E2EE Encrypted Message Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsI = "e2ee-test-i";
         const nsJ = "e2ee-test-j";
@@ -489,6 +500,9 @@
 
         const e2eeAllPassed = haveBothCards && haveBothKeys && rawIsBinary && messageCorrect;
 
+        userI.server.disconnectAll();
+        userJ.server.disconnectAll();
+
         return {
           assert: e2eeAllPassed,
           content: {
@@ -527,7 +541,7 @@
   <sb-test name="Ping Pong RTT Measurement Test">
     <template>
       <script type="module">
-        import { LocalUser } from "/nos/user/local/user.js";
+        import { LocalUser } from "/nos/user/user.js";
 
         const nsPingA = "ping-user-a";
         const nsPingB = "ping-user-b";
@@ -593,7 +607,7 @@
         const unknownRtt = remotePingB.getRTT("nonexistent-session-xxx");
         const unknownRttValid = unknownRtt === null;
 
-        const allPassed =
+        const allPingPassed =
           rtt1Valid &&
           getRttWithSessionValid &&
           bestRttValid &&
@@ -601,10 +615,13 @@
           rttEventValid &&
           unknownRttValid;
 
+        userPingA.server.disconnectAll();
+        userPingB.server.disconnectAll();
+
         return {
-          assert: allPassed,
+          assert: allPingPassed,
           content: {
-            message: allPassed
+            message: allPingPassed
               ? `Ping/pong RTT 测试全部通过 — 最新 RTT: ${rtt1}ms, 最佳 RTT: ${bestRtt?.rtt}ms`
               : "部分 RTT 测试未通过",
             rtt1,
@@ -648,6 +665,7 @@
       </script>
     </template>
   </sb-test>
+
 </body>
 
 </html>

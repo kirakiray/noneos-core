@@ -1,0 +1,37 @@
+port = 8081
+host = "0.0.0.0"
+admin_user_id = "1507fd839f80f8b8dd59c1dd3560510f8b70a6ef3c2904c9123879c4f556c981"
+handshake_timeout_secs = 15
+
+# 握手响应最大字节数
+handshake_max_size = 1048576
+
+# 文本消息（JSON 命令）最大字节数
+text_message_max_size = 262144
+
+# 二进制 relay 帧负载最大字节数
+binary_payload_max_size = 262144
+
+# 每个 userId 的最大并发 session 数
+max_sessions_per_user = 9999
+
+# 单连接在窗口时间内允许 relay 到不存在 session 的最大失败次数
+relay_fail_limit = 9999
+
+# relay 失败计数窗口时间（秒）
+relay_fail_window_secs = 60
+
+# 每个用户的默认转发流量额度（字节，默认 500MB）
+default_relay_quota_bytes = 1099511627776
+
+# 超额后仍允许转发的单条消息最大字节数（默认 1KB）
+relay_small_message_max_bytes = 256
+
+# 数据库文件路径（redb 格式，无默认值，必配）
+redb_path = "test-space/config.redb"
+
+# 流量统计数据落盘间隔（秒）
+traffic_flush_interval_secs = 60
+
+# 测试环境关闭内存过载保护
+max_memory_usage_percent = 999

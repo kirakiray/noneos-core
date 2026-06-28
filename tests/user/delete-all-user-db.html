@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>清除所有用户数据</title>
+  <title>清除 IndexedDB 数据</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -21,13 +21,29 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
+    .section {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .section:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
     h1 {
       color: #333;
-      margin-bottom: 30px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      color: #555;
+      margin-bottom: 15px;
     }
 
     .btn {
-      background-color: #dc3545;
       color: white;
       padding: 12px 24px;
       border: none;
@@ -37,12 +53,40 @@
       transition: background-color 0.3s;
     }
 
-    .btn:hover {
+    .btn-danger {
+      background-color: #dc3545;
+    }
+
+    .btn-danger:hover {
       background-color: #c82333;
     }
 
-    .btn:active {
+    .btn-danger:active {
       background-color: #bd2130;
+    }
+
+    .btn-warning {
+      background-color: #e67e22;
+    }
+
+    .btn-warning:hover {
+      background-color: #d35400;
+    }
+
+    .btn-warning:active {
+      background-color: #c0392b;
+    }
+
+    .btn-service {
+      background-color: #6f42c1;
+    }
+
+    .btn-service:hover {
+      background-color: #5a32a3;
+    }
+
+    .btn-service:active {
+      background-color: #4a2787;
     }
 
     .status {
@@ -97,140 +141,252 @@
 
 <body>
   <div class="container">
-    <h1>清除所有用户数据</h1>
-    
-    <p>此操作将删除本地所有以 <code>nos_user</code> 开头的 IndexedDB 数据库，包括用户密钥和证书数据。</p>
-    
-    <button class="btn" id="deleteBtn">清除所有带nos user</button>
-    
-    <div class="status" id="status"></div>
-    
-    <div class="db-list" id="dbList">
-      <h3>已删除的数据库：</h3>
-      <div id="dbItems"></div>
+    <h1>清除 IndexedDB 数据</h1>
+    <p>选择要删除的数据库前缀类型。</p>
+
+    <!-- nos_user 区域 -->
+    <div class="section">
+      <h2>清除用户数据</h2>
+      <p>此操作将删除本地所有以 <code>nos_user</code> 开头的 IndexedDB 数据库，包括用户密钥和证书数据。</p>
+
+      <button class="btn btn-danger" id="userDeleteBtn">清除所有 nos_user 数据库</button>
+
+      <div class="status" id="userStatus"></div>
+
+      <div class="db-list" id="userDbList">
+        <h3>已删除的数据库：</h3>
+        <div id="userDbItems"></div>
+      </div>
+    </div>
+
+    <!-- nos_publish_data 区域 -->
+    <div class="section">
+      <h2>清除发布数据</h2>
+      <p>此操作将删除本地所有以 <code>nos_publish_data</code> 开头的 IndexedDB 数据库，包括发布相关数据。</p>
+
+      <button class="btn btn-warning" id="publishDeleteBtn">清除所有 nos_publish_data 数据库</button>
+
+      <div class="status" id="publishStatus"></div>
+
+      <div class="db-list" id="publishDbList">
+        <h3>已删除的数据库：</h3>
+        <div id="publishDbItems"></div>
+      </div>
+    </div>
+
+    <!-- Service Worker 区域 -->
+    <div class="section">
+      <h2>注销 Service Worker</h2>
+      <p>此操作将注销当前域名下所有已注册的 Service Worker。</p>
+
+      <button class="btn btn-service" id="swUnregisterBtn">注销所有 Service Worker</button>
+
+      <div class="status" id="swStatus"></div>
+
+      <div class="db-list" id="swList">
+        <h3>已注销的 Service Worker：</h3>
+        <div id="swItems"></div>
+      </div>
     </div>
   </div>
 
   <script type="module">
-    const deleteBtn = document.getElementById('deleteBtn');
-    const statusDiv = document.getElementById('status');
-    const dbListDiv = document.getElementById('dbList');
-    const dbItemsDiv = document.getElementById('dbItems');
+    function createSection(prefix, label) {
+      const deleteBtn = document.getElementById(`${prefix}DeleteBtn`);
+      const statusDiv = document.getElementById(`${prefix}Status`);
+      const dbListDiv = document.getElementById(`${prefix}DbList`);
+      const dbItemsDiv = document.getElementById(`${prefix}DbItems`);
 
-    let pendingDatabases = []; // 存储待删除的数据库列表
+      let pendingDatabases = [];
 
-    function showStatus(message, type) {
-      statusDiv.textContent = message;
-      statusDiv.className = `status ${type}`;
-    }
-
-    function showDbList(databases, isPending = false) {
-      if (databases.length === 0) {
-        dbItemsDiv.innerHTML = '<p>没有找到以 nos_user 开头的数据库</p>';
-      } else {
-        const headerText = isPending ? '待删除的数据库：' : '已删除的数据库：';
-        dbListDiv.querySelector('h3').textContent = headerText;
-        dbItemsDiv.innerHTML = databases.map(db => 
-          `<div class="db-item">${db}</div>`
-        ).join('');
+      function showStatus(message, type) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
       }
-      dbListDiv.classList.add('show');
-    }
 
-    async function getAllDatabases() {
-      // 检查浏览器是否支持 indexedDB.databases()
-      if ('databases' in indexedDB) {
-        const dbs = await indexedDB.databases();
-        return dbs.map(db => db.name).filter(name => name && name.startsWith('nos_user'));
-      } else {
-        // 如果不支持，提示用户
-        throw new Error('您的浏览器不支持获取所有数据库列表，请使用现代浏览器（如 Chrome、Edge）');
+      function showDbList(databases, isPending = false) {
+        if (databases.length === 0) {
+          dbItemsDiv.innerHTML = `<p>没有找到以 ${label} 开头的数据库</p>`;
+        } else {
+          const headerText = isPending ? '待删除的数据库：' : '已删除的数据库：';
+          dbListDiv.querySelector('h3').textContent = headerText;
+          dbItemsDiv.innerHTML = databases.map(db =>
+            `<div class="db-item">${db}</div>`
+          ).join('');
+        }
+        dbListDiv.classList.add('show');
       }
-    }
 
-    async function deleteDatabase(dbName) {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.deleteDatabase(dbName);
-        
-        request.onsuccess = () => {
-          resolve(true);
-        };
-        
-        request.onerror = () => {
-          reject(new Error(`删除数据库 ${dbName} 失败`));
-        };
-        
-        request.onblocked = () => {
-          // 数据库被阻塞，可能还有连接未关闭
-          console.warn(`删除数据库 ${dbName} 被阻塞，请关闭其他使用该数据库的标签页`);
-        };
+      async function getAllDatabases() {
+        if ('databases' in indexedDB) {
+          const dbs = await indexedDB.databases();
+          return dbs.map(db => db.name).filter(name => name && name.startsWith(label));
+        } else {
+          throw new Error('您的浏览器不支持获取所有数据库列表，请使用现代浏览器（如 Chrome、Edge）');
+        }
+      }
+
+      async function deleteDatabase(dbName) {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(dbName);
+
+          request.onsuccess = () => resolve(true);
+
+          request.onerror = () => {
+            reject(new Error(`删除数据库 ${dbName} 失败`));
+          };
+
+          request.onblocked = () => {
+            console.warn(`删除数据库 ${dbName} 被阻塞，请关闭其他使用该数据库的标签页`);
+          };
+        });
+      }
+
+      deleteBtn.addEventListener('click', async () => {
+        try {
+          if (pendingDatabases.length > 0) {
+            const confirmed = confirm(
+              '⚠️ 警告：此操作不可逆！\n\n' +
+              `即将清除本地所有以 ${label} 开头的数据库。\n\n` +
+              '请确认是否继续？'
+            );
+
+            if (!confirmed) return;
+
+            showStatus(`正在删除 ${pendingDatabases.length} 个数据库...`, 'info');
+
+            const deletePromises = pendingDatabases.map(dbName => deleteDatabase(dbName));
+            await Promise.all(deletePromises);
+
+            showStatus(`成功删除 ${pendingDatabases.length} 个数据库`, 'success');
+            showDbList(pendingDatabases, false);
+
+            pendingDatabases = [];
+            deleteBtn.textContent = `清除所有 ${label} 数据库`;
+            return;
+          }
+        } catch (error) {
+          console.error('删除数据库时出错:', error);
+          showStatus(`错误：${error.message}`, 'error');
+        }
       });
-    }
 
-    deleteBtn.addEventListener('click', async () => {
-      try {
-        // 如果已经有待删除的数据库列表，执行删除
-        if (pendingDatabases.length > 0) {
-          const confirmed = confirm(
-            '⚠️ 警告：此操作不可逆！\n\n' +
-            '即将清除本地的所有用户数据（包括用户密钥和证书）。\n\n' +
-            '请确认是否继续？'
-          );
+      // 初始化：扫描数据库
+      async function init() {
+        try {
+          showStatus('正在扫描数据库...', 'info');
 
-          if (!confirmed) {
+          const databases = await getAllDatabases();
+
+          if (databases.length === 0) {
+            showStatus(`没有找到需要删除的 ${label} 数据库`, 'info');
+            showDbList([]);
             return;
           }
 
-          // 删除所有数据库
-          showStatus(`正在删除 ${pendingDatabases.length} 个用户数据库...`, 'info');
-          
-          const deletePromises = pendingDatabases.map(dbName => deleteDatabase(dbName));
-          await Promise.all(deletePromises);
+          showStatus(`找到 ${databases.length} 个 ${label} 数据库，请确认删除`, 'info');
+          showDbList(databases, true);
 
-          // 显示成功消息和已删除的数据库列表
-          showStatus(`成功删除 ${pendingDatabases.length} 个用户数据库`, 'success');
-          showDbList(pendingDatabases, false);
-          
-          // 清空待删除列表
-          pendingDatabases = [];
-          deleteBtn.textContent = '清除所有带nos user';
+          pendingDatabases = databases;
+          deleteBtn.textContent = '确认删除';
+
+        } catch (error) {
+          console.error('扫描数据库时出错:', error);
+          showStatus(`错误：${error.message}`, 'error');
+        }
+      }
+
+      init();
+    }
+
+    // 创建两个独立的区域
+    createSection('user', 'nos_user');
+    createSection('publish', 'nos_publish');
+
+    // Service Worker 注销逻辑
+    const swUnregisterBtn = document.getElementById('swUnregisterBtn');
+    const swStatus = document.getElementById('swStatus');
+    const swList = document.getElementById('swList');
+    const swItems = document.getElementById('swItems');
+
+    let pendingRegistrations = [];
+
+    function showSwStatus(message, type) {
+      swStatus.textContent = message;
+      swStatus.className = `status ${type}`;
+    }
+
+    function showSwList(registrations) {
+      if (registrations.length === 0) {
+        swItems.innerHTML = '<p>没有已注册的 Service Worker</p>';
+      } else {
+        swItems.innerHTML = registrations.map((reg, i) => {
+          const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || `注册 #${i + 1}`;
+          return `<div class="db-item">${url}</div>`;
+        }).join('');
+      }
+      swList.classList.add('show');
+    }
+
+    swUnregisterBtn.addEventListener('click', async () => {
+      try {
+        if (pendingRegistrations.length > 0) {
+          const confirmed = confirm(
+            '⚠️ 警告：此操作不可逆！\n\n' +
+            '即将注销当前域名下所有已注册的 Service Worker。\n\n' +
+            '请确认是否继续？'
+          );
+          if (!confirmed) return;
+
+          showSwStatus(`正在注销 ${pendingRegistrations.length} 个 Service Worker...`, 'info');
+
+          const results = await Promise.allSettled(
+            pendingRegistrations.map(reg => reg.unregister())
+          );
+
+          const succeeded = results.filter(r => r.status === 'fulfilled' && r.value).length;
+          showSwStatus(`成功注销 ${succeeded}/${pendingRegistrations.length} 个 Service Worker`, 'success');
+
+          pendingRegistrations = [];
+          swUnregisterBtn.textContent = '注销所有 Service Worker';
           return;
         }
-
       } catch (error) {
-        console.error('删除数据库时出错:', error);
-        showStatus(`错误：${error.message}`, 'error');
+        console.error('注销 Service Worker 时出错:', error);
+        showSwStatus(`错误：${error.message}`, 'error');
       }
     });
 
-    // 页面加载时自动扫描并展示数据库列表
-    async function init() {
+    // 初始化：扫描 Service Worker
+    async function initSw() {
       try {
-        showStatus('正在扫描数据库...', 'info');
-        
-        const databases = await getAllDatabases();
-        
-        if (databases.length === 0) {
-          showStatus('没有找到需要删除的用户数据库', 'info');
-          showDbList([]);
+        if (!('serviceWorker' in navigator)) {
+          showSwStatus('当前浏览器不支持 Service Worker', 'info');
+          showSwList([]);
           return;
         }
 
-        // 显示找到的数据库列表
-        showStatus(`找到 ${databases.length} 个用户数据库，请确认删除`, 'info');
-        showDbList(databases, true);
-        
-        // 保存待删除列表并更新按钮文本
-        pendingDatabases = databases;
-        deleteBtn.textContent = '确认删除';
+        showSwStatus('正在扫描 Service Worker...', 'info');
 
+        const registrations = await navigator.serviceWorker.getRegistrations();
+
+        if (registrations.length === 0) {
+          showSwStatus('没有已注册的 Service Worker', 'info');
+          showSwList([]);
+          return;
+        }
+
+        showSwStatus(`找到 ${registrations.length} 个 Service Worker，请确认注销`, 'info');
+        showSwList(registrations);
+        pendingRegistrations = registrations;
+        swUnregisterBtn.textContent = '确认注销';
       } catch (error) {
-        console.error('扫描数据库时出错:', error);
-        showStatus(`错误：${error.message}`, 'error');
+        console.error('扫描 Service Worker 时出错:', error);
+        showSwStatus(`错误：${error.message}`, 'error');
       }
     }
 
-    init();
+    initSw();
   </script>
 </body>
 
