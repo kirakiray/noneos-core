@@ -5,12 +5,45 @@ let _adminInfo = null;
 let _promise = null;
 
 const ADMIN_JSON_URL = "/tests/user/local/admin.json";
-const ADMIN_NS = "admin-shared-ns";
+export const ADMIN_NS = "admin-shared-ns";
+export const DEFAULT_ACCOUNT_NS = "default";
+
+const ADMIN_ACCOUNT_KEY = "noneos-admin-account-ns";
 
 const DEFAULT_SERVER_URL = "ws://localhost:8081";
 const SERVER_URL_KEY = "noneos-admin-server-url";
 const SERVER_HISTORY_KEY = "noneos-admin-server-history";
 const MAX_HISTORY = 10;
+
+/**
+ * 获取当前使用的登录帐户命名空间
+ * @returns {string} ADMIN_NS 或 DEFAULT_ACCOUNT_NS
+ */
+export function getAdminAccountNamespace() {
+  try {
+    const ns = localStorage.getItem(ADMIN_ACCOUNT_KEY);
+    if (ns === DEFAULT_ACCOUNT_NS) return DEFAULT_ACCOUNT_NS;
+  } catch {
+    // localStorage 不可用则回退管理员帐户
+  }
+  return ADMIN_NS;
+}
+
+/**
+ * 设置登录帐户命名空间
+ * @param {string} ns - ADMIN_NS 或 DEFAULT_ACCOUNT_NS
+ */
+export function setAdminAccountNamespace(ns) {
+  try {
+    if (ns === DEFAULT_ACCOUNT_NS) {
+      localStorage.setItem(ADMIN_ACCOUNT_KEY, DEFAULT_ACCOUNT_NS);
+    } else {
+      localStorage.removeItem(ADMIN_ACCOUNT_KEY);
+    }
+  } catch {
+    // 忽略写入失败
+  }
+}
 
 /**
  * 获取当前管理员应用连接的服务器地址
@@ -99,26 +132,89 @@ export function showServerError(url, error) {
   });
 }
 
+function formatUserId(userId) {
+  if (!userId) return "";
+  if (userId.length <= 8) return userId;
+  return `${userId.slice(0, 4)}...${userId.slice(-4)}`;
+}
+
+/**
+ * 获取两个登录帐户的摘要信息（用于弹窗展示）
+ * @returns {Promise<Array<{namespace: string, label: string, userId: string, shortUserId: string}>>}
+ */
+export async function getAccountSummaries(load) {
+  const { getUserInfo } = await load("/nos/user/db.js");
+  const { getUser } = await load("/nos/user/main.js");
+
+  const summaries = [];
+
+  // 管理员帐户
+  try {
+    const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+    const savedAdminInfo = await getUserInfo(ADMIN_NS);
+    const adminUserId = savedAdminInfo?.userId || adminData.info?.userId || "";
+    summaries.push({
+      namespace: ADMIN_NS,
+      label: "管理员（导入 key）",
+      userId: adminUserId,
+      shortUserId: formatUserId(adminUserId),
+    });
+  } catch (e) {
+    summaries.push({
+      namespace: ADMIN_NS,
+      label: "管理员（导入 key）",
+      userId: "",
+      shortUserId: "",
+    });
+  }
+
+  // 本地默认帐户（不存在时自动创建，以便展示 userId）
+  try {
+    const defaultUser = await getUser(DEFAULT_ACCOUNT_NS);
+    const defaultUserId = defaultUser.userId || "";
+    summaries.push({
+      namespace: DEFAULT_ACCOUNT_NS,
+      label: "本地默认用户",
+      userId: defaultUserId,
+      shortUserId: formatUserId(defaultUserId),
+    });
+  } catch (e) {
+    summaries.push({
+      namespace: DEFAULT_ACCOUNT_NS,
+      label: "本地默认用户",
+      userId: "",
+      shortUserId: "",
+    });
+  }
+
+  return summaries;
+}
+
 export async function getAdmin(load) {
   if (_adminUser) return { adminUser: _adminUser, adminInfo: _adminInfo };
   if (_promise) return _promise;
 
   _promise = (async () => {
-    const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
-    const { deleteUser } = await load("/nos/user/main.js");
     const { AdminUser } = await load("/nos/user/admin-user.js");
 
-    const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+    const namespace = getAdminAccountNamespace();
 
-    try {
-      await deleteUser(ADMIN_NS, { skipConfirm: true });
-    } catch (e) {
-      /* ignore */
+    if (namespace === ADMIN_NS) {
+      const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
+      const { deleteUser } = await load("/nos/user/main.js");
+
+      const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
+
+      try {
+        await deleteUser(ADMIN_NS, { skipConfirm: true });
+      } catch (e) {
+        /* ignore */
+      }
+      await saveUserKeys(ADMIN_NS, adminData.keys);
+      await saveUserInfo(ADMIN_NS, adminData.info);
     }
-    await saveUserKeys(ADMIN_NS, adminData.keys);
-    await saveUserInfo(ADMIN_NS, adminData.info);
 
-    const adminUser = new AdminUser(ADMIN_NS);
+    const adminUser = new AdminUser(namespace);
     await adminUser.ready();
 
     _adminUser = adminUser;

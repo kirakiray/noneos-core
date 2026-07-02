@@ -72,8 +72,18 @@
   <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
 
   <p-dialog id="server-dialog" sync:open="serverDialogOpen" auto-close style="--dialog-width:auto;">
-    <span slot="title">切换服务器地址</span>
+    <span slot="title">切换服务器与登录帐户</span>
     <div class="dialog-body">
+      <div class="dialog-row">
+        <label>登录帐户</label>
+        <p-list>
+          <o-fill :value="accountSummaries">
+            <p-list-item button class:active="$host.currentAccount === $data.namespace" on:click="$host.switchAccount($data.namespace)">
+              <span>{{$data.label}}<span :style.display="$data.shortUserId ? '' : 'none'">（{{$data.shortUserId}}）</span></span>
+            </p-list-item>
+          </o-fill>
+        </p-list>
+      </div>
       <p-list>
         <o-fill :value="savedUrls">
           <p-list-item button class:active="$host.currentUrl === $data" on:click="$host.switchToServer($data)">
@@ -129,6 +139,9 @@
         setCurrentServerUrl,
         addServerHistory,
         removeServerHistory,
+        getAdminAccountNamespace,
+        setAdminAccountNamespace,
+        getAccountSummaries,
       } = await load("./admin-shared.js");
 
       return {
@@ -138,6 +151,8 @@
           activeSysInfo: false,
           activeTraffic: false,
           currentUrl: getCurrentServerUrl(),
+          currentAccount: getAdminAccountNamespace(),
+          accountSummaries: [],
           serverDialogOpen: false,
           savedUrls: getServerHistory(),
           newUrl: "",
@@ -170,8 +185,10 @@
           navigateToTraffic() {
             this.goto("./traffic.html");
           },
-          openServerDialog() {
+          async openServerDialog() {
             this.savedUrls = getServerHistory();
+            this.currentAccount = getAdminAccountNamespace();
+            this.accountSummaries = await getAccountSummaries(load);
             this.newUrl = "";
             this.serverDialogOpen = true;
           },
@@ -182,6 +199,12 @@
             if (!url) return;
             setCurrentServerUrl(url);
             addServerHistory(url);
+            this.serverDialogOpen = false;
+            window.location.reload();
+          },
+          switchAccount(ns) {
+            if (ns === this.currentAccount) return;
+            setAdminAccountNamespace(ns);
             this.serverDialogOpen = false;
             window.location.reload();
           },
