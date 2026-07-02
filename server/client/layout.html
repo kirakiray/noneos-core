@@ -86,8 +86,10 @@
       </div>
       <p-list>
         <o-fill :value="savedUrls">
-          <p-list-item button class:active="$host.currentUrl === $data" on:click="$host.switchToServer($data)">
-            <span ellipsis="1">{{$data}}</span>
+          <p-list-item class:active="$host.currentUrl === $data">
+            <div style="flex: 1; min-width: 0; cursor: pointer;" on:click="$host.switchToServer($data)">
+              <span ellipsis="1">{{$data}}</span>
+            </div>
             <p-button slot="suffix" icon variant="text" color="error" size="s" on:click="$host.removeServer($event, $data)">×</p-button>
           </p-list-item>
         </o-fill>
