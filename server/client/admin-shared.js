@@ -214,8 +214,6 @@ export async function getAdmin(load) {
       await saveUserInfo(ADMIN_NS, adminData.info);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
     const adminUser = new AdminUser(namespace);
     await adminUser.ready();
 
