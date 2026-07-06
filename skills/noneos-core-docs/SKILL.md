@@ -66,6 +66,8 @@ await mount(handle);        // 挂载到系统，路径变为 $mount-xxx>目录�
 
 更多详细操作参考：[文件系统 API 参考](references/fs-api.md)
 
+> ⚠️ **搭配 ofa.js 使用注意**：NoneOS 返回的 handle、`LocalUser`、`RemoteUser`、`DataPublisher`、`AppManager` 等均为类实例/复杂对象，属于 ofa.js 的**非响应式数据**。将其挂载到 ofa.js 组件的 `this` 上时，变量名必须以 `_` 开头（例如 `this._handle`、`this._user`、`this._publisher`），以避免被响应式系统转换，从而防止运行异常与性能问题。
+
 ---
 
 ## 核心功能 2：用户联机与服务通信
