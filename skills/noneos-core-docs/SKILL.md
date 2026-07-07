@@ -190,5 +190,6 @@ if (update?.hasUpdate) {
 ## 其他参考
 
 - [AI 操作文档](references/ai.md)
-- [安装系统的组件文档](references/nos-version.md)
+- [安装系统的组件文档 (nos-version)](references/nos-version.md)
+- [图标组件文档 (n-icon)](references/n-icon.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)

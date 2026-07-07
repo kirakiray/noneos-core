@@ -5,7 +5,7 @@
 ## 核心技术架构
 
 - **底层架构 (Base Layer)**：基于 `noneos-core` 开发。
-  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库。
+  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 skills/noneos-core-docs/SKILL.md。
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
 
