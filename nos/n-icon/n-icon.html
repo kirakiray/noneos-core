@@ -9,8 +9,12 @@
   </style>
   <div class="main"></div>
   <script>
-    // 图标缓存对象，存储Promise以防止并发请求相同图标
-    const iconCache = {};
+    import { EverCache } from "/gh/kirakiray/ever-cache/src/main.js";
+
+    // 持久化缓存实例
+    const iconStorage = new EverCache("n-icons");
+    // 内存 Promise 缓存，防止并发请求相同图标
+    const promiseCache = {};
 
     export default {
       tag: "n-icon",
@@ -24,34 +28,32 @@
       },
       proto: {
         async loadIcon() {
-          if (!this.icon) {
-            return;
-          }
+          const name = this.icon;
+          if (!name) return;
 
-          // 检查缓存中是否已有该图标的Promise
-          if (!iconCache[this.icon]) {
-            // 创建新的Promise并存入缓存
-            iconCache[this.icon] = fetch(
-              `https://api.iconify.design/${this.icon}.svg`
-            )
-              .then((res) => res.text())
-              .catch((error) => {
-                // 请求失败时从缓存中移除
-                delete iconCache[this.icon];
-                throw error;
-              });
-          }
+          // 1. 优先从内存或持久化缓存获取
+          let content = promiseCache[name]
+            ? await promiseCache[name]
+            : await iconStorage[name];
 
-          try {
-            const icon = this.icon;
+          // 2. 缓存未命中则从网络获取
+          if (!content) {
+            promiseCache[name] = fetch(
+              `https://api.iconify.design/${name}.svg`
+            ).then((res) => (res.ok ? res.text() : Promise.reject()));
 
-            // 等待Promise解析
-            const iconContent = await iconCache[icon];
-            if (this.icon === icon) {
-              this.shadow.$(".main").html = iconContent;
+            try {
+              content = await promiseCache[name];
+              iconStorage[name] = content; // 存入持久化缓存
+            } catch (error) {
+              console.error(`Failed to load icon: ${name}`, error);
+            } finally {
+              delete promiseCache[name];
             }
-          } catch (error) {
-            console.error(`Failed to load icon: ${this.icon}`, error);
+          }
+
+          if (this.icon === name && content) {
+            this.shadow.$(".main").html = content;
           }
         },
       },
