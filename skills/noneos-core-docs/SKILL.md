@@ -189,6 +189,8 @@ if (update?.hasUpdate) {
 
 ## 其他参考
 
+> ⚠️ **注意**：当前 AI 相关模块（如 AI 操作文档）在未来版本中将被废弃。
+
 - [AI 操作文档](references/ai.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
