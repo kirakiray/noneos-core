@@ -56,6 +56,18 @@ const content = await fetch("/$my-app/index.html").then(res => res.text());
 // 或者在浏览器地址栏输入：http://localhost:xxxx/$my-app/index.html 即可直接预览
 ```
 
+### 资源访问优化 (CDN 简写)
+
+NoneOS Core 提供了对 `cdn.jsdelivr.net` 资源的访问优化。当 NoneOS Core 初始化完成后，你可以省略域名直接通过 `/gh/` 等路径访问资源。这些资源会由系统自动拦截并持久化缓存到本地，提升二次加载速度。
+
+```javascript
+// 传统访问方式
+fetch("https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js");
+
+// 优化后的简写访问方式 (仅在 NoneOS Core 初始化后有效)
+fetch("/gh/ofajs/ofa.js/dist/ofa.js");
+```
+
 ### 挂载真实本地目录 (仅 Chrome)
 ```javascript
 import { open, mount } from "/nos/fs/main.js";
