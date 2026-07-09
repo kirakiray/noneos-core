@@ -4,7 +4,7 @@ DataPublisher 是 NoneOS Core 的数据发布模块，基于 `LocalUser` 实现�
 
 ## 特性
 
-- **分块存储**：按 255KB 切分文件，每块独立 SHA-256 哈希，避免一次性读入大文件爆内存
+- **分块存储**：按 128KB 切分文件，每块独立 SHA-256 哈希，避免一次性读入大文件爆内存
 - **签名清单**：文件清单（manifest）由发布者私钥签名，接收方验签后才存储，防止篡改
 - **去中心化分发**：任何持有文件的用户都可以响应他人的请求，无需中心服务器存储文件内容
 - **自动复用**：本地已存在的 chunk/manifest 直接返回，避免重复请求
@@ -44,7 +44,7 @@ console.log(manifest.signature);   // 发布者签名
 ```
 
 `publish` 内部流程：
-1. 按 255KB 分块，使用 `file.slice()` 流式读取（避免爆内存）
+1. 按 128KB 分块，使用 `file.slice()` 流式读取（避免爆内存）
 2. 每块计算 SHA-256 得到 `chunkHash`，立即存入 `file_chunks` 表
 3. 所有 `chunkHash` 按顺序拼接成字符串，再计算 SHA-256 得到 `fileHash`
 4. 构建 `{ fileHash, chunkHashes, fileName, fileSize }` 并用 `user._sign()` 签名
@@ -251,7 +251,7 @@ URL.revokeObjectURL(url);
 
 ## 数据库设计
 
-DataPublisher 使用独立的 IndexedDB 数据库 `nos_publish_data`（版本 1），不依赖 `nos/user/db.js`。
+DataPublisher 使用独立的 IndexedDB 数据库 `nos_publish_data_${namespace}`（版本 2，按 namespace 隔离），不依赖 `nos/user/db.js`。
 
 ### 对象仓库
 
@@ -301,7 +301,7 @@ import {
 
 ```
 File
- ├── 按 255KB (255 * 1024 字节) 切分
+ ├── 按 128KB (128 * 1024 字节) 切分
  ├── chunk[0], chunk[1], ..., chunk[n-1]
  ├── 每个 chunk[i] → SHA-256 → chunkHash[i] (hex string)
  ├── 将所有 chunkHash 按顺序拼接成一个字符串 → SHA-256 → fileHash (hex string)

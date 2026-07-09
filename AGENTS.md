@@ -20,6 +20,12 @@
 1. **先读 Skill**：在编写代码或提供建议前，必须先检索并阅读上述对应的 Skill 文档。
 2. **遵循模式**：优先采用框架推荐的最佳实践，确保与现有代码库的风格一致。
 3. **架构对齐**：所有改动需符合 `noneos-core` 与 `ofa.js` 的设计哲学。
+4. **善用 CONTEXT**：各核心模块均提供 `CONTEXT.md` 供 AI 快速理解架构与实现，无需逐文件阅读源码：
+   - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
+   - [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
+   - [server/rust/CONTEXT.md](server/rust/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
+   - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
+5. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致，避免后续 AI 基于过时信息工作。
 
 
 ## 技能资源与导入 (Skill Resources)

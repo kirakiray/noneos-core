@@ -224,12 +224,12 @@ decrementFileRef(fileHash, appId):
 | 应用安装 | -> `init("apps")` + DirHandle | nos/fs |
 | 获取发布者 | -> `LocalUser.connectUser` | nos/user |
 
-## 九、已知与 README 的差异
+## 九、与 README 的对应关系
 
-README 中以下数值与源码不符，**以源码为准**：
+README 中的数值已与源码对齐：
 
-| 项 | README | 源码实际 |
-|----|--------|---------|
-| CHUNK_SIZE | 255KB | **128KB**（`128 * 1024`） |
-| 数据库名 | `nos_publish_data` | **`nos_publish_data_${namespace}`**（按 namespace 隔离） |
-| DB_VERSION | 1 | **2**（v1 仅 chunks/manifests，v2 增加 published_apps/file_refs/recommendations） |
+| 项 | 值 | 说明 |
+|----|----|------|
+| CHUNK_SIZE | 128KB（`128 * 1024`） | data-publisher.js 中的 `CHUNK_SIZE` 常量 |
+| 数据库名 | `nos_publish_data_${namespace}` | 按 namespace 隔离，每用户独立库 |
+| DB_VERSION | 2 | v1: chunks/manifests；v2: published_apps/file_refs/recommendations |
