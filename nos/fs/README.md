@@ -75,7 +75,7 @@ const deepFile = await get("my-app/a/b/c/deep.txt", { create: "file" });
 
 ### open(options?)
 
-弹出系统目录选择器，让用户选择本地目录。
+弹出系统目录选择器，让用户选择本地目录（用户本机文件系统的目录，非 OPFS 虚拟目录）。返回的 `DirHandle` 可通过 `mount()` 挂载到虚拟文件系统中以便后续通过 `get()` 访问。
 
 ```js
 import { open } from "/nos/fs/main.js";
@@ -89,15 +89,18 @@ const mountedDir = await open({ mount: true });
 
 ### mount(handle)
 
-将本地目录句柄挂载到虚拟文件系统。挂载后可通过 `$mount-{id}>name` 路径访问。
+将 **通过 `open()` 获取的本地目录句柄** 挂载到虚拟文件系统，使其可通过 `$mount-{id}>name` 路径用 `get()` 访问。
+
+> **注意**：`mount()` 仅用于 `open()` 得到的本地文件系统目录句柄。通过 `init()` 创建的 OPFS 虚拟目录句柄虽然也能传给 `mount()`，但本身已可直接用 `get("空间名/路径")` 访问，挂载没有实际意义。
 
 ```js
-import { init, mount, getMounted, unmount, get } from "/nos/fs/main.js";
+import { open, mount, get } from "/nos/fs/main.js";
 
-const dir = await init("my-app");
-const mounted = await mount(dir);
+// 打开用户本地目录
+const localDir = await open();
+const mounted = await mount(localDir);
 
-console.log(mounted.path); // "$mount-xxx>my-app"
+console.log(mounted.path); // "$mount-xxx>encodedName"
 
 // 通过挂载路径访问
 const retrieved = await get(mounted.path);
