@@ -6,7 +6,7 @@ const DEFAULT_SERVERS = (() => {
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return ["ws://localhost:8081", "ws://localhost:8082"];
   }
-  return ["wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4332"];
+  return ["wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4332", "wss://hand3-hk1.noneos.com:4332"];
 })();
 
 const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期

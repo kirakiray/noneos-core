@@ -1,7 +1,7 @@
 {
-  "version": "4.1.2",
+  "version": "4.1.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1782656487361,
+  "signTime": 1783608236319,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -37,6 +37,16 @@
       "path": "crypto/crypto-verify.js",
       "hash": "6fa4f8d176b16ac4e0bdeedf1ecd8cc083f1cd6960a5afff328dc6c41b9985e1",
       "size": 864
+    },
+    {
+      "path": "fs/CONTEXT.md",
+      "hash": "f20c118936b55ffb82de89349536ee49b563cefb03a1a943fe7a7398e2bb645b",
+      "size": 8360
+    },
+    {
+      "path": "fs/README.md",
+      "hash": "91ebadb2127ff54c2923d9cd589639eb8a55d2d2a86d211b2c0f97750a245b97",
+      "size": 12340
     },
     {
       "path": "fs/download.js",
@@ -130,13 +140,18 @@
     },
     {
       "path": "n-icon/n-icon.html",
-      "hash": "36a05b61d81324463faa83ebe2c17e0eeabba01bfb0090a51d2c9c5f5eb87fec",
-      "size": 1444
+      "hash": "234a70ea9de3fb3de7b1382a029b5a6ec3a0e68a1be5c020acf7ecc46dad18e2",
+      "size": 1583
+    },
+    {
+      "path": "publish/CONTEXT.md",
+      "hash": "f6d34d05624b9a22cf797c5741047fe016a4e4594c29a160d817e0f5449e0f71",
+      "size": 14129
     },
     {
       "path": "publish/README.md",
-      "hash": "63ae584d36f7b30bf3b73ea51fec75e4e3fff62833ceb6c0cafc5d1dd7f6906e",
-      "size": 25955
+      "hash": "056b60e16a6a3b9133cce15a08a6139f4bb79037f95be4fded446d6227244aaf",
+      "size": 25991
     },
     {
       "path": "publish/app-manager.js",
@@ -157,6 +172,11 @@
       "path": "root-cert.json",
       "hash": "9a63f4c8c49b868fab18273986c81778e543a5c0f9d0b657ded7352fbcd3cf0d",
       "size": 325
+    },
+    {
+      "path": "user/CONTEXT.md",
+      "hash": "bee8dd230cedf11b96aa7480258caf58973b4c325e3e85578056503cf7c16684",
+      "size": 11490
     },
     {
       "path": "user/README.md",
@@ -205,8 +225,8 @@
     },
     {
       "path": "user/server.js",
-      "hash": "c98f6dd90f7d3d3bdf96c41d03da580efc764cc85bb8881e6b2db0880374d273",
-      "size": 26328
+      "hash": "d8d2bd5f2dbe33987678ef3bba4df779be005b5afa6b11e20411b722e42431b0",
+      "size": 26363
     },
     {
       "path": "user/service-registry.js",
@@ -264,5 +284,5 @@
       "size": 2117
     }
   ],
-  "signature": "4+vdyPAcT9VHkKNMe7Yc74oxATMS7xFsd9zp1DGzaZYTY8fOPUDEFPcml6Db84P/5Rysz0PPcus3q58EWEd0HA=="
+  "signature": "5uc4xahyTlX5Ky0iVD8YWoTWYpcjM0Rn4lXhUfciznHGMZ/SIr6NlWGVHWiLZ0wnjMu71qphLkrp3/OlruFilg=="
 }

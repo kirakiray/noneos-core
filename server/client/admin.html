@@ -520,7 +520,11 @@
     </div>
   </div>
 
-  <p-dialog id="traffic-history-dialog" sync:open="historyDialogOpen">
+  <p-dialog
+    id="traffic-history-dialog"
+    sync:open="historyDialogOpen"
+    style="--dialog-width: auto"
+  >
     <span slot="title">{{historyDialogTitle}}</span>
     <o-if :value="historyDialogOpen">
       <o-page :src="historyPageSrc"></o-page>
@@ -532,17 +536,49 @@
 
   <p-dialog id="quota-dialog" sync:open="quotaDialogOpen">
     <span slot="title">设置额度 — {{quotaDialogTarget?.username}}</span>
-    <div class="quota-dialog-body" :style.display="quotaDialogOpen ? '' : 'none'">
+    <div
+      class="quota-dialog-body"
+      :style.display="quotaDialogOpen ? '' : 'none'"
+    >
       <label>额度（字节）</label>
       <input type="number" min="0" step="1024" sync:value="quotaDialogBytes" />
       <div class="quota-quick-buttons">
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)">1MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)"
+          >0</p-button
+        >
+        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)"
+          >1MB</p-button
+        >
+        <p-button
+          size="xs"
+          variant="outlined"
+          on:click="setQuickQuota(10485760)"
+          >10MB</p-button
+        >
+        <p-button
+          size="xs"
+          variant="outlined"
+          on:click="setQuickQuota(104857600)"
+          >100MB</p-button
+        >
+        <p-button
+          size="xs"
+          variant="outlined"
+          on:click="setQuickQuota(524288000)"
+          >500MB</p-button
+        >
+        <p-button
+          size="xs"
+          variant="outlined"
+          on:click="setQuickQuota(1073741824)"
+          >1GB</p-button
+        >
+        <p-button
+          size="xs"
+          variant="outlined"
+          on:click="setQuickQuota(10737418240)"
+          >10GB</p-button
+        >
       </div>
     </div>
     <div slot="bottom">
@@ -579,7 +615,8 @@
 
   <script>
     export default async ({ query, load }) => {
-      const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
+      const { getAdmin, getCurrentServerUrl, showServerError } =
+        await load("./admin-shared.js");
       const WS_URL = getCurrentServerUrl();
 
       return {
@@ -853,7 +890,10 @@
            */
           openQuotaDialog(group) {
             if (!this.connected || !this._adminUser || group.isSelf) return;
-            this.quotaDialogTarget = { userId: group.userId, username: group.username };
+            this.quotaDialogTarget = {
+              userId: group.userId,
+              username: group.username,
+            };
             this.quotaDialogBytes = "0";
             this.quotaDialogOpen = true;
           },

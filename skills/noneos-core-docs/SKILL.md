@@ -56,6 +56,18 @@ const content = await fetch("/$my-app/index.html").then(res => res.text());
 // 或者在浏览器地址栏输入：http://localhost:xxxx/$my-app/index.html 即可直接预览
 ```
 
+### 资源访问优化 (CDN 简写)
+
+NoneOS Core 提供了对 `cdn.jsdelivr.net` 资源的访问优化。当 NoneOS Core 初始化完成后，你可以省略域名直接通过 `/gh/` 等路径访问资源。这些资源会由系统自动拦截并持久化缓存到本地，提升二次加载速度。
+
+```javascript
+// 传统访问方式
+fetch("https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js");
+
+// 优化后的简写访问方式 (仅在 NoneOS Core 初始化后有效)
+fetch("/gh/ofajs/ofa.js/dist/ofa.js");
+```
+
 ### 挂载真实本地目录 (仅 Chrome)
 ```javascript
 import { open, mount } from "/nos/fs/main.js";
@@ -65,6 +77,8 @@ await mount(handle);        // 挂载到系统，路径变为 $mount-xxx>目录�
 ```
 
 更多详细操作参考：[文件系统 API 参考](references/fs-api.md)
+
+> ⚠️ **搭配 ofa.js 使用注意**：NoneOS 返回的 handle、`LocalUser`、`RemoteUser`、`DataPublisher`、`AppManager` 等均为类实例/复杂对象，属于 ofa.js 的**非响应式数据**。将其挂载到 ofa.js 组件的 `this` 上时，变量名必须以 `_` 开头（例如 `this._handle`、`this._user`、`this._publisher`），以避免被响应式系统转换，从而防止运行异常与性能问题。
 
 ---
 
@@ -187,6 +201,9 @@ if (update?.hasUpdate) {
 
 ## 其他参考
 
+> ⚠️ **注意**：当前 AI 相关模块（如 AI 操作文档）在未来版本中将被废弃。
+
 - [AI 操作文档](references/ai.md)
-- [安装系统的组件文档](references/nos-version.md)
+- [安装系统的组件文档 (nos-version)](references/nos-version.md)
+- [图标组件文档 (n-icon)](references/n-icon.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)
