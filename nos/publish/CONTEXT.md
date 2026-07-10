@@ -9,6 +9,7 @@
 
 1. **DataPublisher（数据层）**：将任意 `File/Blob` 按 128KB 分块，每块 SHA-256 哈希，构建经发布者私钥签名的 manifest，通过中继通道在用户间请求/响应 chunk 与 manifest。
 2. **AppManager（应用层）**：基于 DataPublisher，提供应用的发布、发现、安装、增量升级、引用计数与推荐机制。应用的 `asset-manifest.json` 本身也作为一个文件被发布。
+   > ⚠️ **实验性（Experimental）**：AppManager 处于试验阶段，其 API、数据结构（尤其是 `published_apps`、`file_refs`、`recommendations` 表结构及 asset-manifest 字段）可能在后续版本中发生破坏性变更甚至被整体移除。DataPublisher 数据层则相对稳定。
 
 ### 核心设计
 

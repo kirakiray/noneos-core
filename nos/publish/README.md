@@ -434,6 +434,8 @@ URL.revokeObjectURL(url);
 
 # AppManager - 应用发布管理器
 
+> ⚠️ **实验性 API（Experimental）**：AppManager 目前处于试验阶段，API 与数据结构可能在后续版本中发生**破坏性变更甚至被整体移除**。请勿在生产环境中依赖此模块，使用前务必关注版本更新说明。
+
 AppManager 基于 DataPublisher 构建，提供应用的发布、发现、安装与版本管理功能。
 
 ## 特性

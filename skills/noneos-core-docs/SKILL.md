@@ -147,6 +147,8 @@ const result = await publisher.assembleFile(fileHash);
 
 ## 核心功能 4：应用发布与管理 (AppManager)
 
+> ⚠️ **实验性 API（Experimental）**：AppManager 目前处于试验阶段，API 与数据结构可能在后续版本中发生**破坏性变更甚至被整体移除**。请勿在生产环境中依赖此模块。
+
 基于 DataPublisher 的应用发布管理模块，提供应用的创建、发布、发现、安装、升级、下架和推荐机制。
 
 ```javascript
