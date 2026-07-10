@@ -143,7 +143,7 @@ const result = await publisher.assembleFile(fileHash);
 // result.blob, result.fileName, result.fileSize
 ```
 
-更多参考：[DataPublisher 完整文档](/nos/publish/README.md) | [测试用例](/tests/publish/data-publisher.sb.html)
+更多参考：[DataPublisher 完整文档](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/nos/publish/README.md) | [测试用例](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/tests/publish/data-publisher.sb.html)
 
 ## 核心功能 4：应用发布与管理 (AppManager)
 

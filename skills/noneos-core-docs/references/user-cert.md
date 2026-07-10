@@ -82,7 +82,7 @@ for await (const cert of user.cert.values({ role: "admin" })) {
 
 ### 底层验证机制
 
-证书的签名验证底层使用 [verifyData](/nos/crypto/crypto-verify.js) 函数完成。它接收一个包含 `signature`（base64）和 `publicKey` 的对象，将数据序列化为 JSON 后通过 ECDSA 验证签名：
+证书的签名验证底层使用 [verifyData](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/nos/crypto/crypto-verify.js) 函数完成。它接收一个包含 `signature`（base64）和 `publicKey` 的对象，将数据序列化为 JSON 后通过 ECDSA 验证签名：
 
 ```javascript
 import { verifyData } from "/nos/crypto/crypto-verify.js";
@@ -97,7 +97,7 @@ const isValid = await verifyData(certificate);
 2. 将 `signature` 从 base64 转为原始二进制
 3. 对 `JSON.stringify(data)` （不含 signature 字段）进行验签
 
-> 类似模式也用于其他场景的数据签名验证，参见 [data-publisher.sb.html](/tests/publish/data-publisher.sb.html) 中的验证流程。
+> 类似模式也用于其他场景的数据签名验证，参见 [data-publisher.sb.html](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/tests/publish/data-publisher.sb.html) 中的验证流程。
 
 ### 篡改检测示例
 
