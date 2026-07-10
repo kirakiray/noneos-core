@@ -184,7 +184,7 @@ if (update?.hasUpdate) {
 
 更多详细操作参考：
 - [用户管理 API 参考](references/user-api.md)
-- [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化与签名验证
+- [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化、签名验证与无实例验签（`verifyData`）
 - [用户信息管理](references/user-info.md) — 信息获取、更新、合并与验证
 - [证书管理](references/user-cert.md) — 证书签发、导入、查询与安全管理
 - [用户导出/导入/删除](references/user-export-import.md) — 加密导出、导入、生命周期管理
