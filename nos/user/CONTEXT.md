@@ -67,11 +67,16 @@ EventTarget
 | 方法/属性 | 说明 |
 |-----------|------|
 | `#sessionId` | `"s-" + Math.random().toString(36).slice(2)`，每标签页唯一 |
-| `connectUser(userId)` | 连接远端用户：`#server.findBestServer()` 选路，最多重试 5 次 |
+| `connectUser(userId)` | 连接远端用户：`#server.findBestServer()` 选路，最多重试 5 次；成功触发 `remote_user_connected` |
+| `disconnectUser(userId)` | 断开远程用户并清理缓存，触发 `remote_user_disconnected`（`reason: "manual"`） |
 | `getSessionIds()` | 通过 BroadcastChannel 跨标签页收集本用户所有 sessionId |
+| `remoteUsers` | 只读 getter，返回当前已缓存的 `RemoteUser[]` 快照（主动连接 + 收到消息后被动创建） |
+| `isRemoteUserOnline(userId)` | 查询指定 userId 当前是否在线（已缓存走 `RemoteUser.getSessionIds()`，未缓存直接查服务器） |
+| `getRemoteUsers({ onlineOnly })` | 返回已缓存 `RemoteUser[]`；`onlineOnly: true` 时过滤当前在线用户 |
 | `#setupRelayDispatch()` | 处理中继文本（JSON）与二进制帧 |
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
-| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存 |
+| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存 |
+| `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
 | `cert` / `card` / `server` / `rtc` / `services` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
@@ -102,7 +107,7 @@ EventTarget
 | 管理器 | 关键方法 |
 |--------|---------|
 | `CertManager` (cert.js) | `issue`/`import`/`has`/`get`/`delete`/`count`/`values`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
-| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
+| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；`iceServers: []`（仅靠服务端中继，无 STUN/TURN）；DataChannel `"noneos"` ordered |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services` |
 
@@ -208,3 +213,5 @@ A.get(B.userId)
 | `latency_test` / `latency_monitor` / `rtt_update` | 延迟测速与监控 |
 | `rtc_state` | RTC 连接状态变化 |
 | `card_received` | 收到对端名片 |
+| `remote_user_connected` | RemoteUser 进入缓存：主动 `connectUser()` 成功，或收到对方消息后被动创建。detail: `{ userId, remoteUser, initiatedBy: "local"|"remote" }` |
+| `remote_user_disconnected` | RemoteUser 被移除：显式 `disconnectUser()`（`reason: "manual"`），或 `connectUser()` 失败（`reason: "error"`）。detail: `{ userId, remoteUser, reason, error }` |

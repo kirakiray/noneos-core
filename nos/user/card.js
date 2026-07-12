@@ -86,6 +86,8 @@ export class CardManager {
    * 处理 incoming 名片请求：回复自己的 getInfo()
    */
   async #handleCardRequest(fromUserId, fromSessionId, viaServer) {
+    this.#user._ensureRemoteUser(fromUserId, "remote").catch(() => {});
+
     const myInfo = await this.#user.getInfo();
     if (!myInfo) return;
 
@@ -104,6 +106,8 @@ export class CardManager {
    * 处理 incoming 名片响应：验证签名后保存
    */
   async #handleCardResponse(cardData, fromUserId) {
+    this.#user._ensureRemoteUser(fromUserId, "remote").catch(() => {});
+
     if (!cardData || cardData.userId !== fromUserId) {
       console.warn("[CardManager] Card userId mismatch");
       this.#rejectRequest(fromUserId, new Error("Card userId mismatch"));

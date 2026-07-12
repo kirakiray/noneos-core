@@ -23,7 +23,7 @@ export class LocalUser extends BaseUser {
   #server;
   #rtc;
   #sessionChannel;
-  #remoteUserCache = new Map(); // userId -> Promise<RemoteUser>
+  #remoteUserCache = new Map(); // userId -> Promise<RemoteUser> | RemoteUser
   #serviceRegistry;
 
   /**
@@ -237,22 +237,21 @@ export class LocalUser extends BaseUser {
       !Array.isArray(messageData) &&
       messageData.__app
     ) {
-      this.#dispatchToServiceApp(fromUserId, fromSessionId, messageData, viaServer);
+      this.#dispatchToServiceApp(fromUserId, fromSessionId, messageData);
       return;
     }
 
-    // 3. 分发给已缓存的 RemoteUser
-    if (!this.#remoteUserCache.has(fromUserId)) return;
-
-    const remoteUserPromise = this.#remoteUserCache.get(fromUserId);
-    Promise.resolve(remoteUserPromise).then((remoteUser) => {
-      remoteUser._trigger("message", {
-        fromUserId,
-        fromSessionId,
-        data: messageData,
-        viaServer,
-      });
-    });
+    // 3. 确保 RemoteUser 存在后分发给对应实例
+    this.#ensureRemoteUser(fromUserId, "remote")
+      .then((remoteUser) => {
+        remoteUser._trigger("message", {
+          fromUserId,
+          fromSessionId,
+          data: messageData,
+          viaServer,
+        });
+      })
+      .catch(() => {});
   }
 
   /**
@@ -262,21 +261,12 @@ export class LocalUser extends BaseUser {
   async #handleServiceQuery(fromUserId, fromSessionId, query) {
     const services = this.#serviceRegistry.getServiceList();
     try {
-      if (this.#remoteUserCache.has(fromUserId)) {
-        const remoteUser = await this.#remoteUserCache.get(fromUserId);
-        await remoteUser.send(fromSessionId, {
-          type: "__service_response",
-          id: query.id,
-          services,
-        }, true); // raw=true 跳过 E2EE
-      } else {
-        // 没有缓存时直接通过服务器发送
-        await this.#server.sendToUser(fromUserId, fromSessionId, {
-          type: "__service_response",
-          id: query.id,
-          services,
-        });
-      }
+      const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+      await remoteUser.send(fromSessionId, {
+        type: "__service_response",
+        id: query.id,
+        services,
+      }, true); // raw=true 跳过 E2EE
     } catch {
       // 失败静默
     }
@@ -285,25 +275,14 @@ export class LocalUser extends BaseUser {
   /**
    * 将 __app 消息分发给 ServiceRegistry 中注册的 handler
    */
-  async #dispatchToServiceApp(fromUserId, fromSessionId, messageData, viaServer) {
+  async #dispatchToServiceApp(fromUserId, fromSessionId, messageData) {
     const appId = messageData.__app;
     const data = messageData.__data;
     const handler = this.#serviceRegistry.getHandler(appId);
     if (!handler) return; // 未注册该 app，静默丢弃
 
     // 获取或创建 RemoteUser 供 ctx 使用
-    let remoteUser;
-    if (this.#remoteUserCache.has(fromUserId)) {
-      remoteUser = await this.#remoteUserCache.get(fromUserId);
-    } else {
-      try {
-        remoteUser = await this.connectUser(fromUserId);
-      } catch {
-        // 无法 connect 时创建一个轻量 RemoteUser（不查在线状态）
-        remoteUser = new RemoteUser(fromUserId, this);
-        this.#remoteUserCache.set(fromUserId, Promise.resolve(remoteUser));
-      }
-    }
+    const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
 
     const ctx = {
       fromUserId,
@@ -358,6 +337,22 @@ export class LocalUser extends BaseUser {
    */
   get rtc() {
     return this.#rtc;
+  }
+
+  /**
+   * 获取当前已连接成功的 RemoteUser 列表
+   * 包含主动 connectUser 成功的用户，以及收到消息后被动创建 RemoteUser 的用户
+   * 返回数组快照，避免外部修改内部缓存
+   * @returns {RemoteUser[]}
+   */
+  get remoteUsers() {
+    const users = [];
+    for (const entry of this.#remoteUserCache.values()) {
+      if (entry instanceof RemoteUser) {
+        users.push(entry);
+      }
+    }
+    return Object.freeze(users);
   }
 
   /**
@@ -466,6 +461,51 @@ export class LocalUser extends BaseUser {
   }
 
   /**
+   * 确保指定 userId 已创建 RemoteUser 并加入缓存。
+   * 如果是新加入的，触发 remote_user_connected 事件。
+   * @param {string} userId
+   * @param {"local"|"remote"} initiatedBy
+   * @returns {Promise<RemoteUser>}
+   */
+  #ensureRemoteUser(userId, initiatedBy = "remote") {
+    if (this.#remoteUserCache.has(userId)) {
+      return Promise.resolve(this.#remoteUserCache.get(userId));
+    }
+
+    const remoteUser = new RemoteUser(userId, this);
+    this.#remoteUserCache.set(userId, remoteUser);
+    this.#triggerRemoteUserConnected(userId, remoteUser, initiatedBy);
+    return Promise.resolve(remoteUser);
+  }
+
+  /**
+   * 内部接口：供管理器确保 RemoteUser 存在。
+   * @param {string} userId
+   * @param {"local"|"remote"} initiatedBy
+   * @returns {Promise<RemoteUser>}
+   */
+  _ensureRemoteUser(userId, initiatedBy = "remote") {
+    return this.#ensureRemoteUser(userId, initiatedBy);
+  }
+
+  #triggerRemoteUserConnected(userId, remoteUser, initiatedBy) {
+    this._trigger("remote_user_connected", {
+      userId,
+      remoteUser,
+      initiatedBy,
+    });
+  }
+
+  #triggerRemoteUserDisconnected(userId, remoteUser, reason, error) {
+    this._trigger("remote_user_disconnected", {
+      userId,
+      remoteUser,
+      reason,
+      error,
+    });
+  }
+
+  /**
    * 连接远程用户，返回对应的 RemoteUser 实例
    * 会查询已连接的服务器确认对方是否在线
    * @param {string} userId - 目标用户的 userId
@@ -482,16 +522,24 @@ export class LocalUser extends BaseUser {
     }
 
     // 发起连接，Promise 存入缓存，并发调用复用同一 Promise
-    const promise = this.#doConnectUser(userId);
-    this.#remoteUserCache.set(userId, promise);
+    const promise = this.#doConnectUser(userId)
+      .then((remoteUser) => {
+        if (this.#remoteUserCache.get(userId) === promise) {
+          this.#remoteUserCache.set(userId, remoteUser);
+          this.#triggerRemoteUserConnected(userId, remoteUser, "local");
+        }
+        return remoteUser;
+      })
+      .catch((error) => {
+        if (this.#remoteUserCache.get(userId) === promise) {
+          this.#remoteUserCache.delete(userId);
+          this.#triggerRemoteUserDisconnected(userId, null, "error", error);
+        }
+        throw new Error(`User ${userId} is not online on any connected server`);
+      });
 
-    try {
-      return await promise;
-    } catch {
-      // 失败时清理缓存，允许下次重试
-      this.#remoteUserCache.delete(userId);
-      throw new Error(`User ${userId} is not online on any connected server`);
-    }
+    this.#remoteUserCache.set(userId, promise);
+    return promise;
   }
 
   async #doConnectUser(userId) {
@@ -515,11 +563,70 @@ export class LocalUser extends BaseUser {
 
   /**
    * 断开与远程用户的连接
-   * 取消关注其下线通知，并清理本地缓存
+   * 清理本地缓存并触发 remote_user_disconnected 事件
    * @param {string} userId - 目标用户的 userId
    */
   async disconnectUser(userId) {
+    const cached = this.#remoteUserCache.get(userId);
+    if (!cached) return;
+
+    const remoteUser = await Promise.resolve(cached).catch(() => null);
     this.#remoteUserCache.delete(userId);
+    if (remoteUser) {
+      this.#triggerRemoteUserDisconnected(userId, remoteUser, "manual");
+    }
+  }
+
+  /**
+   * 查询指定 userId 当前是否在线
+   * 已缓存用户通过 RemoteUser.getSessionIds() 判断；未缓存用户直接查询已连接服务器
+   * @param {string} userId - 目标用户的 userId
+   * @returns {Promise<boolean>}
+   */
+  async isRemoteUserOnline(userId) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    if (this.#remoteUserCache.has(userId)) {
+      const remoteUser = await Promise.resolve(this.#remoteUserCache.get(userId));
+      const sessions = await remoteUser.getSessionIds();
+      return sessions.length > 0;
+    }
+
+    const urls = this.#server.connectedUrls;
+    for (const url of urls) {
+      try {
+        const result = await this.#server.queryUserOnline(url, userId);
+        if (result.online) return true;
+      } catch {
+        // 继续尝试其他服务器
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 获取当前已缓存的 RemoteUser 列表
+   * @param {Object} [options]
+   * @param {boolean} [options.onlineOnly=false] - 为 true 时过滤掉当前不在线的用户
+   * @returns {Promise<RemoteUser[]>}
+   */
+  async getRemoteUsers(options = {}) {
+    const { onlineOnly = false } = options || {};
+    const users = this.remoteUsers;
+    if (!onlineOnly) return users.slice();
+
+    const results = await Promise.allSettled(
+      users.map(async (remoteUser) => {
+        const sessions = await remoteUser.getSessionIds();
+        return sessions.length > 0 ? remoteUser : null;
+      }),
+    );
+
+    return results
+      .filter((r) => r.status === "fulfilled" && r.value)
+      .map((r) => r.value);
   }
 
   /**
