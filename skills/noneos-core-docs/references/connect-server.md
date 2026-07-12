@@ -89,3 +89,52 @@ user.server.stopLatencyMonitor();
 ```javascript
 const connectedUrls = user.server.connectedUrls; // 已连接的服务器列表
 ```
+
+## 自动重连
+
+### 开启与配置
+
+```javascript
+user.server.setAutoReconnect({
+  enabled: true,        // 默认 false
+  baseDelay: 2000,      // 首次重连间隔 ms
+  maxDelay: 30000,      // 最大重连间隔 ms
+  multiplier: 2,        // 指数退避乘数
+  maxRetries: Infinity, // 最大重试次数
+});
+```
+
+- 默认关闭，不影响现有代码。
+- 仅在手**握手成功后的连接断开**时触发重连；握手阶段的失败仍由 `connect()` 内部重试处理。
+- 第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
+- `setAutoReconnect({ enabled: false })` 会取消所有已排队但尚未执行的重连。
+
+### 事件监听
+
+```javascript
+user.bind("server_connected", (e) => {
+  const { url, version } = e.detail;
+});
+
+user.bind("server_disconnected", (e) => {
+  const { url, reason } = e.detail;
+});
+
+user.bind("server_reconnecting", (e) => {
+  const { url, attempt, nextRetryAt } = e.detail;
+});
+
+user.bind("server_reconnect_exhausted", (e) => {
+  const { url, attempt } = e.detail;
+});
+```
+
+## 断开连接
+
+```javascript
+// 手动断开指定服务器，并停止该 URL 的自动重连
+user.server.disconnect("ws://localhost:8081");
+```
+
+- 调用 `disconnect(url)` 后，该 URL 会被标记为“用户主动断开”，即使开启了自动重连也不会再次尝试连接。
+- 再次调用 `connect(url)` 会解除该标记并恢复自动重连。

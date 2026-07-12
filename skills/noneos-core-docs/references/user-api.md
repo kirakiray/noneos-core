@@ -61,8 +61,20 @@ const rtt = await remoteUser.ping(sessionIds[0]);
 ### 服务器管理
 
 ```javascript
-// 连接指定服务器
+// 连接指定服务器（第二个参数可传数字重试次数，也可传 { retries } 选项）
 await user.server.connect("ws://localhost:8081");
+
+// 配置自动重连
+user.server.setAutoReconnect({
+  enabled: true,
+  baseDelay: 2000,
+  maxDelay: 30000,
+  multiplier: 2,
+  maxRetries: Infinity,
+});
+
+// 手动断开指定服务器，并停止该 URL 的自动重连
+user.server.disconnect("ws://localhost:8081");
 
 // 获取服务器列表
 const servers = await user.server.getServers();
