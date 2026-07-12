@@ -116,6 +116,13 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
+### 查看已连接的远程用户与状态事件
+
+LocalUser 会缓存已建立通信的远程用户，并通过 `user.remoteUsers` 暴露，同时提供 `isRemoteUserOnline()`、`getRemoteUsers()` 与 `remote_user_connected` / `remote_user_disconnected` 事件。详见：
+
+- [用户连接与通信](references/connect-user.md) — 连接、断开、消息收发与连接事件
+- [LocalUser 基础](references/local-user.md) — `remoteUsers`、`isRemoteUserOnline`、`getRemoteUsers` 与事件详情
+
 ---
 
 ## 核心功能 3：文件发布与获取 (DataPublisher)
@@ -143,9 +150,11 @@ const result = await publisher.assembleFile(fileHash);
 // result.blob, result.fileName, result.fileSize
 ```
 
-更多参考：[DataPublisher 完整文档](/nos/publish/README.md) | [测试用例](/tests/publish/data-publisher.sb.html)
+更多参考：[DataPublisher 完整文档](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/nos/publish/README.md) | [测试用例](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/tests/publish/data-publisher.sb.html)
 
 ## 核心功能 4：应用发布与管理 (AppManager)
+
+> ⚠️ **实验性 API（Experimental）**：AppManager 目前处于试验阶段，API 与数据结构可能在后续版本中发生**破坏性变更甚至被整体移除**。请勿在生产环境中依赖此模块。
 
 基于 DataPublisher 的应用发布管理模块，提供应用的创建、发布、发现、安装、升级、下架和推荐机制。
 
@@ -182,7 +191,7 @@ if (update?.hasUpdate) {
 
 更多详细操作参考：
 - [用户管理 API 参考](references/user-api.md)
-- [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化与签名验证
+- [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化、签名验证与无实例验签（`verifyData`）
 - [用户信息管理](references/user-info.md) — 信息获取、更新、合并与验证
 - [证书管理](references/user-cert.md) — 证书签发、导入、查询与安全管理
 - [用户导出/导入/删除](references/user-export-import.md) — 加密导出、导入、生命周期管理

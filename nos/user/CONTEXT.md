@@ -67,11 +67,16 @@ EventTarget
 | 方法/属性 | 说明 |
 |-----------|------|
 | `#sessionId` | `"s-" + Math.random().toString(36).slice(2)`，每标签页唯一 |
-| `connectUser(userId)` | 连接远端用户：`#server.findBestServer()` 选路，最多重试 5 次 |
+| `connectUser(userId)` | 连接远端用户：`#server.findBestServer()` 选路，最多重试 5 次；成功触发 `remote_user_connected` |
+| `disconnectUser(userId)` | 断开远程用户并清理缓存，触发 `remote_user_disconnected`（`reason: "manual"`） |
 | `getSessionIds()` | 通过 BroadcastChannel 跨标签页收集本用户所有 sessionId |
+| `remoteUsers` | 只读 getter，返回当前已缓存的 `RemoteUser[]` 快照（主动连接 + 收到消息后被动创建） |
+| `isRemoteUserOnline(userId)` | 查询指定 userId 当前是否在线（已缓存走 `RemoteUser.getSessionIds()`，未缓存直接查服务器） |
+| `getRemoteUsers({ onlineOnly })` | 返回已缓存 `RemoteUser[]`；`onlineOnly: true` 时过滤当前在线用户 |
 | `#setupRelayDispatch()` | 处理中继文本（JSON）与二进制帧 |
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
-| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存 |
+| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存 |
+| `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
 | `cert` / `card` / `server` / `rtc` / `services` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
@@ -88,7 +93,9 @@ EventTarget
 
 | 方法 | 说明 |
 |------|------|
-| `connect(url)` | 建立 WebSocket，自动执行握手挑战应答 |
+| `connect(url, optionsOrRetries?)` | 建立 WebSocket，自动执行握手挑战应答；第二个参数支持 `{ retries }` 或旧版的数字重试次数 |
+| `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries，默认关闭 |
+| `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |
 | `findBestServer(targetUserId)` | 返回**本端+对端组合延迟**最低的服务器 |
 | `#getSortedServerCandidates(targetUserId)` | 组合延迟排序，15s TTL 缓存 |
@@ -100,7 +107,7 @@ EventTarget
 | 管理器 | 关键方法 |
 |--------|---------|
 | `CertManager` (cert.js) | `issue`/`import`/`has`/`get`/`delete`/`count`/`values`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
-| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
+| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；`iceServers: []`（仅靠服务端中继，无 STUN/TURN）；DataChannel `"noneos"` ordered |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services` |
 
@@ -113,7 +120,16 @@ EventTarget
 3. 服务端验签通过后推送 `handshake` 成功事件（含 userId 等）。
 4. 失败触发 `ws_error` 事件。
 
-### 2. 中继消息格式（user.js / server.js）
+### 2. 自动重连（server.js）
+
+- 默认关闭，通过 `setAutoReconnect({ enabled: true, baseDelay, maxDelay, multiplier, maxRetries })` 开启。
+- 仅在手**握手成功后的 `WebSocket.onclose`** 触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
+- 指数退避：第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
+- 同一 URL 的并发连接通过 `#connectPromises` 复用 Promise；`#reconnectTasks` 管理重连定时器，避免重复调度。
+- 调用 `disconnect(url)` 会标记该 URL 为“用户主动断开”，清除待执行重连任务，关闭后不再自动重连。
+- 显式调用 `connect(url)` 会解除“主动断开”标记并取消待执行重连。
+
+### 3. 中继消息格式（user.js / server.js）
 
 - **文本中继**：JSON 对象，含 `type`、`from`、`to`、`sessionId` 等字段。例如 `card`、`rtc_signal`、`relay`、`__service_query`、`__service_response`、`update_services`。
 - **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，header 含路由信息。用于大 payload（如文件块），避免 JSON 序列化开销。
@@ -187,9 +203,15 @@ A.get(B.userId)
 | 事件名 | 触发时机 |
 |--------|---------|
 | `handshake` | 服务端握手成功 |
+| `server_connected` | 服务器握手成功（首次或重连成功） |
+| `server_disconnected` | 握手成功后连接断开 |
+| `server_reconnecting` | 已安排下一次自动重连 |
+| `server_reconnect_exhausted` | 自动重连达到最大次数 |
 | `ws_error` | WebSocket 或握手错误 |
 | `message` | 收到中继消息（解密后） |
 | `close` | 连接关闭 |
 | `latency_test` / `latency_monitor` / `rtt_update` | 延迟测速与监控 |
 | `rtc_state` | RTC 连接状态变化 |
 | `card_received` | 收到对端名片 |
+| `remote_user_connected` | RemoteUser 进入缓存：主动 `connectUser()` 成功，或收到对方消息后被动创建。detail: `{ userId, remoteUser, initiatedBy: "local"|"remote" }` |
+| `remote_user_disconnected` | RemoteUser 被移除：显式 `disconnectUser()`（`reason: "manual"`），或 `connectUser()` 失败（`reason: "error"`）。detail: `{ userId, remoteUser, reason, error }` |

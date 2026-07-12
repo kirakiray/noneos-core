@@ -666,6 +666,292 @@
     </template>
   </sb-test>
 
+  <sb-test name="RemoteUser List and Local Connected Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const ru7_nsA = "ru-getter-a";
+        const ru7_nsB = "ru-getter-b";
+        const ru7_serverUrl = "ws://localhost:8081";
+
+        const ru7_userA = new LocalUser(ru7_nsA);
+        const ru7_userB = new LocalUser(ru7_nsB);
+        await Promise.all([ru7_userA.ready(), ru7_userB.ready()]);
+        await Promise.all([
+          ru7_userA.server.connect(ru7_serverUrl),
+          ru7_userB.server.connect(ru7_serverUrl),
+        ]);
+
+        let ru7_connectedEvent = null;
+        ru7_userA.bind("remote_user_connected", (event) => {
+          ru7_connectedEvent = event.detail;
+        });
+
+        const ru7_remoteB = await ru7_userA.connectUser(ru7_userB.userId);
+        const ru7_list = ru7_userA.remoteUsers;
+
+        const ru7_isArray = Array.isArray(ru7_list);
+        const ru7_hasOne = ru7_list.length === 1;
+        const ru7_hasB = ru7_hasOne && ru7_list[0].userId === ru7_userB.userId;
+        const ru7_eventOk =
+          ru7_connectedEvent !== null &&
+          ru7_connectedEvent.userId === ru7_userB.userId &&
+          ru7_connectedEvent.remoteUser === ru7_remoteB &&
+          ru7_connectedEvent.initiatedBy === "local";
+
+        ru7_userA.server.disconnectAll();
+        ru7_userB.server.disconnectAll();
+
+        return {
+          assert: ru7_isArray && ru7_hasB && ru7_eventOk,
+          content: {
+            message: ru7_isArray && ru7_hasB && ru7_eventOk
+              ? "remoteUsers getter 与 local connected 事件测试通过"
+              : "remoteUsers getter 与 local connected 事件测试失败",
+            isArray: ru7_isArray,
+            listLength: ru7_list.length,
+            hasB: ru7_hasB,
+            eventOk: ru7_eventOk,
+            eventUserId: ru7_connectedEvent?.userId,
+            initiatedBy: ru7_connectedEvent?.initiatedBy,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Disconnect User Triggers Disconnected Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const ru8_nsC = "ru-disc-c";
+        const ru8_nsD = "ru-disc-d";
+        const ru8_serverUrl = "ws://localhost:8081";
+
+        const ru8_userC = new LocalUser(ru8_nsC);
+        const ru8_userD = new LocalUser(ru8_nsD);
+        await Promise.all([ru8_userC.ready(), ru8_userD.ready()]);
+        await Promise.all([
+          ru8_userC.server.connect(ru8_serverUrl),
+          ru8_userD.server.connect(ru8_serverUrl),
+        ]);
+
+        const ru8_remoteD = await ru8_userC.connectUser(ru8_userD.userId);
+
+        let ru8_disconnectedEvent = null;
+        ru8_userC.bind("remote_user_disconnected", (event) => {
+          ru8_disconnectedEvent = event.detail;
+        });
+
+        await ru8_userC.disconnectUser(ru8_userD.userId);
+
+        const ru8_listEmpty = ru8_userC.remoteUsers.length === 0;
+        const ru8_eventOk =
+          ru8_disconnectedEvent !== null &&
+          ru8_disconnectedEvent.userId === ru8_userD.userId &&
+          ru8_disconnectedEvent.remoteUser === ru8_remoteD &&
+          ru8_disconnectedEvent.reason === "manual";
+
+        ru8_userC.server.disconnectAll();
+        ru8_userD.server.disconnectAll();
+
+        return {
+          assert: ru8_listEmpty && ru8_eventOk,
+          content: {
+            message: ru8_listEmpty && ru8_eventOk
+              ? "disconnectUser 触发 disconnected 事件测试通过"
+              : "disconnectUser 触发 disconnected 事件测试失败",
+            listEmpty: ru8_listEmpty,
+            eventOk: ru8_eventOk,
+            eventUserId: ru8_disconnectedEvent?.userId,
+            reason: ru8_disconnectedEvent?.reason,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Connect User Failure Triggers Error Disconnected Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const ru9_nsE = "ru-fail-e";
+        const ru9_serverUrl = "ws://localhost:8081";
+        const ru9_targetUserId = "nonexistent-user-id-for-test-12345";
+
+        const ru9_userE = new LocalUser(ru9_nsE);
+        await ru9_userE.ready();
+        await ru9_userE.server.connect(ru9_serverUrl);
+
+        let ru9_disconnectedEvent = null;
+        ru9_userE.bind("remote_user_disconnected", (event) => {
+          ru9_disconnectedEvent = event.detail;
+        });
+
+        let ru9_threw = false;
+        try {
+          await ru9_userE.connectUser(ru9_targetUserId);
+        } catch {
+          ru9_threw = true;
+        }
+
+        // 事件在 Promise 链中同步触发，稍作等待确保回调已执行
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const ru9_listEmpty = ru9_userE.remoteUsers.length === 0;
+        const ru9_eventOk =
+          ru9_disconnectedEvent !== null &&
+          ru9_disconnectedEvent.userId === ru9_targetUserId &&
+          ru9_disconnectedEvent.remoteUser === null &&
+          ru9_disconnectedEvent.reason === "error" &&
+          ru9_disconnectedEvent.error instanceof Error;
+
+        ru9_userE.server.disconnectAll();
+
+        return {
+          assert: ru9_threw && ru9_listEmpty && ru9_eventOk,
+          content: {
+            message: ru9_threw && ru9_listEmpty && ru9_eventOk
+              ? "connectUser 失败触发 error disconnected 事件测试通过"
+              : "connectUser 失败触发 error disconnected 事件测试失败",
+            threw: ru9_threw,
+            listEmpty: ru9_listEmpty,
+            eventOk: ru9_eventOk,
+            eventUserId: ru9_disconnectedEvent?.userId,
+            reason: ru9_disconnectedEvent?.reason,
+            remoteUserIsNull: ru9_disconnectedEvent?.remoteUser === null,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Incoming Message Triggers Remote Initiated Connected Event Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const ru10_nsF = "ru-passive-f";
+        const ru10_nsG = "ru-passive-g";
+        const ru10_serverUrl = "ws://localhost:8081";
+
+        const ru10_userF = new LocalUser(ru10_nsF);
+        const ru10_userG = new LocalUser(ru10_nsG);
+        await Promise.all([ru10_userF.ready(), ru10_userG.ready()]);
+        await Promise.all([
+          ru10_userF.server.connect(ru10_serverUrl),
+          ru10_userG.server.connect(ru10_serverUrl),
+        ]);
+
+        let ru10_connectedOnG = null;
+        let ru10_receivedMessage = null;
+
+        ru10_userG.bind("remote_user_connected", (event) => {
+          ru10_connectedOnG = event.detail;
+        });
+
+        ru10_userG.bind("message", (event) => {
+          const rawData = typeof event.detail.data === "string"
+            ? event.detail.data
+            : new TextDecoder().decode(event.detail.data);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "relay" && parsed.from_user_id === ru10_userF.userId) {
+              ru10_receivedMessage = parsed.data;
+            }
+          } catch {}
+        });
+
+        // ru10_userF 主动连接并发送消息给 ru10_userG，但 ru10_userG 没有主动 connectUser(ru10_userF)
+        const ru10_remoteG = await ru10_userF.connectUser(ru10_userG.userId);
+        await ru10_remoteG.send(ru10_userG.sessionId, "hello passive");
+
+        for (let ru10_i = 0; ru10_i < 20; ru10_i++) {
+          if (ru10_connectedOnG && ru10_receivedMessage !== null) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const ru10_list = ru10_userG.remoteUsers;
+        const ru10_hasF = ru10_list.length === 1 && ru10_list[0].userId === ru10_userF.userId;
+        const ru10_eventOk =
+          ru10_connectedOnG !== null &&
+          ru10_connectedOnG.userId === ru10_userF.userId &&
+          ru10_connectedOnG.initiatedBy === "remote" &&
+          ru10_connectedOnG.remoteUser === ru10_list[0];
+        const ru10_messageOk = ru10_receivedMessage === "hello passive";
+
+        ru10_userF.server.disconnectAll();
+        ru10_userG.server.disconnectAll();
+
+        return {
+          assert: ru10_hasF && ru10_eventOk && ru10_messageOk,
+          content: {
+            message: ru10_hasF && ru10_eventOk && ru10_messageOk
+              ? "被动消息触发 remote connected 事件测试通过"
+              : "被动消息触发 remote connected 事件测试失败",
+            hasF: ru10_hasF,
+            listLength: ru10_list.length,
+            eventOk: ru10_eventOk,
+            messageOk: ru10_messageOk,
+            eventUserId: ru10_connectedOnG?.userId,
+            initiatedBy: ru10_connectedOnG?.initiatedBy,
+            receivedMessage: ru10_receivedMessage,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="isRemoteUserOnline and getRemoteUsers onlineOnly Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const ru11_nsH = "ru-online-h";
+        const ru11_nsI = "ru-online-i";
+        const ru11_serverUrl = "ws://localhost:8081";
+
+        const ru11_userH = new LocalUser(ru11_nsH);
+        const ru11_userI = new LocalUser(ru11_nsI);
+        await Promise.all([ru11_userH.ready(), ru11_userI.ready()]);
+        await Promise.all([
+          ru11_userH.server.connect(ru11_serverUrl),
+          ru11_userI.server.connect(ru11_serverUrl),
+        ]);
+
+        await ru11_userH.connectUser(ru11_userI.userId);
+
+        const ru11_online = await ru11_userH.isRemoteUserOnline(ru11_userI.userId);
+        const ru11_onlineList = await ru11_userH.getRemoteUsers({ onlineOnly: true });
+        const ru11_onlineListOk =
+          ru11_onlineList.length === 1 && ru11_onlineList[0].userId === ru11_userI.userId;
+
+        const ru11_offline = await ru11_userH.isRemoteUserOnline(
+          "nonexistent-user-id-for-test-99999",
+        );
+
+        ru11_userH.server.disconnectAll();
+        ru11_userI.server.disconnectAll();
+
+        return {
+          assert: ru11_online && ru11_onlineListOk && !ru11_offline,
+          content: {
+            message: ru11_online && ru11_onlineListOk && !ru11_offline
+              ? "isRemoteUserOnline 与 getRemoteUsers onlineOnly 测试通过"
+              : "isRemoteUserOnline 与 getRemoteUsers onlineOnly 测试失败",
+            online: ru11_online,
+            onlineListOk: ru11_onlineListOk,
+            onlineListLength: ru11_onlineList.length,
+            offline: ru11_offline,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
 </body>
 
 </html>

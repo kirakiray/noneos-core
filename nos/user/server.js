@@ -22,6 +22,15 @@ export class ServerManager {
   #latencyIntervalMs = 30000;
   #latencyCache = new Map();
   #serverCandidateCache = new Map(); // userId -> { candidates, timestamp }
+  #autoReconnectConfig = {
+    enabled: false,
+    baseDelay: 2000,
+    maxDelay: 30000,
+    multiplier: 2,
+    maxRetries: Infinity,
+  };
+  #reconnectTasks = new Map(); // url -> { timer, attempt, nextRetryAt }
+  #intentionalDisconnects = new Set(); // 用户主动断开的 url
 
   constructor(user) {
     this.#user = user;
@@ -115,10 +124,22 @@ export class ServerManager {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
-   * @param {number} [retries=3] - 连接失败后的重试次数
+   * @param {Object|number} [optionsOrRetries={ retries: 3 }] - 连接选项，或仅指定重试次数（向后兼容）
+   * @param {number} [optionsOrRetries.retries=3] - 握手阶段的重试次数
    * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
-  async connect(url, retries = 3) {
+  async connect(url, optionsOrRetries = { retries: 3 }) {
+    let options;
+    if (typeof optionsOrRetries === "number") {
+      options = { retries: optionsOrRetries };
+    } else {
+      options = { retries: 3, ...optionsOrRetries };
+    }
+
+    // 用户主动连接某 URL 时，视为恢复自动重连的意图
+    this.#intentionalDisconnects.delete(url);
+    this.#clearReconnectTask(url);
+
     // 检查是否已有可用连接
     if (this.#wsMap.has(url)) {
       const existingWs = this.#wsMap.get(url);
@@ -148,11 +169,11 @@ export class ServerManager {
     // 带重试的连接逻辑
     const connectWithRetry = async () => {
       let lastError;
-      for (let i = 0; i <= retries; i++) {
+      for (let i = 0; i <= options.retries; i++) {
         if (i > 0) {
           await new Promise((r) => setTimeout(r, 200));
           console.warn(
-            `[ServerManager] Retrying connection to ${url} (attempt ${i + 1}/${retries})`,
+            `[ServerManager] Retrying connection to ${url} (attempt ${i + 1}/${options.retries})`,
           );
         }
         try {
@@ -226,6 +247,10 @@ export class ServerManager {
               this.#wsMap.set(url, ws);
               this.#serverVersions.set(url, version);
 
+              // 清除该 URL 的重连任务，避免重连成功后旧定时器仍触发
+              this.#clearReconnectTask(url);
+              this.#intentionalDisconnects.delete(url);
+
               // 触发握手成功事件
               this.#user._trigger("handshake", {
                 url,
@@ -233,6 +258,7 @@ export class ServerManager {
                 isAdmin: data.is_admin,
                 version,
               });
+              this.#user._trigger("server_connected", { url, version });
 
               // 绑定后续消息处理
               ws.onmessage = (e) => {
@@ -244,15 +270,24 @@ export class ServerManager {
               };
 
               // 绑定关闭处理
-              ws.onclose = () => {
+              ws.onclose = (event) => {
+                // 如果该 URL 已经被新的连接接管，跳过旧 ws 的关闭处理
+                if (this.#wsMap.get(url) !== ws) return;
+
                 this.#wsMap.delete(url);
                 this.#serverVersions.delete(url);
                 this.#serverCandidateCache.clear(); // 拓扑变化，清空路由缓存
-                this.#user._trigger("close", { url: url });
+                this.#user._trigger("close", { url, reason: event.reason });
+                this.#user._trigger("server_disconnected", {
+                  url,
+                  reason: event.reason,
+                });
                 // 没有活跃连接时自动停止延迟监测
                 if (this.#wsMap.size === 0) {
                   this.stopLatencyMonitor();
                 }
+
+                this.#scheduleReconnect(url);
               };
 
               resolve({ success: true, version });
@@ -831,14 +866,20 @@ export class ServerManager {
   }
 
   /**
-   * 断开指定服务器的连接
+   * 断开指定服务器的连接，并停止该 URL 的自动重连
    * @param {string} url - 服务器 WebSocket 地址
    */
   disconnect(url) {
+    // 标记为用户主动断开，防止关闭后触发自动重连
+    this.#intentionalDisconnects.add(url);
+    this.#clearReconnectTask(url);
+
     const ws = this.#wsMap.get(url);
     if (ws) {
+      // 先从 map 中移除，避免 onclose 中重复清理并触发重连
       this.#wsMap.delete(url);
       ws.close();
+      this.#serverVersions.delete(url);
       this.#serverCandidateCache.clear();
       if (this.#wsMap.size === 0) {
         this.stopLatencyMonitor();
@@ -862,6 +903,113 @@ export class ServerManager {
    */
   get isLatencyMonitorActive() {
     return this.#latencyTimer !== null;
+  }
+
+  /**
+   * 配置自动重连行为
+   * @param {Object} options
+   * @param {boolean} [options.enabled=false] - 是否启用自动重连
+   * @param {number} [options.baseDelay=2000] - 首次重连间隔（毫秒）
+   * @param {number} [options.maxDelay=30000] - 最大重连间隔（毫秒）
+   * @param {number} [options.multiplier=2] - 指数退避乘数
+   * @param {number} [options.maxRetries=Infinity] - 最大重试次数
+   * @returns {ServerManager}
+   */
+  setAutoReconnect(options) {
+    this.#autoReconnectConfig = { ...this.#autoReconnectConfig, ...options };
+
+    // 关闭自动重连时，取消所有已排队的重连定时器
+    if (!this.#autoReconnectConfig.enabled) {
+      for (const [url, task] of this.#reconnectTasks) {
+        clearTimeout(task.timer);
+        this.#reconnectTasks.delete(url);
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * 清除指定 URL 的重连任务
+   * @param {string} url
+   */
+  #clearReconnectTask(url) {
+    const task = this.#reconnectTasks.get(url);
+    if (task) {
+      clearTimeout(task.timer);
+      this.#reconnectTasks.delete(url);
+    }
+  }
+
+  /**
+   * 调度指定 URL 的自动重连
+   * @param {string} url
+   */
+  #scheduleReconnect(url) {
+    if (!this.#autoReconnectConfig.enabled) return;
+    if (this.#intentionalDisconnects.has(url)) return;
+    if (this.#reconnectTasks.has(url)) return;
+
+    const { baseDelay } = this.#autoReconnectConfig;
+    const nextRetryAt = Date.now() + baseDelay;
+    const task = {
+      attempt: 1,
+      nextRetryAt,
+      timer: setTimeout(() => this.#runReconnect(url, task), baseDelay),
+    };
+    this.#reconnectTasks.set(url, task);
+
+    this.#user._trigger("server_reconnecting", {
+      url,
+      attempt: 1,
+      nextRetryAt,
+    });
+  }
+
+  /**
+   * 执行一次自动重连，失败则继续调度下一次
+   * @param {string} url
+   * @param {Object} task
+   */
+  #runReconnect(url, task) {
+    this.#reconnectTasks.delete(url);
+
+    if (this.#intentionalDisconnects.has(url)) return;
+    if (!this.#autoReconnectConfig.enabled) return;
+
+    this.connect(url).catch(() => {
+      if (this.#intentionalDisconnects.has(url)) return;
+      if (!this.#autoReconnectConfig.enabled) return;
+
+      const nextAttempt = task.attempt + 1;
+      if (nextAttempt > this.#autoReconnectConfig.maxRetries) {
+        this.#user._trigger("server_reconnect_exhausted", {
+          url,
+          attempt: task.attempt,
+        });
+        return;
+      }
+
+      const { baseDelay, maxDelay, multiplier } = this.#autoReconnectConfig;
+      const delay = Math.min(
+        baseDelay * Math.pow(multiplier, nextAttempt - 1),
+        maxDelay,
+      );
+      const nextRetryAt = Date.now() + delay;
+
+      const nextTask = {
+        attempt: nextAttempt,
+        nextRetryAt,
+        timer: setTimeout(() => this.#runReconnect(url, nextTask), delay),
+      };
+      this.#reconnectTasks.set(url, nextTask);
+
+      this.#user._trigger("server_reconnecting", {
+        url,
+        attempt: nextAttempt,
+        nextRetryAt,
+      });
+    });
   }
 
   /**
