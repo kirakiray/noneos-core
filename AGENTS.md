@@ -27,7 +27,7 @@
    - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
 5. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致，避免后续 AI 基于过时信息工作。
 6. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
-7. **补充上下文**：若发现 [CONTEXT.md](CONTEXT.md) 中存在信息缺失，应及时补充完善。
+7. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
 
 
 ## 技能资源与导入 (Skill Resources)
