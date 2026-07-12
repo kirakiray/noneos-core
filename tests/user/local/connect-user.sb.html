@@ -713,7 +713,8 @@
             listLength: ru7_list.length,
             hasB: ru7_hasB,
             eventOk: ru7_eventOk,
-            connectedEvent: ru7_connectedEvent,
+            eventUserId: ru7_connectedEvent?.userId,
+            initiatedBy: ru7_connectedEvent?.initiatedBy,
           },
         };
       </script>
@@ -764,7 +765,8 @@
               : "disconnectUser 触发 disconnected 事件测试失败",
             listEmpty: ru8_listEmpty,
             eventOk: ru8_eventOk,
-            disconnectedEvent: ru8_disconnectedEvent,
+            eventUserId: ru8_disconnectedEvent?.userId,
+            reason: ru8_disconnectedEvent?.reason,
           },
         };
       </script>
@@ -818,7 +820,9 @@
             threw: ru9_threw,
             listEmpty: ru9_listEmpty,
             eventOk: ru9_eventOk,
-            disconnectedEvent: ru9_disconnectedEvent,
+            eventUserId: ru9_disconnectedEvent?.userId,
+            reason: ru9_disconnectedEvent?.reason,
+            remoteUserIsNull: ru9_disconnectedEvent?.remoteUser === null,
           },
         };
       </script>
@@ -892,7 +896,8 @@
             listLength: ru10_list.length,
             eventOk: ru10_eventOk,
             messageOk: ru10_messageOk,
-            connectedOnG: ru10_connectedOnG,
+            eventUserId: ru10_connectedOnG?.userId,
+            initiatedBy: ru10_connectedOnG?.initiatedBy,
             receivedMessage: ru10_receivedMessage,
           },
         };
