@@ -275,8 +275,12 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | 事件名 | 触发时机 | `event.detail` |
 |--------|---------|----------------|
 | `handshake` | 服务器握手完成或失败 | `{ url, status: "success"|"error", isAdmin?, version?, message? }` |
+| `server_connected` | 服务器握手成功（首次或重连） | `{ url, version }` |
+| `server_disconnected` | 握手成功后连接断开 | `{ url, reason }` |
+| `server_reconnecting` | 已安排下一次自动重连 | `{ url, attempt, nextRetryAt }` |
+| `server_reconnect_exhausted` | 自动重连达到最大次数 | `{ url, attempt }` |
 | `message` | 收到服务器或 RTC 转发消息 | `{ url, data, originalEvent }` |
-| `close` | 服务器连接断开 | `{ url }` |
+| `close` | 服务器连接断开 | `{ url, reason }` |
 | `ws_error` | WebSocket 连接错误 | `{ url, error }` |
 | `latency_test` | 单次延迟测试完成 | `{ url, rtt, oneWayLatency, clientTime, serverRecvTime, serverSendTime, clientRecvTime }` |
 | `latency_monitor` | 延迟监测启动 | `{ status: "started", intervalMs }` |
@@ -321,6 +325,34 @@ await user.server.connectAll();
 
 > **通常不需要手动连接**：`getUser()` 内部会调用 `ready()`，`ready()` 会自动执行 `connectAll()`，因此多数场景下直接 `await getUser("namespace")` 即可。只有需要连接非默认服务器时，才显式调用 `connect(url)`。
 
+### 自动重连
+
+```javascript
+// 开启自动重连（默认关闭）
+user.server.setAutoReconnect({
+  enabled: true,
+  baseDelay: 2000,      // 首次重连间隔 ms
+  maxDelay: 30000,      // 最大重连间隔 ms
+  multiplier: 2,        // 指数退避乘数
+  maxRetries: Infinity, // 最大重试次数
+});
+
+user.bind("server_connected", (e) => {
+  console.log("已连接", e.detail.url, e.detail.version);
+});
+
+user.bind("server_disconnected", (e) => {
+  console.log("断开", e.detail.url, e.detail.reason);
+});
+
+user.bind("server_reconnecting", (e) => {
+  console.log(`第 ${e.detail.attempt} 次重连 ${e.detail.url}`);
+});
+```
+
+- 仅在手**握手成功后的连接断开**时触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
+- `setAutoReconnect({ enabled: false })` 会取消所有已排队但尚未执行的重连。
+
 ### 服务器列表管理
 
 ```javascript
@@ -364,6 +396,8 @@ user.server.stopLatencyMonitor();
 user.server.disconnect("ws://localhost:8081");
 user.server.disconnectAll();
 ```
+
+`disconnect(url)` 会停止该 URL 的自动重连。要恢复自动重连，需要再次调用 `connect(url)`。
 
 ## 完整示例
 

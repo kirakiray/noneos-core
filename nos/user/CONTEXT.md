@@ -88,7 +88,9 @@ EventTarget
 
 | 方法 | 说明 |
 |------|------|
-| `connect(url)` | 建立 WebSocket，自动执行握手挑战应答 |
+| `connect(url, optionsOrRetries?)` | 建立 WebSocket，自动执行握手挑战应答；第二个参数支持 `{ retries }` 或旧版的数字重试次数 |
+| `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries，默认关闭 |
+| `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |
 | `findBestServer(targetUserId)` | 返回**本端+对端组合延迟**最低的服务器 |
 | `#getSortedServerCandidates(targetUserId)` | 组合延迟排序，15s TTL 缓存 |
@@ -113,7 +115,16 @@ EventTarget
 3. 服务端验签通过后推送 `handshake` 成功事件（含 userId 等）。
 4. 失败触发 `ws_error` 事件。
 
-### 2. 中继消息格式（user.js / server.js）
+### 2. 自动重连（server.js）
+
+- 默认关闭，通过 `setAutoReconnect({ enabled: true, baseDelay, maxDelay, multiplier, maxRetries })` 开启。
+- 仅在手**握手成功后的 `WebSocket.onclose`** 触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
+- 指数退避：第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
+- 同一 URL 的并发连接通过 `#connectPromises` 复用 Promise；`#reconnectTasks` 管理重连定时器，避免重复调度。
+- 调用 `disconnect(url)` 会标记该 URL 为“用户主动断开”，清除待执行重连任务，关闭后不再自动重连。
+- 显式调用 `connect(url)` 会解除“主动断开”标记并取消待执行重连。
+
+### 3. 中继消息格式（user.js / server.js）
 
 - **文本中继**：JSON 对象，含 `type`、`from`、`to`、`sessionId` 等字段。例如 `card`、`rtc_signal`、`relay`、`__service_query`、`__service_response`、`update_services`。
 - **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，header 含路由信息。用于大 payload（如文件块），避免 JSON 序列化开销。
@@ -187,6 +198,10 @@ A.get(B.userId)
 | 事件名 | 触发时机 |
 |--------|---------|
 | `handshake` | 服务端握手成功 |
+| `server_connected` | 服务器握手成功（首次或重连成功） |
+| `server_disconnected` | 握手成功后连接断开 |
+| `server_reconnecting` | 已安排下一次自动重连 |
+| `server_reconnect_exhausted` | 自动重连达到最大次数 |
 | `ws_error` | WebSocket 或握手错误 |
 | `message` | 收到中继消息（解密后） |
 | `close` | 连接关闭 |
