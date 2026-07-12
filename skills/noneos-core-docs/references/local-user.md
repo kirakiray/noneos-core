@@ -61,6 +61,55 @@ console.log(Array.isArray(sessionIds)); // true
 // 返回所有同 namespace 的 sessionId
 ```
 
+## 管理已连接的远程用户
+
+LocalUser 内部会缓存已经建立通信的远程用户实例，并通过只读 getter 暴露出来：
+
+```javascript
+// 当前已缓存的 RemoteUser 列表（主动连接 + 被动收到消息后自动创建）
+const list = user.remoteUsers;
+console.log(Array.isArray(list)); // true
+list.forEach((remoteUser) => {
+  console.log(remoteUser.userId);
+});
+```
+
+### 断开远程用户
+
+```javascript
+await user.disconnectUser(targetUserId);
+// 清理本地缓存并触发 remote_user_disconnected（reason: "manual"）
+```
+
+### 查询用户是否在线
+
+```javascript
+const online = await user.isRemoteUserOnline(targetUserId);
+// 已缓存用户通过 RemoteUser.getSessionIds() 判断；未缓存用户直接查询已连接服务器
+```
+
+### 过滤出当前在线的远程用户
+
+```javascript
+const onlineUsers = await user.getRemoteUsers({ onlineOnly: true });
+```
+
+## 远程用户连接事件
+
+```javascript
+user.bind("remote_user_connected", (event) => {
+  const { userId, remoteUser, initiatedBy } = event.detail;
+  // initiatedBy: "local" 表示我主动 connectUser 成功
+  // initiatedBy: "remote" 表示对方发消息给我，core 被动创建了 RemoteUser
+});
+
+user.bind("remote_user_disconnected", (event) => {
+  const { userId, remoteUser, reason, error } = event.detail;
+  // reason: "manual" 表示我主动 disconnectUser
+  // reason: "error"  表示 connectUser 失败
+});
+```
+
 ## 无实例验签：`verifyData`
 
 `user.verify(signed)` 是 `BaseUser` 上的方法（`LocalUser`、`RemoteUser` 均可用），需要先有一个用户实例；如果你只是想验证**任意来源**的签名数据（例如他人签发的证书、AppManager 的 asset-manifest、别人的名片等），可以直接使用 `verifyData` 工具函数——它不依赖任何用户实例，只要待验数据本身携带 `signature` 与 `publicKey` 字段即可。

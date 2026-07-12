@@ -19,6 +19,51 @@ await Promise.all([
 const remoteB = await userA.connectUser(userB.userId);
 ```
 
+## 获取已连接的远程用户
+
+LocalUser 会缓存所有已经建立通信的 `RemoteUser` 实例，并暴露为只读数组：
+
+```javascript
+// 当前已缓存的 RemoteUser 列表（主动 connectUser + 被动收到消息后自动创建）
+const list = userA.remoteUsers;
+list.forEach((remoteUser) => {
+  console.log(remoteUser.userId);
+});
+```
+
+## 断开远程用户
+
+```javascript
+await userA.disconnectUser(userB.userId);
+// 清理本地缓存并触发 remote_user_disconnected（reason: "manual"）
+```
+
+## 监听连接状态变化
+
+```javascript
+userA.bind("remote_user_connected", (event) => {
+  const { userId, remoteUser, initiatedBy } = event.detail;
+  // initiatedBy: "local" 表示我主动 connectUser 成功
+  // initiatedBy: "remote" 表示对方发消息给我，core 被动创建了 RemoteUser
+});
+
+userA.bind("remote_user_disconnected", (event) => {
+  const { userId, remoteUser, reason, error } = event.detail;
+  // reason: "manual" 表示主动 disconnectUser
+  // reason: "error"  表示 connectUser 失败
+});
+```
+
+## 查询在线状态
+
+```javascript
+// 单个用户是否在线
+const online = await userA.isRemoteUserOnline(userB.userId);
+
+// 一次性过滤出当前在线的远程用户
+const onlineUsers = await userA.getRemoteUsers({ onlineOnly: true });
+```
+
 ## 发现用户 Session
 
 同一个用户可以有多台设备/标签页，每个标签页是一个独立 session：

@@ -116,6 +116,22 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `sign(data)` | 对数据进行签名 |
 | `verify(signedData)` | 验证数据签名 |
 | `ready()` | 准备用户实例 |
+| `connectUser(userId)` | 连接远程用户，成功触发 `remote_user_connected` |
+| `disconnectUser(userId)` | 断开远程用户，触发 `remote_user_disconnected`（`reason: "manual"`） |
+| `remoteUsers` | 只读 getter，返回已缓存的 `RemoteUser[]` |
+| `isRemoteUserOnline(userId)` | 查询指定 userId 当前是否在线 |
+| `getRemoteUsers({ onlineOnly })` | 获取已缓存的 `RemoteUser[]`，`onlineOnly: true` 时过滤在线用户 |
+| `getSessionIds(timeout?)` | 获取同一 namespace 下所有标签页的 sessionId |
+
+#### LocalUser 事件
+
+| 事件 | 说明 |
+|------|------|
+| `remote_user_connected` | `connectUser()` 成功或收到对方消息后创建 RemoteUser。detail: `{ userId, remoteUser, initiatedBy }` |
+| `remote_user_disconnected` | `disconnectUser()` 或 `connectUser()` 失败。detail: `{ userId, remoteUser, reason, error }` |
+| `message` | 通过服务器中继收到消息 |
+| `rtt_update` | RTT 延迟更新 |
+| `card_received` | 收到名片 |
 
 ### CertManager 类 (user.cert)
 

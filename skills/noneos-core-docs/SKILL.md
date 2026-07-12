@@ -116,6 +116,13 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
+### 查看已连接的远程用户与状态事件
+
+LocalUser 会缓存已建立通信的远程用户，并通过 `user.remoteUsers` 暴露，同时提供 `isRemoteUserOnline()`、`getRemoteUsers()` 与 `remote_user_connected` / `remote_user_disconnected` 事件。详见：
+
+- [用户连接与通信](references/connect-user.md) — 连接、断开、消息收发与连接事件
+- [LocalUser 基础](references/local-user.md) — `remoteUsers`、`isRemoteUserOnline`、`getRemoteUsers` 与事件详情
+
 ---
 
 ## 核心功能 3：文件发布与获取 (DataPublisher)
