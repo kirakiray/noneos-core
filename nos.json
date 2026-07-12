@@ -1,7 +1,7 @@
 {
   "version": "4.1.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1783608236319,
+  "signTime": 1783843152843,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -45,8 +45,8 @@
     },
     {
       "path": "fs/README.md",
-      "hash": "91ebadb2127ff54c2923d9cd589639eb8a55d2d2a86d211b2c0f97750a245b97",
-      "size": 12340
+      "hash": "4a29e3893f76c43fd371a7cec445f7c57ac48aa81c5cc410df90266a27d5c26e",
+      "size": 12820
     },
     {
       "path": "fs/download.js",
@@ -145,18 +145,18 @@
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "f6d34d05624b9a22cf797c5741047fe016a4e4594c29a160d817e0f5449e0f71",
-      "size": 14129
+      "hash": "1034a18a123da754f7df46fce5a68c864826809db767137dce4394a90613ffb3",
+      "size": 14441
     },
     {
       "path": "publish/README.md",
-      "hash": "056b60e16a6a3b9133cce15a08a6139f4bb79037f95be4fded446d6227244aaf",
-      "size": 25991
+      "hash": "df78aee1c14f80e3ee0a3d3447d2365d85753226005c68c4d9b792c750b307cc",
+      "size": 26254
     },
     {
       "path": "publish/app-manager.js",
-      "hash": "385466d92b882451dc1f611e7dbcbf22f36d4a8b42b49e7199731915853ec1e2",
-      "size": 23546
+      "hash": "199c0f010d57d935a195b1e3debdcf3461a78c2c186cb1e14d61258f07d76c85",
+      "size": 23745
     },
     {
       "path": "publish/data-publisher.js",
@@ -175,13 +175,13 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "bee8dd230cedf11b96aa7480258caf58973b4c325e3e85578056503cf7c16684",
-      "size": 11490
+      "hash": "4d1b566da20efa2f597fafdbe041662e03fba7409d65e9459521ee05e216841c",
+      "size": 12769
     },
     {
       "path": "user/README.md",
-      "hash": "a66de1de6038844c14db1eeec6b29e77b98f9c2bd1c0266eb4668b5fdc5ccfcf",
-      "size": 21762
+      "hash": "93055635366a15259e360027dae94c1d737dd8fbf50b9617fabf141606cf14c4",
+      "size": 23087
     },
     {
       "path": "user/admin-user.js",
@@ -225,8 +225,8 @@
     },
     {
       "path": "user/server.js",
-      "hash": "d8d2bd5f2dbe33987678ef3bba4df779be005b5afa6b11e20411b722e42431b0",
-      "size": 26363
+      "hash": "c4a47d77e4fd38bde14cf4c0af1e087e67400f1c6562059652f9224392e9eaea",
+      "size": 31141
     },
     {
       "path": "user/service-registry.js",
@@ -284,5 +284,5 @@
       "size": 2117
     }
   ],
-  "signature": "5uc4xahyTlX5Ky0iVD8YWoTWYpcjM0Rn4lXhUfciznHGMZ/SIr6NlWGVHWiLZ0wnjMu71qphLkrp3/OlruFilg=="
+  "signature": "k5hg4dzyNbiBnV44XFmCz5ZzOWjjVWpAWIxpzxfraRzzWbHMXVwrpn3QshHt6REYwjT/fF11ElFdykDKyil7zw=="
 }
