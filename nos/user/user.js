@@ -7,6 +7,7 @@ import { ServerManager } from "./server.js";
 import { RemoteUser } from "./remote-user.js";
 import { RTCManager } from "./rtc.js";
 import { ServiceRegistry } from "./service-registry.js";
+import { TrafficLogger, inferCategory, measureSize } from "./traffic.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
@@ -25,6 +26,7 @@ export class LocalUser extends BaseUser {
   #sessionChannel;
   #remoteUserCache = new Map(); // userId -> Promise<RemoteUser> | RemoteUser
   #serviceRegistry;
+  #traffic;
 
   /**
    * 构造函数
@@ -41,6 +43,7 @@ export class LocalUser extends BaseUser {
     this.#server = new ServerManager(this);
     this.#rtc = new RTCManager(this);
     this.#serviceRegistry = new ServiceRegistry(this);
+    this.#traffic = new TrafficLogger(this);
     // 创建持久化的 BroadcastChannel 监听跨标签页 session 查询
     this.#sessionChannel = new BroadcastChannel(`noneos-sessions-${namespace}`);
     this.#sessionChannel.addEventListener("message", (event) => {
@@ -74,12 +77,119 @@ export class LocalUser extends BaseUser {
   #setupRelayDispatch() {
     this.bind("message", (event) => {
       const detail = event.detail;
+      // 入站流量埋点：服务器中继（含握手挑战、latency、relay 等所有 WS 文本/二进制）
+      this.#recordInboundFromServer(detail);
       if (typeof detail.data === "string") {
         this.#handleTextRelay(detail, event);
       } else {
         this.#handleBinaryRelay(detail);
       }
     });
+  }
+
+  /**
+   * 记录来自 WebSocket 服务器的入站流量元数据
+   */
+  #recordInboundFromServer(detail) {
+    try {
+      const url = detail.url || "";
+      const size = measureSize(detail.data);
+      let parsed = null;
+      let peerUserId = "";
+      let sessionId = "";
+      if (typeof detail.data === "string") {
+        try {
+          parsed = JSON.parse(detail.data);
+        } catch {
+          parsed = null;
+        }
+        if (parsed && typeof parsed === "object") {
+          // relay 消息内含 from_user_id/from_session_id
+          if (parsed.type === "relay") {
+            peerUserId = parsed.from_user_id || "";
+            sessionId = parsed.from_session_id || "";
+            const inner = parsed.data;
+            const info = inferCategory(inner);
+            this.#traffic.record({
+              direction: "in",
+              via: "server",
+              serverUrl: url,
+              peerUserId,
+              sessionId,
+              size,
+              category: info.category,
+              messageType: info.messageType,
+              appId: info.appId,
+              success: true,
+            });
+            return;
+          }
+          const info = inferCategory(parsed);
+          this.#traffic.record({
+            direction: "in",
+            via: "server",
+            serverUrl: url,
+            peerUserId: "",
+            sessionId: "",
+            size,
+            category: info.category,
+            messageType: info.messageType,
+            appId: info.appId,
+            success: true,
+          });
+          return;
+        }
+      }
+      // 二进制帧：尝试解析 header 获取 peerUserId/appId
+      let category = "relay";
+      let messageType = "relay";
+      let appId = "";
+      if (detail.data instanceof ArrayBuffer || ArrayBuffer.isView(detail.data)) {
+        const buf =
+          detail.data instanceof ArrayBuffer
+            ? detail.data
+            : detail.data.buffer.slice(
+                detail.data.byteOffset,
+                detail.data.byteOffset + detail.data.byteLength,
+              );
+        try {
+          if (buf.byteLength >= 4) {
+            const view = new DataView(buf);
+            const headerLen = view.getUint32(0, false);
+            if (4 + headerLen <= buf.byteLength) {
+              const headerBytes = new Uint8Array(buf, 4, headerLen);
+              const header = JSON.parse(new TextDecoder().decode(headerBytes));
+              if (header && typeof header === "object") {
+                peerUserId = header.from_user_id || "";
+                sessionId = header.from_session_id || "";
+                if (header.__app) {
+                  category = "app";
+                  messageType = "__app";
+                  appId = header.__app;
+                }
+              }
+            }
+          }
+        } catch {
+          // 解析失败保持 relay
+        }
+      }
+      this.#traffic.record({
+        direction: "in",
+        via: "server",
+        serverUrl: url,
+        peerUserId,
+        sessionId,
+        size,
+        category,
+        messageType,
+        appId,
+        success: true,
+      });
+    } catch (err) {
+      // 记录失败不影响业务
+      console.warn("[TrafficLogger] record inbound server failed:", err);
+    }
   }
 
   /**
@@ -118,6 +228,39 @@ export class LocalUser extends BaseUser {
   #setupRTCDispatch() {
     this.bind("rtc_message", async (event) => {
       const { fromUserId, fromSessionId, data } = event.detail;
+      // 入站流量埋点：RTC DataChannel（记录链路字节数，加密后）
+      try {
+        const size = measureSize(data);
+        let category = "relay";
+        let messageType = "relay";
+        let appId = "";
+        if (typeof data === "string") {
+          try {
+            const parsed = JSON.parse(data);
+            const info = inferCategory(parsed);
+            category = info.category;
+            messageType = info.messageType;
+            appId = info.appId;
+          } catch {
+            // 非 JSON 文本
+          }
+        }
+        this.#traffic.record({
+          direction: "in",
+          via: "rtc",
+          serverUrl: "",
+          peerUserId: fromUserId || "",
+          sessionId: fromSessionId || "",
+          size,
+          category,
+          messageType,
+          appId,
+          success: true,
+        });
+      } catch {
+        // 记录失败静默
+      }
+
       let messageData = data;
 
       if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
@@ -337,6 +480,13 @@ export class LocalUser extends BaseUser {
    */
   get rtc() {
     return this.#rtc;
+  }
+
+  /**
+   * 获取流量记录器
+   */
+  get traffic() {
+    return this.#traffic;
   }
 
   /**

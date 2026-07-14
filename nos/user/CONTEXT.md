@@ -32,7 +32,8 @@ nos/user/
 ├── card.js                  # CardManager：名片交换协议（E2EE 密钥派生前置）
 ├── cert.js                  # CertManager：证书签发/导入/查询（PKI）
 ├── service-registry.js      # ServiceRegistry：应用级服务注册与路由
-├── db.js                    # IndexedDB 持久化（data/certs/cards 三仓库）
+├── traffic.js               # TrafficLogger：客户端流量记录与查询
+├── db.js                    # IndexedDB 持久化（data/certs/cards/traffic_entries/traffic_agg_minute 五仓库）
 ├── README.md                # API 文档（人类阅读）
 └── CONTEXT.md               # 本文档
 ```
@@ -77,7 +78,7 @@ EventTarget
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
 | `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存 |
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
-| `cert` / `card` / `server` / `rtc` / `services` | 各管理器实例 |
+| `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
 
@@ -169,13 +170,27 @@ A.get(B.userId)
 
 ### 7. IndexedDB Schema（db.js）
 
-- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 5`
-- 三仓库：
+- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 6`
+- 五仓库：
   - `data`：用户信息、密钥、服务器列表等键值
   - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
   - `cards`：keyPath `"userId"`
+  - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`
+  - `traffic_agg_minute`：keyPath `"id"` = `"${bucket}|${peerUserId}|${via}|${serverUrl}|${category}"`，分钟聚合桶
 - 连接缓存 5s 自动关闭，避免长期占用。
 - `saveCardToDb`：保留 `signTime` 更大的名片。
+
+### 8. 流量记录（traffic.js）
+
+- **埋点位置**：入站在 [user.js #setupRelayDispatch / #setupRTCDispatch](./user.js)；出站在 [server.js sendToServer](./server.js)（含握手响应）+ [remote-user.js RTC 分支](./remote-user.js)。
+- **记录内容**：仅元数据 + 链路字节数（`size`），从不记录消息内容。
+- **字段**：`ts / direction / peerUserId / sessionId / via / serverUrl / size / category / messageType / appId / success / errorCode`。
+- **category 枚举**：`app / service / card / rtc_signal / handshake / latency / control / relay / other`。
+- **失败记录**：`success: false`，`size` 为尝试发送字节，`errorCode` 记原因（如 `not_open`）。
+- **批量刷盘**：默认 500ms 或积累 50 条触发；`clearAll/deleteBefore/delete` 之前会 `flush()`。
+- **聚合桶**：`peerUserId × via × serverUrl × category`，按分钟对齐。**不含 appId 维度**，按 app 查询走明细表 `by_app_ts` 索引。
+- **主要 API**：`record / flush / query / summary / getPeerTotals / getServerTotals / getTimeline / getTotalStats / count / getStorageInfo / deleteBefore / delete / clearAll / setEnabled / configure`。
+- **数据保留**：默认永久保留，通过 `deleteBefore(ts)` / `delete(filter)` / `clearAll()` 由上层清理应用管理。
 
 ## 六、客户端-服务端联动协议对应表
 

@@ -1,7 +1,9 @@
 const STORE_NAME = "data";
 const CERT_STORE_NAME = "certs";
 const CARD_STORE_NAME = "cards";
-const DB_VERSION = 5;
+const TRAFFIC_ENTRIES_STORE = "traffic_entries";
+const TRAFFIC_AGG_MINUTE_STORE = "traffic_agg_minute";
+const DB_VERSION = 6;
 
 // 数据库连接缓存池
 const dbCache = new Map();
@@ -58,9 +60,49 @@ function getDb(namespace) {
       if (!db.objectStoreNames.contains(CARD_STORE_NAME)) {
         db.createObjectStore(CARD_STORE_NAME, { keyPath: "userId" });
       }
+      if (!db.objectStoreNames.contains(TRAFFIC_ENTRIES_STORE)) {
+        const trafficStore = db.createObjectStore(TRAFFIC_ENTRIES_STORE, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+        // 单字段索引
+        trafficStore.createIndex("ts", "ts", { unique: false });
+        // 复合索引：便于按维度 + 时间范围查询
+        trafficStore.createIndex("peer_ts", ["peerUserId", "ts"], { unique: false });
+        trafficStore.createIndex("via_ts", ["via", "ts"], { unique: false });
+        trafficStore.createIndex("dir_ts", ["direction", "ts"], { unique: false });
+        trafficStore.createIndex("cat_ts", ["category", "ts"], { unique: false });
+        trafficStore.createIndex("app_ts", ["appId", "ts"], { unique: false });
+        trafficStore.createIndex("server_ts", ["serverUrl", "ts"], { unique: false });
+      }
+      if (!db.objectStoreNames.contains(TRAFFIC_AGG_MINUTE_STORE)) {
+        const aggStore = db.createObjectStore(TRAFFIC_AGG_MINUTE_STORE, {
+          keyPath: "id",
+        });
+        aggStore.createIndex("bucket", "bucket", { unique: false });
+        aggStore.createIndex("peer_bucket", ["peerUserId", "bucket"], { unique: false });
+        aggStore.createIndex("via_bucket", ["via", "bucket"], { unique: false });
+        aggStore.createIndex("server_bucket", ["serverUrl", "bucket"], { unique: false });
+        aggStore.createIndex("cat_bucket", ["category", "bucket"], { unique: false });
+      }
     };
   });
 }
+
+/**
+ * 获取共享的数据库实例（供 traffic.js 等模块复用）
+ * @param {string} namespace
+ * @returns {Promise<IDBDatabase>}
+ */
+export function getSharedDb(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  return getDb(namespace);
+}
+
+export const TRAFFIC_STORES = {
+  entries: TRAFFIC_ENTRIES_STORE,
+  aggMinute: TRAFFIC_AGG_MINUTE_STORE,
+};
 
 /**
  * 关闭并清理缓存中的数据库连接

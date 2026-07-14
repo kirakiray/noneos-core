@@ -1,5 +1,6 @@
 import { BaseUser } from "./base-user.js";
 import { tryEncryptBinary } from "../crypto/crypto-e2ee.js";
+import { inferCategory, measureSize } from "./traffic.js";
 
 /**
  * 远程用户类，代表通过服务器连接的另一个用户
@@ -93,6 +94,7 @@ export class RemoteUser extends BaseUser {
     if (dc?.readyState === "open") {
       const payload = await this.#preparePayload(data, raw);
       dc.send(payload);
+      this.#recordRtcOutbound(sessionId, payload, data);
       this.#onSendComplete(sessionId, "rtc");
       return { status: "ok", via: "rtc" };
     }
@@ -176,13 +178,55 @@ export class RemoteUser extends BaseUser {
   async #sendRaw(sessionId, payload) {
     const dc = this.#localUser.rtc.getChannel(this.#userId, sessionId);
     if (dc?.readyState === "open") {
-      dc.send(JSON.stringify(payload));
+      const wire = JSON.stringify(payload);
+      dc.send(wire);
+      this.#recordRtcOutbound(sessionId, wire, payload);
       this.#lastSendVia.set(sessionId, { via: "rtc" });
       return { status: "ok", via: "rtc" };
     }
     const { url } = await this.#localUser.server.sendToUser(this.#userId, sessionId, payload);
     this.#lastSendVia.set(sessionId, { via: "server", url });
     return { status: "ok", via: "server", url };
+  }
+
+  /**
+   * 记录 RTC 出站流量元数据
+   * @param {string} sessionId
+   * @param {*} wirePayload - 实际写入 DataChannel 的数据（用于测量链路字节）
+   * @param {*} originalData - 应用层数据（用于分类）
+   */
+  #recordRtcOutbound(sessionId, wirePayload, originalData) {
+    const traffic = this.#localUser.traffic;
+    if (!traffic) return;
+    try {
+      let category = "relay";
+      let messageType = "relay";
+      let appId = "";
+      if (originalData && typeof originalData === "object" && originalData.__app) {
+        category = "app";
+        messageType = "__app";
+        appId = originalData.__app;
+      } else if (originalData && typeof originalData === "object") {
+        const info = inferCategory(originalData);
+        category = info.category;
+        messageType = info.messageType;
+        appId = info.appId;
+      }
+      traffic.record({
+        direction: "out",
+        via: "rtc",
+        serverUrl: "",
+        peerUserId: this.#userId,
+        sessionId,
+        size: measureSize(wirePayload),
+        category,
+        messageType,
+        appId,
+        success: true,
+      });
+    } catch (err) {
+      console.warn("[TrafficLogger] record RTC outbound failed:", err);
+    }
   }
 
   /**

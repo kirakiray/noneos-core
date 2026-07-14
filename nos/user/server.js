@@ -1,4 +1,5 @@
 import { getServerList, saveServerList } from "./db.js";
+import { inferCategory, measureSize } from "./traffic.js";
 
 const DEFAULT_SERVERS = (() => {
   const hostname =
@@ -235,7 +236,20 @@ export class ServerManager {
                 username: userInfo.username,
                 host: window.location.origin,
               });
-              ws.send(JSON.stringify(response));
+              const responseText = JSON.stringify(response);
+              ws.send(responseText);
+              // 出站流量埋点：握手响应
+              try {
+                this.#user.traffic?.record({
+                  direction: "out",
+                  via: "server",
+                  serverUrl: url,
+                  size: measureSize(responseText),
+                  category: "handshake",
+                  messageType: "handshake_response",
+                  success: true,
+                });
+              } catch {}
               return;
             }
 
@@ -348,9 +362,102 @@ export class ServerManager {
   sendToServer(url, data) {
     const ws = this.#wsMap.get(url);
     if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // 失败也记录一次尝试字节数
+      this.#recordOutbound(url, data, false, "not_open");
       throw new Error(`Connection to ${url} is not open`);
     }
     ws.send(data);
+    this.#recordOutbound(url, data, true, "");
+  }
+
+  /**
+   * 记录出站流量元数据到 TrafficLogger
+   */
+  #recordOutbound(url, data, success, errorCode) {
+    const traffic = this.#user.traffic;
+    if (!traffic) return;
+    try {
+      const size = measureSize(data);
+      let peerUserId = "";
+      let sessionId = "";
+      let category = "relay";
+      let messageType = "";
+      let appId = "";
+      if (typeof data === "string") {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === "object") {
+            if (parsed.type === "relay" && parsed.action === "send_data") {
+              peerUserId = parsed.target_user_id || "";
+              sessionId = parsed.target_session_id || "";
+              const inner = parsed.data;
+              const info = inferCategory(inner);
+              category = info.category;
+              messageType = info.messageType;
+              appId = info.appId;
+            } else {
+              const info = inferCategory(parsed);
+              category = info.category;
+              messageType = info.messageType;
+              appId = info.appId;
+            }
+          }
+        } catch {
+          // 非 JSON 文本，保留默认
+        }
+      } else if (
+        data instanceof ArrayBuffer ||
+        ArrayBuffer.isView(data)
+      ) {
+        // 二进制帧：解析 header 获取 target_user_id / __app
+        try {
+          const buf =
+            data instanceof ArrayBuffer
+              ? data
+              : data.buffer.slice(
+                  data.byteOffset,
+                  data.byteOffset + data.byteLength,
+                );
+          if (buf.byteLength >= 4) {
+            const view = new DataView(buf);
+            const headerLen = view.getUint32(0, false);
+            if (4 + headerLen <= buf.byteLength) {
+              const headerBytes = new Uint8Array(buf, 4, headerLen);
+              const header = JSON.parse(new TextDecoder().decode(headerBytes));
+              if (header && typeof header === "object") {
+                peerUserId = header.target_user_id || "";
+                sessionId = header.target_session_id || "";
+                if (header.__app) {
+                  category = "app";
+                  messageType = "__app";
+                  appId = header.__app;
+                } else {
+                  category = "relay";
+                  messageType = "relay";
+                }
+              }
+            }
+          }
+        } catch {
+          category = "relay";
+        }
+      }
+      traffic.record({
+        direction: "out",
+        via: "server",
+        serverUrl: url,
+        peerUserId,
+        sessionId,
+        size,
+        category,
+        messageType,
+        appId,
+        success,
+        errorCode,
+      });
+    } catch (err) {
+      console.warn("[TrafficLogger] record outbound server failed:", err);
+    }
   }
 
   /**

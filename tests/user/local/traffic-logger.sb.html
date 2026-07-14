@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traffic Logger Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Traffic Logger Tests</h1>
+
+  <sb-test name="Outbound Send Records Traffic Entry Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl1_nsA = "tl1-user-a";
+        const tl1_nsB = "tl1-user-b";
+        const tl1_serverUrl = "ws://localhost:8081";
+
+        const tl1_userA = new LocalUser(tl1_nsA);
+        const tl1_userB = new LocalUser(tl1_nsB);
+        await Promise.all([tl1_userA.ready(), tl1_userB.ready()]);
+
+        // 清除历史流量记录以便测试
+        await tl1_userA.traffic.clearAll();
+
+        await Promise.all([
+          tl1_userA.server.connect(tl1_serverUrl),
+          tl1_userB.server.connect(tl1_serverUrl),
+        ]);
+
+        const tl1_remoteB = await tl1_userA.connectUser(tl1_userB.userId);
+        await tl1_remoteB.send(tl1_userB.sessionId, "hello traffic");
+
+        // 等待批量刷盘完成
+        await tl1_userA.traffic.flush();
+
+        const tl1_outboundList = await tl1_userA.traffic.query({
+          direction: "out",
+          peerUserId: tl1_userB.userId,
+          limit: 100,
+        });
+
+        const tl1_hasOutbound = tl1_outboundList.length > 0;
+        const tl1_sizeOk =
+          tl1_hasOutbound &&
+          tl1_outboundList.every((r) => typeof r.size === "number" && r.size > 0);
+        const tl1_viaOk =
+          tl1_hasOutbound &&
+          tl1_outboundList.some((r) => r.via === "server" || r.via === "rtc");
+
+        tl1_userA.server.disconnectAll();
+        tl1_userB.server.disconnectAll();
+
+        return {
+          assert: tl1_hasOutbound && tl1_sizeOk && tl1_viaOk,
+          content: {
+            message:
+              tl1_hasOutbound && tl1_sizeOk && tl1_viaOk
+                ? "出站流量记录测试通过"
+                : "出站流量记录测试失败",
+            hasOutbound: tl1_hasOutbound,
+            count: tl1_outboundList.length,
+            sizeOk: tl1_sizeOk,
+            viaOk: tl1_viaOk,
+            sample: tl1_outboundList[0],
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Inbound Receive Records Traffic Entry Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl2_nsC = "tl2-user-c";
+        const tl2_nsD = "tl2-user-d";
+        const tl2_serverUrl = "ws://localhost:8081";
+
+        const tl2_userC = new LocalUser(tl2_nsC);
+        const tl2_userD = new LocalUser(tl2_nsD);
+        await Promise.all([tl2_userC.ready(), tl2_userD.ready()]);
+
+        await tl2_userD.traffic.clearAll();
+
+        await Promise.all([
+          tl2_userC.server.connect(tl2_serverUrl),
+          tl2_userD.server.connect(tl2_serverUrl),
+        ]);
+
+        // C 发消息给 D，D 应有 inbound 记录
+        const tl2_remoteD = await tl2_userC.connectUser(tl2_userD.userId);
+        await tl2_remoteD.send(tl2_userD.sessionId, "hello from C");
+
+        // 等待入站消息处理
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await tl2_userD.traffic.flush();
+
+        const tl2_inboundList = await tl2_userD.traffic.query({
+          direction: "in",
+          peerUserId: tl2_userC.userId,
+          limit: 100,
+        });
+
+        const tl2_hasInbound = tl2_inboundList.length > 0;
+        const tl2_sizeOk =
+          tl2_hasInbound &&
+          tl2_inboundList.every((r) => typeof r.size === "number" && r.size > 0);
+
+        tl2_userC.server.disconnectAll();
+        tl2_userD.server.disconnectAll();
+
+        return {
+          assert: tl2_hasInbound && tl2_sizeOk,
+          content: {
+            message:
+              tl2_hasInbound && tl2_sizeOk
+                ? "入站流量记录测试通过"
+                : "入站流量记录测试失败",
+            hasInbound: tl2_hasInbound,
+            count: tl2_inboundList.length,
+            sizeOk: tl2_sizeOk,
+            sample: tl2_inboundList[0],
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Category Classification Test (handshake and app)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl3_nsE = "tl3-user-e";
+        const tl3_nsF = "tl3-user-f";
+        const tl3_serverUrl = "ws://localhost:8081";
+
+        const tl3_userE = new LocalUser(tl3_nsE);
+        const tl3_userF = new LocalUser(tl3_nsF);
+        await Promise.all([tl3_userE.ready(), tl3_userF.ready()]);
+
+        await tl3_userE.traffic.clearAll();
+
+        await Promise.all([
+          tl3_userE.server.connect(tl3_serverUrl),
+          tl3_userF.server.connect(tl3_serverUrl),
+        ]);
+
+        // 注册一个 app 并给对方发送 __app 消息
+        tl3_userF.registerService("tl3-echo", {
+          onMessage: () => {},
+        });
+
+        const tl3_remoteF = await tl3_userE.connectUser(tl3_userF.userId);
+        await tl3_remoteF.sendToService("tl3-echo", { text: "app data" }, {
+          sessionId: tl3_userF.sessionId,
+        });
+
+        await tl3_userE.traffic.flush();
+
+        // 查找 handshake 类别记录（握手响应发出）
+        const tl3_handshakeList = await tl3_userE.traffic.query({
+          category: "handshake",
+          limit: 10,
+        });
+        const tl3_hasHandshake = tl3_handshakeList.length > 0;
+
+        // 查找 app 类别记录
+        const tl3_appList = await tl3_userE.traffic.query({
+          category: "app",
+          limit: 10,
+        });
+        const tl3_hasApp = tl3_appList.length > 0;
+        const tl3_appIdOk =
+          tl3_hasApp && tl3_appList.some((r) => r.appId === "tl3-echo");
+
+        tl3_userE.server.disconnectAll();
+        tl3_userF.server.disconnectAll();
+
+        return {
+          assert: tl3_hasHandshake && tl3_hasApp && tl3_appIdOk,
+          content: {
+            message:
+              tl3_hasHandshake && tl3_hasApp && tl3_appIdOk
+                ? "category 分类测试通过"
+                : "category 分类测试失败",
+            hasHandshake: tl3_hasHandshake,
+            hasApp: tl3_hasApp,
+            appIdOk: tl3_appIdOk,
+            handshakeCount: tl3_handshakeList.length,
+            appCount: tl3_appList.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Server URL Recorded on Server Via Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl4_nsG = "tl4-user-g";
+        const tl4_serverUrl = "ws://localhost:8081";
+
+        const tl4_userG = new LocalUser(tl4_nsG);
+        await tl4_userG.ready();
+        await tl4_userG.traffic.clearAll();
+        await tl4_userG.server.connect(tl4_serverUrl);
+
+        await tl4_userG.traffic.flush();
+
+        // 查询特定服务器 URL 的记录：应至少有握手响应等出站
+        const tl4_serverList = await tl4_userG.traffic.query({
+          via: "server",
+          serverUrl: tl4_serverUrl,
+          limit: 100,
+        });
+
+        const tl4_hasServer = tl4_serverList.length > 0;
+        const tl4_urlOk =
+          tl4_hasServer &&
+          tl4_serverList.every((r) => r.serverUrl === tl4_serverUrl);
+
+        tl4_userG.server.disconnectAll();
+
+        return {
+          assert: tl4_hasServer && tl4_urlOk,
+          content: {
+            message:
+              tl4_hasServer && tl4_urlOk
+                ? "serverUrl 记录测试通过"
+                : "serverUrl 记录测试失败",
+            hasServer: tl4_hasServer,
+            urlOk: tl4_urlOk,
+            count: tl4_serverList.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Failure Records Traffic With Success False Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl5_nsH = "tl5-user-h";
+        const tl5_serverUrl = "ws://localhost:8081";
+
+        const tl5_userH = new LocalUser(tl5_nsH);
+        await tl5_userH.ready();
+        await tl5_userH.traffic.clearAll();
+        await tl5_userH.server.connect(tl5_serverUrl);
+
+        // 断开后尝试发送数据，会失败
+        tl5_userH.server.disconnect(tl5_serverUrl);
+
+        let tl5_threw = false;
+        try {
+          tl5_userH.server.sendToServer(tl5_serverUrl, JSON.stringify({ type: "test", payload: "should fail" }));
+        } catch {
+          tl5_threw = true;
+        }
+
+        await tl5_userH.traffic.flush();
+
+        const tl5_failList = await tl5_userH.traffic.query({
+          success: false,
+          limit: 10,
+        });
+
+        const tl5_hasFail = tl5_failList.length > 0;
+        const tl5_sizeOk =
+          tl5_hasFail && tl5_failList.every((r) => r.size > 0);
+
+        return {
+          assert: tl5_threw && tl5_hasFail && tl5_sizeOk,
+          content: {
+            message:
+              tl5_threw && tl5_hasFail && tl5_sizeOk
+                ? "失败记录测试通过"
+                : "失败记录测试失败",
+            threw: tl5_threw,
+            hasFail: tl5_hasFail,
+            sizeOk: tl5_sizeOk,
+            failCount: tl5_failList.length,
+            sample: tl5_failList[0],
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Time Range Filter Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl6_nsI = "tl6-user-i";
+
+        const tl6_userI = new LocalUser(tl6_nsI);
+        await tl6_userI.ready();
+
+        // 停掉自动连接产生的流量，避免污染测试
+        tl6_userI.server.disconnectAll();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        tl6_userI.traffic.setEnabled(false);
+        await tl6_userI.traffic.clearAll();
+        tl6_userI.traffic.setEnabled(true);
+
+        // 手动 record 三条不同时间戳的记录
+        const tl6_now = Date.now();
+        tl6_userI.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-i-1",
+          size: 100,
+          category: "relay",
+          ts: tl6_now - 10000,
+        });
+        tl6_userI.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-i-1",
+          size: 200,
+          category: "relay",
+          ts: tl6_now - 5000,
+        });
+        tl6_userI.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-i-1",
+          size: 300,
+          category: "relay",
+          ts: tl6_now,
+        });
+        await tl6_userI.traffic.flush();
+        tl6_userI.traffic.setEnabled(false);
+
+        // 查询过去 6 秒内的记录，应只有 2 条
+        const tl6_recentList = await tl6_userI.traffic.query({
+          fromTs: tl6_now - 6000,
+          peerUserId: "peer-i-1",
+          limit: 100,
+        });
+        const tl6_recentOk = tl6_recentList.length === 2;
+
+        // 查询 8~11 秒前的记录，应只有 1 条（size=100）
+        const tl6_oldList = await tl6_userI.traffic.query({
+          fromTs: tl6_now - 11000,
+          toTs: tl6_now - 8000,
+          peerUserId: "peer-i-1",
+          limit: 100,
+        });
+        const tl6_oldOk = tl6_oldList.length === 1 && tl6_oldList[0].size === 100;
+
+        return {
+          assert: tl6_recentOk && tl6_oldOk,
+          content: {
+            message:
+              tl6_recentOk && tl6_oldOk
+                ? "时间范围过滤测试通过"
+                : "时间范围过滤测试失败",
+            recentCount: tl6_recentList.length,
+            oldCount: tl6_oldList.length,
+            recentOk: tl6_recentOk,
+            oldOk: tl6_oldOk,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="PeerUserId Filter Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl7_nsJ = "tl7-user-j";
+
+        const tl7_userJ = new LocalUser(tl7_nsJ);
+        await tl7_userJ.ready();
+        await tl7_userJ.traffic.clearAll();
+
+        // 造 3 条属于两个不同对端的记录
+        tl7_userJ.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-j-alpha",
+          size: 100,
+          category: "relay",
+        });
+        tl7_userJ.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-j-alpha",
+          size: 200,
+          category: "relay",
+        });
+        tl7_userJ.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-j-beta",
+          size: 300,
+          category: "relay",
+        });
+        await tl7_userJ.traffic.flush();
+
+        const tl7_alphaList = await tl7_userJ.traffic.query({
+          peerUserId: "peer-j-alpha",
+          limit: 100,
+        });
+        const tl7_betaList = await tl7_userJ.traffic.query({
+          peerUserId: "peer-j-beta",
+          limit: 100,
+        });
+
+        const tl7_alphaOk =
+          tl7_alphaList.length === 2 &&
+          tl7_alphaList.every((r) => r.peerUserId === "peer-j-alpha");
+        const tl7_betaOk =
+          tl7_betaList.length === 1 &&
+          tl7_betaList[0].peerUserId === "peer-j-beta";
+
+        return {
+          assert: tl7_alphaOk && tl7_betaOk,
+          content: {
+            message:
+              tl7_alphaOk && tl7_betaOk
+                ? "peerUserId 过滤测试通过"
+                : "peerUserId 过滤测试失败",
+            alphaCount: tl7_alphaList.length,
+            betaCount: tl7_betaList.length,
+            alphaOk: tl7_alphaOk,
+            betaOk: tl7_betaOk,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Summary Aggregate By Peer Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl8_nsK = "tl8-user-k";
+
+        const tl8_userK = new LocalUser(tl8_nsK);
+        await tl8_userK.ready();
+
+        // 停掉自动连接产生的流量，避免污染测试
+        tl8_userK.server.disconnectAll();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        tl8_userK.traffic.setEnabled(false);
+        await tl8_userK.traffic.clearAll();
+        tl8_userK.traffic.setEnabled(true);
+
+        // 造 4 条记录：2 个对端各 2 条（一进一出）
+        tl8_userK.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-k-1",
+          size: 100,
+          category: "relay",
+        });
+        tl8_userK.traffic.record({
+          direction: "in",
+          via: "server",
+          peerUserId: "peer-k-1",
+          size: 50,
+          category: "relay",
+        });
+        tl8_userK.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-k-2",
+          size: 200,
+          category: "relay",
+        });
+        tl8_userK.traffic.record({
+          direction: "in",
+          via: "server",
+          peerUserId: "peer-k-2",
+          size: 30,
+          category: "relay",
+        });
+        await tl8_userK.traffic.flush();
+        tl8_userK.traffic.setEnabled(false);
+
+        // 只统计手工造的两个 peer 的聚合结果
+        const tl8_summary = await tl8_userK.traffic.summary({
+          groupBy: ["peer"],
+        });
+        // 只取 peer-k-1 / peer-k-2
+        const tl8_peer1 = tl8_summary.find((s) => s.key.peerUserId === "peer-k-1");
+        const tl8_peer2 = tl8_summary.find((s) => s.key.peerUserId === "peer-k-2");
+        const tl8_peer1Ok =
+          tl8_peer1 &&
+          tl8_peer1.countOut === 1 &&
+          tl8_peer1.bytesOut === 100 &&
+          tl8_peer1.countIn === 1 &&
+          tl8_peer1.bytesIn === 50;
+        const tl8_peer2Ok =
+          tl8_peer2 &&
+          tl8_peer2.countOut === 1 &&
+          tl8_peer2.bytesOut === 200 &&
+          tl8_peer2.countIn === 1 &&
+          tl8_peer2.bytesIn === 30;
+
+        return {
+          assert: tl8_peer1Ok && tl8_peer2Ok,
+          content: {
+            message:
+              tl8_peer1Ok && tl8_peer2Ok
+                ? "按对端聚合测试通过"
+                : "按对端聚合测试失败",
+            length: tl8_summary.length,
+            peer1: tl8_peer1,
+            peer2: tl8_peer2,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Summary Aggregate By Minute Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl9_nsL = "tl9-user-l";
+
+        const tl9_userL = new LocalUser(tl9_nsL);
+        await tl9_userL.ready();
+        await tl9_userL.traffic.clearAll();
+
+        // 造两个分钟桶（同一分钟内多条、跨分钟）
+        const tl9_now = Date.now();
+        const tl9_thisMinute = Math.floor(tl9_now / 60000) * 60000;
+        const tl9_prevMinute = tl9_thisMinute - 60000;
+
+        tl9_userL.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-l",
+          size: 100,
+          category: "relay",
+          ts: tl9_thisMinute + 10000,
+        });
+        tl9_userL.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-l",
+          size: 200,
+          category: "relay",
+          ts: tl9_thisMinute + 20000,
+        });
+        tl9_userL.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-l",
+          size: 300,
+          category: "relay",
+          ts: tl9_prevMinute + 30000,
+        });
+        await tl9_userL.traffic.flush();
+
+        const tl9_summary = await tl9_userL.traffic.summary({
+          groupBy: ["minute"],
+          peerUserId: "peer-l",
+          fromTs: tl9_prevMinute,
+        });
+        // 找到分钟桶
+        const tl9_bucketThis = tl9_summary.find((s) => s.key.bucket === tl9_thisMinute);
+        const tl9_bucketPrev = tl9_summary.find((s) => s.key.bucket === tl9_prevMinute);
+        const tl9_ok =
+          tl9_bucketThis &&
+          tl9_bucketThis.bytesOut === 300 &&
+          tl9_bucketPrev &&
+          tl9_bucketPrev.bytesOut === 300;
+
+        return {
+          assert: tl9_ok,
+          content: {
+            message: tl9_ok ? "按分钟聚合测试通过" : "按分钟聚合测试失败",
+            bucketThis: tl9_bucketThis,
+            bucketPrev: tl9_bucketPrev,
+            summaryLength: tl9_summary.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="DeleteBefore Cleans Old Records Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl10_nsM = "tl10-user-m";
+
+        const tl10_userM = new LocalUser(tl10_nsM);
+        await tl10_userM.ready();
+
+        // 停掉自动连接产生的流量，避免污染测试
+        tl10_userM.server.disconnectAll();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        tl10_userM.traffic.setEnabled(false);
+        await tl10_userM.traffic.clearAll();
+
+        const tl10_now = Date.now();
+
+        // 造 3 条：老 2 新 1
+        tl10_userM.traffic.setEnabled(true);
+        tl10_userM.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-m",
+          size: 100,
+          category: "relay",
+          ts: tl10_now - 200000,
+        });
+        tl10_userM.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-m",
+          size: 200,
+          category: "relay",
+          ts: tl10_now - 100000,
+        });
+        tl10_userM.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-m",
+          size: 300,
+          category: "relay",
+          ts: tl10_now,
+        });
+        await tl10_userM.traffic.flush();
+        // 造完后立即关闭埋点，避免后续异步流量污染
+        tl10_userM.traffic.setEnabled(false);
+
+        const tl10_beforeCount = await tl10_userM.traffic.count();
+        const tl10_before3 = tl10_beforeCount === 3;
+
+        // 删除 90 秒前的记录，应保留 1 条
+        const tl10_deleted = await tl10_userM.traffic.deleteBefore(tl10_now - 90000);
+        const tl10_afterCount = await tl10_userM.traffic.count();
+        const tl10_after1 = tl10_afterCount === 1;
+
+        const tl10_remaining = await tl10_userM.traffic.query({ limit: 10 });
+        const tl10_remainingOk =
+          tl10_remaining.length === 1 && tl10_remaining[0].size === 300;
+
+        return {
+          assert:
+            tl10_before3 && tl10_after1 && tl10_remainingOk && tl10_deleted.entriesDeleted === 2,
+          content: {
+            message:
+              tl10_before3 && tl10_after1 && tl10_remainingOk
+                ? "deleteBefore 清理测试通过"
+                : "deleteBefore 清理测试失败",
+            beforeCount: tl10_beforeCount,
+            afterCount: tl10_afterCount,
+            deleted: tl10_deleted,
+            remaining: tl10_remaining,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="ClearAll Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const tl11_nsN = "tl11-user-n";
+
+        const tl11_userN = new LocalUser(tl11_nsN);
+        await tl11_userN.ready();
+
+        // 停掉自动连接产生的流量，避免污染测试
+        tl11_userN.server.disconnectAll();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        await tl11_userN.traffic.clearAll();
+
+        // 造几条记录
+        tl11_userN.traffic.record({
+          direction: "out",
+          via: "server",
+          peerUserId: "peer-n",
+          size: 100,
+          category: "relay",
+        });
+        tl11_userN.traffic.record({
+          direction: "in",
+          via: "server",
+          peerUserId: "peer-n",
+          size: 200,
+          category: "relay",
+        });
+        await tl11_userN.traffic.flush();
+
+        const tl11_countBefore = await tl11_userN.traffic.count();
+
+        // 关闭埋点，避免 clearAll 之后仍有异步流量入库
+        tl11_userN.traffic.setEnabled(false);
+        await tl11_userN.traffic.clearAll();
+        const tl11_countAfter = await tl11_userN.traffic.count();
+
+        const tl11_info = await tl11_userN.traffic.getStorageInfo();
+
+        return {
+          assert:
+            tl11_countBefore === 2 &&
+            tl11_countAfter === 0 &&
+            tl11_info.entryCount === 0 &&
+            tl11_info.aggCount === 0,
+          content: {
+            message:
+              tl11_countBefore === 2 && tl11_countAfter === 0
+                ? "clearAll 测试通过"
+                : "clearAll 测试失败",
+            before: tl11_countBefore,
+            after: tl11_countAfter,
+            info: tl11_info,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
