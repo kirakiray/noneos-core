@@ -361,9 +361,19 @@
   const handleNosRequest = async ({ path, request, systemConfig }) => {
     const host = location.host;
 
-    // 调试模式下直接请求资源，不读取 OPFS 缓存
+    // localhost:3002 调试模式直接请求资源，不读取 OPFS 缓存
     if (host === "localhost:3002") {
       return fetch(request);
+    }
+
+    // 其他 localhost 端口下，优先将 /nos/ 请求代理到 localhost:3002 的在线资源
+    if (/^localhost:/.test(host)) {
+      try {
+        const newUrl = request.url.replace(/:(\d+)/, ":3002");
+        return await fetch(newUrl);
+      } catch {
+        // localhost:3002 未启动，继续走默认路线
+      }
     }
 
     if (!systemConfig || !systemConfig.mode || systemConfig.mode === "online") {

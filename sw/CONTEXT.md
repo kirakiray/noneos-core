@@ -86,6 +86,7 @@ sw/src/main.js
 - **`systemConfig.mode === "online"` 或未配置**：直接 `fetch(request)` 请求线上资源。
 - **`systemConfig.mode === "local"`**：将 `/nos/` 替换为 `systemConfig.nosMapPath + "/"`，优先从 OPFS 读取；若文件不存在或为空，回退 `fetch(request)`。
 - **`localhost:3002` 调试模式**：不读取 `systemConfig`，直接 `fetch(request)`，避免加载 OPFS 中的旧缓存。
+- **其他 `localhost:*` 调试模式**（例如页面在 `localhost:3003` 但通过 `importScripts("http://localhost:3002/sw/dist.js")` 加载本 SW）：优先将 `/nos/` 请求 URL 的端口替换为 `3002`，代理到 `localhost:3002` 的在线资源；若 `localhost:3002` 未启动，则继续走默认的 online/local 处理路线。
 
 ### 2. `/nos-tool/` 资源代理策略（nostool-handle.js）
 
