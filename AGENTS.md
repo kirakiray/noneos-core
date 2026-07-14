@@ -27,8 +27,9 @@
    - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
    - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）
 5. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致，避免后续 AI 基于过时信息工作。
-6. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
-7. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
+6. **同步 Skill 文档**：任何对外 API（`nos/` 下模块的导出方法、参数、行为语义等）发生改动后，**必须同步更新 `skills/noneos-core-docs/` 下对应的参考文档**（`references/*.md`），确保 Skill 知识库与源码保持一致，便于其他 AI 通过 Skill 正确使用 API。
+7. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
+8. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
 
 
 ## 技能资源与导入 (Skill Resources)

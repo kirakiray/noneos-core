@@ -61,7 +61,7 @@ EventTarget
 | `getUser(namespace)` | 获取/创建 LocalUser 实例（Map 缓存，`initPromises` 防并发初始化） |
 | `exportUser(namespace)` | 导出私钥（用于迁移） |
 | `importUser(namespace, privateKey)` | 导入私钥恢复用户 |
-| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`） |
+| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked` |
 
 ### LocalUser（user.js）
 

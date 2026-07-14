@@ -78,6 +78,13 @@ import { deleteUser } from "/nos/user/main.js";
 await deleteUser("my-ns", { skipConfirm: true });
 ```
 
+`deleteUser` 在删库前会自动完成以下清理，避免 IndexedDB 的 `deleteDatabase` 被 `onblocked` 拦截：
+
+1. 关闭内存中 `LocalUser` 实例的流量埋点（`traffic.setEnabled(false)`），阻断后台 traffic 记录重新打开数据库
+2. 断开所有 WebSocket 连接（`server.disconnectAll()`）
+3. 刷盘未写入的流量记录（`traffic.flush()`）
+4. 从 `users` 缓存中移除并关闭 db 连接缓存
+
 删除不存在的用户会抛出异常：
 
 ```javascript
