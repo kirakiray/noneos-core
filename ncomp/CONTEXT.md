@@ -21,7 +21,7 @@ ncomp/
 ### `user-name`
 
 - **路径**：`ncomp/user-name/user-name.html`
-- **标签**：`<user-name>`
+- **标签**：`<n-user-name>`
 - **依赖**：`/nos/user/main.js`
 - **功能**：根据 `user-id` 显示对应用户的用户名。
   - 若本地用户就是自己，直接读取 `user.getInfo().username`。
@@ -39,7 +39,7 @@ ncomp/
 
 ```html
 <l-m src="/ncomp/user-name/user-name.html"></l-m>
-<user-name user-id="{targetUserId}"></user-name>
+<n-user-name user-id="{targetUserId}"></n-user-name>
 ```
 
 ## 五、资源加载与缓存
@@ -54,7 +54,7 @@ ncomp/
 
 ## 六、开发规范
 
-1. 每个组件独占一个子目录，目录名与组件标签名保持一致。
+1. 每个组件独占一个子目录，目录名与组件标签名（不含 `n-` 前缀）保持一致。
 2. 组件入口文件命名为 `{tag-name}.html`。
 3. 建议为每个组件编写同名的 `{tag-name}.sb.html` 测试文件，使用 `sibyl-test` 框架验证。
 4. 组件内部引用 `nos` 能力时，使用绝对路径 `/nos/...`，确保在不同项目中路径一致。

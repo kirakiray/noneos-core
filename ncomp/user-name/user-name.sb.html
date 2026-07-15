@@ -18,12 +18,12 @@
     <l-m src="./user-name.html"></l-m>
 
     <!-- 各测试用例使用的静态元素 -->
-    <user-name id="name3"></user-name>
+    <n-user-name id="name3"></n-user-name>
     <div id="query-target"></div>
     <div id="default-target"></div>
     <div id="force-target"></div>
-    <user-name id="change-userid"></user-name>
-    <user-name user-id="nonexistent-user-999999999" id="name4"></user-name>
+    <n-user-name id="change-userid"></n-user-name>
+    <n-user-name user-id="nonexistent-user-999999999" id="name4"></n-user-name>
 
     <!-- ============ 创建测试用户，正常获取用户名显示 ============ -->
     <sb-test name="创建测试用户修改名称后用 user-name 显示">
@@ -42,9 +42,9 @@
             const expectedUsername = info.username;
 
             const container = $("#query-target");
-            container.html = `<user-name user-id="${targetUserId}"></user-name>`;
+            container.html = `<n-user-name user-id="${targetUserId}"></n-user-name>`;
             await new Promise((r) => setTimeout(r, 50));
-            const el = container.$("user-name");
+            const el = container.$("n-user-name");
             await new Promise((r) => setTimeout(r, 200));
             const afterQuery = el.shadow.$("span").text;
 
@@ -73,9 +73,9 @@
             await testUser.updateInfo({ username: newUserName });
 
             const container = $("#force-target");
-            container.html = `<user-name user-id="${targetUserId}" force></user-name>`;
+            container.html = `<n-user-name user-id="${targetUserId}" force></n-user-name>`;
             await new Promise((r) => setTimeout(r, 500));
-            const el = container.$("user-name");
+            const el = container.$("n-user-name");
             const afterForce = el.shadow.$("span").text;
 
             return {
@@ -130,9 +130,9 @@
             const expectedUsername = info.username;
 
             const container = $("#default-target");
-            container.html = `<user-name user-id="${targetUserId}"></user-name>`;
+            container.html = `<n-user-name user-id="${targetUserId}"></n-user-name>`;
             await new Promise((r) => setTimeout(r, 50));
-            const el = container.$("user-name");
+            const el = container.$("n-user-name");
             await new Promise((r) => setTimeout(r, 200));
             const afterQuery = el.shadow.$("span").text;
 
