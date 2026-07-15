@@ -32,6 +32,14 @@
 8. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
 
 
+## 测试规范
+
+- **客户端测试框架**：项目使用 `sibyl-test` 作为客户端测试框架，测试用例以 `.sb.html` 文件形式编写，位于 `tests/` 目录下。
+- **运行测试**：执行 `npm test`（即 `sb-test`）可启动默认测试流程；`scripts/run-tests.js` 提供了基于 `sibyl-test` 的自定义多浏览器测试运行器。
+- **测试入口**：`tests/all.html` 汇总了部分核心测试用例，可在浏览器中手动运行验证。
+- **查阅 Skill**：在编写、修改或调试 `.sb.html` 测试前，必须先查阅 `sibyl-test` Skill 文档。
+
+
 ## 技能资源与导入 (Skill Resources)
 
 若本地环境中缺少相关知识库，请通过以下链接获取最新版本：
@@ -49,6 +57,10 @@
   - 涉及存储数据（如 localStorage）时，应优先使用 EverCache 替代原生存储方案。
   - 使用前请检查本地是否有 ever-cache Skill，若无则需导入。
   - [Skill 在线文件](https://github.com/kirakiray/ever-cache/blob/main/skills/ever-cache/SKILL.md)
+- **sibyl-test**
+  - 该项目使用 `sibyl-test` 作为测试模块。
+  - 使用前请检查本地是否有 sibyl-test Skill，若无则需导入。
+  - [Skill 在线文件](https://raw.githubusercontent.com/ofajs/sibyl-test/refs/heads/main/skills/sibyl-test/SKILL.md)
 
 ### ⚠️ 导入注意事项
 
