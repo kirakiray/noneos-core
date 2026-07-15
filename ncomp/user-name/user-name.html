@@ -1,0 +1,100 @@
+<template component>
+  <style>
+    :host {
+      display: inline;
+    }
+  </style>
+  <span>{{displayName}}</span>
+  <script>
+    import { getUser } from "/nos/user/main.js";
+
+    const NAMESPACE = "default";
+
+    export default async () => {
+      return {
+        tag: "user-name",
+        attrs: {
+          userId: "",
+          force: null,
+        },
+        data: {
+          displayName: "",
+          namespace: NAMESPACE,
+        },
+        watch: {
+          userId(val) {
+            this.displayName = val || "";
+            if (val) this._load();
+          },
+          force() {
+            if (this.userId) this._load();
+          },
+        },
+        proto: {
+          _load() {
+            if (this.attr("force") !== null) {
+              return this._forceLoadUserName();
+            }
+            return this._loadUserName();
+          },
+          async _loadUserName() {
+            const uid = this.userId;
+            if (!uid) return;
+
+            try {
+              const user = await getUser(this.namespace);
+              if (user.userId === uid) {
+                const info = await user.getInfo();
+                this.displayName = info.username;
+                return;
+              }
+              const card = await user.card.get(uid);
+              if (card && card.username) {
+                this.displayName = card.username;
+              }
+            } catch {
+              // 获取名片失败，保持显示 userId
+            }
+          },
+          async _forceLoadUserName() {
+            const uid = this.userId;
+            if (!uid) return;
+
+            try {
+              const user = await getUser(this.namespace);
+              if (user.userId === uid) {
+                const info = await user.getInfo();
+                this.displayName = info.username;
+                return;
+              }
+              // 尝试连接用户触发名片交换
+              try {
+                await user.connectUser(uid);
+              } catch {
+                // 对方不在线
+              }
+              // 清除缓存后重新获取（连接成功则拿到最新名片）
+              await user.card.delete(uid);
+              const card = await user.card.get(uid);
+              if (card && card.username) {
+                this.displayName = card.username;
+              }
+            } catch {
+              // 保持当前显示
+            }
+          },
+        },
+        async attached() {
+          if (!this.displayName && this.userId) {
+            this.displayName = this.userId;
+            this._load();
+          }
+
+          if (this.attr("namespace")) {
+            this.namespace = this.attr("namespace");
+          }
+        },
+      };
+    };
+  </script>
+</template>

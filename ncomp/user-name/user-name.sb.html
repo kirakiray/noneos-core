@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>user-name 组件测试</title>
+    <script
+      src="/gh/ofajs/ofa.js@latest/dist/ofa.mjs#debug"
+      type="module"
+    ></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>user-name 组件测试</h1>
+
+    <l-m src="./user-name.html"></l-m>
+
+    <!-- 各测试用例使用的静态元素 -->
+    <user-name id="name3"></user-name>
+    <div id="query-target"></div>
+    <div id="default-target"></div>
+    <div id="force-target"></div>
+    <user-name id="change-userid"></user-name>
+    <user-name user-id="nonexistent-user-999999999" id="name4"></user-name>
+
+    <!-- ============ 创建测试用户，正常获取用户名显示 ============ -->
+    <sb-test name="创建测试用户修改名称后用 user-name 显示">
+      <template>
+        <script type="module">
+          {
+            const { getUser } = await import("/nos/user/main.js");
+
+            // 创建独立测试用户
+            const testUser = await getUser("test-name-user1");
+            const targetUserId = testUser.userId;
+
+            // 设置用户名称
+            await testUser.updateInfo({ username: "测试昵称" });
+            const info = await testUser.getInfo();
+            const expectedUsername = info.username;
+
+            const container = $("#query-target");
+            container.html = `<user-name user-id="${targetUserId}"></user-name>`;
+            await new Promise((r) => setTimeout(r, 50));
+            const el = container.$("user-name");
+            await new Promise((r) => setTimeout(r, 200));
+            const afterQuery = el.shadow.$("span").text;
+
+            return {
+              assert: afterQuery === expectedUsername,
+              content: { targetUserId, expectedUsername, afterQuery },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 更新名称后 force 强制刷新 ============ -->
+    <sb-test name="updateInfo 后设置 force 刷新用户名">
+      <template>
+        <script type="module">
+          {
+            const { getUser } = await import("/nos/user/main.js");
+
+            const testUser = await getUser("test-name-user2");
+            const targetUserId = testUser.userId;
+
+            const newUserName = "新名称_" + Math.random().toString(36).slice(2);
+
+            // 先设置一个初始名称
+            await testUser.updateInfo({ username: newUserName });
+
+            const container = $("#force-target");
+            container.html = `<user-name user-id="${targetUserId}" force></user-name>`;
+            await new Promise((r) => setTimeout(r, 500));
+            const el = container.$("user-name");
+            const afterForce = el.shadow.$("span").text;
+
+            return {
+              assert: afterForce === newUserName,
+              content: { targetUserId, newUserName, afterForce },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 修改 userId 后用户名跟随更新 ============ -->
+    <sb-test name="修改 userId 后更新显示为新用户">
+      <template>
+        <script type="module">
+          {
+            const { getUser } = await import("/nos/user/main.js");
+
+            const userA = await getUser("test-user-a");
+            const userB = await getUser("test-user-b");
+            await userA.updateInfo({ username: "用户A" });
+            await userB.updateInfo({ username: "用户B" });
+
+            const el = $("#change-userid");
+            el.attr("user-id", userA.userId);
+            await new Promise((r) => setTimeout(r, 300));
+            const firstText = el.shadow.$("span").text;
+
+            el.attr("user-id", userB.userId);
+            await new Promise((r) => setTimeout(r, 300));
+            const secondText = el.shadow.$("span").text;
+
+            return {
+              assert: firstText === "用户A" && secondText === "用户B",
+              content: { firstText, secondText },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 使用 default 用户的 userId 显示 ============ -->
+    <sb-test name="使用 default 用户的 userId 显示用户名">
+      <template>
+        <script type="module">
+          {
+            const { getUser } = await import("/nos/user/main.js");
+
+            const defaultUser = await getUser("default");
+            const targetUserId = defaultUser.userId;
+            const info = await defaultUser.getInfo();
+            const expectedUsername = info.username;
+
+            const container = $("#default-target");
+            container.html = `<user-name user-id="${targetUserId}"></user-name>`;
+            await new Promise((r) => setTimeout(r, 50));
+            const el = container.$("user-name");
+            await new Promise((r) => setTimeout(r, 200));
+            const afterQuery = el.shadow.$("span").text;
+
+            return {
+              assert: afterQuery === expectedUsername,
+              content: {
+                targetUserId,
+                expectedUsername,
+                afterQuery,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 空 userId ============ -->
+    <sb-test name="未设置 userId 时显示空内容">
+      <template>
+        <script type="module">
+          {
+            await new Promise((r) => setTimeout(r, 50));
+            const text = $("#name3").shadow.$("span").text;
+            return {
+              assert: text === "",
+              content: { text, expected: "" },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 查询不存在的用户 ============ -->
+    <sb-test name="查询不存在的用户时保持显示 userId">
+      <template>
+        <script type="module">
+          {
+            const el = $("#name4");
+            await new Promise((r) => setTimeout(r, 50));
+            const before = el.shadow.$("span").text;
+            await new Promise((r) => setTimeout(r, 200));
+            const after = el.shadow.$("span").text;
+            return {
+              assert:
+                before === "nonexistent-user-999999999" &&
+                after === "nonexistent-user-999999999",
+              content: {
+                fakeId: "nonexistent-user-999999999",
+                before,
+                after,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

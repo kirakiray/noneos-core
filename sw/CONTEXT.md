@@ -13,7 +13,7 @@
    - `/nos/` 资源支持在线模式（直接 fetch）与本地模式（优先 OPFS 缓存，回退 fetch）。
    - `/gh/`、`/npm/` 资源优先读取 OPFS 缓存，未命中时请求 jsDelivr CDN 并写入缓存。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
-3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络，避免读取 OPFS 中的缓存资源。
+3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/`、`/nos-tool/` 与 `/ncomp/` 请求直接走网络，避免读取 OPFS 中的缓存资源。
 4. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos-config/system.json`，热更新 `systemConfig`。
 
 ## 二、模块地图
@@ -25,6 +25,7 @@ sw/
 │   └── modules/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
+│       ├── ncomp-handle.js      # /ncomp/ 资源代理（官方源 + OPFS 缓存）
 │       ├── github-handler.js    # /gh/ 资源代理（jsDelivr CDN + OPFS 缓存）
 │       ├── npm-handler.js       # /npm/ 资源代理（jsDelivr NPM CDN + OPFS 缓存）
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
@@ -42,6 +43,7 @@ sw/
 sw/src/main.js
 ├── handleNosRequest          (modules/nos-handle.js)
 ├── handleNosToolRequest      (modules/nostool-handle.js)
+├── handleNcompRequest        (modules/ncomp-handle.js)
 ├── handleGitHubRequest       (modules/github-handler.js)
 ├── handleNpmRequest          (modules/npm-handler.js)
 ├── handleMountRequest        (modules/mount-handle.js)
@@ -65,6 +67,7 @@ sw/src/main.js
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
 | `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
+| `/ncomp/` | `ncomp-handle.js` | ncomp 公共组件资源代理；首次请求官方源并写入 OPFS，后续优先读缓存；localhost 优先代理到 3002 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
 | `/gh/` | `github-handler.js` | GitHub 仓库文件代理，映射到 jsDelivr |
 | `/npm/` | `npm-handler.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
@@ -94,7 +97,13 @@ sw/src/main.js
 - **其他 `localhost:*`**：将请求端口替换为 `3002` 再 fetch，失败则回退官方源。
 - **非本地环境**：请求 `https://core.noneos.com/` 对应路径。
 
-### 3. `/gh/` 与 `/npm/` 缓存策略
+### 3. `/ncomp/` 资源代理策略（ncomp-handle.js）
+
+- **`localhost:3002`**：直接 `fetch(request)` 返回本地调试服务器资源，不写入 OPFS 缓存，避免干扰开发。
+- **其他 `localhost:*`**：优先将请求端口替换为 `3002` 再 fetch；成功后将响应写入 OPFS `/ncomp/` 缓存并返回；失败则回退 OPFS 缓存，缓存未命中再请求官方源并写入缓存。
+- **非本地环境**：优先读取 OPFS `/ncomp/` 缓存；未命中时请求 `https://core.noneos.com/` 对应路径，成功后写入缓存。
+
+### 4. `/gh/` 与 `/npm/` 缓存策略
 
 - 路径映射：
   - `/gh/{user}/{repo}@{tag}/path` → `https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/path`
@@ -102,18 +111,18 @@ sw/src/main.js
 - 优先读取 OPFS 缓存；未命中时请求 CDN，并将响应写入 OPFS 缓存。
 - `/gh/` 使用 `cache: "no-store"` 请求，避免浏览器 HTTP 缓存干扰。
 
-### 4. `/\$/` 本地文件代理（file-handler.js）
+### 5. `/\$/` 本地文件代理（file-handler.js）
 
 - 去除前缀 `/\$` 后作为 OPFS 路径读取文件。
 - 文件不存在或为空返回 404。
 
-### 5. `/\$mount-{id}>/` 挂载目录代理（mount-handle.js）
+### 6. `/\$mount-{id}>/` 挂载目录代理（mount-handle.js）
 
 - 从 IndexedDB 加载已持久化的挂载句柄（复用 `nos/fs/handle/mount/db.js`）。
 - 按挂载根目录后的相对路径逐级定位文件；目录 URL 自动补全 `index.html`。
 - 失败返回 400 并附带错误堆栈。
 
-### 6. 配置热更新
+### 7. 配置热更新
 
 - `systemConfig` 初始为空对象，激活后 1s 自动加载。
 - `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置。
