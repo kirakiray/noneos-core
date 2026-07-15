@@ -9,10 +9,8 @@
   </style>
   <div class="main"></div>
   <script>
-    import { EverCache } from "/gh/kirakiray/ever-cache/src/main.js";
+    import { get, set } from "./db.js";
 
-    // 持久化缓存实例
-    const iconStorage = new EverCache("n-icons");
     // 内存 Promise 缓存，防止并发请求相同图标
     const promiseCache = {};
 
@@ -34,7 +32,7 @@
           // 1. 优先从内存或持久化缓存获取
           let content = promiseCache[name]
             ? await promiseCache[name]
-            : await iconStorage[name];
+            : await get(name);
 
           // 2. 缓存未命中则从网络获取
           if (!content) {
@@ -44,7 +42,7 @@
 
             try {
               content = await promiseCache[name];
-              iconStorage[name] = content; // 存入持久化缓存
+              await set(name, content); // 存入持久化缓存
             } catch (error) {
               console.error(`Failed to load icon: ${name}`, error);
             } finally {
