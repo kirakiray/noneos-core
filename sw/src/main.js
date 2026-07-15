@@ -10,7 +10,7 @@ import { handleNcompRequest } from "./modules/ncomp-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-const NONEOS_CORE_VERSION = "noneos-core@4.1.5";
+const NONEOS_CORE_VERSION = "noneos-core@4.2.0";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
