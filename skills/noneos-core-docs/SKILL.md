@@ -219,4 +219,5 @@ if (update?.hasUpdate) {
 - [AI 操作文档](references/ai.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
+- [公共组件文档 (ncomp)](references/ncomp.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)
