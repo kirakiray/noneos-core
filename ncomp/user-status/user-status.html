@@ -1,0 +1,150 @@
+<template component>
+  <style>
+    :host {
+      display: inline-block;
+      width: var(--n-user-status-size, 8px);
+      height: var(--n-user-status-size, 8px);
+      border-radius: 50%;
+      background-color: var(--md-sys-color-neutral);
+      transition: background-color 0.2s ease;
+    }
+
+    :host([status="primary"]) {
+      background-color: var(--md-sys-color-primary);
+    }
+
+    :host([status="success"]) {
+      background-color: var(--md-sys-color-success);
+    }
+
+    :host([status="error"]) {
+      background-color: var(--md-sys-color-error);
+    }
+  </style>
+  <script>
+    import { getUser } from "/nos/user/main.js";
+
+    const NAMESPACE = "default";
+
+    export default async () => {
+      return {
+        tag: "n-user-status",
+        attrs: {
+          userId: "",
+          size: "8px",
+          status: "",
+        },
+        data: {
+          namespace: NAMESPACE,
+        },
+        watch: {
+          userId(val) {
+            if (val) {
+              this._check();
+            } else {
+              this.status = "";
+            }
+          },
+          size(val) {
+            this._setSize(val);
+          },
+        },
+        proto: {
+          _checkToken: 0,
+          _setSize(val) {
+            this.ele.style.setProperty("--n-user-status-size", val || "8px");
+          },
+          async _check() {
+            const uid = this.userId;
+            if (!uid) {
+              this.status = "";
+              return;
+            }
+
+            const token = ++this._checkToken;
+
+            try {
+              const user = await getUser(this.namespace);
+
+              if (token !== this._checkToken) return;
+
+              const isOnline = await user.isRemoteUserOnline(uid);
+
+              if (token !== this._checkToken) return;
+
+              if (!isOnline) {
+                this.status = "error";
+                return;
+              }
+
+              const hasRtc = await this._hasRtcConnection(user, uid);
+
+              if (token !== this._checkToken) return;
+
+              this.status = hasRtc ? "success" : "primary";
+            } catch {
+              if (token !== this._checkToken) return;
+              this.status = "";
+            }
+          },
+          async _hasRtcConnection(user, uid) {
+            const remoteUsers = user.remoteUsers;
+            const remoteUser = remoteUsers.find((ru) => ru.userId === uid);
+            if (!remoteUser) return false;
+
+            const sessionIds = await remoteUser.getSessionIds();
+            for (const sid of sessionIds) {
+              const dc = user.rtc.getChannel(uid, sid);
+              if (dc?.readyState === "open") return true;
+            }
+            return false;
+          },
+          _onUserEvent(event) {
+            const { userId } = event.detail || {};
+            if (userId === this.userId) {
+              this._check();
+            }
+          },
+        },
+        async attached() {
+          if (this.attr("namespace")) {
+            this.namespace = this.attr("namespace");
+          }
+
+          this._setSize(this.size);
+
+          if (this.userId) {
+            this._check();
+          }
+
+          const user = await getUser(this.namespace);
+          const handler = (e) => this._onUserEvent(e);
+
+          this._handlers = {
+            rtc_state: handler,
+            remote_user_connected: handler,
+            remote_user_disconnected: handler,
+          };
+
+          this._unbindRtc = user.bind(
+            "rtc_state",
+            this._handlers.rtc_state,
+          );
+          this._unbindConnected = user.bind(
+            "remote_user_connected",
+            this._handlers.remote_user_connected,
+          );
+          this._unbindDisconnected = user.bind(
+            "remote_user_disconnected",
+            this._handlers.remote_user_disconnected,
+          );
+        },
+        detached() {
+          if (this._unbindRtc) this._unbindRtc();
+          if (this._unbindConnected) this._unbindConnected();
+          if (this._unbindDisconnected) this._unbindDisconnected();
+        },
+      };
+    };
+  </script>
+</template>

@@ -11,9 +11,12 @@
 ```
 ncomp/
 ├── CONTEXT.md                  # 本文档
-└── user-name/
-    ├── user-name.html          # 组件实现
-    └── user-name.sb.html       # sibyl-test 测试用例
+├── user-name/
+│   ├── user-name.html          # 组件实现
+│   └── user-name.sb.html       # sibyl-test 测试用例
+└── user-status/
+    ├── user-status.html        # 组件实现
+    └── user-status.sb.html     # sibyl-test 测试用例
 ```
 
 ## 三、现有组件
@@ -33,6 +36,22 @@ ncomp/
   - `namespace`：指定用户命名空间，默认为 `"default"`。
 - **回退行为**：名片获取失败时保持显示 `user-id`。
 
+### `user-status`
+
+- **路径**：`ncomp/user-status/user-status.html`
+- **标签**：`<n-user-status>`
+- **依赖**：`/nos/user/main.js`
+- **功能**：根据 `user-id` 显示对应用户的在线/连接状态，以颜色圆点呈现。
+  - 默认未查询或查询出错时显示灰色（`neutral`）。
+  - 通过服务器查询到对方在线但尚未建立 RTC 直连时，显示 `primary` 色。
+  - 任意 session 的 RTC DataChannel 已处于 `open` 状态时，显示 `success` 色。
+  - 所有已连接服务器均查找不到对方时，显示 `error` 色。
+- **属性**：
+  - `user-id`：目标用户 ID。
+  - `size`：圆点尺寸，默认为 `"8px"`。
+  - `namespace`：指定用户命名空间，默认为 `"default"`。
+- **实时更新**：组件会监听 `remote_user_connected`、`remote_user_disconnected` 和 `rtc_state` 事件，当目标用户状态变化时自动刷新颜色。
+
 ## 四、使用方式
 
 在 ofa.js 页面中通过 `l-m` 引用：
@@ -40,6 +59,11 @@ ncomp/
 ```html
 <l-m src="/ncomp/user-name/user-name.html"></l-m>
 <n-user-name user-id="{targetUserId}"></n-user-name>
+```
+
+```html
+<l-m src="/ncomp/user-status/user-status.html"></l-m>
+<n-user-status user-id="{targetUserId}" size="10px"></n-user-status>
 ```
 
 ## 五、资源加载与缓存

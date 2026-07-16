@@ -21,3 +21,4 @@
 | 组件 | 标签 | 说明 |
 |------|------|------|
 | [user-name](user-name/user-name.html) | `<n-user-name>` | 根据 `user-id` 显示对应用户的用户名 |
+| [user-status](user-status/user-status.html) | `<n-user-status>` | 根据 `user-id` 显示对应用户的在线/连接状态（颜色圆点） |
