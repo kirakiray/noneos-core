@@ -112,6 +112,11 @@
               this._check();
             }
           },
+          _onVisibilityChange() {
+            if (document.visibilityState === "visible" && this.userId) {
+              this._check();
+            }
+          },
         },
         async attached() {
           if (this.attr("namespace")) {
@@ -140,11 +145,30 @@
             "remote_user_disconnected",
             this._handlers.remote_user_disconnected,
           );
+
+          // 低频轮询：兜底刷新在线状态（对端下线目前无主动推送）
+          this._pollTimer = setInterval(() => {
+            if (this.userId) {
+              this._check();
+            }
+          }, 30000);
+
+          // 页面重新可见时立即刷新一次
+          this._visibilityHandler = () => this._onVisibilityChange();
+          document.addEventListener("visibilitychange", this._visibilityHandler);
         },
         detached() {
           if (this._unbindRtc) this._unbindRtc();
           if (this._unbindConnected) this._unbindConnected();
           if (this._unbindDisconnected) this._unbindDisconnected();
+          if (this._pollTimer) {
+            clearInterval(this._pollTimer);
+            this._pollTimer = null;
+          }
+          if (this._visibilityHandler) {
+            document.removeEventListener("visibilitychange", this._visibilityHandler);
+            this._visibilityHandler = null;
+          }
         },
       };
     };
