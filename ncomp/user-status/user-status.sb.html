@@ -47,6 +47,9 @@
     <sb-test name="查看当前本地用户且未建立 RTC 时显示 error">
       <template>
         <script type="module">
+          import registration from "/_install/register.js";
+          await registration;
+
           {
             const { getUser } = await import("/nos/user/main.js");
 

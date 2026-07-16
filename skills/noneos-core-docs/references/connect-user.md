@@ -73,6 +73,119 @@ const sessionIds = await remoteB.getSessionIds();
 // 返回 userB 所有在线的 sessionId 列表
 ```
 
+## 应用服务通信（sendToService）
+
+`sendToService` 用于向对端**注册了指定 `appId` 的所有 session** 发送消息，底层自动完成服务发现、精准投递与失败反馈。
+
+### 注册服务
+
+```javascript
+const svc = userB.registerService("chat-v1", {
+  onMessage(data, ctx) {
+    // ctx: { fromUserId, fromSessionId, remoteUser }
+    console.log("收到消息：", data);
+    // 可通过 ctx.remoteUser.send / sendToService 回复
+  },
+});
+// 之后可通过 svc.unregister() 注销
+```
+
+注册/注销时会自动向 `remoteUsers` 广播 `__service_available` / `__service_unavailable`，让对端立即刷新服务缓存。
+
+### 精准投递（默认）
+
+```javascript
+const results = await remoteB.sendToService("chat-v1", { text: "hi" });
+```
+
+底层步骤：
+1. 命中 `serviceSessionCache`（TTL 30s，或对端主动推送刷新）→ 直接投递
+2. 未命中缓存 → 查询对端所有 session，再发起 `__service_query` 询问归属并写入缓存
+3. 只发到装了 `chat-v1` 的 session，不再盲广播
+
+### 返回值语义
+
+`sendToService` 不会抛异常，通过返回数组的 `status` 字段表达结果：
+
+| status | 含义 |
+|---|---|
+| `"ok"` + `delivered:true` | 成功送达（含 `sessionId` / `via`） |
+| `"no_receiver"` | 对端在线，但没有 session 注册该 `appId` |
+| `"offline"` | 对端所有 session 都不在线 |
+| `"discovery_failed"` | 服务发现流程超时（可用 `fallback:"broadcast"` 兜底） |
+| `"error"` | 底层 `send` 失败（如 session 中途离线） |
+
+```javascript
+const results = await remoteB.sendToService("chat-v1", data);
+const delivered = results.some((r) => r.status === "ok");
+if (!delivered) {
+  console.warn("消息未送达：", results[0]?.status);
+}
+```
+
+### 等待对端上线服务
+
+对端可能尚未 `registerService`，可通过 `waitForService` 挂起等待：
+
+```javascript
+const results = await remoteB.sendToService(
+  "chat-v1",
+  { text: "hello" },
+  { waitForService: 3000 }, // 最多等 3 秒对端上线
+);
+// 期间对端一旦 registerService，会通过 __service_available 通知，立即精准投递
+```
+
+超时仍未上线则返回 `no_receiver`。
+
+### 定向发送到指定 session
+
+指定 `sessionId` 时不做服务发现，直接透传：
+
+```javascript
+await remoteB.sendToService("chat-v1", data, {
+  sessionId: ctx.fromSessionId, // 定向回复某个 session
+});
+```
+
+若目标 session 未注册该 `appId`，接收方会触发 `unhandled_service_message` 事件而非静默丢弃。
+
+### 兜底广播
+
+服务发现失败或需要向对端所有 session 广播时：
+
+```javascript
+await remoteB.sendToService("chat-v1", data, {
+  fallback: "broadcast",
+});
+```
+
+### 未处理消息事件
+
+接收端收到 `__app` 消息但未注册该 `appId` 时，会在 `LocalUser` 上触发 `unhandled_service_message` 事件：
+
+```javascript
+userB.bind("unhandled_service_message", (event) => {
+  const { appId, fromUserId, fromSessionId, data } = event.detail;
+  console.warn("收到未注册应用的消息：", appId);
+});
+```
+
+可用于调试、兜底路由或应用启动窗口的补偿处理。
+
+### 服务注册状态事件
+
+本地 `registerService` / `unregister` 成功时会触发事件：
+
+```javascript
+userB.bind("service_registered", (e) => {
+  console.log("已注册服务：", e.detail.appId);
+});
+userB.bind("service_unregistered", (e) => {
+  console.log("已注销服务：", e.detail.appId);
+});
+```
+
 ## 发送消息
 
 ### 发送文本/JSON 数据

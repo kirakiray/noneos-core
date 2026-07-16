@@ -362,9 +362,10 @@ export class LocalUser extends BaseUser {
    * 将消息分发给相应的处理器
    *
    * 分发优先级：
-   * 1. 若消息包含 __app 字段 → 分发给 ServiceRegistry 中对应的 handler
-   * 2. 若消息 type 为 __service_query → LocalUser 级别处理（回复 service 列表）
-   * 3. 否则 → 分发给缓存的 RemoteUser 实例
+   * 1. 若消息 type 为 __service_query → LocalUser 级别处理（回复 service 列表）
+   * 2. 若消息 type 为 __service_available / __service_unavailable → 更新对端 RemoteUser 的服务缓存
+   * 3. 若消息包含 __app 字段 → 分发给 ServiceRegistry 中对应的 handler
+   * 4. 否则 → 分发给缓存的 RemoteUser 实例
    */
   #dispatchToRemote(fromUserId, fromSessionId, messageData, viaServer) {
     // 1. 检查是否为 __service 发现协议消息（任何用户都可能发起，无需缓存）
@@ -373,7 +374,23 @@ export class LocalUser extends BaseUser {
       return;
     }
 
-    // 2. 检查是否为 app 绑定消息
+    // 2. 检查是否为 __service_available / __service_unavailable 主动广播
+    if (
+      messageData &&
+      typeof messageData === "object" &&
+      (messageData.type === "__service_available" ||
+        messageData.type === "__service_unavailable")
+    ) {
+      this.#handleServiceAvailability(
+        fromUserId,
+        fromSessionId,
+        messageData.appId,
+        messageData.type === "__service_available",
+      );
+      return;
+    }
+
+    // 3. 检查是否为 app 绑定消息
     if (
       messageData &&
       typeof messageData === "object" &&
@@ -384,7 +401,7 @@ export class LocalUser extends BaseUser {
       return;
     }
 
-    // 3. 确保 RemoteUser 存在后分发给对应实例
+    // 4. 确保 RemoteUser 存在后分发给对应实例
     this.#ensureRemoteUser(fromUserId, "remote")
       .then((remoteUser) => {
         remoteUser._trigger("message", {
@@ -395,6 +412,20 @@ export class LocalUser extends BaseUser {
         });
       })
       .catch(() => {});
+  }
+
+  /**
+   * 处理对端主动广播的服务上/下线消息，
+   * 更新对应 RemoteUser 的 serviceSessionCache 并唤醒等待者
+   */
+  async #handleServiceAvailability(fromUserId, fromSessionId, appId, available) {
+    if (!appId) return;
+    try {
+      const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+      remoteUser._handleServiceAvailability(appId, fromSessionId, available);
+    } catch {
+      // 无法建立 RemoteUser 时静默丢弃
+    }
   }
 
   /**
@@ -417,12 +448,24 @@ export class LocalUser extends BaseUser {
 
   /**
    * 将 __app 消息分发给 ServiceRegistry 中注册的 handler
+   *
+   * 未注册对应 appId 时不会直接丢弃业务信息，而是触发本地
+   * `unhandled_service_message` 事件供调试/兜底逻辑使用。
    */
   async #dispatchToServiceApp(fromUserId, fromSessionId, messageData) {
     const appId = messageData.__app;
     const data = messageData.__data;
     const handler = this.#serviceRegistry.getHandler(appId);
-    if (!handler) return; // 未注册该 app，静默丢弃
+    if (!handler) {
+      // 触发本地事件，便于观测并支持业务侧兜底处理
+      this._trigger("unhandled_service_message", {
+        appId,
+        fromUserId,
+        fromSessionId,
+        data,
+      });
+      return;
+    }
 
     // 获取或创建 RemoteUser 供 ctx 使用
     const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");

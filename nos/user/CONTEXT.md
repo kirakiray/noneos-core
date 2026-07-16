@@ -76,7 +76,7 @@ EventTarget
 | `getRemoteUsers({ onlineOnly })` | 返回已缓存 `RemoteUser[]`；`onlineOnly: true` 时过滤当前在线用户 |
 | `#setupRelayDispatch()` | 处理中继文本（JSON）与二进制帧 |
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
-| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存 |
+| `#dispatchToRemote()` | 分发优先级：`__service_query` → `__service_available/unavailable` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存；未注册的 `__app` 消息触发 `unhandled_service_message` 事件 |
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
 | `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
@@ -85,8 +85,8 @@ EventTarget
 | 方法 | 说明 |
 |------|------|
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
-| `sendToService(appId, data, options)` | `__app`/`__data` 包裹，广播或定向 sessionId |
-| `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话 |
+| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
+| `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
 | `#pendingPings` | Map<pingId, timestamp>，Ping/Pong RTT 测量 + 超时清理 |
 
@@ -110,7 +110,7 @@ EventTarget
 | `CertManager` (cert.js) | `issue`/`import`/`has`/`get`/`delete`/`count`/`values`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
 | `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；`iceServers: []`（仅靠服务端中继，无 STUN/TURN）；DataChannel `"noneos"` ordered |
-| `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services` |
+| `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
 ## 五、关键实现细节
 
@@ -164,9 +164,18 @@ A.get(B.userId)
 
 ### 6. 服务注册与发现（service-registry.js + remote-user.js）
 
-- `register(appId, {exposeToServer, onMessage})` 后，`#syncToServer()` 向所有连接的服务器发送 `update_services`（服务端聚合后可供 admin 查询）。
-- 业务消息包裹：`{__app: appId, __data: {...}}`，`RemoteUser.sendToService` 可广播或定向。
-- 服务发现：`RemoteUser.getServiceSessions(appId)` 发 `__service_query`，对端 `ServiceRegistry` 命中则回 `__service_response`。
+- `register(appId, {exposeToServer, onMessage})` 后：
+  - 若 `exposeToServer=true`：`#syncToServer()` 向所有连接的服务器发送 `update_services`
+  - 无论是否暴露给服务端：向所有已缓存的 `RemoteUser` 广播 `__service_available`，让对端立即更新其 `serviceSessionCache`
+  - 触发本地事件 `service_registered`
+- `unregister(appId)` 对称地广播 `__service_unavailable`，并触发 `service_unregistered`
+- 业务消息包裹：`{__app: appId, __data: {...}}`
+- `RemoteUser.sendToService` 默认精准投递：
+  1. 命中 `serviceSessionCache`（TTL 30s，或对端主动推送刷新）→ 直接投递
+  2. 未命中 → `getSessionIds` 拿到对端所有 session，再走 `__service_query` 询问，写入缓存
+  3. `sessions.length === 0` 且 `waitForService > 0` → 等待对端 `__service_available` 推送后再投递
+  4. 完全离线 → 返回 `{status:"offline"}`；服务发现失败 → 返回 `{status:"discovery_failed"}`（可通过 `fallback:"broadcast"` 兜底）
+- 显式指定 `sessionId` 时保持原语义：直接透传，不做服务发现，接收方未注册则触发 `unhandled_service_message` 事件
 
 ### 7. IndexedDB Schema（db.js）
 
@@ -200,7 +209,7 @@ A.get(B.userId)
 | 中继发送 | WS 文本/二进制 | `relay` JSON / 二进制帧 | `relay` 分支 + `relay_deliver_and_finalize` |
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
 | 名片交换 | 中继 | `card` (request/response) | 透传中继 |
-| 服务发现 | 中继 | `__service_query`/`__service_response` | 透传中继 |
+| 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
@@ -230,3 +239,5 @@ A.get(B.userId)
 | `card_received` | 收到对端名片 |
 | `remote_user_connected` | RemoteUser 进入缓存：主动 `connectUser()` 成功，或收到对方消息后被动创建。detail: `{ userId, remoteUser, initiatedBy: "local"|"remote" }` |
 | `remote_user_disconnected` | RemoteUser 被移除：显式 `disconnectUser()`（`reason: "manual"`），或 `connectUser()` 失败（`reason: "error"`）。detail: `{ userId, remoteUser, reason, error }` |
+| `service_registered` / `service_unregistered` | 本地 `ServiceRegistry.register`/`unregister` 成功时触发。detail: `{ appId }` |
+| `unhandled_service_message` | 收到 `__app` 消息但本地未注册该 `appId`（含显式 sessionId 定投或对端缓存未刷新）。detail: `{ appId, fromUserId, fromSessionId, data }` |

@@ -19,6 +19,13 @@ export class RemoteUser extends BaseUser {
   #pendingPings = new Map(); // pingId -> { sessionId, resolve, reject, timeoutId }
   #lastSendVia = new Map(); // sessionId -> { via: 'rtc'|'server', url?: string }
   #pingSeq = 0;
+  // appId -> { sessions: string[], timestamp: number }
+  // 缓存对端各 appId 对应的 sessionId 列表，供 sendToService 精准投递
+  #serviceSessionCache = new Map();
+  // 服务发现缓存的 TTL（毫秒）；对端 __service_available/unavailable 会即时刷新
+  #SERVICE_CACHE_TTL = 30000;
+  // appId -> Set<{ resolve, remainingUntil }> 等待服务上线的挂起 promise
+  #serviceWaiters = new Map();
 
   /**
    * @param {string} userId - 目标用户的 userId
@@ -378,28 +385,149 @@ export class RemoteUser extends BaseUser {
    * 数据会自动包裹 __app 字段，接收方 LocalUser 会据此路由到对应 handler。
    * 服务端只看到加密后的二进制帧或普通 relay 数据，不感知 appId。
    *
-   * 不传 sessionId 时：广播给对方所有 session，接收方自动丢弃未注册 app 的消息。
-   * 指定 sessionId 时：只发送给该 session（不匹配时接收方静默丢弃）。
+   * 默认行为（未指定 sessionId）：
+   * 1. 通过服务发现（含缓存）找到对端注册了 appId 的所有 session。
+   * 2. 精准发送到这些 session，不再盲广播。
+   * 3. 若无 session 注册该 app：
+   *    - `waitForService > 0` 时挂起等待，直到对端上线该服务或超时；
+   *    - 否则立刻返回 `[{ status: "no_receiver", appId }]`。
+   * 4. 若对端完全离线，返回 `[{ status: "offline" }]`。
+   * 5. 服务发现本身失败（超时无响应），返回 `[{ status: "discovery_failed", appId }]`
+   *    或在 `fallback: "broadcast"` 时退化为老式广播。
+   *
+   * 指定 sessionId 时：直接发到该 session（若该 session 未注册此 app，接收方静默丢弃）。
    *
    * @param {string} appId - 目标应用标识
    * @param {*} data - 要发送的数据（JSON 可序列化对象）
    * @param {Object} [options]
-   * @param {string} [options.sessionId] - 指定目标 sessionId（不传则发给所有 session）
-   * @returns {Promise<Array<{ sessionId: string, status: string, via?: string }>>}
+   * @param {string} [options.sessionId] - 指定目标 sessionId（不传则精准投递到装了 appId 的所有 session）
+   * @param {number} [options.waitForService=0] - 无接收者时等待对端上线的毫秒数
+   * @param {"none"|"broadcast"} [options.fallback="none"] - 服务发现失败时的兜底策略
+   * @returns {Promise<Array<{ sessionId?: string, status: string, via?: string, appId?: string, delivered?: boolean, error?: string }>>}
    */
   async sendToService(appId, data, options = {}) {
-    const { sessionId: targetSessionId } = options || {};
+    const {
+      sessionId: targetSessionId,
+      waitForService = 0,
+      fallback = "none",
+    } = options || {};
 
     if (targetSessionId) {
-      // 发给指定 session（若该 session 未注册此 app，接收方静默丢弃）
-      const result = await this.send(targetSessionId, {
-        __app: appId,
-        __data: data,
-      });
-      return [{ sessionId: targetSessionId, ...result }];
+      // 显式定向：不做服务发现，交给对端自行判断
+      try {
+        const result = await this.send(targetSessionId, {
+          __app: appId,
+          __data: data,
+        });
+        return [{ sessionId: targetSessionId, ...result }];
+      } catch (err) {
+        return [{
+          sessionId: targetSessionId,
+          status: "error",
+          error: err?.message || String(err),
+        }];
+      }
     }
 
-    // 广播给所有 session，接收方会静默丢弃未注册 app 的消息
+    // 精准投递路径：先解析目标 session 集合
+    let targets;
+    try {
+      targets = await this.#resolveServiceTargets(appId);
+    } catch {
+      targets = null;
+    }
+
+    // 服务发现失败（超时未拿到任何响应，且无缓存兜底）
+    if (targets === null) {
+      if (fallback === "broadcast") {
+        return this.#broadcastToAllSessions(appId, data);
+      }
+      return [{ status: "discovery_failed", appId }];
+    }
+
+    // 对端不在线（服务器查不到任何 session）
+    if (targets.offline) {
+      return [{ status: "offline" }];
+    }
+
+    // 有 session 但没人注册该 appId
+    if (targets.sessions.length === 0) {
+      if (waitForService > 0) {
+        const waited = await this.#waitForServiceAvailable(appId, waitForService);
+        if (waited.length > 0) {
+          return this.#deliverToSessions(appId, data, waited);
+        }
+      }
+      return [{ status: "no_receiver", appId }];
+    }
+
+    return this.#deliverToSessions(appId, data, targets.sessions);
+  }
+
+  /**
+   * 解析对端注册了指定 appId 的 session 列表。
+   * 逻辑：
+   * 1. 命中未过期缓存 → 直接使用
+   * 2. 查询服务器获取全部 session：
+   *    - 服务器返回空 → 对端 offline
+   *    - 有 session → 发起 __service_query 询问 appId 归属并写入缓存
+   * @returns {Promise<{ sessions: string[], offline?: boolean } | null>}
+   *          返回 null 表示服务发现流程本身失败（无 session 响应且无缓存）
+   */
+  async #resolveServiceTargets(appId) {
+    const cached = this.#serviceSessionCache.get(appId);
+    if (cached && Date.now() - cached.timestamp < this.#SERVICE_CACHE_TTL) {
+      return { sessions: [...cached.sessions] };
+    }
+
+    const sessionIds = await this.getSessionIds();
+    if (sessionIds.length === 0) {
+      // 完全离线；清空该 appId 缓存
+      this.#serviceSessionCache.delete(appId);
+      return { sessions: [], offline: true };
+    }
+
+    // 通过 __service_query 询问每个 session 是否注册了 appId
+    const found = await this.getServiceSessions(appId);
+    const sessions = found.map((x) => x.sessionId);
+
+    // 记录新的缓存（即使 sessions 为空也缓存，避免频繁询问）
+    this.#serviceSessionCache.set(appId, {
+      sessions,
+      timestamp: Date.now(),
+    });
+    return { sessions };
+  }
+
+  /**
+   * 向解析好的 session 列表投递 __app 消息
+   */
+  async #deliverToSessions(appId, data, sessionIds) {
+    const results = [];
+    for (const sid of sessionIds) {
+      try {
+        const result = await this.send(sid, {
+          __app: appId,
+          __data: data,
+        });
+        results.push({ sessionId: sid, ...result, delivered: true });
+      } catch (err) {
+        // send 失败通常意味着该 session 已离线，主动使缓存失效
+        this.#invalidateServiceSession(appId, sid);
+        results.push({
+          sessionId: sid,
+          status: "error",
+          error: err?.message || String(err),
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 兜底：向对端所有 session 广播（老行为，仅在 fallback: "broadcast" 时使用）
+   */
+  async #broadcastToAllSessions(appId, data) {
     const sessionIds = await this.getSessionIds();
     const results = [];
     for (const sid of sessionIds) {
@@ -413,11 +541,108 @@ export class RemoteUser extends BaseUser {
         results.push({
           sessionId: sid,
           status: "error",
-          error: err.message,
+          error: err?.message || String(err),
         });
       }
     }
     return results;
+  }
+
+  /**
+   * 等待对端上线指定 appId（由 __service_available 触发）
+   * @returns {Promise<string[]>} 命中时返回最新的 session 列表；超时返回空数组
+   */
+  #waitForServiceAvailable(appId, timeoutMs) {
+    return new Promise((resolve) => {
+      if (!this.#serviceWaiters.has(appId)) {
+        this.#serviceWaiters.set(appId, new Set());
+      }
+      const bucket = this.#serviceWaiters.get(appId);
+
+      let done = false;
+      const finish = (sessions) => {
+        if (done) return;
+        done = true;
+        bucket.delete(waiter);
+        if (bucket.size === 0) this.#serviceWaiters.delete(appId);
+        clearTimeout(timer);
+        resolve(sessions);
+      };
+
+      const waiter = { resolve: finish };
+      bucket.add(waiter);
+
+      const timer = setTimeout(() => finish([]), timeoutMs);
+    });
+  }
+
+  /**
+   * 内部：收到对端 __service_available/__service_unavailable 时更新缓存并唤醒等待者
+   * 由 LocalUser 分发消息时调用
+   * @param {string} appId
+   * @param {string} fromSessionId
+   * @param {boolean} available
+   */
+  _handleServiceAvailability(appId, fromSessionId, available) {
+    const now = Date.now();
+    const cached = this.#serviceSessionCache.get(appId);
+    const sessions = new Set(cached?.sessions || []);
+    if (available) {
+      sessions.add(fromSessionId);
+    } else {
+      sessions.delete(fromSessionId);
+    }
+    this.#serviceSessionCache.set(appId, {
+      sessions: [...sessions],
+      timestamp: now,
+    });
+
+    if (available) {
+      const bucket = this.#serviceWaiters.get(appId);
+      if (bucket && bucket.size > 0) {
+        const snapshot = [...sessions];
+        for (const w of [...bucket]) {
+          w.resolve(snapshot);
+        }
+      }
+    }
+  }
+
+  /**
+   * 内部：本地 ServiceRegistry 上/下线 appId 时通知对端刷新其缓存
+   * 静默失败（对端可能不在线）
+   * @param {string} appId
+   * @param {boolean} available
+   */
+  async _notifyServiceChange(appId, available) {
+    const type = available ? "__service_available" : "__service_unavailable";
+    let sessionIds;
+    try {
+      sessionIds = await this.getSessionIds();
+    } catch {
+      return;
+    }
+    for (const sid of sessionIds) {
+      // raw=true：这类协议消息不做 E2EE，走中继/RTC 底层通道即可
+      this.#sendRaw(sid, { type, appId }).catch(() => {});
+    }
+  }
+
+  /**
+   * 让指定 appId + sessionId 的缓存条目失效（如发送失败时使用）
+   */
+  #invalidateServiceSession(appId, sessionId) {
+    const cached = this.#serviceSessionCache.get(appId);
+    if (!cached) return;
+    const next = cached.sessions.filter((s) => s !== sessionId);
+    if (next.length === 0) {
+      this.#serviceSessionCache.delete(appId);
+    } else {
+      this.#serviceSessionCache.set(appId, {
+        sessions: next,
+        timestamp: cached.timestamp,
+      });
+    }
   }
 
   /**
