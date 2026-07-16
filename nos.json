@@ -1,7 +1,7 @@
 {
   "version": "4.2.0",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1784197357826,
+  "signTime": 1784204288095,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -150,18 +150,13 @@
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "1034a18a123da754f7df46fce5a68c864826809db767137dce4394a90613ffb3",
-      "size": 14441
+      "hash": "14ab4a395155ff77fe001919441ce26b22f66f24e12c8f59bc32f08bc0336140",
+      "size": 8707
     },
     {
       "path": "publish/README.md",
-      "hash": "df78aee1c14f80e3ee0a3d3447d2365d85753226005c68c4d9b792c750b307cc",
-      "size": 26254
-    },
-    {
-      "path": "publish/app-manager.js",
-      "hash": "199c0f010d57d935a195b1e3debdcf3461a78c2c186cb1e14d61258f07d76c85",
-      "size": 23745
+      "hash": "7aa1f86907500558ed813be8bd9e36c996926bcb18c37ce97f621187c3cf05f5",
+      "size": 12970
     },
     {
       "path": "publish/data-publisher.js",
@@ -170,8 +165,8 @@
     },
     {
       "path": "publish/db.js",
-      "hash": "05db5094a22e02bea0966c1ea4916943da0ba835bd01ccf0ebf7f3738e7c9660",
-      "size": 15698
+      "hash": "8239218f94feb445acbfb9764fdbf3a9099ce2b00d1e728bfe9c94285b20a524",
+      "size": 6364
     },
     {
       "path": "root-cert.json",
@@ -294,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "XafVqOl0dQWi91OYiHnnDl6wjdHmLjQYw7/fsLPOTc0df5GZKcBdMLZ3Rp/zELQXTjB7Upb+jMjarvtTLjjR1Q=="
+  "signature": "ft3Ezim/KA0SEm2zk2yrLwzkjrry2oL9XU+IRrv6O85TIbA2RGG9s8EEu9s+qkuRXshe+MkKDL5khZTpLkTCsg=="
 }

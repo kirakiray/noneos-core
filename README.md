@@ -31,12 +31,12 @@ await remote.send(sessionId, { text: "Hello from NoneOS!" });
 │  │             (Web Components, data binding, routing)           │    │
 │  └─────────────────────┬────────────────────────────────────────┘    │
 │                        │                                              │
-│  ┌──────────┐  ┌──────┴──────┐  ┌────────────────────────────────┐   │
-│  │  nos/fs   │  │  nos/user  │  │  nos/publish                  │   │
-│  │ (OPFS-    │  │ (decent-   │  │ (DataPublisher & AppManager)  │   │
-│  │  backed)  │  │  ralized   │  │                                │   │
-│  │           │  │  identity) │  │                                │   │
-│  └──────────┘  └──────┬─────┘  └────────────────────────────────┘   │
+│  ┌──────────┐  ┌──────┴──────┐  ┌─────────────────────────────┐   │
+│  │  nos/fs   │  │  nos/user  │  │  nos/publish                 │   │
+│  │ (OPFS-    │  │ (decent-   │  │ (DataPublisher)              │   │
+│  │  backed)  │  │  ralized   │  │                              │   │
+│  │           │  │  identity) │  │                              │   │
+│  └──────────┘  └──────┬─────┘  └─────────────────────────────┘   │
 │                        │ WebSocket relay / RTC signaling             │
 ├────────────────────────┼────────────────────────────────────────────┤
 │                   Service Worker (sw/)                               │
@@ -132,7 +132,6 @@ skills/               # AI agent skill definitions
 
 ### P2P Publishing (`nos/publish/`)
 - `DataPublisher` — chunked P2P file distribution
-- `AppManager` — app creation, publishing, discovery, installation & updates
 
 ---
 
@@ -186,7 +185,7 @@ Full documentation is available at **[https://core.noneos.com](https://core.none
 Key references:
 - [User System API](nos/user/README.md) — identity, messaging, certificates, service registry
 - [Virtual Filesystem API](nos/fs/) — file operations, mounting, observation
-- [P2P Publishing](nos/publish/README.md) — DataPublisher & AppManager
+- [P2P Publishing](nos/publish/README.md) — DataPublisher
 - [Server Configuration](server/rust/README.md) — relay server setup
 
 ---

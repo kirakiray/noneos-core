@@ -1,15 +1,13 @@
 # nos/publish 发布模块上下文
 
 > 本文档供 AI 阅读，用于快速理解 `nos/publish` 模块的整体架构与实现细节，无需逐文件阅读源码即可进行代码更新。
-> 本模块依赖 `nos/user`（身份/签名/中继）与 `nos/fs`（应用目录），是去中心化数据/应用分发层。
+> 本模块依赖 `nos/user`（身份/签名/中继），是去中心化数据分发层。
 
 ## 一、整体架构
 
-`nos/publish` 提供基于内容寻址（content-addressed）的去中心化数据与应用分发能力。任何持有数据的用户都可响应他人请求，无需中心服务器存储文件内容。模块分两层：
+`nos/publish` 提供基于内容寻址（content-addressed）的去中心化数据分发能力。任何持有数据的用户都可响应他人请求，无需中心服务器存储文件内容。
 
-1. **DataPublisher（数据层）**：将任意 `File/Blob` 按 128KB 分块，每块 SHA-256 哈希，构建经发布者私钥签名的 manifest，通过中继通道在用户间请求/响应 chunk 与 manifest。
-2. **AppManager（应用层）**：基于 DataPublisher，提供应用的发布、发现、安装、增量升级、引用计数与推荐机制。应用的 `asset-manifest.json` 本身也作为一个文件被发布。
-   > ⚠️ **实验性（Experimental）**：AppManager 处于试验阶段，其 API、数据结构（尤其是 `published_apps`、`file_refs`、`recommendations` 表结构及 asset-manifest 字段）可能在后续版本中发生破坏性变更甚至被整体移除。DataPublisher 数据层则相对稳定。
+核心模块是 **DataPublisher（数据层）**：将任意 `File/Blob` 按 128KB 分块，每块 SHA-256 哈希，构建经发布者私钥签名的 manifest，通过中继通道在用户间请求/响应 chunk 与 manifest。
 
 ### 核心设计
 
@@ -26,8 +24,7 @@
 ```
 nos/publish/
 ├── data-publisher.js    # DataPublisher：文件分块发布/请求/组装
-├── app-manager.js       # AppManager extends DataPublisher：应用发布/发现/安装/升级
-├── db.js                # IndexedDB 持久化（5 个仓库，version 2）
+├── db.js                # IndexedDB 持久化（2 个仓库，version 1）
 ├── README.md            # API 文档（人类阅读，部分数值已过时，以本文档为准）
 └── CONTEXT.md           # 本文档
 ```
@@ -36,13 +33,8 @@ nos/publish/
 
 ```
 DataPublisher (data-publisher.js)       ← 依赖 LocalUser
-  ├── 被 AppManager 内聚（非继承）
-  │     AppManager (app-manager.js)     ← #publisher = new DataPublisher(user)
   └── 协议处理：start() 监听 user "message" 事件
 ```
-
-- `AppManager` 持有一个 `#publisher: DataPublisher` 实例（组合而非继承），`start()` 转发调用 `#publisher.start()`。
-- `#releaseCache: WeakMap` -- `createRelease` 返回的冻结对象 -> `{ fileBlobs }`，`publish` 时取出缓存，发布后删除，防止篡改与重复发布。
 
 ## 四、关键 API
 
@@ -58,31 +50,12 @@ DataPublisher (data-publisher.js)       ← 依赖 LocalUser
 | `assembleFile(fileHash)` | 从 DB 读 manifest + 所有 chunk -> Blob；缺失 chunk 抛错（带 `missing`/`fileHash` 字段） |
 | `fetchFile(remoteUser, fileHash, sessionId?)` | 本地 `assembleFile` 优先 -> 远程拉 manifest -> 并发拉所有缺失 chunk -> 再次组装 |
 
-### AppManager（app-manager.js）
-
-| 方法 | 说明 |
-|------|------|
-| `start()` / `stop()` | 转发到内部 DataPublisher |
-| `createRelease(handle, {appName, version})` | `handle.flat()` 遍历文件 -> 每文件 `getFileHash` -> 计算 `appId = sha256(appName + userId)` -> 读旧 manifest 算 diffSummary -> `_sign` asset-manifest -> 冻结为 ReleaseInfo 并缓存 fileBlobs（**不发布文件**） |
-| `publish(release)` | `verifyData(manifest)` 验签 -> 逐文件 `getFileHash` 复核 -> `DataPublisher.publish(blob)` -> `incrementFileRef` -> 发布 manifest 自身 -> 保存 `published_apps` 记录 -> 清缓存 |
-| `discoverApps({publisherUserId?})` | 查本地 `published_apps`（status=published） |
-| `fetchManifest(appId)` | 查 `published_apps` 拿 `manifestHash` -> `DataPublisher.assembleFile` -> JSON.parse |
-| `installApp(manifest, {publisherUser?})` | 验签 -> 建 `apps/{appName}-{appId}/` -> 读旧 manifest（升级场景）-> 仅拉 hash 变化的文件 -> 删除新版缺失文件 -> 写 `asset-manifest.json` |
-| `checkForUpdates(appId)` | 比对本地已安装版本与发布者最新版本（`semverCompare`），生成 diffSummary |
-| `checkAllUpdates()` | 遍历 `apps/` 目录所有已安装应用，逐一 `checkForUpdates` |
-| `listInstalledApps()` / `getInstalledAppInfo(appName)` / `uninstallApp(appName)` | 遍历 `apps/` 目录的 `asset-manifest.json`；卸载整体删除目录（幂等） |
-| `listMyPublishedApps()` / `unpublishApp(appName)` | 仅改 `status` 为 `unpublished`，不删文件数据（幂等） |
-| `recommendApp(appId, publisherUserId)` / `unrecommendApp(...)` | 推荐记录（幂等） |
-
 ### db.js 工具函数
 
 | 函数 | 说明 |
 |------|------|
 | `saveChunk` / `getChunk` / `deleteChunk` | chunk 存/读/删（key=chunkHash，value=ArrayBuffer） |
 | `saveManifest` / `getManifest` / `deleteManifest` | manifest 存/读/删（key=fileHash） |
-| `savePublishedApp` / `getPublishedApp` / `listPublishedApps` / `deletePublishedApp` | 应用发布记录（keyPath=appName） |
-| `saveFileRef` / `getFileRef` / `incrementFileRef` / `decrementFileRef` | 文件引用计数；`decrement` 到 0 自动清理 manifest + 所有 chunk |
-| `saveRecommendation` / `getRecommendation` / `deleteRecommendation` / `listRecommendations` | 推荐记录（keyPath=id=`{appId}-{publisherUserId}`） |
 | `clearPublishData(namespace)` | 关闭连接并删除整个 IndexedDB 数据库 |
 
 ## 五、关键实现细节
@@ -141,63 +114,15 @@ user "message" 事件
 
 `requestManifest` / `requestChunk` 各有 2 次尝试：首次失败且错误含 `"disconnected"` 时，`#invalidateSessionCache` 清缓存 + `sessionId = null`，重试自动重新获取会话。
 
-### 6. 应用发布流程
-
-```
-createRelease(handle, {appName, version})
-  ├── handle.flat() -> 所有文件
-  ├── 每文件 getFileHash -> { fileHash, size }
-  ├── appId = sha256(appName + userId)
-  ├── 读旧 published_apps 记录（升级场景）-> #computeDiffSummary(oldManifestHash, newFiles)
-  ├── _sign({ appId, appName, version, publisherUserId, previousManifestHash, files })
-  └── Object.freeze(ReleaseInfo) + #releaseCache 缓存 fileBlobs
-
-publish(release)
-  ├── verifyData(manifest)  ← 防篡改
-  ├── 逐文件：getFileHash 复核 -> DataPublisher.publish(blob) -> incrementFileRef(fileHash, appId)
-  ├── manifest 自身作为文件 publish -> manifestHash -> incrementFileRef
-  └── savePublishedApp({ appId, appName, version, manifestHash, status:"published", ... })
-```
-
-**版本链**：`previousManifestHash` 指向上一个已发布 manifest 的 fileHash，形成哈希链可追溯历史。
-
-### 7. 应用安装/升级流程
-
-```
-installApp(manifest, {publisherUser?})
-  ├── verifyData(manifest)
-  ├── apps/{appName}-{appId}/ 目录
-  ├── 读旧 asset-manifest.json（升级场景）
-  ├── 遍历新 files：
-  │     ├── hash 相同且旧文件存在 -> 跳过（增量）
-  │     └── 否则 DataPublisher.fetchFile(publisherUser, fileHash) -> 写入
-  ├── 删除旧版有但新版没有的文件
-  └── 写入 asset-manifest.json
-```
-
-### 8. 文件引用计数
-
-```
-publish: incrementFileRef(fileHash, appId)  -> refCount +1, appIds.push(appId)
-decrementFileRef(fileHash, appId):
-  -> refCount -1
-  -> refCount === 0 -> 删 manifest + 所有 chunk + file_refs 记录
-```
-
-> 注：当前 `unpublishApp` 仅改状态，不触发 `decrementFileRef`（注释说明"可重新上架"）。
-
 ## 六、IndexedDB Schema（db.js）
 
 - 数据库名：`nos_publish_data_${namespace}`（**每 namespace 独立库**）
-- `DB_VERSION = 2`
+- `DB_VERSION = 1`
 
 | 仓库 | 版本 | key / keyPath | value |
 |------|------|---------------|-------|
 | `file_chunks` | v1 | key=chunkHash | ArrayBuffer（块原始二进制） |
 | `file_manifests` | v1 | key=fileHash | manifest 对象（含签名） |
-| `published_apps` | v2 | keyPath=appName | `{appId, appName, version, manifestHash, publisherUserId, status, publishedAt, updatedAt}` |
-| `file_refs` | v2 | keyPath=fileHash | `{fileHash, refCount, appIds:[]}` |
-| `recommendations` | v2 | keyPath=id | `{id, appId, appName, publisherUserId, recommendedAt}` |
 
 - `dbCache: Map<namespace, Promise<IDBDatabase>>` -- 连接按 namespace 缓存。
 - `clearPublishData(namespace)` 先关闭缓存连接再 `indexedDB.deleteDatabase`。
@@ -210,9 +135,6 @@ decrementFileRef(fileHash, appId):
 | `../user/remote-user.js` (RemoteUser) | `send(sid, data, true)` raw 发送、`bind("message")` 接收二进制、`getSessionIds()` |
 | `../crypto/crypto-verify.js` (`verifyData`) | manifest 验签 |
 | `../util/hash/get-hash.js` (`getHash`) | chunk/file 哈希 |
-| `../util/hash/get-file-hash.js` (`getFileHash`) | 应用文件哈希 |
-| `../fs/handle/main.js` (`init`) | 应用安装目录 `apps/{appName}-{appId}/` |
-| `../fs/handle/dir.js` (DirHandle) | `flat()` 遍历应用文件 |
 
 ## 八、与其他模块的联动
 
@@ -222,8 +144,6 @@ decrementFileRef(fileHash, appId):
 | 验签 manifest | -> `verifyData` | nos/crypto |
 | 请求/响应中继 | -> `RemoteUser.send(raw=true)` / `server.relayToUserViaServer` | nos/user |
 | 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` | nos/user + server/rust |
-| 应用安装 | -> `init("apps")` + DirHandle | nos/fs |
-| 获取发布者 | -> `LocalUser.connectUser` | nos/user |
 
 ## 九、与 README 的对应关系
 
@@ -233,4 +153,4 @@ README 中的数值已与源码对齐：
 |----|----|------|
 | CHUNK_SIZE | 128KB（`128 * 1024`） | data-publisher.js 中的 `CHUNK_SIZE` 常量 |
 | 数据库名 | `nos_publish_data_${namespace}` | 按 namespace 隔离，每用户独立库 |
-| DB_VERSION | 2 | v1: chunks/manifests；v2: published_apps/file_refs/recommendations |
+| DB_VERSION | 1 | chunks/manifests |

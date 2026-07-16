@@ -132,7 +132,7 @@ await user.traffic.clearAll();
 
 ## 无实例验签：`verifyData`
 
-`user.verify(signed)` 是 `BaseUser` 上的方法（`LocalUser`、`RemoteUser` 均可用），需要先有一个用户实例；如果你只是想验证**任意来源**的签名数据（例如他人签发的证书、AppManager 的 asset-manifest、别人的名片等），可以直接使用 `verifyData` 工具函数——它不依赖任何用户实例，只要待验数据本身携带 `signature` 与 `publicKey` 字段即可。
+`user.verify(signed)` 是 `BaseUser` 上的方法（`LocalUser`、`RemoteUser` 均可用），需要先有一个用户实例；如果你只是想验证**任意来源**的签名数据（例如他人签发的证书、别人的名片等），可以直接使用 `verifyData` 工具函数——它不依赖任何用户实例，只要待验数据本身携带 `signature` 与 `publicKey` 字段即可。
 
 ```javascript
 import { verifyData } from "/nos/crypto/crypto-verify.js";
@@ -152,7 +152,6 @@ console.log(isValid); // true / false
 
 ### 使用场景
 
-- 验证他人发布的 `asset-manifest.json`（AppManager 内部即调用它）
 - 验证 [用户证书](user-cert.md) 的合法性与签发者身份
 - 验证接收到的名片（card）、离线消息等任何带签名的数据
 - 任何**不方便构造用户实例**、或需要独立验签的场景
