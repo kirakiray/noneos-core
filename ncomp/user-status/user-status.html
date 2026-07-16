@@ -4,12 +4,14 @@
       display: inline-block;
       width: 8px;
       height: 8px;
+      border-radius: 50%;
+      overflow: hidden;
     }
 
     .dot {
       width: 100%;
       height: 100%;
-      border-radius: 50%;
+      box-sizing: border-box;
       background-color: var(--md-sys-color-neutral);
       transition: background-color 0.2s ease;
     }
@@ -28,6 +30,7 @@
   </style>
   <div
     class="dot"
+    part="dot"
     class:primary="status === 'primary'"
     class:success="status === 'success'"
     class:error="status === 'error'"
@@ -128,10 +131,7 @@
             remote_user_disconnected: handler,
           };
 
-          this._unbindRtc = user.bind(
-            "rtc_state",
-            this._handlers.rtc_state,
-          );
+          this._unbindRtc = user.bind("rtc_state", this._handlers.rtc_state);
           this._unbindConnected = user.bind(
             "remote_user_connected",
             this._handlers.remote_user_connected,
