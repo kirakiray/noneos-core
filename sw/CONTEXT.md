@@ -13,7 +13,7 @@
    - `/nos/` 资源支持在线模式（直接 fetch）与本地模式（优先 OPFS 缓存，回退 fetch）。
    - `/gh/`、`/npm/` 资源优先读取 OPFS 缓存，未命中时请求 jsDelivr CDN 并写入缓存。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
-3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/`、`/nos-tool/` 与 `/ncomp/` 请求直接走网络，避免读取 OPFS 中的缓存资源。
+3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络，避免读取 OPFS 中的缓存资源；`/ncomp/` 请求统一代理到 `localhost:3002` 并写入 OPFS 缓存，仅在 `3002` 不可用时回退缓存。
 4. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos-config/system.json`，热更新 `systemConfig`。
 
 ## 二、模块地图
@@ -99,8 +99,7 @@ sw/src/main.js
 
 ### 3. `/ncomp/` 资源代理策略（ncomp-handle.js）
 
-- **`localhost:3002`**：直接 `fetch(request)` 返回本地调试服务器资源，不读取也不写入 OPFS 缓存，避免干扰开发。
-- **其他 `localhost:*`**：优先将请求端口替换为 `3002` 再 fetch；成功后立即返回最新响应，并在后台异步将内容写入 OPFS `/ncomp/` 缓存，同时写入 `/nos-config/ncomp-meta/{path}.json` 元数据（`cachedAt`、`hash`）；`3002` 未启动或请求失败时，回退 OPFS 缓存，缓存未命中再请求官方源。
+- **`localhost:*`（含 `localhost:3002`）**：优先将请求端口替换为 `3002` 再 fetch；成功后立即返回最新响应，并在后台异步将内容写入 OPFS `/ncomp/` 缓存，同时写入 `/nos-config/ncomp-meta/{path}.json` 元数据（`cachedAt`、`hash`）；`3002` 未启动或请求失败时，回退 OPFS 缓存，缓存未命中再请求官方源。
 - **非本地环境**：优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`；缓存未过期（5 分钟 TTL）则直接返回。
   - 缓存过期或不存在时，请求 `https://core.noneos.com/` 对应路径，成功后**立即返回网络响应**。
   - 后台异步计算响应内容的 SHA-256 hash，与元数据中的 hash 对比：有变化则更新 OPFS 缓存与元数据；无变化则仅刷新 `cachedAt` 以延长 TTL。

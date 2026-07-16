@@ -19,26 +19,26 @@
       <template>
         <script type="module">
           {
-            const path = "/ncomp/user-name/user-name.html";
-            const metaPath = "/nos-config/ncomp-meta/user-name/user-name.html.json";
+            const { get } = await import("/nos/fs/main.js");
+
+            const path = "ncomp/user-name/user-name.html";
+            const metaPath =
+              "nos-config/ncomp-meta/user-name/user-name.html.json";
 
             // 先清理旧缓存，确保本次是首次请求
-            const rootHandle = await navigator.storage.getDirectory();
-            const clean = async (targetPath) => {
-              const parts = targetPath.split("/").filter(Boolean);
-              const name = parts.pop();
-              let dir = rootHandle;
-              for (const part of parts) {
-                dir = await dir.getDirectoryHandle(part).catch(() => null);
-                if (!dir) return;
-              }
-              await dir.removeEntry(name).catch(() => {});
-            };
-            await clean(path);
-            await clean(metaPath);
+            // const clean = async (targetPath) => {
+            //   const handle = await get(targetPath).catch(() => null);
+            //   if (handle) {
+            //     await handle.remove();
+            //   }
+            // };
+            // await clean(path);
+            // await clean(metaPath);
+
+            // debugger
 
             // 通过 Service Worker 请求组件资源
-            const response = await fetch(path);
+            const response = await fetch("/" + path);
             const status = response.status;
             const contentType = response.headers.get("Content-Type");
             const text = await response.text();
@@ -47,30 +47,21 @@
             await new Promise((r) => setTimeout(r, 500));
 
             // 读取 OPFS 缓存
-            const getFileHandle = async (targetPath, create) => {
-              const parts = targetPath.split("/").filter(Boolean);
-              const name = parts.pop();
-              let dir = rootHandle;
-              for (const part of parts) {
-                dir = await dir.getDirectoryHandle(part, { create });
-              }
-              return dir.getFileHandle(name, { create });
-            };
+            const cachedHandle = await get(path).catch(() => null);
+            const cachedText = cachedHandle
+              ? await cachedHandle.text().catch(() => "")
+              : "";
 
-            const cachedFile = await getFileHandle(path)
-              .then((h) => h.getFile())
-              .catch(() => null);
+            const metaHandle = await get(metaPath).catch(() => null);
+            const meta = metaHandle
+              ? await metaHandle.json().catch(() => null)
+              : null;
 
-            const metaFile = await getFileHandle(metaPath)
-              .then((h) => h.getFile())
-              .then((f) => f.text())
-              .then((t) => JSON.parse(t))
-              .catch(() => null);
-
-            const hasCache = cachedFile && cachedFile.size > 0;
-            const hasMeta = !!metaFile;
-            const hasCachedAt = hasMeta && typeof metaFile.cachedAt === "number";
-            const hasHash = hasMeta && typeof metaFile.hash === "string" && metaFile.hash.length > 0;
+            const hasCache = cachedText.length > 0;
+            const hasMeta = !!meta;
+            const hasCachedAt = hasMeta && typeof meta.cachedAt === "number";
+            const hasHash =
+              hasMeta && typeof meta.hash === "string" && meta.hash.length > 0;
 
             return {
               assert:
@@ -88,8 +79,8 @@
                 hasMeta,
                 hasCachedAt,
                 hasHash,
-                cachedAt: metaFile?.cachedAt,
-                hashPreview: metaFile?.hash?.slice(0, 16),
+                cachedAt: meta?.cachedAt,
+                hashPreview: meta?.hash?.slice(0, 16),
               },
             };
           }
@@ -101,36 +92,24 @@
       <template>
         <script type="module">
           {
-            const path = "/ncomp/user-name/user-name.html";
-            const metaPath = "/nos-config/ncomp-meta/user-name/user-name.html.json";
+            const { get } = await import("/nos/fs/main.js");
 
-            const rootHandle = await navigator.storage.getDirectory();
-            const getFileHandle = async (targetPath) => {
-              const parts = targetPath.split("/").filter(Boolean);
-              const name = parts.pop();
-              let dir = rootHandle;
-              for (const part of parts) {
-                dir = await dir.getDirectoryHandle(part);
-              }
-              return dir.getFileHandle(name);
-            };
+            const path = "ncomp/user-name/user-name.html";
+            const metaPath =
+              "nos-config/ncomp-meta/user-name/user-name.html.json";
 
             // 确保缓存和元数据存在且未过期
-            const metaHandle = await getFileHandle(metaPath);
-            const metaFile = await metaHandle.getFile();
-            const meta = JSON.parse(await metaFile.text());
+            const metaHandle = await get(metaPath);
+            const meta = await metaHandle.json();
             meta.cachedAt = Date.now();
-            const writable = await metaHandle.createWritable();
-            await writable.write(JSON.stringify(meta));
-            await writable.close();
+            await metaHandle.write(JSON.stringify(meta));
 
             // 读取缓存内容用于后续对比
-            const cacheHandle = await getFileHandle(path);
-            const cacheFile = await cacheHandle.getFile();
-            const cacheText = await cacheFile.text();
+            const cacheHandle = await get(path);
+            const cacheText = await cacheHandle.text();
 
             // 再次请求
-            const response = await fetch(path);
+            const response = await fetch("/" + path);
             const responseText = await response.text();
 
             return {

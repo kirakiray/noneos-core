@@ -70,8 +70,7 @@ ncomp/
 
 `/ncomp/` 下的资源由 Service Worker（`sw/src/modules/ncomp-handle.js`）统一代理：
 
-- **`localhost:3002`**：直接请求本地调试服务器，不读取也不写入 OPFS 缓存。
-- **其他 `localhost:*`**：优先代理到 `localhost:3002`；成功后立即返回最新响应，并在后台异步写入 OPFS `/ncomp/` 缓存，同时记录元数据；3002 不可用时回退 OPFS 缓存，再未命中则请求官方源。
+- **`localhost:*`（含 `localhost:3002`）**：优先代理到 `localhost:3002`；成功后立即返回最新响应，并在后台异步写入 OPFS `/ncomp/` 缓存，同时记录元数据；3002 不可用时回退 OPFS 缓存，再未命中则请求官方源。
 - **非本地环境**：
   - 优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`。
   - 缓存未过期（5 分钟 TTL）则直接返回。

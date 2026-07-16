@@ -10,7 +10,10 @@ const META_DIR = "/nos-config/ncomp-meta";
  * @param {string} path - ncomp 资源路径
  * @returns {string} 元数据文件路径
  */
-const getMetaPath = (path) => `${META_DIR}${path}.json`;
+const getMetaPath = (path) => {
+  const relativePath = path.replace(/^\/ncomp\//, "");
+  return `${META_DIR}/${relativePath}.json`;
+};
 
 /**
  * 读取 ncomp 资源的元数据
@@ -140,11 +143,6 @@ const updateCacheAsync = async (path, arrayBuffer, meta) => {
 export const handleNcompRequest = async ({ path, request }) => {
   const host = location.host;
 
-  // localhost:3002 调试模式直接请求资源，不读取 OPFS 缓存
-  if (host === "localhost:3002") {
-    return fetch(request);
-  }
-
   // 请求官方源
   const fetchOfficial = async () => {
     const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
@@ -160,7 +158,7 @@ export const handleNcompRequest = async ({ path, request }) => {
     return { cachedFile, meta };
   };
 
-  // 其他 localhost 端口下，优先将 /ncomp/ 请求代理到 localhost:3002 的在线资源
+  // localhost 环境下，优先将 /ncomp/ 请求代理到 localhost:3002 的在线资源
   if (/^localhost:/.test(host)) {
     const newUrl = request.url.replace(/:(\d+)/, ":3002");
 
@@ -176,6 +174,7 @@ export const handleNcompRequest = async ({ path, request }) => {
       const arrayBuffer = await response.arrayBuffer();
       const { meta } = await readCacheWithMeta();
 
+      // localhost 下需要确保缓存可靠写入，以便 3002 不可用时能回退
       updateCacheAsync(path, arrayBuffer, meta);
 
       return createResponse(new Blob([arrayBuffer]), path);
