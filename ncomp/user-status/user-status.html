@@ -2,8 +2,8 @@
   <style>
     :host {
       display: inline-block;
-      width: var(--n-user-status-size, 8px);
-      height: var(--n-user-status-size, 8px);
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background-color: var(--md-sys-color-neutral);
       transition: background-color 0.2s ease;
@@ -31,7 +31,6 @@
         tag: "n-user-status",
         attrs: {
           userId: "",
-          size: "8px",
           status: "",
         },
         data: {
@@ -45,15 +44,9 @@
               this.status = "";
             }
           },
-          size(val) {
-            this._setSize(val);
-          },
         },
         proto: {
           _checkToken: 0,
-          _setSize(val) {
-            this.ele.style.setProperty("--n-user-status-size", val || "8px");
-          },
           async _check() {
             const uid = this.userId;
             if (!uid) {
@@ -110,8 +103,6 @@
           if (this.attr("namespace")) {
             this.namespace = this.attr("namespace");
           }
-
-          this._setSize(this.size);
 
           if (this.userId) {
             this._check();

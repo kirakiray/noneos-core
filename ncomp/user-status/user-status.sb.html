@@ -84,13 +84,13 @@
       </template>
     </sb-test>
 
-    <!-- ============ 自定义 size 生效 ============ -->
-    <sb-test name="设置 size 属性后圆点尺寸生效">
+    <!-- ============ 通过 style 设置尺寸生效 ============ -->
+    <sb-test name="通过 style 设置圆点尺寸生效">
       <template>
         <script type="module">
           {
             const target = $("#size-target");
-            target.html = `<n-user-status size="16px"></n-user-status>`;
+            target.html = `<n-user-status style="width: 16px; height: 16px;"></n-user-status>`;
             await new Promise((r) => setTimeout(r, 250));
             const el = target.$("n-user-status");
             const width = el.ele.offsetWidth;

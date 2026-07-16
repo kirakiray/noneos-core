@@ -72,8 +72,15 @@
 | 属性名 | 默认值 | 说明 |
 |--------|--------|------|
 | `user-id` | `""` | 目标用户的 userId |
-| `size` | `"8px"` | 圆点尺寸 |
 | `namespace` | `"default"` | 用户命名空间 |
+
+#### 尺寸
+
+默认圆点大小为 `8px × 8px`，可通过 `style` 或外部 CSS 覆盖：
+
+```html
+<n-user-status user-id="xxxxxxxxxxxxxxxx" style="width: 12px; height: 12px;"></n-user-status>
+```
 
 #### 功能说明
 
@@ -87,7 +94,7 @@
 
 ```html
 <l-m src="/ncomp/user-status/user-status.html"></l-m>
-<n-user-status user-id="xxxxxxxxxxxxxxxx" size="10px"></n-user-status>
+<n-user-status user-id="xxxxxxxxxxxxxxxx" style="width: 10px; height: 10px;"></n-user-status>
 ```
 
 #### 注意事项
