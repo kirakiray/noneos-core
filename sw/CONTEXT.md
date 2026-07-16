@@ -67,7 +67,7 @@ sw/src/main.js
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
 | `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
-| `/ncomp/` | `ncomp-handle.js` | ncomp 公共组件资源代理；首次请求官方源并写入 OPFS，后续优先读缓存；localhost 优先代理到 3002 |
+| `/ncomp/` | `ncomp-handle.js` | ncomp 公共组件资源代理；非本地环境 5 分钟 TTL + SHA-256 hash 对比，过期后网络优先并异步更新 OPFS；localhost 优先代理到 3002 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
 | `/gh/` | `github-handler.js` | GitHub 仓库文件代理，映射到 jsDelivr |
 | `/npm/` | `npm-handler.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
@@ -99,9 +99,12 @@ sw/src/main.js
 
 ### 3. `/ncomp/` 资源代理策略（ncomp-handle.js）
 
-- **`localhost:3002`**：直接 `fetch(request)` 返回本地调试服务器资源，不写入 OPFS 缓存，避免干扰开发。
-- **其他 `localhost:*`**：优先将请求端口替换为 `3002` 再 fetch；成功后将响应写入 OPFS `/ncomp/` 缓存并返回；失败则回退 OPFS 缓存，缓存未命中再请求官方源并写入缓存。
-- **非本地环境**：优先读取 OPFS `/ncomp/` 缓存；未命中时请求 `https://core.noneos.com/` 对应路径，成功后写入缓存。
+- **`localhost:3002`**：直接 `fetch(request)` 返回本地调试服务器资源，不读取也不写入 OPFS 缓存，避免干扰开发。
+- **其他 `localhost:*`**：优先将请求端口替换为 `3002` 再 fetch；成功后立即返回最新响应，并在后台异步将内容写入 OPFS `/ncomp/` 缓存，同时写入 `/nos-config/ncomp-meta/{path}.json` 元数据（`cachedAt`、`hash`）；`3002` 未启动或请求失败时，回退 OPFS 缓存，缓存未命中再请求官方源。
+- **非本地环境**：优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`；缓存未过期（5 分钟 TTL）则直接返回。
+  - 缓存过期或不存在时，请求 `https://core.noneos.com/` 对应路径，成功后**立即返回网络响应**。
+  - 后台异步计算响应内容的 SHA-256 hash，与元数据中的 hash 对比：有变化则更新 OPFS 缓存与元数据；无变化则仅刷新 `cachedAt` 以延长 TTL。
+  - 网络请求失败时，若 OPFS 中存在旧缓存，则返回旧缓存兜底。
 
 ### 4. `/gh/` 与 `/npm/` 缓存策略
 

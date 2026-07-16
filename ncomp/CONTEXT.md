@@ -70,11 +70,27 @@ ncomp/
 
 `/ncomp/` 下的资源由 Service Worker（`sw/src/modules/ncomp-handle.js`）统一代理：
 
-- **`localhost:3002`**：直接请求本地调试服务器，不写入 OPFS 缓存。
-- **其他 `localhost:*`**：优先代理到 `localhost:3002`；成功后写入 OPFS `/ncomp/` 缓存；3002 不可用时回退 OPFS 缓存，再未命中则请求官方源。
-- **非本地环境**：优先读取 OPFS `/ncomp/` 缓存；未命中时请求 `https://core.noneos.com/` 对应路径，成功后写入缓存。
+- **`localhost:3002`**：直接请求本地调试服务器，不读取也不写入 OPFS 缓存。
+- **其他 `localhost:*`**：优先代理到 `localhost:3002`；成功后立即返回最新响应，并在后台异步写入 OPFS `/ncomp/` 缓存，同时记录元数据；3002 不可用时回退 OPFS 缓存，再未命中则请求官方源。
+- **非本地环境**：
+  - 优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`。
+  - 缓存未过期（5 分钟 TTL）则直接返回。
+  - 缓存过期或不存在时，请求 `https://core.noneos.com/` 对应路径，成功后**立即返回网络响应**。
+  - 后台异步计算响应内容的 SHA-256 hash，与元数据中的 hash 对比：有变化则更新 OPFS 缓存与元数据；无变化则仅刷新 `cachedAt` 以延长 TTL。
+  - 网络请求失败时，若 OPFS 中存在旧缓存，则返回旧缓存兜底。
 
-因此，组件文件首次被请求后会自动缓存到 OPFS，后续访问可离线使用。
+### 元数据
+
+缓存元数据存储在 OPFS `/nos-config/ncomp-meta/{component}/{file}.json`，结构为：
+
+```json
+{
+  "cachedAt": 1735689600000,
+  "hash": "sha256hex..."
+}
+```
+
+因此，组件文件首次被请求后会自动缓存到 OPFS，过期后会自动检查官方源是否有更新，兼顾离线可用与自动更新。
 
 ## 六、开发规范
 

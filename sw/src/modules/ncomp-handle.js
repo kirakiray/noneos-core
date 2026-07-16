@@ -1,5 +1,134 @@
 import { getFileHandle } from "./file-system.js";
 import { getContentType } from "./mime-types.js";
+import { getHash } from "../../../nos/util/hash/get-hash.js";
+
+const TTL = 5 * 60 * 1000; // 5 分钟
+const META_DIR = "/nos-config/ncomp-meta";
+
+/**
+ * 获取 ncomp 资源的元数据路径
+ * @param {string} path - ncomp 资源路径
+ * @returns {string} 元数据文件路径
+ */
+const getMetaPath = (path) => `${META_DIR}${path}.json`;
+
+/**
+ * 读取 ncomp 资源的元数据
+ * @param {string} path - ncomp 资源路径
+ * @returns {Promise<{cachedAt:number,hash:string}|null>} 元数据对象
+ */
+const readMeta = async (path) => {
+  const targetHandle = await getFileHandle({ path: getMetaPath(path) }).catch(
+    () => null,
+  );
+
+  if (!targetHandle) {
+    return null;
+  }
+
+  const fileStream = await targetHandle.getFile();
+
+  if (!fileStream.size) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(await fileStream.text());
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * 写入 ncomp 资源的元数据
+ * @param {string} path - ncomp 资源路径
+ * @param {Object} meta - 元数据对象
+ */
+const writeMeta = async (path, meta) => {
+  try {
+    const targetHandle = await getFileHandle({
+      path: getMetaPath(path),
+      create: true,
+    });
+    const writeStream = await targetHandle.createWritable();
+    await writeStream.write(JSON.stringify(meta));
+    await writeStream.close();
+  } catch (err) {
+    console.error("Failed to write ncomp meta:", err);
+  }
+};
+
+/**
+ * 从 OPFS 读取缓存
+ * @param {string} path - ncomp 资源路径
+ * @returns {Promise<File|null>} 缓存文件或 null
+ */
+const readFromCache = async (path) => {
+  const targetHandle = await getFileHandle({ path }).catch(() => null);
+
+  if (!targetHandle) {
+    return null;
+  }
+
+  const fileStream = await targetHandle.getFile();
+
+  if (!fileStream.size) {
+    return null;
+  }
+
+  return fileStream;
+};
+
+/**
+ * 将响应写入 OPFS 缓存
+ * @param {string} path - ncomp 资源路径
+ * @param {Blob} blob - 响应内容
+ */
+const writeToCache = async (path, blob) => {
+  try {
+    const targetHandle = await getFileHandle({ path, create: true });
+    const writeStream = await targetHandle.createWritable();
+    await writeStream.write(blob);
+    await writeStream.close();
+  } catch (err) {
+    console.error("Failed to cache ncomp resource:", err);
+  }
+};
+
+/**
+ * 创建 Response 对象
+ * @param {Blob|File} body - 响应体
+ * @param {string} path - ncomp 资源路径
+ * @returns {Response} 响应对象
+ */
+const createResponse = (body, path) => {
+  return new Response(body, {
+    headers: {
+      "Content-Type": getContentType(path),
+    },
+  });
+};
+
+/**
+ * 异步更新 OPFS 缓存：对比 hash，有变化则写入，无变化则刷新缓存时间
+ * @param {string} path - ncomp 资源路径
+ * @param {ArrayBuffer} arrayBuffer - 最新响应内容
+ * @param {{cachedAt:number,hash:string}|null} meta - 当前元数据
+ */
+const updateCacheAsync = async (path, arrayBuffer, meta) => {
+  try {
+    const hash = await getHash(arrayBuffer);
+
+    if (!meta || hash !== meta.hash) {
+      await writeToCache(path, new Blob([arrayBuffer]));
+      await writeMeta(path, { cachedAt: Date.now(), hash });
+    } else {
+      await writeMeta(path, { ...meta, cachedAt: Date.now() });
+    }
+  } catch (err) {
+    console.error("Failed to update ncomp cache:", err);
+  }
+};
 
 /**
  * 处理 /ncomp/ 资源请求
@@ -22,35 +151,13 @@ export const handleNcompRequest = async ({ path, request }) => {
     return fetch(`https://core.noneos.com/${afterHost}`);
   };
 
-  // 从 OPFS 读取缓存
-  const readFromCache = async () => {
-    const targetHandle = await getFileHandle({ path }).catch(() => null);
-
-    if (targetHandle) {
-      const fileStream = await targetHandle.getFile();
-
-      if (fileStream.size) {
-        return new Response(fileStream, {
-          headers: {
-            "Content-Type": getContentType(path),
-          },
-        });
-      }
-    }
-
-    return null;
-  };
-
-  // 将响应写入 OPFS 缓存
-  const writeToCache = async (blob) => {
-    try {
-      const targetHandle = await getFileHandle({ path, create: true });
-      const writeStream = await targetHandle.createWritable();
-      await writeStream.write(blob);
-      await writeStream.close();
-    } catch (err) {
-      console.error("Failed to cache ncomp resource:", err);
-    }
+  // 从 OPFS 读取缓存（带元数据）
+  const readCacheWithMeta = async () => {
+    const [cachedFile, meta] = await Promise.all([
+      readFromCache(path),
+      readMeta(path),
+    ]);
+    return { cachedFile, meta };
   };
 
   // 其他 localhost 端口下，优先将 /ncomp/ 请求代理到 localhost:3002 的在线资源
@@ -66,27 +173,25 @@ export const handleNcompRequest = async ({ path, request }) => {
         );
       }
 
-      const blob = await response.blob();
-      await writeToCache(blob);
+      const arrayBuffer = await response.arrayBuffer();
+      const { meta } = await readCacheWithMeta();
 
-      return new Response(blob, {
-        headers: {
-          "Content-Type": getContentType(path),
-        },
-      });
+      updateCacheAsync(path, arrayBuffer, meta);
+
+      return createResponse(new Blob([arrayBuffer]), path);
     } catch {
       // localhost:3002 未启动或请求失败，继续走缓存 / 官方源路线
     }
   }
 
-  // 优先读取 OPFS 缓存
-  const cachedResponse = await readFromCache();
+  const { cachedFile, meta } = await readCacheWithMeta();
 
-  if (cachedResponse) {
-    return cachedResponse;
+  // 缓存有效（未过期且有内容）：直接返回
+  if (cachedFile && meta && Date.now() - meta.cachedAt < TTL) {
+    return createResponse(cachedFile, path);
   }
 
-  // 未命中缓存时请求官方源并写入缓存
+  // 缓存过期或不存在：请求网络，立刻返回最新数据，后台异步更新 OPFS
   try {
     const response = await fetchOfficial();
 
@@ -96,15 +201,17 @@ export const handleNcompRequest = async ({ path, request }) => {
       );
     }
 
-    const blob = await response.blob();
-    await writeToCache(blob);
+    const arrayBuffer = await response.arrayBuffer();
 
-    return new Response(blob, {
-      headers: {
-        "Content-Type": getContentType(path),
-      },
-    });
+    updateCacheAsync(path, arrayBuffer, meta);
+
+    return createResponse(new Blob([arrayBuffer]), path);
   } catch (error) {
+    // 网络失败时回退到旧缓存
+    if (cachedFile) {
+      return createResponse(cachedFile, path);
+    }
+
     console.error("Error fetching ncomp resource:", error);
 
     return new Response(`Error fetching ncomp resource: ${error.message}`, {
