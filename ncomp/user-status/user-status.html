@@ -4,23 +4,34 @@
       display: inline-block;
       width: 8px;
       height: 8px;
+    }
+
+    .dot {
+      width: 100%;
+      height: 100%;
       border-radius: 50%;
       background-color: var(--md-sys-color-neutral);
       transition: background-color 0.2s ease;
     }
 
-    :host([status="primary"]) {
+    .dot.primary {
       background-color: var(--md-sys-color-primary);
     }
 
-    :host([status="success"]) {
+    .dot.success {
       background-color: var(--md-sys-color-success);
     }
 
-    :host([status="error"]) {
+    .dot.error {
       background-color: var(--md-sys-color-error);
     }
   </style>
+  <div
+    class="dot"
+    class:primary="status === 'primary'"
+    class:success="status === 'success'"
+    class:error="status === 'error'"
+  ></div>
   <script>
     import { getUser } from "/nos/user/main.js";
 
@@ -31,10 +42,10 @@
         tag: "n-user-status",
         attrs: {
           userId: "",
-          status: "",
         },
         data: {
           namespace: NAMESPACE,
+          status: "",
         },
         watch: {
           userId(val) {

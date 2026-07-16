@@ -33,7 +33,7 @@
           {
             await new Promise((r) => setTimeout(r, 250));
             const el = $("#empty");
-            const status = el.attr("status");
+            const status = el.status;
             return {
               assert: status === "",
               content: { status },
@@ -55,7 +55,7 @@
             target.html = `<n-user-status user-id="${user.userId}"></n-user-status>`;
             await new Promise((r) => setTimeout(r, 100));
             const el = target.$("n-user-status");
-            const status = el.attr("status");
+            const status = el.status;
 
             return {
               assert: status === "error",
@@ -73,7 +73,7 @@
           {
             await new Promise((r) => setTimeout(r, 300));
             const el = $("#offline");
-            const status = el.attr("status");
+            const status = el.status;
 
             return {
               assert: status === "error",
