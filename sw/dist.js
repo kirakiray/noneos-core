@@ -608,6 +608,11 @@
       return fetch(`https://core.noneos.com/${afterHost}`);
     };
 
+    // 请求当前运行的网站（同域兜底）
+    const fetchCurrent = async () => {
+      return fetch(new URL(path, location.origin).href);
+    };
+
     // 从 OPFS 读取缓存（带元数据）
     const readCacheWithMeta = async () => {
       const [cachedFile, meta] = await Promise.all([
@@ -665,6 +670,21 @@
 
       return createResponse(new Blob([arrayBuffer]), path);
     } catch (error) {
+      // 官方源失败时，尝试直接请求当前运行的网站
+      try {
+        const currentResponse = await fetchCurrent();
+
+        if (currentResponse.ok) {
+          const arrayBuffer = await currentResponse.arrayBuffer();
+
+          updateCacheAsync(path, arrayBuffer, meta);
+
+          return createResponse(new Blob([arrayBuffer]), path);
+        }
+      } catch {
+        // 当前网站也失败，继续走旧缓存兜底
+      }
+
       // 网络失败时回退到旧缓存
       if (cachedFile) {
         return createResponse(cachedFile, path);
