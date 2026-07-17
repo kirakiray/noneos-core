@@ -3,7 +3,7 @@ const CERT_STORE_NAME = "certs";
 const CARD_STORE_NAME = "cards";
 const TRAFFIC_ENTRIES_STORE = "traffic_entries";
 const TRAFFIC_AGG_MINUTE_STORE = "traffic_agg_minute";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 // 数据库连接缓存池
 const dbCache = new Map();

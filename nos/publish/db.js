@@ -2,7 +2,7 @@
 // 每个 namespace 使用独立的数据库，数据库命名规则：nos_publish_data_<namespace>
 // 版本号从 1 开始
 
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const CHUNK_STORE = "file_chunks";
 const MANIFEST_STORE = "file_manifests";
 
