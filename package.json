@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
     "static": "http-server -p 3002 -c-1 --cors",
+    "static2": "http-server -p 30028 -c-1 --cors",
     "ws": "npm run ws1 & npm run ws2",
     "ws1": "cd server/rust && cargo run -- --config test-space/config.example.toml",
     "ws2": "cd server/rust && cargo run -- --config test-space/config2.toml",
