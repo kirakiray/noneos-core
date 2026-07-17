@@ -180,7 +180,7 @@ export const handleNcompRequest = async ({ path, request }) => {
       const { meta } = await readCacheWithMeta();
 
       // localhost 下需要确保缓存可靠写入，以便 3002 不可用时能回退
-      updateCacheAsync(path, arrayBuffer, meta);
+      await updateCacheAsync(path, arrayBuffer, meta);
 
       return createResponse(new Blob([arrayBuffer]), path);
     } catch {
@@ -211,19 +211,21 @@ export const handleNcompRequest = async ({ path, request }) => {
 
     return createResponse(new Blob([arrayBuffer]), path);
   } catch (error) {
-    // 官方源失败时，尝试直接请求当前运行的网站
-    try {
-      const currentResponse = await fetchCurrent();
+    // 非 localhost 环境下，官方源失败时尝试直接请求当前运行的网站（同域兜底）
+    if (!/^localhost:/.test(host)) {
+      try {
+        const currentResponse = await fetchCurrent();
 
-      if (currentResponse.ok) {
-        const arrayBuffer = await currentResponse.arrayBuffer();
+        if (currentResponse.ok) {
+          const arrayBuffer = await currentResponse.arrayBuffer();
 
-        updateCacheAsync(path, arrayBuffer, meta);
+          updateCacheAsync(path, arrayBuffer, meta);
 
-        return createResponse(new Blob([arrayBuffer]), path);
+          return createResponse(new Blob([arrayBuffer]), path);
+        }
+      } catch {
+        // 当前网站也失败，继续走旧缓存兜底
       }
-    } catch {
-      // 当前网站也失败，继续走旧缓存兜底
     }
 
     // 网络失败时回退到旧缓存
