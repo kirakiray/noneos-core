@@ -187,13 +187,19 @@
           await hsUserB.server.queryUserOnline(hsUrl, hsUserB.userId);
 
           // 轮询流量统计，直到至少有 3 个用户（管理员 + userA + userB）
-          // WebKit 下 WebSocket 处理可能较慢，需要重试
+          // WebKit 下 WebSocket 处理可能较慢，需要重试且需容忍偶发超时
           let hsResult = null;
           let hsUserCount = 0;
           const hsRetryMax = 20; // 增加到 20 次
           const hsRetryDelay = 300;
           for (let i = 0; i < hsRetryMax; i++) {
-            hsResult = await hsAdmin.getTrafficStats(hsUrl);
+            try {
+              hsResult = await hsAdmin.getTrafficStats(hsUrl);
+            } catch (e) {
+              // WebKit 偶发 query_response/admin_response 超时，跳过本次继续重试
+              await new Promise(r => setTimeout(r, hsRetryDelay));
+              continue;
+            }
             hsUserCount = hsResult?.traffic?.users?.length || 0;
             if (hsUserCount >= 3) break;
             await new Promise(r => setTimeout(r, hsRetryDelay));
@@ -273,10 +279,17 @@
           await relayUserB.server.connect(relayUrl);
 
           // 等待 relayUserB 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let relayTargetSession;
           for (let i = 0; i < 10; i++) {
-            const q = await relayAdmin.server.queryUserOnline(relayUrl, relayUserB.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await relayAdmin.server.queryUserOnline(relayUrl, relayUserB.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               relayTargetSession = q.sessions[0];
               break;
             }
@@ -369,10 +382,17 @@
           await tdUser.server.connect(tdUrl);
 
           // 等待 tdUser 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let tdSession;
           for (let i = 0; i < 10; i++) {
-            const q = await tdAdmin.server.queryUserOnline(tdUrl, tdUser.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await tdAdmin.server.queryUserOnline(tdUrl, tdUser.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               tdSession = q.sessions[0];
               break;
             }
@@ -452,10 +472,17 @@
           await corrUser.server.connect(corrUrl);
 
           // 等待 corrUser 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let corrSession;
           for (let i = 0; i < 10; i++) {
-            const q = await corrAdmin.server.queryUserOnline(corrUrl, corrUser.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await corrAdmin.server.queryUserOnline(corrUrl, corrUser.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               corrSession = q.sessions[0];
               break;
             }
@@ -552,10 +579,17 @@
           await histUser.server.connect(histUrl);
 
           // 等待 histUser 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let histSession;
           for (let i = 0; i < 10; i++) {
-            const q = await histAdmin.server.queryUserOnline(histUrl, histUser.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await histAdmin.server.queryUserOnline(histUrl, histUser.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               histSession = q.sessions[0];
               break;
             }

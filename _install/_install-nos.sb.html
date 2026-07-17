@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>nos-version 安装完成测试</title>
+    <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js/dist/ofa.js#debug"></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>nos-version — NoneOS Core 已安装场景</h1>
+    <p>本测试页需在 NoneOS Core 安装完成后打开。</p>
+
+    <nos-version auto-install></nos-version>
+
+    <script type="module">
+      const load = lm(import.meta);
+
+      window._nosVersion = null;
+
+      $("nos-version").on("installed", (e) => {
+        window._nosVersion = e.data.version;
+      });
+
+      await load("https://core.noneos.com/nos-tool/comps/nos-version.html");
+    </script>
+
+    <sb-test name="nos-version 安装完成，installed 事件携带版本号">
+      <template>
+        <script type="module">
+          {
+            // 等待 installed 事件触发
+            const version =
+              window._nosVersion ||
+              (await new Promise((resolve) => {
+                const check = () => {
+                  if (window._nosVersion) return resolve(window._nosVersion);
+                  setTimeout(check, 100);
+                };
+                check();
+              }));
+
+            return {
+              assert:
+                typeof version === "string" && version.length > 0,
+              content: { version },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
