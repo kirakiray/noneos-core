@@ -37,7 +37,7 @@
     "http-server": "^14.1.1",
     "playwright": "^1.59.1",
     "rollup": "^3.0.0",
-    "sibyl-test": "^1.0.11"
+    "sibyl-test": "^1.0.12"
   },
   "dependencies": {
     "selenium-webdriver": "^4.43.0"
