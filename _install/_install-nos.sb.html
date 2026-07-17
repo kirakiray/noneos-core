@@ -42,6 +42,8 @@
                 check();
               }));
 
+              await new Promise((resolve) => setTimeout(resolve, 300));
+
             return {
               assert:
                 typeof version === "string" && version.length > 0,

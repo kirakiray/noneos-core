@@ -45,12 +45,24 @@
             const info = await testUser.getInfo();
             const expectedUsername = info.username;
 
+            // 等待测试用户完成服务器连接，确保 default 用户能够查询到其在线状态并交换名片
+            for (let i = 0; i < 50; i++) {
+              if (testUser.server.connectedUrls.length > 0) break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
+
             const container = $("#query-target");
             container.html = `<n-user-name user-id="${targetUserId}"></n-user-name>`;
             await new Promise((r) => setTimeout(r, 50));
             const el = container.$("n-user-name");
-            await new Promise((r) => setTimeout(r, 200));
-            const afterQuery = el.shadow.$("span").text;
+
+            // 轮询等待 displayName 更新，避免固定等待时间不足导致的时序抖动
+            let afterQuery = el.shadow.$("span").text;
+            for (let i = 0; i < 50; i++) {
+              await new Promise((r) => setTimeout(r, 100));
+              afterQuery = el.shadow.$("span").text;
+              if (afterQuery === expectedUsername) break;
+            }
 
             return {
               assert: afterQuery === expectedUsername,

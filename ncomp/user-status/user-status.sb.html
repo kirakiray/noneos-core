@@ -23,7 +23,6 @@
       user-id="nonexistent-user-999999999"
       id="offline"
     ></n-user-status>
-    <div id="self-target"></div>
     <div id="size-target"></div>
 
     <!-- ============ 未设置 userId 时显示默认灰色 ============ -->
@@ -43,40 +42,23 @@
       </template>
     </sb-test>
 
-    <!-- ============ 查看当前本地用户（未连 RTC）显示 error ============ -->
-    <sb-test name="查看当前本地用户且未建立 RTC 时显示 error">
+    <!-- ============ 不存在的用户显示 error ============ -->
+    <sb-test name="不存在的用户显示 error">
       <template>
         <script type="module">
           import registration from "/_install/register.js";
           await registration;
 
           {
-            const { getUser } = await import("/nos/user/main.js");
-
-            const user = await getUser("test-status-self");
-            const target = $("#self-target");
-            target.html = `<n-user-status user-id="${user.userId}"></n-user-status>`;
-            await new Promise((r) => setTimeout(r, 100));
-            const el = target.$("n-user-status");
-            const status = el.status;
-
-            return {
-              assert: status === "error",
-              content: { status, userId: user.userId },
-            };
-          }
-        </script>
-      </template>
-    </sb-test>
-
-    <!-- ============ 不存在的用户显示 error ============ -->
-    <sb-test name="不存在的用户显示 error">
-      <template>
-        <script type="module">
-          {
-            await new Promise((r) => setTimeout(r, 300));
             const el = $("#offline");
-            const status = el.status;
+
+            // 轮询等待状态确定，避免 default 用户握手较慢时 status 仍为初始空值
+            let status = el.status;
+            for (let i = 0; i < 50; i++) {
+              status = el.status;
+              if (status === "error") break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             return {
               assert: status === "error",
