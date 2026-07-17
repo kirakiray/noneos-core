@@ -161,6 +161,29 @@ export const deleteUser = async (namespace, options = {}) => {
     }
   }
 
+  // 如果内存中已有 LocalUser 实例，先停用其埋点并断开 WebSocket
+  // 否则后台的 traffic.record / 服务器连接会持续通过 getSharedDb 重新打开数据库，
+  // 导致 indexedDB.deleteDatabase 被 onblocked 拦截。
+  const cachedUser = users.get(namespace);
+  if (cachedUser) {
+    try {
+      cachedUser.traffic.setEnabled(false);
+    } catch {
+      // 忽略清理错误
+    }
+    try {
+      cachedUser.server.disconnectAll();
+    } catch {
+      // 忽略清理错误
+    }
+    try {
+      await cachedUser.traffic.flush();
+    } catch {
+      // 忽略清理错误
+    }
+    users.delete(namespace);
+  }
+
   // 关闭缓存中的数据库连接
   closeDbByNamespace(namespace);
 

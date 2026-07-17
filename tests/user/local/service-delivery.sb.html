@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sendToService 精准投递与失败反馈测试</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>sendToService — 精准投递 / 失败反馈 / 服务上线通知</h1>
+
+  <!-- Test 1: no_receiver —— 对端在线但没有 session 注册目标 appId -->
+  <sb-test name="sendToService returns no_receiver when peer has no matching service">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD1A = "svc-delivery-1-a";
+        const nsD1B = "svc-delivery-1-b";
+        const urlD1 = "ws://localhost:8081";
+
+        const userD1A = new LocalUser(nsD1A);
+        const userD1B = new LocalUser(nsD1B);
+        await Promise.all([userD1A.ready(), userD1B.ready()]);
+        await Promise.all([
+          userD1A.server.connect(urlD1),
+          userD1B.server.connect(urlD1),
+        ]);
+
+        // userD1B 注册的是 other-app，而 A 打算发送 missing-app
+        userD1B.registerService("other-app", { onMessage() {} });
+
+        const remoteD1B = await userD1A.connectUser(userD1B.userId);
+        const resultsD1 = await remoteD1B.sendToService("missing-app", { hi: 1 });
+
+        const isNoReceiverD1 =
+          Array.isArray(resultsD1) &&
+          resultsD1.length === 1 &&
+          resultsD1[0].status === "no_receiver" &&
+          resultsD1[0].appId === "missing-app";
+
+        userD1A.server.disconnectAll();
+        userD1B.server.disconnectAll();
+
+        return {
+          assert: isNoReceiverD1,
+          content: {
+            message: isNoReceiverD1
+              ? "未注册接收者时正确返回 no_receiver"
+              : "未注册接收者未返回 no_receiver",
+            results: resultsD1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 精准投递 —— 只发给注册了 appId 的 session，不广播 -->
+  <sb-test name="sendToService only delivers to sessions with matching appId">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD2A = "svc-delivery-2-a";
+        const nsD2B = "svc-delivery-2-b";
+        const urlD2 = "ws://localhost:8081";
+
+        const userD2A = new LocalUser(nsD2A);
+        // B 用户有 2 个 session，只有 B1 注册了目标 appId
+        const userD2B1 = new LocalUser(nsD2B);
+        const userD2B2 = new LocalUser(nsD2B);
+        await Promise.all([userD2A.ready(), userD2B1.ready(), userD2B2.ready()]);
+        await Promise.all([
+          userD2A.server.connect(urlD2),
+          userD2B1.server.connect(urlD2),
+          userD2B2.server.connect(urlD2),
+        ]);
+
+        let b1ReceivedD2 = 0;
+        let b2ReceivedD2 = 0;
+        userD2B1.registerService("precise-app", {
+          onMessage() { b1ReceivedD2++; },
+        });
+        // B2 完全不注册 precise-app
+        userD2B2.registerService("other-app", { onMessage() {} });
+
+        const remoteD2B = await userD2A.connectUser(userD2B1.userId);
+        const resultsD2 = await remoteD2B.sendToService("precise-app", { n: 1 });
+
+        // 等待消息到达
+        for (let i = 0; i < 20; i++) {
+          if (b1ReceivedD2 > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 再等一会儿观察 B2 是否也误收（不应）
+        await new Promise((r) => setTimeout(r, 300));
+
+        const onlyOneDeliveredD2 = resultsD2.length === 1 && resultsD2[0].delivered === true;
+        const targetedB1D2 = resultsD2[0]?.sessionId === userD2B1.sessionId;
+        const b1GotD2 = b1ReceivedD2 === 1;
+        const b2NotGotD2 = b2ReceivedD2 === 0;
+
+        userD2A.server.disconnectAll();
+        userD2B1.server.disconnectAll();
+        userD2B2.server.disconnectAll();
+
+        const passD2 = onlyOneDeliveredD2 && targetedB1D2 && b1GotD2 && b2NotGotD2;
+        return {
+          assert: passD2,
+          content: {
+            message: passD2 ? "精准投递成功，仅命中注册 session" : "精准投递失败",
+            results: resultsD2,
+            checks: {
+              onlyOneDeliveredD2,
+              targetedB1D2,
+              expectedB1Session: userD2B1.sessionId,
+              actualSession: resultsD2[0]?.sessionId,
+              b1ReceivedD2,
+              b2ReceivedD2,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: unhandled_service_message 事件在未注册 appId 时被触发 -->
+  <sb-test name="unhandled_service_message event fires when appId not registered">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD3A = "svc-delivery-3-a";
+        const nsD3B = "svc-delivery-3-b";
+        const urlD3 = "ws://localhost:8081";
+
+        const userD3A = new LocalUser(nsD3A);
+        const userD3B = new LocalUser(nsD3B);
+        await Promise.all([userD3A.ready(), userD3B.ready()]);
+        await Promise.all([
+          userD3A.server.connect(urlD3),
+          userD3B.server.connect(urlD3),
+        ]);
+
+        // B 侧不注册任何服务，收集事件
+        const unhandledD3 = [];
+        userD3B.bind("unhandled_service_message", (e) => {
+          unhandledD3.push(e.detail);
+        });
+
+        // A 明确指定 sessionId 绕过服务发现，强制让 B 收到一条未注册 appId 的消息
+        const remoteD3B = await userD3A.connectUser(userD3B.userId);
+        await remoteD3B.sendToService("ghost-app", { text: "hi" }, {
+          sessionId: userD3B.sessionId,
+        });
+
+        // 等待事件
+        for (let i = 0; i < 20; i++) {
+          if (unhandledD3.length > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userD3A.server.disconnectAll();
+        userD3B.server.disconnectAll();
+
+        const gotD3 = unhandledD3.length === 1 &&
+          unhandledD3[0].appId === "ghost-app" &&
+          unhandledD3[0].fromUserId === userD3A.userId &&
+          unhandledD3[0].data?.text === "hi";
+
+        return {
+          assert: gotD3,
+          content: {
+            message: gotD3
+              ? "未处理消息事件正确触发"
+              : "未处理消息事件未触发或数据错误",
+            unhandled: unhandledD3,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: registerService 后 waitForService 能收到消息 -->
+  <sb-test name="waitForService picks up newly registered service via __service_available">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD4A = "svc-delivery-4-a";
+        const nsD4B = "svc-delivery-4-b";
+        const urlD4 = "ws://localhost:8081";
+
+        const userD4A = new LocalUser(nsD4A);
+        const userD4B = new LocalUser(nsD4B);
+        await Promise.all([userD4A.ready(), userD4B.ready()]);
+        await Promise.all([
+          userD4A.server.connect(urlD4),
+          userD4B.server.connect(urlD4),
+        ]);
+
+        // 让 A 和 B 建立通信
+        const remoteD4B = await userD4A.connectUser(userD4B.userId);
+
+        // B 侧还没注册目标服务
+        let deliveredD4 = null;
+
+        // A 侧发起 sendToService 并等待服务上线（3 秒内）
+        const sendPromiseD4 = remoteD4B.sendToService(
+          "late-app",
+          { greet: "hello" },
+          { waitForService: 3000 },
+        );
+
+        // 300ms 后 B 才注册服务并通过 __service_available 通知 A
+        setTimeout(() => {
+          userD4B.registerService("late-app", {
+            onMessage(data) { deliveredD4 = data; },
+          });
+        }, 300);
+
+        const resultsD4 = await sendPromiseD4;
+
+        // 等待消息真正到达
+        for (let i = 0; i < 20; i++) {
+          if (deliveredD4 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userD4A.server.disconnectAll();
+        userD4B.server.disconnectAll();
+
+        const anyDeliveredD4 = resultsD4.some((r) => r.delivered === true);
+        const dataOkD4 = deliveredD4?.greet === "hello";
+
+        const passD4 = anyDeliveredD4 && dataOkD4;
+        return {
+          assert: passD4,
+          content: {
+            message: passD4
+              ? "waitForService 成功等到服务上线并投递"
+              : "waitForService 未成功等到服务上线",
+            results: resultsD4,
+            delivered: deliveredD4,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 5: register 时 __service_available 主动推送更新对端缓存 -->
+  <sb-test name="registerService triggers __service_available on already-connected peers">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD5A = "svc-delivery-5-a";
+        const nsD5B = "svc-delivery-5-b";
+        const urlD5 = "ws://localhost:8081";
+
+        const userD5A = new LocalUser(nsD5A);
+        const userD5B = new LocalUser(nsD5B);
+        await Promise.all([userD5A.ready(), userD5B.ready()]);
+        await Promise.all([
+          userD5A.server.connect(urlD5),
+          userD5B.server.connect(urlD5),
+        ]);
+
+        // 建立 A 侧对 B 的 RemoteUser
+        const remoteD5B = await userD5A.connectUser(userD5B.userId);
+
+        // 让 B 也知道 A 存在（A 先发一条普通消息给 B，会在 B 端被动创建 RemoteUser）
+        await remoteD5B.send(userD5B.sessionId, { probe: 1 });
+        await new Promise((r) => setTimeout(r, 200));
+
+        // 此时 B 已缓存 remoteUsers[A]。B 注册服务，应该推送 __service_available 给 A
+        userD5B.registerService("push-app", { onMessage() {} });
+
+        // 等待 A 侧缓存被推送更新
+        await new Promise((r) => setTimeout(r, 300));
+
+        const resultsD5 = await remoteD5B.sendToService("push-app", { n: 42 });
+
+        userD5A.server.disconnectAll();
+        userD5B.server.disconnectAll();
+
+        const deliveredD5 = resultsD5.some(
+          (r) => r.delivered === true && r.sessionId === userD5B.sessionId,
+        );
+        return {
+          assert: deliveredD5,
+          content: {
+            message: deliveredD5
+              ? "服务上线推送已更新对端缓存"
+              : "服务上线推送未生效",
+            results: resultsD5,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 6: 指定 sessionId 保持原语义（不做服务发现，允许无差别投递） -->
+  <sb-test name="sendToService with explicit sessionId bypasses discovery">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsD6A = "svc-delivery-6-a";
+        const nsD6B = "svc-delivery-6-b";
+        const urlD6 = "ws://localhost:8081";
+
+        const userD6A = new LocalUser(nsD6A);
+        const userD6B = new LocalUser(nsD6B);
+        await Promise.all([userD6A.ready(), userD6B.ready()]);
+        await Promise.all([
+          userD6A.server.connect(urlD6),
+          userD6B.server.connect(urlD6),
+        ]);
+
+        let gotD6 = null;
+        userD6B.registerService("direct-app", {
+          onMessage(data) { gotD6 = data; },
+        });
+
+        const remoteD6B = await userD6A.connectUser(userD6B.userId);
+        const resultsD6 = await remoteD6B.sendToService(
+          "direct-app",
+          { text: "direct" },
+          { sessionId: userD6B.sessionId },
+        );
+
+        for (let i = 0; i < 20; i++) {
+          if (gotD6 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userD6A.server.disconnectAll();
+        userD6B.server.disconnectAll();
+
+        const okStatusD6 = resultsD6.length === 1 && resultsD6[0].status === "ok";
+        const arrivedD6 = gotD6?.text === "direct";
+
+        const passD6 = okStatusD6 && arrivedD6;
+        return {
+          assert: passD6,
+          content: {
+            message: passD6 ? "显式 sessionId 直投正常" : "显式 sessionId 直投失败",
+            results: resultsD6,
+            got: gotD6,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

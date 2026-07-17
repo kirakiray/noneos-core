@@ -25,9 +25,23 @@
    - [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
    - [server/rust/CONTEXT.md](server/rust/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
    - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
+   - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）
+   - [ncomp/CONTEXT.md](ncomp/CONTEXT.md) - ncomp 公共组件目录（可复用的 nos 相关 UI 组件）
 5. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致，避免后续 AI 基于过时信息工作。
-6. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
-7. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
+6. **同步 Skill 文档**：任何对外 API（`nos/` 下模块的导出方法、参数、行为语义等）发生改动后，**必须同步更新 `skills/noneos-core-docs/` 下对应的参考文档**（`references/*.md`），确保 Skill 知识库与源码保持一致，便于其他 AI 通过 Skill 正确使用 API。
+7. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
+8. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
+
+
+## 测试规范
+
+- **客户端测试框架**：项目使用 `sibyl-test` 作为客户端测试框架，测试用例以 `.sb.html` 文件形式编写，位于 `tests/` 目录下。
+- **测试义务**：开发完功能或组件后，应在 `tests/` 目录下找到对应的位置，补充编写 `.sb.html` 测试文件。
+- **执行前确认**：写完测试文件后，不要急于自动执行测试，应先询问开发者是否让 AI 执行自动化测试并根据反馈自动修复模块。
+- **快速反馈**：开发者同意后，优先使用 `npx sb-test -f <目标测试文件>.sb.html --browsers chrome` 在 Chrome 中快速测试，根据结果动态修复代码。
+- **运行测试**：执行 `npm test`（即 `sb-test`）可启动默认测试流程；`scripts/run-tests.js` 提供了基于 `sibyl-test` 的自定义多浏览器测试运行器。
+- **测试入口**：`tests/all.html` 汇总了部分核心测试用例，可在浏览器中手动运行验证。
+- **查阅 Skill**：在编写、修改或调试 `.sb.html` 测试前，必须先查阅 `sibyl-test` Skill 文档。
 
 
 ## 技能资源与导入 (Skill Resources)
@@ -47,6 +61,10 @@
   - 涉及存储数据（如 localStorage）时，应优先使用 EverCache 替代原生存储方案。
   - 使用前请检查本地是否有 ever-cache Skill，若无则需导入。
   - [Skill 在线文件](https://github.com/kirakiray/ever-cache/blob/main/skills/ever-cache/SKILL.md)
+- **sibyl-test**
+  - 该项目使用 `sibyl-test` 作为测试模块。
+  - 使用前请检查本地是否有 sibyl-test Skill，若无则需导入。
+  - [Skill 在线文件](https://raw.githubusercontent.com/ofajs/sibyl-test/refs/heads/main/skills/sibyl-test/SKILL.md)
 
 ### ⚠️ 导入注意事项
 

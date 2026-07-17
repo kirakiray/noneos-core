@@ -78,7 +78,7 @@ await mount(handle);        // 挂载到系统，路径变为 $mount-xxx>目录�
 
 更多详细操作参考：[文件系统 API 参考](references/fs-api.md)
 
-> ⚠️ **搭配 ofa.js 使用注意**：NoneOS 返回的 handle、`LocalUser`、`RemoteUser`、`DataPublisher`、`AppManager` 等均为类实例/复杂对象，属于 ofa.js 的**非响应式数据**。将其挂载到 ofa.js 组件的 `this` 上时，变量名必须以 `_` 开头（例如 `this._handle`、`this._user`、`this._publisher`），以避免被响应式系统转换，从而防止运行异常与性能问题。
+> ⚠️ **搭配 ofa.js 使用注意**：NoneOS 返回的 handle、`LocalUser`、`RemoteUser`、`DataPublisher` 等均为类实例/复杂对象，属于 ofa.js 的**非响应式数据**。将其挂载到 ofa.js 组件的 `this` 上时，变量名必须以 `_` 开头（例如 `this._handle`、`this._user`、`this._publisher`），以避免被响应式系统转换，从而防止运行异常与性能问题。
 
 ---
 
@@ -152,43 +152,6 @@ const result = await publisher.assembleFile(fileHash);
 
 更多参考：[DataPublisher 完整文档](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/nos/publish/README.md) | [测试用例](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/tests/publish/data-publisher.sb.html)
 
-## 核心功能 4：应用发布与管理 (AppManager)
-
-> ⚠️ **实验性 API（Experimental）**：AppManager 目前处于试验阶段，API 与数据结构可能在后续版本中发生**破坏性变更甚至被整体移除**。请勿在生产环境中依赖此模块。
-
-基于 DataPublisher 的应用发布管理模块，提供应用的创建、发布、发现、安装、升级、下架和推荐机制。
-
-```javascript
-import { AppManager } from "/nos/publish/app-manager.js";
-
-const user = await getUser("my-ns");
-const manager = new AppManager(user);
-manager.start();
-
-// 发布应用（两步：预览 → 确认发布）
-const handle = await init("my-app");
-const release = await manager.createRelease(handle, {
-  appName: "my-app",
-  version: "0.1.0",
-});
-// UI 展示 release 信息给用户确认
-const { appId } = await manager.publish(release);
-
-// 安装他人应用
-const manifest = await manager.fetchManifest(appId);
-await manager.installApp(manifest);
-
-// 通过 /$apps/{appName}-{appId}/ 访问已安装的应用
-
-// 检查更新
-const update = await manager.checkForUpdates(appId);
-if (update?.hasUpdate) {
-  await manager.installApp(update.manifest);
-}
-```
-
-更多参考：[AppManager API 参考](references/app-manager.md)
-
 更多详细操作参考：
 - [用户管理 API 参考](references/user-api.md)
 - [LocalUser 基础](references/local-user.md) — 创建、初始化、持久化、签名验证与无实例验签（`verifyData`）
@@ -206,6 +169,10 @@ if (update?.hasUpdate) {
 - [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
 - [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 
+### 流量统计
+
+- [客户端流量统计](references/traffic.md) — 埋点开关、明细/聚合查询、删除清理
+
 ---
 
 ## 其他参考
@@ -215,4 +182,5 @@ if (update?.hasUpdate) {
 - [AI 操作文档](references/ai.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
+- [公共组件文档 (ncomp)](references/ncomp.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)

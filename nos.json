@@ -1,7 +1,7 @@
 {
-  "version": "4.1.5",
+  "version": "4.2.0",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1783849615224,
+  "signTime": 1784312884297,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -139,24 +139,24 @@
       "size": 1452
     },
     {
+      "path": "n-icon/db.js",
+      "hash": "437c9c7e4b7d8b77da5de6139d448a6fc87ddb42b9d41c40ef8c8ceaf45a7f64",
+      "size": 1453
+    },
+    {
       "path": "n-icon/n-icon.html",
-      "hash": "234a70ea9de3fb3de7b1382a029b5a6ec3a0e68a1be5c020acf7ecc46dad18e2",
-      "size": 1583
+      "hash": "f62c25ef6267cfdcb535c2fda5f71f7d6eaa7e518527376a122faf9695eef8b1",
+      "size": 1463
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "1034a18a123da754f7df46fce5a68c864826809db767137dce4394a90613ffb3",
-      "size": 14441
+      "hash": "14ab4a395155ff77fe001919441ce26b22f66f24e12c8f59bc32f08bc0336140",
+      "size": 8707
     },
     {
       "path": "publish/README.md",
-      "hash": "df78aee1c14f80e3ee0a3d3447d2365d85753226005c68c4d9b792c750b307cc",
-      "size": 26254
-    },
-    {
-      "path": "publish/app-manager.js",
-      "hash": "199c0f010d57d935a195b1e3debdcf3461a78c2c186cb1e14d61258f07d76c85",
-      "size": 23745
+      "hash": "7aa1f86907500558ed813be8bd9e36c996926bcb18c37ce97f621187c3cf05f5",
+      "size": 12970
     },
     {
       "path": "publish/data-publisher.js",
@@ -165,8 +165,8 @@
     },
     {
       "path": "publish/db.js",
-      "hash": "05db5094a22e02bea0966c1ea4916943da0ba835bd01ccf0ebf7f3738e7c9660",
-      "size": 15698
+      "hash": "bcb2f62ab8f488324d7b78bc47d2cb0d16915f555e642cdf3bc63d01d8ddfc74",
+      "size": 6364
     },
     {
       "path": "root-cert.json",
@@ -175,8 +175,8 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "b5536fd9d0152b03e145858be1128b0d55469139766cc5581d276d92bd3f6337",
-      "size": 14032
+      "hash": "7156deac4531dfdb6adc09450111a0f8b81d1759ad3bffdb0f98fc5c1a6f4d37",
+      "size": 17630
     },
     {
       "path": "user/README.md",
@@ -205,18 +205,18 @@
     },
     {
       "path": "user/db.js",
-      "hash": "722724473b04f1293baef7507c3cd1109d49ccbcca7a614c6c20773a6569136b",
-      "size": 18189
+      "hash": "e0d8b9de07f11375e652b15fd518132cd273da80dd3f8946604b867e0335d25f",
+      "size": 20152
     },
     {
       "path": "user/main.js",
-      "hash": "d19be4ac862924d58ec10a8f88b6c54e40f267377e46943e2d6d0bbd80ccf071",
-      "size": 5890
+      "hash": "0f386fbd0afee3864cfcba931968035bf39fae4561f93f3a740cc482a30639b0",
+      "size": 6537
     },
     {
       "path": "user/remote-user.js",
-      "hash": "e860163253b14a36f4ad53ba91b2ab81216e39095d5ec01609e087d6a28e964b",
-      "size": 14621
+      "hash": "6ceceea03fcf9e5c1f4dac3cc7c5586d45c48379f09cbd4daba43814bbfa9c26",
+      "size": 23626
     },
     {
       "path": "user/rtc.js",
@@ -225,18 +225,23 @@
     },
     {
       "path": "user/server.js",
-      "hash": "c4a47d77e4fd38bde14cf4c0af1e087e67400f1c6562059652f9224392e9eaea",
-      "size": 31141
+      "hash": "ce492f354e4fcac752a2737e08edae276dbea3f59ca54db7a9e561088dc714a0",
+      "size": 34700
     },
     {
       "path": "user/service-registry.js",
-      "hash": "882683f455b2f523cdf18a19e0124ba8869797b1c8699ee1285785ec97895d5f",
-      "size": 3249
+      "hash": "67dd8da56eb97acbd0ebd739140042069cbb82a645179be77f5e899b512e3032",
+      "size": 4478
+    },
+    {
+      "path": "user/traffic.js",
+      "hash": "8ebdfc5e47ee35dd893fd3d5fcb66fa0c58f91e1c9ffbd1a1c637745747f7da6",
+      "size": 26646
     },
     {
       "path": "user/user.js",
-      "hash": "b736cf655ab524959db6bb4319f51e96257bb026084bc7945423d8e437da939d",
-      "size": 20301
+      "hash": "82fe0b01d1d0947eb1a8cf0d97a3ad70c945bf08aec99d2871c52fd88c560c5e",
+      "size": 26282
     },
     {
       "path": "util/async-pool.js",
@@ -284,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "hJ1mYOlTXG/Kn5nMUuw71MB7+jpXIr6LGJH+Fq/iyQ91d/bfELZkeJ74Yo4/2l9zO211OieafM1BGcEH7iL2uw=="
+  "signature": "R1PyTJSOrgL5b1u8I5t1N1yos5O0Cy7/b73VRszTafXgPQ/9Dms6YQtzT2e7SAPZXGJRzfd/gkG3pq/ztAR9Ug=="
 }

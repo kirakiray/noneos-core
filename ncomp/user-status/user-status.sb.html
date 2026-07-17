@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>user-status 组件测试</title>
+    <script
+      src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@latest/dist/ofa.mjs#debug"
+      type="module"
+    ></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>user-status 组件测试</h1>
+
+    <l-m src="./user-status.html"></l-m>
+
+    <!-- 各测试用例使用的静态元素 -->
+    <n-user-status id="empty"></n-user-status>
+    <n-user-status
+      user-id="nonexistent-user-999999999"
+      id="offline"
+    ></n-user-status>
+    <div id="size-target"></div>
+
+    <!-- ============ 未设置 userId 时显示默认灰色 ============ -->
+    <sb-test name="未设置 userId 时显示默认灰色">
+      <template>
+        <script type="module">
+          {
+            await new Promise((r) => setTimeout(r, 250));
+            const el = $("#empty");
+            const status = el.status;
+            return {
+              assert: status === "",
+              content: { status },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 不存在的用户显示 error ============ -->
+    <sb-test name="不存在的用户显示 error">
+      <template>
+        <script type="module">
+          import registration from "/_install/register.js";
+          await registration;
+
+          {
+            const el = $("#offline");
+
+            // 轮询等待状态确定，避免 default 用户握手较慢时 status 仍为初始空值
+            let status = el.status;
+            for (let i = 0; i < 50; i++) {
+              status = el.status;
+              if (status === "error") break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
+
+            return {
+              assert: status === "error",
+              content: { status },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <!-- ============ 通过 style 设置尺寸生效 ============ -->
+    <sb-test name="通过 style 设置圆点尺寸生效">
+      <template>
+        <script type="module">
+          {
+            const target = $("#size-target");
+            target.html = `<n-user-status style="width: 16px; height: 16px;"></n-user-status>`;
+            await new Promise((r) => setTimeout(r, 250));
+            const el = target.$("n-user-status");
+            const width = el.ele.offsetWidth;
+            const height = el.ele.offsetHeight;
+
+            return {
+              assert: width === 16 && height === 16,
+              content: { width, height },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
