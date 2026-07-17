@@ -211,8 +211,8 @@ export const handleNcompRequest = async ({ path, request }) => {
 
     return createResponse(new Blob([arrayBuffer]), path);
   } catch (error) {
-    // 非 localhost 环境下，官方源失败时尝试直接请求当前运行的网站（同域兜底）
-    if (!/^localhost:/.test(host)) {
+    // localhost 环境下，官方源失败时尝试直接请求当前运行的网站（同域兜底）
+    if (/^localhost:/.test(host)) {
       try {
         const currentResponse = await fetchCurrent();
 
