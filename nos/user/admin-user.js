@@ -13,35 +13,88 @@ export class AdminUser extends LocalUser {
    * @returns {Promise<Object>} 管理命令响应
    */
   async #adminCommand(url, action, extra = {}) {
-    await this.server.connect(url);
+    // 单次发送 + 等待响应；失败时由外层重试一次
+    const attempt = async () => {
+      await this.server.connect(url);
 
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-      const handler = (e) => {
-        let data;
-        try {
-          data = typeof e.detail.data === "string" ? JSON.parse(e.detail.data) : e.detail.data;
-        } catch {
-          return;
-        }
-        if (data?.type === "admin_response" && data.action === action) {
-          resolved = true;
-          unbind();
-          resolve(data);
-        }
-      };
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          settled = true;
+          unbindMessage();
+          unbindClose();
+          unbindDisconnected();
+          clearTimeout(timer);
+        };
 
-      const unbind = this.bind("message", handler);
+        const messageHandler = (e) => {
+          if (settled) return;
+          // 严格按 URL 过滤，避免其它服务器的消息干扰
+          if (e.detail?.url && e.detail.url !== url) return;
+          let data;
+          try {
+            data =
+              typeof e.detail.data === "string"
+                ? JSON.parse(e.detail.data)
+                : e.detail.data;
+          } catch {
+            return;
+          }
+          if (data?.type === "admin_response" && data.action === action) {
+            cleanup();
+            resolve(data);
+          }
+        };
 
-      this.server.sendToServer(url, JSON.stringify({ type: "admin", action, ...extra }));
+        const disconnectHandler = (e) => {
+          if (settled) return;
+          if (e.detail?.url && e.detail.url !== url) return;
+          cleanup();
+          reject(
+            new Error(
+              `Admin command "${action}" connection closed before response`,
+            ),
+          );
+        };
 
-      setTimeout(() => {
-        if (!resolved) {
-          unbind();
+        const unbindMessage = this.bind("message", messageHandler);
+        const unbindClose = this.bind("close", disconnectHandler);
+        const unbindDisconnected = this.bind(
+          "server_disconnected",
+          disconnectHandler,
+        );
+
+        const timer = setTimeout(() => {
+          if (settled) return;
+          cleanup();
           reject(new Error(`Admin command "${action}" timed out`));
+        }, 15000);
+
+        try {
+          this.server.sendToServer(
+            url,
+            JSON.stringify({ type: "admin", action, ...extra }),
+          );
+        } catch (err) {
+          if (settled) return;
+          cleanup();
+          reject(err);
         }
-      }, 15000);
-    });
+      });
+    };
+
+    try {
+      return await attempt();
+    } catch (err) {
+      // 偶发的 WebSocket 中途断开导致命令未收到响应时，重连后再重试一次
+      const message = err?.message || "";
+      const retriable =
+        message.includes("closed before response") ||
+        message.includes("is not open") ||
+        message.includes("timed out");
+      if (!retriable) throw err;
+      return attempt();
+    }
   }
 
   /**
