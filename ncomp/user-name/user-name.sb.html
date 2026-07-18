@@ -54,11 +54,16 @@
             const el = container.$("n-user-name");
 
             // 轮询等待 displayName 更新，避免固定等待时间不足导致的时序抖动
-            let afterQuery = el.shadow.$("span").text;
+            // 组件可能尚未初始化完成，el.shadow 可能为 null，用 try/catch 保护
+            let afterQuery;
             for (let i = 0; i < 50; i++) {
+              try {
+                afterQuery = el.shadow.$("span").text;
+                if (afterQuery === expectedUsername) break;
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
               await new Promise((r) => setTimeout(r, 100));
-              afterQuery = el.shadow.$("span").text;
-              if (afterQuery === expectedUsername) break;
             }
 
             return {
