@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>删除 OPFS 中的 test 开头目录</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 720px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #log {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            font-family: Menlo, monospace;
+            font-size: 13px;
+            min-height: 120px;
+        }
+    </style>
+</head>
+<body>
+    <h1>删除 OPFS 根目录中以 test 开头的目录</h1>
+    <p>点击下方按钮，将扫描 OPFS 根目录并删除所有名称以 <code>test</code> 开头的子目录。</p>
+    <button id="delete-btn">删除 test 开头的目录</button>
+    <div id="log">等待操作...</div>
+
+    <script>
+        const btn = document.getElementById('delete-btn');
+        const logEl = document.getElementById('log');
+
+        function log(msg) {
+            console.log(msg);
+            logEl.textContent += `\n${msg}`;
+        }
+
+        btn.addEventListener('click', async () => {
+            logEl.textContent = '开始扫描 OPFS 根目录...';
+            btn.disabled = true;
+            try {
+                const root = await navigator.storage.getDirectory();
+                const targets = [];
+                for await (const [name, handle] of root.entries()) {
+                    if (handle.kind === 'directory' && name.startsWith('test')) {
+                        targets.push(name);
+                    }
+                }
+
+                if (targets.length === 0) {
+                    log('未找到以 test 开头的目录。');
+                    return;
+                }
+
+                log(`找到 ${targets.length} 个匹配目录：${targets.join(', ')}`);
+                for (const name of targets) {
+                    try {
+                        await root.removeEntry(name, { recursive: true });
+                        log(`✓ 已删除：${name}`);
+                    } catch (err) {
+                        log(`✗ 删除失败：${name} - ${err.message}`);
+                    }
+                }
+                log('操作完成。');
+            } catch (err) {
+                log(`发生错误：${err.message}`);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
