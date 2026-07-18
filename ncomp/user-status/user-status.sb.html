@@ -30,11 +30,24 @@
       <template>
         <script type="module">
           {
-            await new Promise((r) => setTimeout(r, 250));
             const el = $("#empty");
-            const status = el.status;
+            // 轮询等待组件就绪，status 为空字符串即视为通过
+            let status;
+            let matched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                status = el.status;
+                if (status === "") {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // 组件尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
             return {
-              assert: status === "",
+              assert: matched,
               content: { status },
             };
           }
@@ -53,15 +66,23 @@
             const el = $("#offline");
 
             // 轮询等待状态确定，避免 default 用户握手较慢时 status 仍为初始空值
-            let status = el.status;
+            let status;
+            let matched = false;
             for (let i = 0; i < 50; i++) {
-              status = el.status;
-              if (status === "error") break;
+              try {
+                status = el.status;
+                if (status === "error") {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // 组件尚未就绪，忽略并等待下一轮
+              }
               await new Promise((r) => setTimeout(r, 100));
             }
 
             return {
-              assert: status === "error",
+              assert: matched,
               content: { status },
             };
           }
@@ -76,13 +97,29 @@
           {
             const target = $("#size-target");
             target.html = `<n-user-status style="width: 16px; height: 16px;"></n-user-status>`;
-            await new Promise((r) => setTimeout(r, 250));
+            await new Promise((r) => setTimeout(r, 50));
             const el = target.$("n-user-status");
-            const width = el.ele.offsetWidth;
-            const height = el.ele.offsetHeight;
+
+            // 轮询等待样式生效，宽高与设置一致即视为通过
+            let width;
+            let height;
+            let matched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                width = el.ele.offsetWidth;
+                height = el.ele.offsetHeight;
+                if (width === 16 && height === 16) {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // 组件尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             return {
-              assert: width === 16 && height === 16,
+              assert: matched,
               content: { width, height },
             };
           }
