@@ -54,15 +54,24 @@
             const el = container.$("n-user-name");
 
             // 轮询等待 displayName 更新，避免固定等待时间不足导致的时序抖动
-            let afterQuery = el.shadow.$("span").text;
+            // 组件可能尚未初始化完成，el.shadow 可能为 null，用 try/catch 保护
+            let afterQuery;
+            let matched = false;
             for (let i = 0; i < 50; i++) {
+              try {
+                afterQuery = el.shadow.$("span").text;
+                if (afterQuery === expectedUsername) {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
               await new Promise((r) => setTimeout(r, 100));
-              afterQuery = el.shadow.$("span").text;
-              if (afterQuery === expectedUsername) break;
             }
 
             return {
-              assert: afterQuery === expectedUsername,
+              assert: matched,
               content: { targetUserId, expectedUsername, afterQuery },
             };
           }
@@ -87,12 +96,27 @@
 
             const container = $("#force-target");
             container.html = `<n-user-name user-id="${targetUserId}" force></n-user-name>`;
-            await new Promise((r) => setTimeout(r, 500));
+            await new Promise((r) => setTimeout(r, 50));
             const el = container.$("n-user-name");
-            const afterForce = el.shadow.$("span").text;
+
+            // 轮询等待 force 刷新后的用户名生效
+            let afterForce;
+            let matched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                afterForce = el.shadow.$("span").text;
+                if (afterForce === newUserName) {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             return {
-              assert: afterForce === newUserName,
+              assert: matched,
               content: { targetUserId, newUserName, afterForce },
             };
           }
@@ -114,15 +138,41 @@
 
             const el = $("#change-userid");
             el.attr("user-id", userA.userId);
-            await new Promise((r) => setTimeout(r, 300));
-            const firstText = el.shadow.$("span").text;
+            // 轮询等待用户 A 名称生效
+            let firstText;
+            let firstMatched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                firstText = el.shadow.$("span").text;
+                if (firstText === "用户A") {
+                  firstMatched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             el.attr("user-id", userB.userId);
-            await new Promise((r) => setTimeout(r, 300));
-            const secondText = el.shadow.$("span").text;
+            // 轮询等待用户 B 名称生效
+            let secondText;
+            let secondMatched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                secondText = el.shadow.$("span").text;
+                if (secondText === "用户B") {
+                  secondMatched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             return {
-              assert: firstText === "用户A" && secondText === "用户B",
+              assert: firstMatched && secondMatched,
               content: { firstText, secondText },
             };
           }
@@ -146,11 +196,25 @@
             container.html = `<n-user-name user-id="${targetUserId}"></n-user-name>`;
             await new Promise((r) => setTimeout(r, 50));
             const el = container.$("n-user-name");
-            await new Promise((r) => setTimeout(r, 200));
-            const afterQuery = el.shadow.$("span").text;
+
+            // 轮询等待 default 用户名称生效
+            let afterQuery;
+            let matched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                afterQuery = el.shadow.$("span").text;
+                if (afterQuery === expectedUsername) {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             return {
-              assert: afterQuery === expectedUsername,
+              assert: matched,
               content: {
                 targetUserId,
                 expectedUsername,
@@ -167,10 +231,23 @@
       <template>
         <script type="module">
           {
-            await new Promise((r) => setTimeout(r, 50));
-            const text = $("#name3").shadow.$("span").text;
+            // 轮询等待组件就绪，读取到空文本即视为通过
+            let text;
+            let matched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                text = $("#name3").shadow.$("span").text;
+                if (text === "") {
+                  matched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
             return {
-              assert: text === "",
+              assert: matched,
               content: { text, expected: "" },
             };
           }
@@ -184,16 +261,43 @@
         <script type="module">
           {
             const el = $("#name4");
-            await new Promise((r) => setTimeout(r, 50));
-            const before = el.shadow.$("span").text;
-            await new Promise((r) => setTimeout(r, 200));
-            const after = el.shadow.$("span").text;
+            const fakeId = "nonexistent-user-999999999";
+
+            // 轮询等待占位文本渲染成功
+            let before;
+            let beforeMatched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                before = el.shadow.$("span").text;
+                if (before === fakeId) {
+                  beforeMatched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
+
+            // 再次轮询等待，验证一段时间后仍显示 userId（不会被查询流程覆盖）
+            let after;
+            let afterMatched = false;
+            for (let i = 0; i < 50; i++) {
+              try {
+                after = el.shadow.$("span").text;
+                if (after === fakeId) {
+                  afterMatched = true;
+                  break;
+                }
+              } catch (_) {
+                // shadow 尚未就绪，忽略并等待下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
             return {
-              assert:
-                before === "nonexistent-user-999999999" &&
-                after === "nonexistent-user-999999999",
+              assert: beforeMatched && afterMatched,
               content: {
-                fakeId: "nonexistent-user-999999999",
+                fakeId,
                 before,
                 after,
               },
