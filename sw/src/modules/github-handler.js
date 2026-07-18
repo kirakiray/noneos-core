@@ -1,6 +1,42 @@
 import { getFileHandle } from "./file-system.js";
 import { getContentType } from "./mime-types.js";
 
+const TTL = 5 * 60 * 1000; // 5 分钟
+
+// 每个路径上一次成功刷新时间（内存级 TTL）
+// SW 进程重启后清空，重启后首次命中缓存会额外触发一次后台刷新
+const lastRefreshAt = new Map();
+
+// 正在后台刷新中的路径集合，避免同一路径并发重复回源
+const refreshing = new Set();
+
+/**
+ * 后台从 CDN 拉取并覆盖本地缓存
+ * @param {string} path - 请求路径
+ * @param {string} rePath - 实际 CDN URL
+ */
+const refreshInBackground = (path, rePath) => {
+  if (refreshing.has(path)) return;
+  refreshing.add(path);
+
+  (async () => {
+    try {
+      const response = await fetch(rePath, { cache: "no-store" });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const targetHandle = await getFileHandle({ path, create: true });
+      const writeStream = await targetHandle.createWritable();
+      await writeStream.write(blob);
+      await writeStream.close();
+      lastRefreshAt.set(path, Date.now());
+    } catch (err) {
+      console.warn("[gh] background refresh failed:", path, err);
+    } finally {
+      refreshing.delete(path);
+    }
+  })();
+};
+
 /**
  * 从 GitHub 仓库获取文件
  * @param {Object} options - 选项
@@ -19,6 +55,11 @@ export const handleGitHubRequest = async ({ path }) => {
   if (targetHandle) {
     const fileStream = await targetHandle.getFile();
     if (fileStream.size) {
+      // 命中缓存：立即返回；仅当内存中无记录或已超过 TTL 时才触发后台刷新
+      const cachedAt = lastRefreshAt.get(path);
+      if (!cachedAt || Date.now() - cachedAt >= TTL) {
+        refreshInBackground(path, rePath);
+      }
       return new Response(fileStream, {
         headers: {
           "Content-Type": getContentType(path),
@@ -38,6 +79,7 @@ export const handleGitHubRequest = async ({ path }) => {
   const writeStream = await targetHandle.createWritable();
   await writeStream.write(blob);
   await writeStream.close();
+  lastRefreshAt.set(path, Date.now());
 
   // 转化为新的 Response 对象
   return new Response(blob, {
