@@ -25,10 +25,11 @@ sw/
 │   └── modules/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
-│       ├── ncomp-handle.js      # /ncomp/ 资源代理（官方源 + OPFS 缓存）
-│       ├── cdn-handler.js       # CDN 资源通用处理器（Stale-While-Revalidate + 内存 TTL）
+│       ├── ncomp-handle.js      # /ncomp/ 资源代理（SWR + hash 校验）
+│       ├── cdn-handler.js       # /gh/ /npm/ 资源处理器（调用 swr-cache）
 │       ├── github-handler.js    # /gh/ 资源代理（调用 cdn-handler）
 │       ├── npm-handler.js       # /npm/ 资源代理（调用 cdn-handler）
+│       ├── swr-cache.js         # SWR 缓存内核（内存 TTL + 后台刷新 + 去重）
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
 │       ├── mount-handle.js      # /\$mount-{id}>/ 挂载目录文件代理
 │       ├── file-system.js       # OPFS 根目录与文件句柄工具
@@ -44,9 +45,9 @@ sw/
 sw/src/main.js
 ├── handleNosRequest          (modules/nos-handle.js)
 ├── handleNosToolRequest      (modules/nostool-handle.js)
-├── handleNcompRequest        (modules/ncomp-handle.js)
-├── handleGitHubRequest       (modules/github-handler.js → cdn-handler.js)
-├── handleNpmRequest          (modules/npm-handler.js → cdn-handler.js)
+├── handleGitHubRequest       (modules/github-handler.js → cdn-handler.js → swr-cache.js)
+├── handleNpmRequest          (modules/npm-handler.js → cdn-handler.js → swr-cache.js)
+├── handleNcompRequest        (modules/ncomp-handle.js → swr-cache.js)
 ├── handleMountRequest        (modules/mount-handle.js)
 └── handleFileRequest         (modules/file-handler.js)
     └── getFileHandle         (modules/file-system.js)
@@ -100,11 +101,12 @@ sw/src/main.js
 
 ### 3. `/ncomp/` 资源代理策略（ncomp-handle.js）
 
-- **`localhost:*`（含 `localhost:3002`）**：优先将请求端口替换为 `3002` 再 fetch；成功后立即返回最新响应，并在后台异步将内容写入 OPFS `/ncomp/` 缓存，同时写入 `/nos-config/ncomp-meta/{path}.json` 元数据（`cachedAt`、`hash`）；`3002` 未启动或请求失败时，回退 OPFS 缓存，缓存未命中再请求官方源。
-- **非本地环境**：优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`；缓存未过期（5 分钟 TTL）则直接返回。
-  - 缓存过期或不存在时，请求 `https://core.noneos.com/` 对应路径，成功后**立即返回网络响应**。
-  - 后台异步计算响应内容的 SHA-256 hash，与元数据中的 hash 对比：有变化则更新 OPFS 缓存与元数据；无变化则仅刷新 `cachedAt` 以延长 TTL。
-  - 网络请求失败时，若 OPFS 中存在旧缓存，则返回旧缓存兜底。
+- **`localhost:*`（含 `localhost:3002`）**：优先将请求端口替换为 `3002` 再 fetch；成功后写入 OPFS 缓存和元数据（含 hash），调用 `markRefreshed` 更新内存 TTL；`3002` 未启动或请求失败时，回退到官方源或缓存路线。
+- **非本地环境**：采用 **Stale-While-Revalidate + 内存 TTL** 策略，与 gh/npm 共用 `swr-cache.js` 内核。
+  - 缓存命中且未过期（内存 TTL < 5 分钟）：直接返回，无网络请求。
+  - 缓存命中但过期：立即返回，后台异步 fetch 官方源；计算 SHA-256 hash，与 OPFS 元数据对比：hash 不变则跳过写盘、仅刷新元数据 `cachedAt`；hash 变化则更新 OPFS 缓存和元数据。
+  - 缓存未命中：同步 fetch 官方源，返回最新数据，写入 OPFS 缓存和元数据。
+  - 网络失败：回退到旧缓存兜底。
 
 ### 4. `/gh/` 与 `/npm/` 缓存策略
 
