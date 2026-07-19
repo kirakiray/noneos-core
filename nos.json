@@ -1,7 +1,7 @@
 {
-  "version": "4.2.2",
+  "version": "4.2.3",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1784473151087,
+  "signTime": 1784482449385,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -225,7 +225,7 @@
     },
     {
       "path": "user/server.js",
-      "hash": "ce492f354e4fcac752a2737e08edae276dbea3f59ca54db7a9e561088dc714a0",
+      "hash": "3f598f1093fd3c5d2b1513cdec88535d12bad3accfc6793b935b1204b6581448",
       "size": 34700
     },
     {
@@ -289,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "E9MunpvTTDv4RdzDrV8ZpGaHPZ4EMfxaJeiVK3bGp4f4EiNHHPzPsjpqkLigIMy5XJGtoX8H/OLRQdfaanCctw=="
+  "signature": "+eUNU25/OgvNQEc5Z2tEcQgds5Z0jNb9+68+8rH0yBKWziiYH+uJtImeWCyEWaE8j8xita0rtFtY4jm/oC5H9w=="
 }
