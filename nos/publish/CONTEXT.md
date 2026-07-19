@@ -13,11 +13,12 @@
 
 1. **内容寻址**：`chunkHash = SHA-256(chunkData)`；`fileHash = SHA-256(chunkHashes.join(""))`。相同内容必然产生相同哈希，天然去重。
 2. **签名清单**：manifest 由 `LocalUser._sign()` 签名；接收方 `verifyData()` 验签后才存入 DB，防篡改。
-3. **raw 模式**：协议消息（`data_publish` 类型）内容公开，通过 `remoteUser.send(sid, msg, true)` 第三参数 `true` 跳过 E2EE。
-4. **二进制高效传输**：chunk 数据走二进制 relay 通道（`server.relayToUserViaServer` 自动识别二进制并走二进制帧），无 base64 开销。
-5. **本地优先 + 远程兜底**：所有请求先查本地 IndexedDB，未命中才发起网络请求。
-6. **并发去重**：同一 `fileHash`/`chunkHash` 的并发请求自动合并为同一个 Promise。
-7. **sessionId 缓存与重试**：首次 `getSessionIds()` 后缓存；当前 session 断开自动失效缓存并重试一次。
+3. **自适应双通道**：请求方通过 `remoteUser.send(sid, msg, true)` 发送，`RemoteUser.send` 内部按 DataChannel 就绪状态自动选择 RTC / server relay；响应方**镜像请求来源的通道**回复（`url` 存在则走 `server.relayToUserViaServer`；`url` 为空则走 `remoteUser.send`）。RTC 就绪后大 chunk 走 P2P 直连，减轻服务器流量；未就绪时自动 fallback 到 relay。
+4. **接收端双绑定**：`start()` 同时监听 `LocalUser.message`（server relay）与 `LocalUser.rtc_message`（DataChannel），两者归一到 `#dispatchIncoming`。这是保证 RTC 请求也能被响应的关键 —— 若只绑 `message`，走 RTC 的请求接收端将收不到导致 15s 超时（历史 bug）。
+5. **二进制高效传输**：chunk 数据在 server relay 走二进制帧（`relayToUserViaServer` 自动识别），在 RTC 走 `dc.send(ArrayBuffer)`；两条路径都零 base64 开销。
+6. **本地优先 + 远程兜底**：所有请求先查本地 IndexedDB，未命中才发起网络请求。
+7. **并发去重**：同一 `fileHash`/`chunkHash` 的并发请求自动合并为同一个 Promise。
+8. **sessionId 缓存与重试**：首次 `getSessionIds()` 后缓存；当前 session 断开自动失效缓存并重试一次。
 
 ## 二、模块地图
 
@@ -78,12 +79,12 @@ File
 
 | 方向 | action / 形式 | 传输 |
 |------|--------------|------|
-| 请求方 -> 应答方 | `{type:"data_publish", action:"request_manifest", fileHash}` | 文本 relay，raw=true |
-| 请求方 -> 应答方 | `{type:"data_publish", action:"request_chunk", chunkHash}` | 文本 relay，raw=true |
-| 应答方 -> 请求方（manifest 存在） | 直接发送 manifest 对象（无 type/action，靠结构特征识别） | 文本 relay |
-| 应答方 -> 请求方（manifest 不存在） | `{type:"data_publish", action:"manifest_response", fileHash, error:"not_found"}` | 文本 relay |
-| 应答方 -> 请求方（chunk 存在） | 发送 chunk 原始 ArrayBuffer | **二进制 relay** |
-| 应答方 -> 请求方（chunk 不存在） | `{type:"data_publish", action:"chunk_response", chunkHash, error:"not_found"}` | 文本 relay |
+| 请求方 -> 应答方 | `{type:"data_publish", action:"request_manifest", fileHash}` | `remoteUser.send`（RTC 优先，否则 server relay），raw=true |
+| 请求方 -> 应答方 | `{type:"data_publish", action:"request_chunk", chunkHash}` | `remoteUser.send`（RTC 优先，否则 server relay），raw=true |
+| 应答方 -> 请求方（manifest 存在） | 直接发送 manifest 对象（无 type/action，靠结构特征识别） | 镜像来源通道 |
+| 应答方 -> 请求方（manifest 不存在） | `{type:"data_publish", action:"manifest_response", fileHash, error:"not_found"}` | 镜像来源通道 |
+| 应答方 -> 请求方（chunk 存在） | 发送 chunk 原始 ArrayBuffer | **二进制**：server relay 二进制帧 / RTC dc.send(ArrayBuffer) |
+| 应答方 -> 请求方（chunk 不存在） | `{type:"data_publish", action:"chunk_response", chunkHash, error:"not_found"}` | 镜像来源通道 |
 
 **二进制 chunk 识别**：二进制 relay 帧的 header 不携带 `chunkHash`，接收方收到二进制后**重新计算 SHA-256**，与当前请求的 `chunkHash` 比对，匹配即为响应。
 
@@ -91,18 +92,29 @@ File
 
 ### 3. 消息路由（start 内部）
 
+`start()` 同时绑定两条入站通道，归一到 `#dispatchIncoming`：
+
 ```
-user "message" 事件
-  └── #handleMessage(detail)
-        ├── detail.data 非 string -> 跳过（二进制由 requestChunk 的 remoteUser 监听器处理）
-        ├── JSON.parse -> parsed.type === "relay" 才处理
-        ├── parsed.data 是 manifest -> #handleManifestResponse（验签存 DB，resolve 请求）
-        ├── parsed.data.type === "data_publish"
-        │     ├── action="request_manifest" -> #handleRequestManifest（查 DB 回复）
-        │     ├── action="request_chunk"    -> #handleRequestChunk（查 DB 回复二进制/错误）
-        │     └── action="manifest_response"-> #rejectManifestRequest（错误响应）
-        └── chunk_response 错误同时分发到 RemoteUser，由 requestChunk 处理
+LocalUser.message 事件（server relay）              LocalUser.rtc_message 事件（DataChannel）
+  └── #handleRelayMessage(detail)                     └── #handleRtcMessage(detail)
+        ├── detail.data 非 string -> 跳过                 ├── data 非 string -> 跳过（二进制 chunk 由请求端匹配）
+        ├── JSON.parse -> parsed.type === "relay"         ├── JSON.parse
+        └── 提取 fromUserId/fromSessionId/detail.url      └── url 置为 null（标识 RTC 来源）
+              ↓                                                 ↓
+              └───────────► #dispatchIncoming({data, fromUserId, fromSessionId, url}) ◄─┘
+                              ├── isManifest(data) -> #handleManifestResponse（验签存 DB，resolve 请求）
+                              ├── data.type === "data_publish"
+                              │     ├── action="request_manifest" -> #handleRequestManifest
+                              │     ├── action="request_chunk"    -> #handleRequestChunk
+                              │     └── action="manifest_response"-> #rejectManifestRequest
+                              └── chunk_response 错误也会分发到 RemoteUser.message，由请求端 #doRequestChunk 处理
 ```
+
+`#sendResponse(fromUserId, fromSessionId, url, data)` 是响应端的统一出口：
+- `url != null` -> `server.relayToUserViaServer(url, ...)`（沿请求来的服务器返回）
+- `url == null` -> `remoteUser.send(sid, data, true)`（走 RTC；若断了自动 fallback 到 server）
+
+**二进制 chunk 响应的接收路径**：`server.relayToUserViaServer(chunkArrayBuffer)` 走 WS 二进制帧 -> `user.js` 解析 -> `RemoteUser.message`（二进制）；`dc.send(ArrayBuffer)` 走 RTC -> `user.js #setupRTCDispatch` -> `RemoteUser.message`（二进制）。两条路径最终都归到请求端 `#doRequestChunk` 的 `remoteUser.bind("message")` 监听器，通过重算 SHA-256 与请求 `chunkHash` 匹配。
 
 ### 4. 请求-响应匹配与并发去重
 
@@ -131,8 +143,8 @@ user "message" 事件
 
 | 依赖 | 用途 |
 |------|------|
-| `../user/main.js` (LocalUser) | `_sign` 签名、`bind("message")` 监听、`server.relayToUserViaServer` 中继回复 |
-| `../user/remote-user.js` (RemoteUser) | `send(sid, data, true)` raw 发送、`bind("message")` 接收二进制、`getSessionIds()` |
+| `../user/main.js` (LocalUser) | `_sign` 签名、`bind("message")` / `bind("rtc_message")` 双通道监听、`server.relayToUserViaServer` 响应回复、`_ensureRemoteUser` 供响应端复用 RemoteUser |
+| `../user/remote-user.js` (RemoteUser) | `send(sid, data, true)` 请求发起 / RTC 响应回复、`bind("message")` 匹配二进制 chunk 响应、`getSessionIds()` |
 | `../crypto/crypto-verify.js` (`verifyData`) | manifest 验签 |
 | `../util/hash/get-hash.js` (`getHash`) | chunk/file 哈希 |
 
@@ -142,8 +154,9 @@ user "message" 事件
 |-----------|---------|---------|
 | 签名 manifest | -> `LocalUser._sign` | nos/user |
 | 验签 manifest | -> `verifyData` | nos/crypto |
-| 请求/响应中继 | -> `RemoteUser.send(raw=true)` / `server.relayToUserViaServer` | nos/user |
-| 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` | nos/user + server/rust |
+| 请求发起 | -> `remoteUser.send(raw=true)`（内部选择 RTC / server relay） | nos/user |
+| 响应回复 | -> `server.relayToUserViaServer` 或 `remoteUser.send(raw=true)` | nos/user |
+| 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` 或 RTC `dc.send(ArrayBuffer)` | nos/user + server/rust |
 
 ## 九、与 README 的对应关系
 

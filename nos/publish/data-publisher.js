@@ -3,11 +3,18 @@
 // 基于 LocalUser 实现文件的分块发布、清单/块数据的请求与响应。
 // 协议消息类型为 "data_publish"，内容本身公开，不走 E2EE 加密。
 //
-// 消息流向：
-// - 请求方 -> 应答方：通过 remoteUser.send(sessionId, msg, true)（raw 模式跳过加密）
-// - 应答方 -> 请求方：通过 server.relayToUserViaServer(url, fromUserId, fromSessionId, data)
-//   - manifest / error 响应为 JSON，走文本 relay
-//   - chunk 二进制数据走二进制 relay（接收方 recalc hash 识别）
+// 消息流向（自适应 server relay 与 RTC 双通道）：
+// - 请求方 -> 应答方：通过 remoteUser.send(sessionId, msg, true)
+//   - RemoteUser.send 内部按 DataChannel 就绪状态自动选择 RTC / server relay
+//   - raw=true 跳过 E2EE（协议内容公开）
+// - 应答方 -> 请求方：镜像请求来源的通道回复
+//   - 请求来自 server relay（detail.url 存在）：通过 server.relayToUserViaServer 回复
+//   - 请求来自 RTC（detail.url 为空）：通过 remoteUser.send 回复（RTC 仍在则继续直连，减轻服务器流量）
+//
+// 双通道接收：
+// - LocalUser.message：server relay 通道的入站（文本/二进制 JSON）
+// - LocalUser.rtc_message：RTC DataChannel 通道的入站
+// 两者都可能收到 data_publish 请求或 manifest 响应；chunk 二进制响应由请求端在 RemoteUser.message 上监听匹配。
 
 import {
   saveChunk,
@@ -84,7 +91,8 @@ function isManifest(obj) {
  */
 export class DataPublisher {
   #user; // LocalUser 实例
-  #unbind; // start() 绑定的解绑函数
+  #unbindRelay; // start() 绑定 LocalUser.message 的解绑函数
+  #unbindRtc; // start() 绑定 LocalUser.rtc_message 的解绑函数
   #manifestRequestMap = new Map(); // fileHash -> { resolve, reject, timer }
   #chunkRequestMap = new Map(); // chunkHash -> Promise（去重并发请求）
   #sessionIdCache = new Map(); // remoteUser -> { sessionId, promise }
@@ -97,14 +105,26 @@ export class DataPublisher {
   }
 
   /**
-   * 启动监听：绑定 localUser 的 "message" 事件，处理 data_publish 协议消息
+   * 启动监听：同时绑定 server relay 与 RTC DataChannel 两条入站通道，
+   * 处理 data_publish 协议消息与 manifest 响应；chunk 二进制响应仍由请求端在 RemoteUser 上匹配。
+   * 幂等，重复调用无副作用。
    */
   start() {
-    if (this.#unbind) return;
+    if (this.#unbindRelay || this.#unbindRtc) return;
 
-    this.#unbind = this.#user.bind("message", (event) => {
-      this.#handleMessage(event.detail).catch((err) => {
-        console.warn("[DataPublisher] message handler error:", err.message);
+    // 1. server relay 入站（LocalUser.message：WS 消息，含二进制帧解析后）
+    this.#unbindRelay = this.#user.bind("message", (event) => {
+      this.#handleRelayMessage(event.detail).catch((err) => {
+        console.warn("[DataPublisher] relay handler error:", err.message);
+      });
+    });
+
+    // 2. RTC 直连入站（LocalUser.rtc_message：DataChannel 消息，尚未解密的原始数据）
+    // 用 rtc_message 而非 RemoteUser.message 是为了拿到 fromSessionId 并区分请求来源，
+    // 且 rtc_message 优先于 #dispatchToRemote，无需依赖对端 RemoteUser 缓存。
+    this.#unbindRtc = this.#user.bind("rtc_message", (event) => {
+      this.#handleRtcMessage(event.detail).catch((err) => {
+        console.warn("[DataPublisher] rtc handler error:", err.message);
       });
     });
   }
@@ -113,9 +133,13 @@ export class DataPublisher {
    * 停止监听
    */
   stop() {
-    if (this.#unbind) {
-      this.#unbind();
-      this.#unbind = null;
+    if (this.#unbindRelay) {
+      this.#unbindRelay();
+      this.#unbindRelay = null;
+    }
+    if (this.#unbindRtc) {
+      this.#unbindRtc();
+      this.#unbindRtc = null;
     }
     // 清理所有进行中的请求
     for (const { reject, timer, unbind } of this.#manifestRequestMap.values()) {
@@ -129,11 +153,10 @@ export class DataPublisher {
   }
 
   /**
-   * 处理 incoming message 事件
-   * 仅处理文本 relay（JSON），二进制帧由 user.js 解析后分发到 RemoteUser
+   * 处理 server relay 入站消息
+   * 只处理文本 relay（JSON），二进制帧由 user.js 解析后分发到 RemoteUser（chunk 响应在请求端匹配）
    */
-  async #handleMessage(detail) {
-    // 二进制数据（chunk 响应）由 requestChunk 的 remoteUser 监听器处理，这里跳过
+  async #handleRelayMessage(detail) {
     if (typeof detail.data !== "string") return;
 
     let parsed;
@@ -148,9 +171,47 @@ export class DataPublisher {
     const data = parsed.data;
     if (!data || typeof data !== "object") return;
 
-    const fromUserId = parsed.from_user_id;
-    const fromSessionId = parsed.from_session_id;
-    const url = detail.url;
+    await this.#dispatchIncoming({
+      data,
+      fromUserId: parsed.from_user_id,
+      fromSessionId: parsed.from_session_id,
+      url: detail.url, // server relay 来源：非空
+    });
+  }
+
+  /**
+   * 处理 RTC DataChannel 入站消息
+   * DataChannel 上发送的是 JSON 字符串（RemoteUser.#preparePayload 对纯对象序列化后 send）
+   * 或二进制（E2EE 加密后）。data_publish 协议不加密，因此 JSON 字符串直接可解析。
+   * 二进制 chunk 响应由请求端在 RemoteUser.message 上匹配，这里不处理。
+   */
+  async #handleRtcMessage(detail) {
+    const { fromUserId, fromSessionId, data } = detail;
+    if (typeof data !== "string") return;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return;
+    }
+
+    if (!parsed || typeof parsed !== "object") return;
+
+    await this.#dispatchIncoming({
+      data: parsed,
+      fromUserId,
+      fromSessionId,
+      url: null, // RTC 来源
+    });
+  }
+
+  /**
+   * 统一分发 incoming 消息（不关心传输通道）
+   * @param {{ data: Object, fromUserId: string, fromSessionId: string, url: string|null }} ctx
+   */
+  async #dispatchIncoming(ctx) {
+    const { data, fromUserId, fromSessionId, url } = ctx;
 
     // 1. manifest 响应（直接发送的 manifest 对象）
     if (isManifest(data)) {
@@ -352,6 +413,7 @@ export class DataPublisher {
     this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind: () => {} });
 
     try {
+      // 走 remoteUser.send：RTC 就绪时优先直连，否则自动 server relay
       await remoteUser.send(
         sid,
         { type: "data_publish", action: "request_manifest", fileHash },
@@ -520,7 +582,7 @@ export class DataPublisher {
         }
       });
 
-      // 发送请求（raw 模式跳过 E2EE）
+      // 发送请求（走 remoteUser.send：RTC 就绪时优先直连，否则自动 server relay；raw=true 跳过 E2EE）
       remoteUser
         .send(
           sid,
@@ -540,6 +602,29 @@ export class DataPublisher {
   // ───── 应答方：处理 incoming 请求 ─────
 
   /**
+   * 通用响应发送：镜像请求来源的通道
+   * - url != null（server relay 来源）：通过 server.relayToUserViaServer 回复
+   * - url == null（RTC 来源）：通过 remoteUser.send(sid, data, true) 回复；
+   *   若 RTC 仍然 open，走 DataChannel 直连（减轻服务器流量）；否则 send 内部 fallback 到 server。
+   */
+  async #sendResponse(fromUserId, fromSessionId, url, data) {
+    if (url) {
+      // server relay 来源：直接沿原服务器返回
+      await this.#user.server.relayToUserViaServer(
+        url,
+        fromUserId,
+        fromSessionId,
+        data,
+      );
+      return;
+    }
+
+    // RTC 来源：通过 remoteUser.send 回复；raw=true 跳过 E2EE（协议内容公开）
+    const remoteUser = await this.#user._ensureRemoteUser(fromUserId, "remote");
+    await remoteUser.send(fromSessionId, data, true);
+  }
+
+  /**
    * 处理 incoming 的 request_manifest：查 DB，回复 manifest 或 not_found 错误
    */
   async #handleRequestManifest(fileHash, fromUserId, fromSessionId, url) {
@@ -547,24 +632,14 @@ export class DataPublisher {
     try {
       if (manifest) {
         // 直接发送 manifest 对象
-        await this.#user.server.relayToUserViaServer(
-          url,
-          fromUserId,
-          fromSessionId,
-          manifest,
-        );
+        await this.#sendResponse(fromUserId, fromSessionId, url, manifest);
       } else {
-        await this.#user.server.relayToUserViaServer(
-          url,
-          fromUserId,
-          fromSessionId,
-          {
-            type: "data_publish",
-            action: "manifest_response",
-            fileHash,
-            error: "not_found",
-          },
-        );
+        await this.#sendResponse(fromUserId, fromSessionId, url, {
+          type: "data_publish",
+          action: "manifest_response",
+          fileHash,
+          error: "not_found",
+        });
       }
     } catch (err) {
       console.warn("[DataPublisher] Failed to send manifest response:", err.message);
@@ -578,25 +653,15 @@ export class DataPublisher {
     const chunkData = await getChunk(this.#user.namespace, chunkHash);
     try {
       if (chunkData) {
-        // 发送二进制 chunk 数据（relayToUserViaServer 对二进制自动走二进制 relay）
-        await this.#user.server.relayToUserViaServer(
-          url,
-          fromUserId,
-          fromSessionId,
-          chunkData,
-        );
+        // 发送二进制 chunk 数据（server relay 自动走二进制帧；RTC 通道原样 dc.send(ArrayBuffer)）
+        await this.#sendResponse(fromUserId, fromSessionId, url, chunkData);
       } else {
-        await this.#user.server.relayToUserViaServer(
-          url,
-          fromUserId,
-          fromSessionId,
-          {
-            type: "data_publish",
-            action: "chunk_response",
-            chunkHash,
-            error: "not_found",
-          },
-        );
+        await this.#sendResponse(fromUserId, fromSessionId, url, {
+          type: "data_publish",
+          action: "chunk_response",
+          chunkHash,
+          error: "not_found",
+        });
       }
     } catch (err) {
       console.warn("[DataPublisher] Failed to send chunk response:", err.message);
