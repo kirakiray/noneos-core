@@ -131,142 +131,197 @@
     }
   };
 
-  const TTL = 5 * 60 * 1000; // 5 分钟
-
-  // 每个路径上一次成功刷新时间（内存级 TTL）
-  // 过期条目在下次命中时被删除，Map 内仅保留最近 5 分钟内活跃的路径
-  const lastRefreshAt = new Map();
-
-  // 正在后台刷新中的路径集合，避免同一路径并发重复回源
-  const refreshing = new Set();
-
   /**
-   * 检查路径是否需要后台刷新
-   * 过期条目自动从 Map 中删除以回收内存
-   * @param {string} path
-   * @returns {boolean} true 表示需要触发刷新
-   */
-  function shouldRefresh(path) {
-    const cachedAt = lastRefreshAt.get(path);
-    if (cachedAt) {
-      if (Date.now() - cachedAt >= TTL) {
-        lastRefreshAt.delete(path);
-        return true;
-      }
-      return false;
-    }
-    return true; // 无记录（SW 重启或过期已清理）
-  }
-
-  /**
-   * 标记路径已刷新
-   * @param {string} path
-   */
-  function markRefreshed(path) {
-    lastRefreshAt.set(path, Date.now());
-  }
-
-  /**
-   * 后台刷新资源
+   * 统一的 SWR（Stale-While-Revalidate）资源处理器。
    *
-   * @param {Object} options
-   * @param {string} options.path  - 本地缓存路径
-   * @param {string} options.rePath - 回源 URL
-   * @param {string} [options.tag]  - 日志标签
-   * @param {(blob: Blob, path: string) => Promise<Blob|null|void>} [options.onWrite]
-   *        写入前回调，可返回：
-   *        - Blob：替换写入内容
-   *        - null：跳过写盘
-   *        - undefined：写入原始 blob
+   * 策略：
+   * - 缓存命中 & TTL 内   → 直接返回缓存
+   * - 缓存命中 & TTL 过期 → 立即返回缓存，后台刷新
+   * - 缓存未命中          → 同步网络请求，写盘后返回
+   * - 网络优先模式        → 每次都先请求网络，失败时回退缓存
+   *
+   * 内存级 TTL：仅保留最近 5 分钟内活跃的路径。SW 进程重启后清空。
    */
-  function refreshInBackground({ path, rePath, tag, onWrite }) {
+
+  const TTL = 5 * 60 * 1000;
+
+  // 所有 handler 共用一份状态
+  const lastRefreshAt = new Map(); // path -> 最近一次成功刷新时间
+  const refreshing = new Set(); // 正在后台刷新的路径，用于去重
+
+  /**
+   * 检查是否需要刷新；顺带回收过期条目
+   */
+  const shouldRefresh = (path) => {
+    const t = lastRefreshAt.get(path);
+    if (!t) return true;
+    if (Date.now() - t >= TTL) {
+      lastRefreshAt.delete(path);
+      return true;
+    }
+    return false;
+  };
+
+  /**
+   * 按顺序尝试多个源，返回第一个成功的 Blob
+   */
+  const fetchFromSources = async (sources) => {
+    let lastError;
+    for (const url of sources) {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) {
+          lastError = new Error(`${url}: ${response.status} ${response.statusText}`);
+          continue;
+        }
+        return await response.blob();
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("No source available");
+  };
+
+  /**
+   * 将 blob 写入 OPFS
+   */
+  const writeToCache = async (path, blob) => {
+    const targetHandle = await getFileHandle({ path, create: true });
+    const writeStream = await targetHandle.createWritable();
+    await writeStream.write(blob);
+    await writeStream.close();
+  };
+
+  /**
+   * 后台异步刷新（离线守卫 + 去重）
+   */
+  const refreshInBackground = (path, sources, tag) => {
     if (!navigator.onLine) return;
     if (refreshing.has(path)) return;
     refreshing.add(path);
 
     (async () => {
       try {
-        const response = await fetch(rePath, { cache: "no-store" });
-        if (!response.ok) return;
-        const blob = await response.blob();
-
-        const writeResult = onWrite ? await onWrite(blob, path) : blob;
-        if (writeResult !== null) {
-          const targetHandle = await getFileHandle({ path, create: true });
-          const writeStream = await targetHandle.createWritable();
-          await writeStream.write(writeResult ?? blob);
-          await writeStream.close();
-        }
-        // 无论是否写盘，都标记已刷新，避免重复回源
-        markRefreshed(path);
+        const blob = await fetchFromSources(sources);
+        await writeToCache(path, blob);
+        lastRefreshAt.set(path, Date.now());
       } catch (err) {
         console.warn(`[${tag}] background refresh failed:`, path, err);
       } finally {
         refreshing.delete(path);
       }
     })();
-  }
+  };
 
   /**
-   * @typedef {Object} CdnHandlerOptions
-   * @property {string} tag - 日志标签（如 "gh" / "npm"）
-   * @property {(path: string) => string} toCdnUrl - 将本地路径转为 CDN URL
+   * 读取 OPFS 缓存
+   * @returns {Promise<File|null>}
    */
+  const readCache = async (path) => {
+    const targetHandle = await getFileHandle({ path }).catch(() => null);
+    if (!targetHandle) return null;
+    const file = await targetHandle.getFile();
+    return file.size ? file : null;
+  };
+
+  const okResponse = (body, path) =>
+    new Response(body, { headers: { "Content-Type": getContentType(path) } });
+
+  const errResponse = (tag, err) =>
+    new Response(`Error fetching ${tag} resource: ${err.message || err}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
 
   /**
-   * 创建 CDN 资源处理器函数
-   * @param {CdnHandlerOptions} opts
-   * @returns {(ctx: { path: string }) => Promise<Response>}
+   * 创建统一的 SWR handler
+   *
+   * @param {Object} opts
+   * @param {string} opts.tag                    日志标签
+   * @param {(ctx: {path: string, request: Request}) => string[]} opts.resolveSources
+   *        返回按优先级排列的候选源 URL 数组
+   * @param {(ctx: {path: string, request: Request}) => boolean} [opts.networkFirstWhen]
+   *        返回 true 时改用"网络优先"模式（如 localhost dev）
    */
-  const createCdnHandler = (opts) => {
-    const { tag, toCdnUrl } = opts;
+  const createHandler = ({ tag, resolveSources, networkFirstWhen }) => {
+    return async ({ path, request }) => {
+      const ctx = { path, request };
+      const sources = resolveSources(ctx);
+      const networkFirst = networkFirstWhen ? networkFirstWhen(ctx) : false;
 
-    return async ({ path }) => {
-      const rePath = toCdnUrl(path);
-
-      let targetHandle = await getFileHandle({ path }).catch(() => null);
-
-      if (targetHandle) {
-        const fileStream = await targetHandle.getFile();
-        if (fileStream.size) {
-          if (shouldRefresh(path)) {
-            refreshInBackground({ path, rePath, tag });
-          }
-          return new Response(fileStream, {
-            headers: { "Content-Type": getContentType(path) },
-          });
+      // 网络优先：dev 模式下始终尝试网络，失败回退缓存
+      if (networkFirst) {
+        try {
+          const blob = await fetchFromSources(sources);
+          await writeToCache(path, blob);
+          lastRefreshAt.set(path, Date.now());
+          return okResponse(blob, path);
+        } catch {
+          const cached = await readCache(path);
+          if (cached) return okResponse(cached, path);
+          // 全部失败，落到下面的错误处理
         }
       }
 
+      // SWR：缓存优先，过期后台刷新
+      const cached = await readCache(path);
+      if (cached) {
+        if (shouldRefresh(path)) refreshInBackground(path, sources, tag);
+        return okResponse(cached, path);
+      }
+
+      // 缓存未命中：同步网络
       try {
-        const response = await fetch(rePath, { cache: "no-store" });
-        const blob = await response.blob();
-
-        targetHandle = await getFileHandle({ path, create: true });
-        const writeStream = await targetHandle.createWritable();
-        await writeStream.write(blob);
-        await writeStream.close();
-
-        return new Response(blob, {
-          headers: { "Content-Type": getContentType(path) },
-        });
-      } catch (error) {
-        console.error(`[${tag}] fetch failed:`, error);
-        return new Response(`Error fetching ${tag} resource: ${error.message}`, {
-          status: 500,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        });
+        const blob = await fetchFromSources(sources);
+        await writeToCache(path, blob);
+        lastRefreshAt.set(path, Date.now());
+        return okResponse(blob, path);
+      } catch (err) {
+        console.error(`[${tag}] fetch failed:`, err);
+        return errResponse(tag, err);
       }
     };
   };
 
+  // ---------- 具体 handler ----------
+
   /**
-   * 从 GitHub 仓库获取文件
-   * 映射 /gh/{user}/{repo}@{tag}/path → https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/path
+   * /gh/{user}/{repo}@{tag}/path → https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/path
    */
-  const handleGitHubRequest = createCdnHandler({
+  const handleGitHubRequest = createHandler({
     tag: "gh",
-    toCdnUrl: (path) => path.replace(/^\/gh\//, "https://cdn.jsdelivr.net/gh/"),
+    resolveSources: ({ path }) => [
+      path.replace(/^\/gh\//, "https://cdn.jsdelivr.net/gh/"),
+    ],
+  });
+
+  /**
+   * /npm/{package}@{version}/path → https://cdn.jsdelivr.net/npm/{package}@{version}/path
+   */
+  const handleNpmRequest = createHandler({
+    tag: "npm",
+    resolveSources: ({ path }) => [
+      path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/"),
+    ],
+  });
+
+  /**
+   * /ncomp/xxx
+   * - localhost dev：优先 localhost:3002 → 官方源 → 同域兜底（网络优先）
+   * - 生产环境：直接走官方源（SWR）
+   */
+  const handleNcompRequest = createHandler({
+    tag: "ncomp",
+    networkFirstWhen: () => /^localhost:/.test(location.host),
+    resolveSources: ({ path, request }) => {
+      const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+      const isDev = /^localhost:/.test(location.host);
+      return [
+        isDev ? request.url.replace(/:(\d+)/, ":3002") : null,
+        `https://core.noneos.com/${afterHost}`,
+        isDev ? new URL(path, location.origin).href : null,
+      ].filter(Boolean);
+    },
   });
 
   /**
@@ -299,15 +354,6 @@
       },
     });
   };
-
-  /**
-   * 从 NPM CDN 获取包文件
-   * 映射 /npm/{package}@{version}/path → https://cdn.jsdelivr.net/npm/{package}@{version}/path
-   */
-  const handleNpmRequest = createCdnHandler({
-    tag: "npm",
-    toCdnUrl: (path) => path.replace(/^\/npm\//, "https://cdn.jsdelivr.net/npm/"),
-  });
 
   // db相关的操作
   let _handleDB = null;
@@ -466,235 +512,6 @@
     }
 
     return returnOfficial();
-  };
-
-  const getHash = async (data) => {
-    if (!globalThis.crypto) {
-      // Node.js 环境
-      const crypto = await import('crypto');
-      if (typeof data === "string") {
-        data = new TextEncoder().encode(data);
-      } else if (data instanceof Blob) {
-        data = await data.arrayBuffer();
-      }
-      const hash = crypto.createHash("sha256");
-      hash.update(Buffer.from(data));
-      return hash.digest("hex");
-    } else {
-      // 浏览器环境
-      if (typeof data === "string") {
-        data = new TextEncoder().encode(data);
-      } else if (data instanceof Blob) {
-        data = await data.arrayBuffer();
-      }
-      const hash = await crypto.subtle.digest("SHA-256", data);
-      const hashArray = Array.from(new Uint8Array(hash));
-      const hashHex = hashArray
-        .map((bytes) => bytes.toString(16).padStart(2, "0"))
-        .join("");
-      return hashHex;
-    }
-  };
-
-  const META_DIR = "/nos-config/ncomp-meta";
-
-  /**
-   * 获取 ncomp 资源的元数据路径
-   */
-  const getMetaPath = (path) => {
-    const relativePath = path.replace(/^\/ncomp\//, "");
-    return `${META_DIR}/${relativePath}.json`;
-  };
-
-  /**
-   * 读取 ncomp 资源的元数据
-   * @returns {Promise<{cachedAt:number,hash:string}|null>}
-   */
-  const readMeta = async (path) => {
-    const targetHandle = await getFileHandle({ path: getMetaPath(path) }).catch(
-      () => null,
-    );
-    if (!targetHandle) return null;
-    const fileStream = await targetHandle.getFile();
-    if (!fileStream.size) return null;
-    try {
-      return JSON.parse(await fileStream.text());
-    } catch {
-      return null;
-    }
-  };
-
-  /**
-   * 写入 ncomp 资源的元数据
-   */
-  const writeMeta = async (path, meta) => {
-    try {
-      const targetHandle = await getFileHandle({
-        path: getMetaPath(path),
-        create: true,
-      });
-      const writeStream = await targetHandle.createWritable();
-      await writeStream.write(JSON.stringify(meta));
-      await writeStream.close();
-    } catch (err) {
-      console.error("Failed to write ncomp meta:", err);
-    }
-  };
-
-  /**
-   * 创建 Response 对象
-   */
-  const createResponse = (body, path) => {
-    return new Response(body, {
-      headers: { "Content-Type": getContentType(path) },
-    });
-  };
-
-  /**
-   * 写入缓存和元数据（首次缓存或内容变更后调用）
-   */
-  const writeCacheAndMeta = async (path, blob) => {
-    try {
-      const targetHandle = await getFileHandle({ path, create: true });
-      const writeStream = await targetHandle.createWritable();
-      await writeStream.write(blob);
-      await writeStream.close();
-    } catch (err) {
-      console.error("Failed to cache ncomp resource:", err);
-    }
-  };
-
-  /**
-   * 处理 /ncomp/ 资源请求
-   *
-   * 非 localhost 环境采用 Stale-While-Revalidate 策略：
-   * 缓存命中立即返回，后台异步刷新并校验 hash
-   */
-  const handleNcompRequest = async ({ path, request }) => {
-    const host = location.host;
-
-    // 请求官方源
-    const fetchOfficial = async () => {
-      const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
-      return fetch(`https://core.noneos.com/${afterHost}`);
-    };
-
-    // 请求当前运行的网站（同域兜底）
-    const fetchCurrent = async () => {
-      return fetch(new URL(path, location.origin).href);
-    };
-
-    // localhost 环境下，优先将 /ncomp/ 请求代理到 localhost:3002 的在线资源
-    if (/^localhost:/.test(host)) {
-      const newUrl = request.url.replace(/:(\d+)/, ":3002");
-
-      try {
-        const response = await fetch(newUrl);
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch ${newUrl}: ${response.status} ${response.statusText}`,
-          );
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const blob = new Blob([arrayBuffer]);
-        const hash = await getHash(arrayBuffer);
-
-        // 写入缓存和元数据
-        await writeCacheAndMeta(path, blob);
-        await writeMeta(path, { cachedAt: Date.now(), hash });
-        markRefreshed(path);
-
-        return createResponse(blob, path);
-      } catch {
-        // localhost:3002 未启动或请求失败，继续走缓存 / 官方源路线
-      }
-    }
-
-    // 读取 OPFS 缓存
-    let targetHandle = await getFileHandle({ path }).catch(() => null);
-    let cachedFile = null;
-    if (targetHandle) {
-      const fileStream = await targetHandle.getFile();
-      if (fileStream.size) cachedFile = fileStream;
-    }
-
-    // 缓存命中：SWR 模式，立即返回，后台异步刷新
-    if (cachedFile) {
-      if (shouldRefresh(path)) {
-        refreshInBackground({
-          path,
-          rePath: `https://core.noneos.com/${request.url.replace(/^https?:\/\/[^\/]+\//, "")}`,
-          tag: "ncomp",
-          onWrite: async (blob) => {
-            const arrayBuffer = await blob.arrayBuffer();
-            const hash = await getHash(arrayBuffer);
-            const meta = await readMeta(path);
-            if (meta && hash === meta.hash) {
-              // 内容未变：仅刷新 cachedAt，跳过写盘
-              await writeMeta(path, { ...meta, cachedAt: Date.now() });
-              return null;
-            }
-            // 内容已变：更新 OPFS 和元数据
-            await writeMeta(path, { cachedAt: Date.now(), hash });
-            return blob;
-          },
-        });
-      }
-      return createResponse(cachedFile, path);
-    }
-
-    // 缓存未命中：同步请求网络
-    try {
-      const response = await fetchOfficial();
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch official ncomp resource: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const blob = new Blob([arrayBuffer]);
-      const hash = await getHash(arrayBuffer);
-
-      // 写入缓存和元数据
-      await writeCacheAndMeta(path, blob);
-      await writeMeta(path, { cachedAt: Date.now(), hash });
-      markRefreshed(path);
-
-      return createResponse(blob, path);
-    } catch (error) {
-      // localhost 环境下，官方源失败时尝试同域兜底
-      if (/^localhost:/.test(host)) {
-        try {
-          const currentResponse = await fetchCurrent();
-          if (currentResponse.ok) {
-            const arrayBuffer = await currentResponse.arrayBuffer();
-            const blob = new Blob([arrayBuffer]);
-            const hash = await getHash(arrayBuffer);
-
-            await writeCacheAndMeta(path, blob);
-            await writeMeta(path, { cachedAt: Date.now(), hash });
-            markRefreshed(path);
-
-            return createResponse(blob, path);
-          }
-        } catch {
-          // 当前网站也失败，继续走兜底
-        }
-      }
-
-      // 网络失败时回退到旧缓存
-      if (cachedFile) {
-        return createResponse(cachedFile, path);
-      }
-
-      console.error("Error fetching ncomp resource:", error);
-      return new Response(`Error fetching ncomp resource: ${error.message}`, {
-        status: 500,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
   };
 
   // 当前系统的配置信息

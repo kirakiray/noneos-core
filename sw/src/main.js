@@ -1,10 +1,12 @@
-import { handleGitHubRequest } from "./modules/github-handler.js";
+import {
+  handleGitHubRequest,
+  handleNpmRequest,
+  handleNcompRequest,
+} from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
-import { handleNpmRequest } from "./modules/npm-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
 import { handleNosToolRequest } from "./modules/nostool-handle.js";
-import { handleNcompRequest } from "./modules/ncomp-handle.js";
 
 // 当前系统的配置信息
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};

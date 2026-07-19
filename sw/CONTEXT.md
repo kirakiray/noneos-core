@@ -11,9 +11,9 @@
 1. **统一拦截**：通过 `fetch` 事件监听同域及 `core.noneos.com` 的请求，按路径前缀分发到对应处理器。
 2. **多级缓存策略**：
    - `/nos/` 资源支持在线模式（直接 fetch）与本地模式（优先 OPFS 缓存，回退 fetch）。
-   - `/gh/`、`/npm/` 资源优先读取 OPFS 缓存，未命中时请求 jsDelivr CDN 并写入缓存。
+   - `/gh/`、`/npm/`、`/ncomp/` 资源统一使用 SWR + 内存 TTL 策略（见 `cache-handlers.js`）。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
-3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络，避免读取 OPFS 中的缓存资源；`/ncomp/` 请求统一代理到 `localhost:3002` 并写入 OPFS 缓存，仅在 `3002` 不可用时回退缓存。
+3. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络；`/ncomp/` 请求切换为"网络优先"，代理到 `localhost:3002`，失败时回退官方源和缓存。
 4. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos-config/system.json`，热更新 `systemConfig`。
 
 ## 二、模块地图
@@ -25,11 +25,7 @@ sw/
 │   └── modules/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
-│       ├── ncomp-handle.js      # /ncomp/ 资源代理（SWR + hash 校验）
-│       ├── cdn-handler.js       # /gh/ /npm/ 资源处理器（调用 swr-cache）
-│       ├── github-handler.js    # /gh/ 资源代理（调用 cdn-handler）
-│       ├── npm-handler.js       # /npm/ 资源代理（调用 cdn-handler）
-│       ├── swr-cache.js         # SWR 缓存内核（内存 TTL + 后台刷新 + 去重）
+│       ├── cache-handlers.js    # /gh/ /npm/ /ncomp/ 统一 SWR 处理器
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
 │       ├── mount-handle.js      # /\$mount-{id}>/ 挂载目录文件代理
 │       ├── file-system.js       # OPFS 根目录与文件句柄工具
@@ -45,9 +41,9 @@ sw/
 sw/src/main.js
 ├── handleNosRequest          (modules/nos-handle.js)
 ├── handleNosToolRequest      (modules/nostool-handle.js)
-├── handleGitHubRequest       (modules/github-handler.js → cdn-handler.js → swr-cache.js)
-├── handleNpmRequest          (modules/npm-handler.js → cdn-handler.js → swr-cache.js)
-├── handleNcompRequest        (modules/ncomp-handle.js → swr-cache.js)
+├── handleGitHubRequest       (modules/cache-handlers.js)
+├── handleNpmRequest          (modules/cache-handlers.js)
+├── handleNcompRequest        (modules/cache-handlers.js)
 ├── handleMountRequest        (modules/mount-handle.js)
 └── handleFileRequest         (modules/file-handler.js)
     └── getFileHandle         (modules/file-system.js)
@@ -69,10 +65,10 @@ sw/src/main.js
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
 | `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
-| `/ncomp/` | `ncomp-handle.js` | ncomp 公共组件资源代理；非本地环境 5 分钟 TTL + SHA-256 hash 对比，过期后网络优先并异步更新 OPFS；localhost 优先代理到 3002 |
+| `/ncomp/` | `cache-handlers.js` | ncomp 公共组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
-| `/gh/` | `github-handler.js` | GitHub 仓库文件代理，映射到 jsDelivr |
-| `/npm/` | `npm-handler.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
+| `/gh/` | `cache-handlers.js` | GitHub 仓库文件代理，映射到 jsDelivr |
+| `/npm/` | `cache-handlers.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
 | `/\$mount-/` | `mount-handle.js` | 本地挂载目录文件代理 |
 | `/\$/` | `file-handler.js` | 本地 OPFS 文件代理 |
 
@@ -99,40 +95,39 @@ sw/src/main.js
 - **其他 `localhost:*`**：将请求端口替换为 `3002` 再 fetch，失败则回退官方源。
 - **非本地环境**：请求 `https://core.noneos.com/` 对应路径。
 
-### 3. `/ncomp/` 资源代理策略（ncomp-handle.js）
+### 3. `/gh/` `/npm/` `/ncomp/` 统一 SWR 策略（cache-handlers.js）
 
-- **`localhost:*`（含 `localhost:3002`）**：优先将请求端口替换为 `3002` 再 fetch；成功后写入 OPFS 缓存和元数据（含 hash），调用 `markRefreshed` 更新内存 TTL；`3002` 未启动或请求失败时，回退到官方源或缓存路线。
-- **非本地环境**：采用 **Stale-While-Revalidate + 内存 TTL** 策略，与 gh/npm 共用 `swr-cache.js` 内核。
-  - 缓存命中且未过期（内存 TTL < 5 分钟）：直接返回，无网络请求。
-  - 缓存命中但过期：立即返回，后台异步 fetch 官方源；计算 SHA-256 hash，与 OPFS 元数据对比：hash 不变则跳过写盘、仅刷新元数据 `cachedAt`；hash 变化则更新 OPFS 缓存和元数据。
-  - 缓存未命中：同步 fetch 官方源，返回最新数据，写入 OPFS 缓存和元数据。
-  - 网络失败：回退到旧缓存兜底。
+三者共用同一个 `createHandler` 工厂，共享同一份模块级状态（`lastRefreshAt: Map` 与 `refreshing: Set`）。
 
-### 4. `/gh/` 与 `/npm/` 缓存策略
+**核心机制**：
+- **缓存命中 & TTL < 5 分钟**：直接返回缓存，无网络请求。
+- **缓存命中 & TTL 过期或无记录**：立即返回旧缓存，后台异步刷新。
+  - 后台刷新有 `navigator.onLine` 守卫（离线跳过）和 `refreshing: Set` 去重（并发合并）。
+  - 过期条目在检测到时立即从 `lastRefreshAt` 中删除，实现内存自动回收。
+- **缓存未命中**：同步按候选源顺序 fetch，写盘后返回。
+- **网络优先模式**（`networkFirstWhen` 返回 true 时启用）：始终先尝试网络，失败才回退缓存。
 
-- 路径映射：
-  - `/gh/{user}/{repo}@{tag}/path` → `https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/path`
-  - `/npm/{package}@{version}/path` → `https://cdn.jsdelivr.net/npm/{package}@{version}/path`
-- **Stale-While-Revalidate + 内存级 5 分钟 TTL**：命中 OPFS 缓存立即返回；TTL 状态保存在模块内 `Map<path, cachedAt>` 中。
-  - 有记录且未过期：不做任何操作，直接返回缓存。
-  - 有记录但已过期：从 Map 中删除该条目以回收内存，同时触发后台刷新。
-  - 无记录（SW 重启或过期已清理）：触发后台刷新。
-- 后台刷新使用 `navigator.onLine` 守卫，离线时静默跳过，不浪费请求也不打错误日志。
-- 后台刷新使用模块级 `Set<path>` 去重，同一路径并发请求只会触发一次实际回源。
-- 缓存未命中时同步请求 CDN，写入 OPFS 后再返回。
+**每个 handler 的差异只有两个参数**：
+- `resolveSources({ path, request })`：返回按优先级排列的候选源 URL 数组。
+- `networkFirstWhen({ path, request })`：可选，返回 true 时启用网络优先。
 
-### 5. `/\$/` 本地文件代理（file-handler.js）
+**具体路径映射**：
+- `/gh/{path}` → `https://cdn.jsdelivr.net/gh/{path}`（单源，SWR）
+- `/npm/{path}` → `https://cdn.jsdelivr.net/npm/{path}`（单源，SWR）
+- `/ncomp/{path}` → 生产环境走 `https://core.noneos.com/...`（SWR）；localhost dev 环境启用网络优先，候选源依次为 `localhost:3002` → 官方源 → 同域兜底。
+
+### 4. `/\$/` 本地文件代理（file-handler.js）
 
 - 去除前缀 `/\$` 后作为 OPFS 路径读取文件。
 - 文件不存在或为空返回 404。
 
-### 6. `/\$mount-{id}>/` 挂载目录代理（mount-handle.js）
+### 5. `/\$mount-{id}>/` 挂载目录代理（mount-handle.js）
 
 - 从 IndexedDB 加载已持久化的挂载句柄（复用 `nos/fs/handle/mount/db.js`）。
 - 按挂载根目录后的相对路径逐级定位文件；目录 URL 自动补全 `index.html`。
 - 失败返回 400 并附带错误堆栈。
 
-### 7. 配置热更新
+### 6. 配置热更新
 
 - `systemConfig` 初始为空对象，激活后 1s 自动加载。
 - `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置。
