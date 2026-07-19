@@ -111,8 +111,11 @@ sw/src/main.js
 - 路径映射：
   - `/gh/{user}/{repo}@{tag}/path` → `https://cdn.jsdelivr.net/gh/{user}/{repo}@{tag}/path`
   - `/npm/{package}@{version}/path` → `https://cdn.jsdelivr.net/npm/{package}@{version}/path`
-- **Stale-While-Revalidate + 内存级 5 分钟 TTL**：命中 OPFS 缓存立即返回；TTL 状态保存在模块内 `Map<path, cachedAt>` 中，仅当无记录或超过 5 分钟才触发后台 `fetch`（`cache: "no-store"`）覆盖 OPFS 并更新时间戳。下次访问即可拿到最新内容，从而避免 `@latest`、分支名等可变引用永远读不到新版本。
-- TTL 记录随 SW 进程存活，SW 重启（浏览器回收/更新等）后清空；重启后该路径首次命中缓存会额外触发一次后台刷新，之后 5 分钟内不再回源。
+- **Stale-While-Revalidate + 内存级 5 分钟 TTL**：命中 OPFS 缓存立即返回；TTL 状态保存在模块内 `Map<path, cachedAt>` 中。
+  - 有记录且未过期：不做任何操作，直接返回缓存。
+  - 有记录但已过期：从 Map 中删除该条目以回收内存，同时触发后台刷新。
+  - 无记录（SW 重启或过期已清理）：触发后台刷新。
+- 后台刷新使用 `navigator.onLine` 守卫，离线时静默跳过，不浪费请求也不打错误日志。
 - 后台刷新使用模块级 `Set<path>` 去重，同一路径并发请求只会触发一次实际回源。
 - 缓存未命中时同步请求 CDN，写入 OPFS 后再返回。
 

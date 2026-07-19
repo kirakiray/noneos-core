@@ -134,6 +134,7 @@
   const TTL$1 = 5 * 60 * 1000; // 5 分钟
 
   // 每个路径上一次成功刷新时间（内存级 TTL）
+  // 过期条目在下次命中时被删除，Map 内仅保留最近 5 分钟内活跃的路径
   const lastRefreshAt = new Map();
 
   // 正在后台刷新中的路径集合，避免同一路径并发重复回源
@@ -154,9 +155,10 @@
     const { tag, toCdnUrl } = opts;
 
     /**
-     * 后台从 CDN 拉取并覆盖本地缓存
+     * 后台从 CDN 拉取并覆盖本地缓存（离线时静默跳过）
      */
     const refreshInBackground = (path, rePath) => {
+      if (!navigator.onLine) return;
       if (refreshing.has(path)) return;
       refreshing.add(path);
 
@@ -186,8 +188,15 @@
       if (targetHandle) {
         const fileStream = await targetHandle.getFile();
         if (fileStream.size) {
+          // 检查 TTL：过期条目从 Map 中删除回收内存，未过期则不做任何操作
           const cachedAt = lastRefreshAt.get(path);
-          if (!cachedAt || Date.now() - cachedAt >= TTL$1) {
+          if (cachedAt) {
+            if (Date.now() - cachedAt >= TTL$1) {
+              lastRefreshAt.delete(path);
+              refreshInBackground(path, rePath);
+            }
+          } else {
+            // 无记录（SW 重启或过期已清理），触发后台刷新
             refreshInBackground(path, rePath);
           }
           return new Response(fileStream, {
