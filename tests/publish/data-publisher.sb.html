@@ -1102,9 +1102,9 @@
   </sb-test>
 
   <!-- 测试 16：RTC 通道就绪后请求 manifest/chunk 应仍能成功 -->
-  <!-- 复现猜测：DataPublisher.start() 只监听 LocalUser.message（server relay），
-       不监听 rtc_message；一旦 remoteUser.send() 走 RTC，接收端拿不到请求 → 超时。
-       期望：assert=true（请求成功）。若 assert=false 则证明 bug 复现。 -->
+  <!-- 回归测试：DataPublisher 现在同时监听 LocalUser.message 和 rtc_message，
+       响应端镜像请求来源的通道回复。RTC 通道就绪后请求应能通过 RTC 直连完成。
+       期望：assert=true（请求成功）。 -->
   <sb-test name="Request Over RTC Channel Should Work Test">
     <template>
       <script type="module">
