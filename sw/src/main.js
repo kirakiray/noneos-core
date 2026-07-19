@@ -12,7 +12,7 @@ import { handleNosToolRequest } from "./modules/nostool-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-const NONEOS_CORE_VERSION = "noneos-core@4.2.0";
+const NONEOS_CORE_VERSION = "noneos-core@4.2.1";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
