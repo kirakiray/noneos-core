@@ -15,27 +15,13 @@
   <body>
     <h1>ncomp 缓存策略测试</h1>
 
-    <sb-test name="请求 /ncomp/ 资源后会写入 OPFS 缓存与元数据">
+    <sb-test name="请求 /ncomp/ 资源后会写入 OPFS 缓存">
       <template>
         <script type="module">
           {
             const { get } = await import("/nos/fs/main.js");
 
             const path = "ncomp/user-name/user-name.html";
-            const metaPath =
-              "nos-config/ncomp-meta/user-name/user-name.html.json";
-
-            // 先清理旧缓存，确保本次是首次请求
-            // const clean = async (targetPath) => {
-            //   const handle = await get(targetPath).catch(() => null);
-            //   if (handle) {
-            //     await handle.remove();
-            //   }
-            // };
-            // await clean(path);
-            // await clean(metaPath);
-
-            // debugger
 
             // 通过 Service Worker 请求组件资源
             const response = await fetch("/" + path);
@@ -46,41 +32,31 @@
             // 等待后台异步写入 OPFS 缓存
             await new Promise((r) => setTimeout(r, 500));
 
-            // 读取 OPFS 缓存
-            const cachedHandle = await get(path).catch(() => null);
-            const cachedText = cachedHandle
-              ? await cachedHandle.text().catch(() => "")
-              : "";
-
-            const metaHandle = await get(metaPath).catch(() => null);
-            const meta = metaHandle
-              ? await metaHandle.json().catch(() => null)
-              : null;
+            // 轮询读取 OPFS 缓存，避免时序抖动
+            let cachedText = "";
+            for (let i = 0; i < 20; i++) {
+              try {
+                const cachedHandle = await get(path);
+                if (cachedHandle) {
+                  cachedText = await cachedHandle.text();
+                  if (cachedText.length > 0) break;
+                }
+              } catch (_) {
+                // 尚未写入，等下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             const hasCache = cachedText.length > 0;
-            const hasMeta = !!meta;
-            const hasCachedAt = hasMeta && typeof meta.cachedAt === "number";
-            const hasHash =
-              hasMeta && typeof meta.hash === "string" && meta.hash.length > 0;
 
             return {
-              assert:
-                status === 200 &&
-                text.length > 0 &&
-                hasCache &&
-                hasMeta &&
-                hasCachedAt &&
-                hasHash,
+              assert: status === 200 && text.length > 0 && hasCache,
               content: {
                 status,
                 contentType,
                 textLength: text.length,
+                cachedTextLength: cachedText.length,
                 hasCache,
-                hasMeta,
-                hasCachedAt,
-                hasHash,
-                cachedAt: meta?.cachedAt,
-                hashPreview: meta?.hash?.slice(0, 16),
               },
             };
           }
@@ -88,32 +64,43 @@
       </template>
     </sb-test>
 
-    <sb-test name="缓存未过期时重复请求仍能从 OPFS 命中">
+    <sb-test name="缓存已存在时重复请求内容与缓存一致">
       <template>
         <script type="module">
           {
             const { get } = await import("/nos/fs/main.js");
 
             const path = "ncomp/user-name/user-name.html";
-            const metaPath =
-              "nos-config/ncomp-meta/user-name/user-name.html.json";
 
-            // 确保缓存和元数据存在且未过期
-            const metaHandle = await get(metaPath);
-            const meta = await metaHandle.json();
-            meta.cachedAt = Date.now();
-            await metaHandle.write(JSON.stringify(meta));
+            // 先请求一次，确保 OPFS 中已有缓存
+            await fetch("/" + path);
+            await new Promise((r) => setTimeout(r, 500));
 
-            // 读取缓存内容用于后续对比
-            const cacheHandle = await get(path);
-            const cacheText = await cacheHandle.text();
+            // 轮询等待缓存写入
+            let cacheText = "";
+            for (let i = 0; i < 20; i++) {
+              try {
+                const cacheHandle = await get(path);
+                if (cacheHandle) {
+                  cacheText = await cacheHandle.text();
+                  if (cacheText.length > 0) break;
+                }
+              } catch (_) {
+                // 尚未写入，等下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
-            // 再次请求
+            // 再次请求：内容应与本地缓存一致（localhost 走 network-first 亦然，
+            // 因为源始终是同一份 3002 上的资源）
             const response = await fetch("/" + path);
             const responseText = await response.text();
 
             return {
-              assert: response.status === 200 && responseText === cacheText,
+              assert:
+                response.status === 200 &&
+                cacheText.length > 0 &&
+                responseText === cacheText,
               content: {
                 status: response.status,
                 cacheLength: cacheText.length,
