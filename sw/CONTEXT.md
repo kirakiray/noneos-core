@@ -26,8 +26,9 @@ sw/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
 │       ├── ncomp-handle.js      # /ncomp/ 资源代理（官方源 + OPFS 缓存）
-│       ├── github-handler.js    # /gh/ 资源代理（jsDelivr CDN + OPFS 缓存）
-│       ├── npm-handler.js       # /npm/ 资源代理（jsDelivr NPM CDN + OPFS 缓存）
+│       ├── cdn-handler.js       # CDN 资源通用处理器（Stale-While-Revalidate + 内存 TTL）
+│       ├── github-handler.js    # /gh/ 资源代理（调用 cdn-handler）
+│       ├── npm-handler.js       # /npm/ 资源代理（调用 cdn-handler）
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
 │       ├── mount-handle.js      # /\$mount-{id}>/ 挂载目录文件代理
 │       ├── file-system.js       # OPFS 根目录与文件句柄工具
@@ -44,8 +45,8 @@ sw/src/main.js
 ├── handleNosRequest          (modules/nos-handle.js)
 ├── handleNosToolRequest      (modules/nostool-handle.js)
 ├── handleNcompRequest        (modules/ncomp-handle.js)
-├── handleGitHubRequest       (modules/github-handler.js)
-├── handleNpmRequest          (modules/npm-handler.js)
+├── handleGitHubRequest       (modules/github-handler.js → cdn-handler.js)
+├── handleNpmRequest          (modules/npm-handler.js → cdn-handler.js)
 ├── handleMountRequest        (modules/mount-handle.js)
 └── handleFileRequest         (modules/file-handler.js)
     └── getFileHandle         (modules/file-system.js)
