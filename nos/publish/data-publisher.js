@@ -3,11 +3,16 @@
 // 基于 LocalUser 实现文件的分块发布、清单/块数据的请求与响应。
 // 协议消息类型为 "data_publish"，内容本身公开，不走 E2EE 加密。
 //
-// 消息流向：
-// - 请求方 -> 应答方：通过 remoteUser.send(sessionId, msg, true)（raw 模式跳过加密）
+// 消息流向（**始终走服务器 relay**，不使用 RTC DataChannel）：
+// - 请求方 -> 应答方：通过 server.sendToUser(userId, sessionId, msg)
 // - 应答方 -> 请求方：通过 server.relayToUserViaServer(url, fromUserId, fromSessionId, data)
 //   - manifest / error 响应为 JSON，走文本 relay
 //   - chunk 二进制数据走二进制 relay（接收方 recalc hash 识别）
+//
+// 之所以强制走 server relay：DataPublisher 的入站请求 handler 挂在
+// LocalUser.message（server relay）事件上，若 RemoteUser.send() 选择 RTC 通道，
+// 接收端将收不到请求；同时 #handleRequestChunk 的响应路径需要服务器 URL，
+// RTC 侧无该信息。统一走 relay 保证请求/响应通道对称。
 
 import {
   saveChunk,
@@ -352,10 +357,11 @@ export class DataPublisher {
     this.#manifestRequestMap.set(fileHash, { resolve, reject, timer, promise, unbind: () => {} });
 
     try {
-      await remoteUser.send(
+      // 强制走服务器 relay，不使用 RTC；接收端 handler 只监听 LocalUser.message
+      await this.#user.server.sendToUser(
+        remoteUser.userId,
         sid,
         { type: "data_publish", action: "request_manifest", fileHash },
-        true,
       );
     } catch (err) {
       clearTimeout(timer);
@@ -520,12 +526,12 @@ export class DataPublisher {
         }
       });
 
-      // 发送请求（raw 模式跳过 E2EE）
-      remoteUser
-        .send(
+      // 发送请求（走服务器 relay，不使用 RTC；接收端 handler 只监听 LocalUser.message）
+      this.#user.server
+        .sendToUser(
+          remoteUser.userId,
           sid,
           { type: "data_publish", action: "request_chunk", chunkHash },
-          true,
         )
         .catch((err) => {
           if (settled) return;

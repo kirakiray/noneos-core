@@ -1101,6 +1101,215 @@
     </template>
   </sb-test>
 
+  <!-- 测试 16：RTC 通道就绪后请求 manifest/chunk 应仍能成功 -->
+  <!-- 复现猜测：DataPublisher.start() 只监听 LocalUser.message（server relay），
+       不监听 rtc_message；一旦 remoteUser.send() 走 RTC，接收端拿不到请求 → 超时。
+       期望：assert=true（请求成功）。若 assert=false 则证明 bug 复现。 -->
+  <sb-test name="Request Over RTC Channel Should Work Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { DataPublisher } from "/nos/publish/data-publisher.js";
+        import { clearPublishData } from "/nos/publish/db.js";
+
+        const rtcA_ns = "publish-rtc-a";
+        const rtcB_ns = "publish-rtc-b";
+        const rtc_serverUrl = "ws://localhost:8081";
+
+        const rtc_userA = new LocalUser(rtcA_ns);
+        const rtc_userB = new LocalUser(rtcB_ns);
+        await Promise.all([rtc_userA.ready(), rtc_userB.ready()]);
+        await Promise.all([
+          rtc_userA.server.connect(rtc_serverUrl),
+          rtc_userB.server.connect(rtc_serverUrl),
+        ]);
+
+        const rtc_pubA = new DataPublisher(rtc_userA);
+        const rtc_pubB = new DataPublisher(rtc_userB);
+        rtc_pubA.start();
+        rtc_pubB.start();
+
+        // userB 发布两个不同的文件：file1 用于预热 relay 通道；file2 用于 RTC 通道请求
+        const rtc_file1 = new File(
+          ["warmup file content " + Math.random()],
+          "warmup.txt",
+          { type: "text/plain" },
+        );
+        const rtc_file2Content = "over-rtc target file " + Math.random();
+        const rtc_file2 = new File([rtc_file2Content], "over-rtc.txt", {
+          type: "text/plain",
+        });
+        const rtc_manifest1 = await rtc_pubB.publish(rtc_file1);
+        const rtc_manifest2 = await rtc_pubB.publish(rtc_file2);
+
+        const rtc_remoteB = await rtc_userA.connectUser(rtc_userB.userId);
+        const rtc_sessionIds = await rtc_remoteB.getSessionIds();
+        const rtc_sidB = rtc_sessionIds[0];
+
+        // 步骤 1：先请求 file1（走 relay），此时 sendCounts 归 0→2，之后 send 会尝试 RTC
+        const rtc_m1 = await rtc_pubA.requestManifest(
+          rtc_remoteB,
+          rtc_manifest1.fileHash,
+          rtc_sidB,
+        );
+        const rtc_warmupManifestOk = rtc_m1.fileHash === rtc_manifest1.fileHash;
+        const rtc_c1 = await rtc_pubA.requestChunk(
+          rtc_remoteB,
+          rtc_manifest1.chunkHashes[0],
+          rtc_sidB,
+        );
+        const rtc_warmupChunkOk = rtc_c1 !== null && rtc_c1 !== undefined;
+
+        // 步骤 2：主动发起 A→B 的 RTC 连接（rtc.connect 幂等），等待 DataChannel open
+        rtc_userA.rtc.connect(rtc_userB.userId, rtc_sidB).catch(() => {});
+
+        const rtc_waitOpen = () =>
+          new Promise((resolve) => {
+            const t0 = Date.now();
+            const tick = () => {
+              const dc = rtc_userA.rtc.getChannel(rtc_userB.userId, rtc_sidB);
+              if (dc && dc.readyState === "open") {
+                resolve({ open: true, elapsed: Date.now() - t0 });
+                return;
+              }
+              if (Date.now() - t0 > 8000) {
+                resolve({ open: false, elapsed: Date.now() - t0 });
+                return;
+              }
+              setTimeout(tick, 50);
+            };
+            tick();
+          });
+        const rtc_openInfo = await rtc_waitOpen();
+
+        // 若环境不允许 RTC 直连，标注跳过（不算 bug）
+        if (!rtc_openInfo.open) {
+          rtc_pubA.stop();
+          rtc_pubB.stop();
+          return {
+            assert: true,
+            content: {
+              message:
+                "RTC 通道未能在 8s 内 open，测试环境不支持 RTC 直连，跳过复现",
+              rtc_openInfo,
+            },
+          };
+        }
+
+        // 双向 open：等 B 端也拿到 dc 并 open（否则 RTC 是单向的）
+        const rtc_waitPeerOpen = () =>
+          new Promise((resolve) => {
+            const t0 = Date.now();
+            const tick = () => {
+              const dc = rtc_userB.rtc.getChannel(
+                rtc_userA.userId,
+                rtc_userA.sessionId,
+              );
+              if (dc && dc.readyState === "open") {
+                resolve({ open: true, elapsed: Date.now() - t0 });
+                return;
+              }
+              if (Date.now() - t0 > 8000) {
+                resolve({ open: false, elapsed: Date.now() - t0 });
+                return;
+              }
+              setTimeout(tick, 50);
+            };
+            tick();
+          });
+        const rtc_peerOpenInfo = await rtc_waitPeerOpen();
+
+        // 步骤 3：请求 file2 —— 此时 send 会尝试走 RTC。按猜测：接收端不会响应，导致超时。
+        let rtc_manifest2Ok = false;
+        let rtc_manifest2Err = null;
+        let rtc_manifest2ElapsedMs = 0;
+        {
+          const t0 = Date.now();
+          try {
+            const rtc_m2 = await rtc_pubA.requestManifest(
+              rtc_remoteB,
+              rtc_manifest2.fileHash,
+              rtc_sidB,
+            );
+            rtc_manifest2Ok = rtc_m2.fileHash === rtc_manifest2.fileHash;
+          } catch (err) {
+            rtc_manifest2Err = err?.message || String(err);
+          }
+          rtc_manifest2ElapsedMs = Date.now() - t0;
+        }
+
+        let rtc_chunk2Ok = false;
+        let rtc_chunk2Err = null;
+        let rtc_chunk2ElapsedMs = 0;
+        if (rtc_manifest2Ok) {
+          const t0 = Date.now();
+          try {
+            const rtc_c2 = await rtc_pubA.requestChunk(
+              rtc_remoteB,
+              rtc_manifest2.chunkHashes[0],
+              rtc_sidB,
+            );
+            const text = new TextDecoder().decode(rtc_c2);
+            rtc_chunk2Ok = text === rtc_file2Content;
+          } catch (err) {
+            rtc_chunk2Err = err?.message || String(err);
+          }
+          rtc_chunk2ElapsedMs = Date.now() - t0;
+        }
+
+        // 观察 A→B 实际发送时选路：查 dc 的 bufferedAmount 变化不方便，改用 send() 一次探测
+        // （不参与 assert，只用于诊断内容）
+        let rtc_sendViaProbe = null;
+        try {
+          const probeResult = await rtc_remoteB.send(
+            rtc_sidB,
+            { type: "__ping__", id: "probe_" + Date.now(), time: Date.now() },
+            true,
+          );
+          rtc_sendViaProbe = probeResult?.via || null;
+        } catch (err) {
+          rtc_sendViaProbe = "error:" + (err?.message || String(err));
+        }
+
+        rtc_pubA.stop();
+        rtc_pubB.stop();
+
+        const rtc_allChecks =
+          rtc_warmupManifestOk &&
+          rtc_warmupChunkOk &&
+          rtc_manifest2Ok &&
+          rtc_chunk2Ok;
+
+        return {
+          assert: rtc_allChecks,
+          content: {
+            message: rtc_allChecks
+              ? "RTC 通道下 DataPublisher 请求成功（假设不成立 / bug 不存在）"
+              : "RTC 通道下 DataPublisher 请求失败（复现假设：接收端未处理 RTC 上的 data_publish 请求）",
+            checks: {
+              warmupManifestOk: rtc_warmupManifestOk,
+              warmupChunkOk: rtc_warmupChunkOk,
+              rtcLocalOpen: rtc_openInfo.open,
+              rtcLocalOpenElapsedMs: rtc_openInfo.elapsed,
+              rtcPeerOpen: rtc_peerOpenInfo.open,
+              rtcPeerOpenElapsedMs: rtc_peerOpenInfo.elapsed,
+              sendViaProbe: rtc_sendViaProbe,
+              manifest2Ok: rtc_manifest2Ok,
+              manifest2Err: rtc_manifest2Err,
+              manifest2ElapsedMs: rtc_manifest2ElapsedMs,
+              chunk2Ok: rtc_chunk2Ok,
+              chunk2Err: rtc_chunk2Err,
+              chunk2ElapsedMs: rtc_chunk2ElapsedMs,
+            },
+          },
+        };
+
+        await clearPublishData(rtcA_ns);
+        await clearPublishData(rtcB_ns);
+      </script>
+    </template>
+  </sb-test>
+
   <!-- 测试 15：sessionId 缓存命中测试 -->
   <!-- 验证首次自动解析 sessionId 后，后续请求使用缓存不再重复调用 getSessionIds() -->
   <sb-test name="Publish Cache SessionId Test">

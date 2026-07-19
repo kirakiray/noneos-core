@@ -13,7 +13,7 @@
 
 1. **内容寻址**：`chunkHash = SHA-256(chunkData)`；`fileHash = SHA-256(chunkHashes.join(""))`。相同内容必然产生相同哈希，天然去重。
 2. **签名清单**：manifest 由 `LocalUser._sign()` 签名；接收方 `verifyData()` 验签后才存入 DB，防篡改。
-3. **raw 模式**：协议消息（`data_publish` 类型）内容公开，通过 `remoteUser.send(sid, msg, true)` 第三参数 `true` 跳过 E2EE。
+3. **强制走服务器 relay**：所有 `data_publish` 请求/响应统一走 `server.sendToUser` / `server.relayToUserViaServer`，**不使用 RTC DataChannel**。原因：接收端 handler 挂在 `LocalUser.message`（server relay）事件上，若走 RTC，接收端将收不到请求；且响应路径依赖服务器 URL，RTC 侧无该信息。
 4. **二进制高效传输**：chunk 数据走二进制 relay 通道（`server.relayToUserViaServer` 自动识别二进制并走二进制帧），无 base64 开销。
 5. **本地优先 + 远程兜底**：所有请求先查本地 IndexedDB，未命中才发起网络请求。
 6. **并发去重**：同一 `fileHash`/`chunkHash` 的并发请求自动合并为同一个 Promise。
@@ -78,8 +78,8 @@ File
 
 | 方向 | action / 形式 | 传输 |
 |------|--------------|------|
-| 请求方 -> 应答方 | `{type:"data_publish", action:"request_manifest", fileHash}` | 文本 relay，raw=true |
-| 请求方 -> 应答方 | `{type:"data_publish", action:"request_chunk", chunkHash}` | 文本 relay，raw=true |
+| 请求方 -> 应答方 | `{type:"data_publish", action:"request_manifest", fileHash}` | 文本 relay（`server.sendToUser`） |
+| 请求方 -> 应答方 | `{type:"data_publish", action:"request_chunk", chunkHash}` | 文本 relay（`server.sendToUser`） |
 | 应答方 -> 请求方（manifest 存在） | 直接发送 manifest 对象（无 type/action，靠结构特征识别） | 文本 relay |
 | 应答方 -> 请求方（manifest 不存在） | `{type:"data_publish", action:"manifest_response", fileHash, error:"not_found"}` | 文本 relay |
 | 应答方 -> 请求方（chunk 存在） | 发送 chunk 原始 ArrayBuffer | **二进制 relay** |
@@ -131,8 +131,8 @@ user "message" 事件
 
 | 依赖 | 用途 |
 |------|------|
-| `../user/main.js` (LocalUser) | `_sign` 签名、`bind("message")` 监听、`server.relayToUserViaServer` 中继回复 |
-| `../user/remote-user.js` (RemoteUser) | `send(sid, data, true)` raw 发送、`bind("message")` 接收二进制、`getSessionIds()` |
+| `../user/main.js` (LocalUser) | `_sign` 签名、`bind("message")` 监听、`server.sendToUser` 发起请求、`server.relayToUserViaServer` 中继回复 |
+| `../user/remote-user.js` (RemoteUser) | `bind("message")` 接收二进制 chunk 响应、`getSessionIds()` |
 | `../crypto/crypto-verify.js` (`verifyData`) | manifest 验签 |
 | `../util/hash/get-hash.js` (`getHash`) | chunk/file 哈希 |
 
@@ -142,7 +142,8 @@ user "message" 事件
 |-----------|---------|---------|
 | 签名 manifest | -> `LocalUser._sign` | nos/user |
 | 验签 manifest | -> `verifyData` | nos/crypto |
-| 请求/响应中继 | -> `RemoteUser.send(raw=true)` / `server.relayToUserViaServer` | nos/user |
+| 请求发起 | -> `server.sendToUser`（内部选路 + `relayToUserViaServer`） | nos/user |
+| 响应回复 | -> `server.relayToUserViaServer` | nos/user |
 | 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` | nos/user + server/rust |
 
 ## 九、与 README 的对应关系
