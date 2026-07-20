@@ -9,6 +9,8 @@
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
 
+> 项目的技术栈细节、目录结构、运行时路径映射、开发命令见根目录 [CONTEXT.md](CONTEXT.md)。
+
 ## UI 与视觉规范
 
 - **组件库**：项目深度集成 `punch-ui` 组件库。
@@ -17,20 +19,41 @@
 
 ## 开发指令
 
-1. **先读 Skill**：在编写代码或提供建议前，必须先检索并阅读上述对应的 Skill 文档。
-2. **遵循模式**：优先采用框架推荐的最佳实践，确保与现有代码库的风格一致。
-3. **架构对齐**：所有改动需符合 `noneos-core` 与 `ofa.js` 的设计哲学。
-4. **善用 CONTEXT**：各核心模块均提供 `CONTEXT.md` 供 AI 快速理解架构与实现，无需逐文件阅读源码：
-   - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
-   - [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
-   - [server/rust/CONTEXT.md](server/rust/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
-   - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
-   - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）
-   - [ncomp/CONTEXT.md](ncomp/CONTEXT.md) - ncomp 公共组件目录（可复用的 nos 相关 UI 组件）
-5. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致，避免后续 AI 基于过时信息工作。
-6. **同步 Skill 文档**：任何对外 API（`nos/` 下模块的导出方法、参数、行为语义等）发生改动后，**必须同步更新 `skills/noneos-core-docs/` 下对应的参考文档**（`references/*.md`），确保 Skill 知识库与源码保持一致，便于其他 AI 通过 Skill 正确使用 API。
-7. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
-8. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
+1. **先读项目 CONTEXT（首次进入项目时）**：第一次接触本项目时，必须先阅读根目录的 [CONTEXT.md](CONTEXT.md)，了解项目结构、运行时路径映射、开发命令与模块清单。
+2. **先读 Skill**：在编写代码或提供建议前，必须先检索并阅读上述对应的 Skill 文档。
+3. **遵循模式**：优先采用框架推荐的最佳实践，确保与现有代码库的风格一致。
+4. **架构对齐**：所有改动需符合 `noneos-core` 与 `ofa.js` 的设计哲学。
+5. **善用 CONTEXT**：项目根目录与各核心模块均提供 `CONTEXT.md` 供 AI 快速理解架构与实现，无需逐文件阅读源码。具体清单与模块职责见 [CONTEXT.md 第四节](CONTEXT.md#四contextmd-模块清单)。
+6. **同步 CONTEXT**：若上述模块发生代码改动，**必须同步更新对应模块的 `CONTEXT.md`**，保持文档与源码一致。
+   - **强制同步触发条件**（必须改 CONTEXT.md）：
+     - 公共 API 签名变化（函数名、参数、返回值）
+     - IndexedDB schema 变化（库名、版本、仓库、索引、keyPath）
+     - 消息协议字段变化（type、action、二进制帧格式）
+     - 配置默认值变化（CONFIG 表、默认参数）
+     - 文件结构变化（新增/删除/重命名源码文件）
+     - 路径前缀路由规则变化（SW 新增/修改路由）
+   - **建议同步触发条件**（视改动影响补充）：
+     - 关键私有方法/内部实现细节
+     - 浏览器兼容性表格
+     - 事件清单、错误码、状态机
+     - 已知限制 / 已知 bug
+   - **审查时机**：若发现 CONTEXT.md 与源码不一致（即使非本次改动），应按第 9 条补充完善。
+7. **同步 Skill 文档**：对外可见行为发生变化后，**必须同步更新 `skills/noneos-core-docs/references/` 下对应的参考文档**，确保 Skill 知识库与源码保持一致。触发条件包括：
+   - `nos/` 下模块的导出方法、参数、行为语义变化
+   - `ncomp/` 新增/删除/修改公共组件（标签名、属性、事件）
+   - `sw/` 路由策略或路径前缀变化
+   - `server/rust/` admin 命令、消息协议字段、配置项变化
+   - CONTEXT.md 中标注为"关键 API"的任何改动
+8. **禁止使用 file 协议路径**：文档、注释、配置中的文件引用统一使用相对路径或仓库内可解析的路径（如 `AGENTS.md`、`apps/main/home.html`），禁止使用 `file://` 等本地绝对路径，避免在不同机器上失效。
+9. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
+10. **AI 常见误判清单**（基于历史踩坑总结，遇到这些情况请额外警惕）：
+    - ❌ 把运行时虚拟 URL（`/packages/...`、`/nos/...`、`/gh/...`、`/npm/...`）当作仓库源码路径去查找 → ✅ 应对照 [CONTEXT.md 第二节](CONTEXT.md#二项目结构与运行时路径映射)，把它们映射回真实源码路径
+    - ❌ 在 `nos/fs/` 目录下找 `fs-remote/main.js` → ✅ 这是运行时通过 SW 加载的远端 FS 模块，本仓库不提供源码
+    - ❌ 以为 `index.html` 注册了 Service Worker → ✅ 实际是 `_install/main.js`（生产）或 `_install/register.js`（测试）通过 `registerSw("sw.js")` 注册
+    - ❌ 以为线上加载的是 `sw/dist.min.js` → ✅ 实际加载的是 `sw/dist.js`（`/sw.js` 内执行 `importScripts("/sw/dist.js")`）
+    - ❌ 修改 `sw/src/` 后忘记重建 → ✅ 必须运行 `npm run build:sw` 或开发期使用 `npm run watch:sw`
+    - ❌ 把 `nos.json` / `nos.zip` 当源码改 → ✅ 它们是构建产物
+    - ❌ 用 `await extendDirHandle(...)` → ✅ `extendDirHandle` / `extendFileHandle` 虽然声明为 `async`，但内部无异步操作，调用处也未 await
 
 
 ## 测试规范
@@ -38,9 +61,9 @@
 - **客户端测试框架**：项目使用 `sibyl-test` 作为客户端测试框架，测试用例以 `.sb.html` 文件形式编写，位于 `tests/` 目录下。
 - **测试义务**：开发完功能或组件后，应在 `tests/` 目录下找到对应的位置，补充编写 `.sb.html` 测试文件。
 - **执行前确认**：写完测试文件后，不要急于自动执行测试，应先询问开发者是否让 AI 执行自动化测试并根据反馈自动修复模块。
-- **快速反馈**：开发者同意后，优先使用 `npx sb-test -f <目标测试文件>.sb.html --browsers chrome` 在 Chrome 中快速测试，根据结果动态修复代码。
+- **快速反馈**：开发者同意后，优先使用 `npx sb-test -f <目标测试文件>.sb.html --browsers chrome` 在 Chrome 中快速测试，根据结果动态修复代码。**注意：必须在仓库根目录运行**（即 `/Users/yao/Documents/GitHub/noneos-core`），否则无法解析 `sibyl-test` 与项目资源。
 - **运行测试**：执行 `npm test`（即 `sb-test`）可启动默认测试流程；`scripts/run-tests.js` 提供了基于 `sibyl-test` 的自定义多浏览器测试运行器。
-- **测试入口**：`tests/all.html` 汇总了部分核心测试用例，可在浏览器中手动运行验证。
+- **测试入口**：`tests/all.html` 汇总了部分核心测试用例，可在浏览器中手动打开运行（需先启动 `npm run static`）。
 - **查阅 Skill**：在编写、修改或调试 `.sb.html` 测试前，必须先查阅 `sibyl-test` Skill 文档。
 
 

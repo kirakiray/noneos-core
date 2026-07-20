@@ -43,9 +43,9 @@ nos/user/
 ```
 EventTarget
   └── BaseUser (base-user.js)            ← #signer/#verifier/#userId/#privateKey/#publicKey
-        ├── LocalUser (user.js)          ← 聚合 CertManager/CardManager/ServerManager/RTCManager/ServiceRegistry
+        ├── LocalUser (user.js)          ← 聚合 CertManager/CardManager/ServerManager/RTCManager/ServiceRegistry/TrafficLogger
         │     └── AdminUser (admin-user.js)  ← #adminCommand(url, action, extra)
-        └── RemoteUser (remote-user.js)  ← #sessions Map<sessionId, {url}>、#pendingPings、E2EE 解密
+        └── RemoteUser (remote-user.js)  ← #rttMap/#pendingPings/#serviceSessionCache/#serviceWaiters、E2EE 解密；Ping/Pong RTT、服务发现缓存
 ```
 
 - `BaseUser.init(keys)`：由 publicKey 构造 `verifier`；若同时提供 privateKey 则构造 `signer`，并校验公私钥匹配。
@@ -59,15 +59,15 @@ EventTarget
 | 函数 | 说明 |
 |------|------|
 | `getUser(namespace)` | 获取/创建 LocalUser 实例（Map 缓存，`initPromises` 防并发初始化） |
-| `exportUser(namespace)` | 导出私钥（用于迁移） |
-| `importUser(namespace, privateKey)` | 导入私钥恢复用户 |
+| `exportUser(namespace, password)` | 用密码加密导出完整用户数据（namespace + keys + info + exportTime），返回加密 base64 字符串 |
+| `importUser(namespace, encryptedData, password)` | 解密 `exportUser` 产出的加密数据并恢复用户；若 namespace 已存在则抛错 |
 | `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked` |
 
 ### LocalUser（user.js）
 
 | 方法/属性 | 说明 |
 |-----------|------|
-| `#sessionId` | `"s-" + Math.random().toString(36).slice(2)`，每标签页唯一 |
+| `#sessionId` | `"s-" + Math.random().toString(36).substring(2, 10)`（8 字符随机后缀），每标签页唯一 |
 | `connectUser(userId)` | 连接远端用户：`#server.findBestServer()` 选路，最多重试 5 次；成功触发 `remote_user_connected` |
 | `disconnectUser(userId)` | 断开远程用户并清理缓存，触发 `remote_user_disconnected`（`reason: "manual"`） |
 | `getSessionIds()` | 通过 BroadcastChannel 跨标签页收集本用户所有 sessionId |
@@ -88,7 +88,7 @@ EventTarget
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
-| `#pendingPings` | Map<pingId, timestamp>，Ping/Pong RTT 测量 + 超时清理 |
+| `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
 
 ### ServerManager（server.js）
 
@@ -107,7 +107,7 @@ EventTarget
 
 | 管理器 | 关键方法 |
 |--------|---------|
-| `CertManager` (cert.js) | `issue`/`import`/`has`/`get`/`delete`/`count`/`values`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
+| `CertManager` (cert.js) | `issue`/`import`/`query`/`has`/`delete`/`count`/`values`；`query(query)` 返回数组；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
 | `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；`iceServers: []`（仅靠服务端中继，无 STUN/TURN）；DataChannel `"noneos"` ordered |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
@@ -124,7 +124,7 @@ EventTarget
 ### 2. 自动重连（server.js）
 
 - 默认关闭，通过 `setAutoReconnect({ enabled: true, baseDelay, maxDelay, multiplier, maxRetries })` 开启。
-- 仅在手**握手成功后的 `WebSocket.onclose`** 触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
+- 仅在**握手成功后的 `WebSocket.onclose`** 触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
 - 指数退避：第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
 - 同一 URL 的并发连接通过 `#connectPromises` 复用 Promise；`#reconnectTasks` 管理重连定时器，避免重复调度。
 - 调用 `disconnect(url)` 会标记该 URL 为“用户主动断开”，清除待执行重连任务，关闭后不再自动重连。
@@ -135,21 +135,21 @@ EventTarget
 - **文本中继**：JSON 对象，含 `type`、`from`、`to`、`sessionId` 等字段。例如 `card`、`rtc_signal`、`relay`、`__service_query`、`__service_response`、`update_services`。
 - **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，header 含路由信息。用于大 payload（如文件块），避免 JSON 序列化开销。
 
-### 3. WebRTC 建链（rtc.js）
+### 4. WebRTC 建链（rtc.js）
 
 - 信令通道复用服务端中继：`rtc_signal` 消息携带 `{type:"offer"|"answer"|"ice", ...}`。
 - **无 STUN/TURN**：`iceServers: []`，仅在 NAT 友好或同局域网可直连；否则降级为中继。
 - DataChannel 名 `"noneos"`，`ordered: true`。
 - 状态机：connecting → connected → failed/disconnected/closed；失败回退到中继。
 
-### 4. E2EE 端到端加密
+### 5. E2EE 端到端加密
 
 - 前置：通过 `CardManager` 交换双方名片（含经签名的公钥），校验 `publicKey → userId` 哈希一致 + 签名有效。
 - 密钥派生：双方 `publicKey`/`privateKey` 做 ECDH（P-256）得到共享密钥。
 - 加密：AES-GCM，每条消息含 IV/nonce + 密文 + TAG。
 - `RemoteUser.send` 对普通对象自动加密；`raw=true` 跳过加密。
 
-### 5. 名片交换协议（card.js）
+### 6. 名片交换协议（card.js）
 
 ```
 A.get(B.userId)
@@ -162,7 +162,7 @@ A.get(B.userId)
               └── 校验 publicKey→userId + 签名 → 存 DB
 ```
 
-### 6. 服务注册与发现（service-registry.js + remote-user.js）
+### 7. 服务注册与发现（service-registry.js + remote-user.js）
 
 - `register(appId, {exposeToServer, onMessage})` 后：
   - 若 `exposeToServer=true`：`#syncToServer()` 向所有连接的服务器发送 `update_services`
@@ -177,26 +177,26 @@ A.get(B.userId)
   4. 完全离线 → 返回 `{status:"offline"}`；服务发现失败 → 返回 `{status:"discovery_failed"}`（可通过 `fallback:"broadcast"` 兜底）
 - 显式指定 `sessionId` 时保持原语义：直接透传，不做服务发现，接收方未注册则触发 `unhandled_service_message` 事件
 
-### 7. IndexedDB Schema（db.js）
+### 8. IndexedDB Schema（db.js）
 
-- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 6`
+- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 7`
 - 五仓库：
   - `data`：用户信息、密钥、服务器列表等键值
   - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
   - `cards`：keyPath `"userId"`
   - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`
-  - `traffic_agg_minute`：keyPath `"id"` = `"${bucket}|${peerUserId}|${via}|${serverUrl}|${category}"`，分钟聚合桶
+  - `traffic_agg_minute`：keyPath `"id"` = `"${bucket}|${peerUserId}|${via}|${serverUrl}|${category}"`，分钟聚合桶；索引 `bucket`/`peer_bucket`/`via_bucket`/`server_bucket`/`cat_bucket`（供 summary 聚合查询）
 - 连接缓存 5s 自动关闭，避免长期占用。
 - `saveCardToDb`：保留 `signTime` 更大的名片。
 
-### 8. 流量记录（traffic.js）
+### 9. 流量记录（traffic.js）
 
 - **埋点位置**：入站在 [user.js #setupRelayDispatch / #setupRTCDispatch](./user.js)；出站在 [server.js sendToServer](./server.js)（含握手响应）+ [remote-user.js RTC 分支](./remote-user.js)。
 - **记录内容**：仅元数据 + 链路字节数（`size`），从不记录消息内容。
 - **字段**：`ts / direction / peerUserId / sessionId / via / serverUrl / size / category / messageType / appId / success / errorCode`。
 - **category 枚举**：`app / service / card / rtc_signal / handshake / latency / control / relay / other`。
 - **失败记录**：`success: false`，`size` 为尝试发送字节，`errorCode` 记原因（如 `not_open`）。
-- **批量刷盘**：默认 500ms 或积累 50 条触发；`clearAll/deleteBefore/delete` 之前会 `flush()`。
+- **批量刷盘**：默认 500ms 或积累 50 条触发；`deleteBefore`/`delete` 之前会 `flush()`；**`clearAll()` 则直接丢弃未刷盘队列**（不调用 flush）。
 - **聚合桶**：`peerUserId × via × serverUrl × category`，按分钟对齐。**不含 appId 维度**，按 app 查询走明细表 `by_app_ts` 索引。
 - **主要 API**：`record / flush / query / summary / getPeerTotals / getServerTotals / getTimeline / getTotalStats / count / getStorageInfo / deleteBefore / delete / clearAll / setEnabled / configure`。
 - **数据保留**：默认永久保留，通过 `deleteBefore(ts)` / `delete(filter)` / `clearAll()` 由上层清理应用管理。
@@ -219,6 +219,10 @@ A.get(B.userId)
 ## 七、依赖关系
 
 - `../util/hash/get-hash.js` —— userId 派生
+- `../crypto/crypto-ecdsa.js` —— ECDSA 签名/验签（base-user.js、cert.js、user.js）
+- `../crypto/crypto-e2ee.js` —— E2EE 加解密（remote-user.js；user.js 动态导入）
+- `../crypto/crypto-aes.js` —— AES 加解密（main.js，用于 export/import 加密）
+- `../crypto/crypto-verify.js` —— 通用验签（card.js）
 - `../fs/main.js` —— 远端用户文件系统（动态导入 `./fs-remote/main.js`）
 - 浏览器 API：WebSocket、WebRTC（RTCPeerConnection/DataChannel）、IndexedDB、BroadcastChannel、Crypto.subtle（ECDSA/ECDH/AES-GCM）
 
