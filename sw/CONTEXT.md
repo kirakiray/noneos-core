@@ -55,22 +55,27 @@ sw/src/main.js
 
 | 事件/函数 | 说明 |
 |-----------|------|
-| `fetch` 事件监听 | 拦截同域及 `core.noneos.com` 请求，按前缀路由 |
+| `fetch` 事件监听 | 拦截同域及 `core.noneos.com` 请求（默认 `core.noneos.com`，可通过 `globalThis.SERVER_OPTIONS.coreHostName` 覆盖），按前缀路由 |
+| `/__config` 路径 | 特殊路由：触发 `reloadSystemConfig()` 并返回 `{ serviceWorkerVersion, systemConfig }` JSON；`serviceWorkerVersion` 来自 `NONEOS_CORE_VERSION` 常量（如 `"noneos-core@4.2.3"`，去掉前缀后输出） |
 | `install` | `skipWaiting()` 立即激活 |
 | `activate` | `clients.claim()` 接管页面，1s 后刷新配置 |
-| `reloadSystemConfig()` | 从 OPFS `nos-config/system.json` 读取 `systemConfig` |
+| `reloadSystemConfig()` | 从 OPFS `nos-config/system.json` 读取 `systemConfig`；失败返回 500 状态码 |
+| 初始加载 | SW 脚本加载时（文件末尾）也会立即同步触发一次 `reloadSystemConfig()`，不等 activate |
 
 ### 路径路由表
 
+> **匹配顺序**：按表中从上到下顺序匹配；`/__config` 最先短路；`/$mount-/` 必须在 `/$/` 之前。
+
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
+| `/__config` | (main.js 内联) | 特殊路由，触发配置重载并返回 JSON |
 | `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
 | `/ncomp/` | `cache-handlers.js` | ncomp 公共组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
 | `/gh/` | `cache-handlers.js` | GitHub 仓库文件代理，映射到 jsDelivr |
 | `/npm/` | `cache-handlers.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
-| `/\$mount-/` | `mount-handle.js` | 本地挂载目录文件代理 |
-| `/\$/` | `file-handler.js` | 本地 OPFS 文件代理 |
+| `/\$mount-/` | `mount-handle.js` | 本地挂载目录文件代理；URL 形态 `/$mount-{id}>/{相对路径}`，id 通过正则 `/\$mount\-(.+)>.+/` 提取 |
+| `/\$/` | `file-handler.js` | 本地 OPFS 文件代理；命中时返回带正确 `Content-Type` 头的 Response |
 
 ### 通用工具
 
@@ -84,10 +89,10 @@ sw/src/main.js
 
 ### 1. `/nos/` 资源代理策略（nos-handle.js）
 
+- **`localhost:3002` 调试模式**：直接 `fetch(request)`，不读取 `systemConfig`，避免加载 OPFS 中的旧缓存。
+- **其他 `localhost:*` 调试模式**（例如页面在 `localhost:3003` 但通过 `importScripts("http://localhost:3002/sw/dist.js")` 加载本 SW）：优先将 `/nos/` 请求 URL 的端口替换为 `3002`，代理到 `localhost:3002` 的在线资源；若 `localhost:3002` 未启动，则继续走默认的 online/local 处理路线。
 - **`systemConfig.mode === "online"` 或未配置**：直接 `fetch(request)` 请求线上资源。
 - **`systemConfig.mode === "local"`**：将 `/nos/` 替换为 `systemConfig.nosMapPath + "/"`，优先从 OPFS 读取；若文件不存在或为空，回退 `fetch(request)`。
-- **`localhost:3002` 调试模式**：不读取 `systemConfig`，直接 `fetch(request)`，避免加载 OPFS 中的旧缓存。
-- **其他 `localhost:*` 调试模式**（例如页面在 `localhost:3003` 但通过 `importScripts("http://localhost:3002/sw/dist.js")` 加载本 SW）：优先将 `/nos/` 请求 URL 的端口替换为 `3002`，代理到 `localhost:3002` 的在线资源；若 `localhost:3002` 未启动，则继续走默认的 online/local 处理路线。
 
 ### 2. `/nos-tool/` 资源代理策略（nostool-handle.js）
 
@@ -129,18 +134,18 @@ sw/src/main.js
 
 ### 6. 配置热更新
 
-- `systemConfig` 初始为空对象，激活后 1s 自动加载。
-- `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置。
-- 配置存储在 OPFS `nos-config/system.json` 中，由上层（如 nos-tool）写入。
+- `systemConfig` 初始为空对象，SW 脚本加载时与 activate 后 1s 各触发一次加载。
+- `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置；读取失败返回 500。
+- 配置存储在 OPFS `nos-config/system.json` 中，由 `_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。
 
 ## 六、依赖关系
 
 - `nos/fs/handle/mount/db.js` —— 挂载目录持久化句柄加载
-- 浏览器 API：`ServiceWorkerGlobalScope`、`navigator.storage.getDirectory()`、`fetch`、`Response`
+- 浏览器 API：`ServiceWorkerGlobalScope`、`navigator.storage.getDirectory()`、`fetch`、`Response`、`IndexedDB`（被 mount/db.js 用于持久化 FileSystemHandle）
 
 ## 七、构建说明
 
-- 源码使用 ES Modules 编写，通过 Rollup 打包为 `sw/dist.js` 与 `sw/dist.min.js`。
-- 构建命令：`npm run build:sw`。
-- `index.html` 注册的是构建产物 `sw/dist.min.js`。
+- 源码使用 ES Modules 编写，通过 Rollup 打包为 `sw/dist.js` 与 `sw/dist.min.js`（以及对应的 `.map` sourcemap 文件）。
+- 构建命令：`npm run build:sw`；开发模式可使用 `npm run watch:sw`（监听 `sw/src/**` 自动重建）。
+- **SW 注册链路**：`_install/main.js`（生产）或 `_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
 - 修改 `sw/src/` 后必须重新构建，否则线上运行的 Service Worker 不会生效。

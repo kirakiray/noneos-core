@@ -13,7 +13,7 @@ NoneOS Handshake Server 是一个基于 **Tokio + tokio-tungstenite** 的异步 
 2. **内存态会话 + 持久化统计**：在线会话全部驻留 `DashMap`，每 `traffic_flush_interval_secs`（默认 30s）将流量与系统快照刷入 redb。
 3. **配额与防滥用**：每用户默认 500MB 中继配额；超限后仅允许 ≤1KB 小消息；中继失败 10 次/60s 踢出；内存占用 ≥95% 拒绝非 admin 新连接。
 4. **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，与客户端约定，避免大 payload JSON 序列化。
-5. **心跳**：服务端每 15s 发 Ping，60s 无响应断开。
+5. **心跳**：服务端每 15s 发 Ping；若 60s 内未收到任何客户端消息则断开（活动判定不限于 Pong，任意客户端消息均更新 `last_activity_at`）。
 
 ## 二、模块地图
 
@@ -39,8 +39,8 @@ server/rust/
 | `admin_user_id` | `Option<String>` | 管理员 userId（从 config 注入） |
 | `config` | `Config` | 全局配置 |
 | `traffic` | `TrafficStats` | 流量统计聚合体 |
-| `user_quotas` | `DashMap<String, u64>` | 用户中继配额覆盖值（字节） |
-| `db` | `redb::Database` | 持久化句柄 |
+| `user_quotas` | `DashMap<String, traffic::UserRecord>` | 用户记录缓存（含 user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes） |
+| `db` | `Arc<redb::Database>` | 持久化句柄（Arc 共享） |
 | `users` | `DashMap<String, UserSession>` | key = `userId:sessionId` |
 | `user_session_counts` | `DashMap<String, usize>` | 每用户会话计数，用于 `max_sessions_per_user` |
 
@@ -49,8 +49,8 @@ server/rust/
 | 字段 | 说明 |
 |------|------|
 | `username` / `host` / `addr` | 用户标识与网络地址 |
-| `disconnect_tx` | `mpsc::Sender` 主动踢出信号 |
-| `data_tx` | `mpsc::Sender<Message>` 数据下发通道 |
+| `disconnect_tx` | `Option<oneshot::Sender<()>>` | 主动踢出信号（一次性，取走后变 None） |
+| `data_tx` | `mpsc::UnboundedSender<Message>` | 中继转发数据下发通道（无界） |
 | `latency_ms` | 最近一次延迟测速结果 |
 | `connected_at` | 连接时间戳 |
 | `relay_fail_count` / 窗口 | 中继失败计数（超限踢出） |
@@ -67,23 +67,27 @@ server/rust/
 
 ### 连接生命周期（handle_connection）
 
-1. WebSocket 升级。
-2. 等待客户端消息，发送 `handshake_challenge`（随机 challenge）。
-3. 收到签名 → `crypto::verify_signature` 验签 → 失败断开。
-4. `add_user` 注册：检查 `max_sessions_per_user`，重连时踢旧连接。
-5. 进入消息循环，按消息类型分发：
-   - `admin` —— 转发 admin 命令
-   - `query` —— 查询（如在线状态）
-   - `update_services` —— 更新会话服务列表
-   - `relay` —— 中继（文本/二进制）
-   - `latency_test` / `latency_report` —— 延迟测速
-6. 退出循环 → 清理会话 → 最终 flush。
+1. WebSocket 升级，捕获 `Origin` 头存入 `UserSession.host`。
+2. 内存过载保护检查（非 admin 且内存 ≥ `max_memory_usage_percent` 拒绝连接）。
+3. **先发送** `handshake_challenge`（32 字节随机字符串），**再等待**客户端响应（超时 `handshake_timeout_secs`）。
+4. 收到签名 → `crypto::verify_signature` 验签 → 失败断开。
+5. `add_user` 注册：检查 `max_sessions_per_user`，重连时踢旧连接；调用 `traffic.register_session` + `traffic.add_handshake`；持久化用户到 redb（保留 used_bytes/quota_bytes）。
+6. 进入消息循环（select），分支：
+   - `disconnect_rx` —— 接收踢出信号
+   - `data_rx` —— 接收中继转发通道数据
+   - WebSocket 消息按类型分发：
+     - `admin` —— 转发 admin 命令
+     - `query` —— 查询（如在线状态）
+     - `update_services` —— 更新会话服务列表
+     - `relay` —— 中继（文本/二进制）
+     - `latency_test` / `latency_report` —— 延迟测速
+7. 退出循环 → 清理会话 → 最终 flush。
 
 ### 中继流程（relay_deliver_and_finalize）
 
-1. `check_relay_quota`：admin 全放；未超额放；超限仅放 ≤ `small_message_max_bytes`。
-2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递。
-3. 记录流量（`traffic.record_*`）。
+1. `check_relay_quota`：admin 全放；未超额放；超限仅放 ≤ `relay_small_message_max_bytes`。
+2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递；`silent: bool` 参数控制成功是否返回 `relay_response`。
+3. **成功**才记录流量（`traffic.add_relay_forwarded` + `state.record_relay_usage`），并 `reset_relay_failure` 重置失败计数；**失败不记录流量**。
 4. 失败累加 `relay_fail_count`，达 `relay_fail_limit`/`relay_fail_window_secs` 踢出。
 
 ### 二进制中继帧解析
@@ -104,7 +108,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `disconnect_user` / `disconnect_session` | 踢出 |
 | `get_system_info` | 内存/CPU 核数/磁盘 |
 | `get_traffic_stats` | 实时流量 |
-| `get_traffic_history` | 历史流量分布 |
+| `get_traffic_history` | **已废弃**，仅返回空数组与提示信息（数据需从 redb 文件导出分析） |
 | `get_system_stats_history` | 历史 CPU/内存 |
 | `set_user_relay_quota` / `get_user_relay_quota` | 配额管理 |
 
@@ -122,9 +126,9 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 
 | 表 | Key | Value | 说明 |
 |----|-----|-------|------|
-| `USERS` | `userId` | 用户记录（last_seen_at 等） | 用户持久化 |
+| `USERS` | `&str`(userId) | bincode(`UserRecord`: user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes) | 用户持久化 |
 | `USER_TRAFFIC_DIST` | `(ts_30s, from, to)` | bytes | 用户间流量分布 |
-| `GLOBAL_DATA` | 固定 key | (in, out, relay) | 全局累计流量 |
+| `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"`（3 个独立字符串 key） | u64 | 全局累计流量 |
 | `GLOBAL_TRAFFIC_DIST` | `ts_30s` | (in, out, relay) | 全局流量时间分布（累加） |
 | `SYSTEM_STATS` | `ts_30s` | (cpu, mem) | 系统快照 |
 
@@ -144,13 +148,13 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 ### 4. 优雅关闭（main.rs）
 
 - 监听 `Ctrl+C` + `tokio::sync::Notify`。
-- 退出前执行最后一次 `perform_flush`，确保流量落盘。
-- accept 循环退出，现有连接处理完收尾。
+- 退出前执行最后一次 `perform_flush`（不写 system stats）。
+- accept 循环退出后直接 drop tokio runtime，**现有连接由 runtime drop 时强制终止**（不等待处理完成）。
 
 ### 5. 定时器（handle_flush_timer）
 
 - 每 `traffic_flush_interval_secs` 触发。
-- 收集 CPU/内存（sysinfo）→ `write_system_stats` → `perform_flush`。
+- 先取出 delta/用户流量/全局快照，再采集 CPU/内存（sysinfo），最后在同一个 `spawn_blocking` 中**先 `perform_flush` 再 `write_system_stats`**。
 
 ## 六、客户端-服务端协议对应表
 
@@ -173,7 +177,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 |------|--------|------|
 | `port` | 8081 | 监听端口 |
 | `host` | `""` | 监听地址（空=全地址） |
-| `handshake_timeout` | 5s | 握手超时 |
+| `handshake_timeout_secs` | 5 | 握手超时（秒） |
 | `handshake_max_size` | 1KB | 握手消息上限 |
 | `text_message_max_size` | 256KB | 文本消息上限 |
 | `binary_payload_max_size` | 256KB | 二进制 payload 上限 |

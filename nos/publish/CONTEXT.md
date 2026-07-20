@@ -25,7 +25,7 @@
 ```
 nos/publish/
 ├── data-publisher.js    # DataPublisher：文件分块发布/请求/组装
-├── db.js                # IndexedDB 持久化（2 个仓库，version 1）
+├── db.js                # IndexedDB 持久化（2 个仓库，DB_VERSION=4）
 ├── README.md            # API 文档（人类阅读，部分数值已过时，以本文档为准）
 └── CONTEXT.md           # 本文档
 ```
@@ -34,7 +34,7 @@ nos/publish/
 
 ```
 DataPublisher (data-publisher.js)       ← 依赖 LocalUser
-  └── 协议处理：start() 监听 user "message" 事件
+  └── 协议处理：start() 同时监听 user "message" 与 "rtc_message" 事件
 ```
 
 ## 四、关键 API
@@ -43,7 +43,7 @@ DataPublisher (data-publisher.js)       ← 依赖 LocalUser
 
 | 方法 | 说明 |
 |------|------|
-| `start()` | 绑定 `user.bind("message")` 监听 incoming 请求；幂等 |
+| `start()` | 同时绑定 `user.bind("message")`（server relay）与 `user.bind("rtc_message")`（DataChannel）两条入站通道，归一到 `#dispatchIncoming`；幂等 |
 | `stop()` | 解绑并 reject 所有进行中请求，清空缓存 |
 | `publish(file)` | 流式分块（`file.slice` 128KB）-> 每块 SHA-256 存 DB -> 拼 chunkHashes 算 fileHash -> `_sign` manifest -> 存 DB -> 返回 manifest |
 | `requestManifest(remoteUser, fileHash, sessionId?)` | DB 优先 -> 网络请求（10s 超时）；断开自动重试一次 |
@@ -65,7 +65,7 @@ DataPublisher (data-publisher.js)       ← 依赖 LocalUser
 
 ```
 File
- ├── 按 128KB (128 * 1024 字节) 切分（CHUNK_SIZE，源码实际值；README 误写 255KB）
+ ├── 按 128KB (128 * 1024 字节) 切分（CHUNK_SIZE，源码常量正确；注意 data-publisher.js 内有一处注释误写为 255KB，常量本身没错）
  ├── chunk[0..n-1] -> 每块 SHA-256 -> chunkHash[i] (hex)
  ├── chunkHashes.join("") -> SHA-256 -> fileHash (hex)
  └── manifest = _sign({ fileHash, chunkHashes, fileName, fileSize })
@@ -129,12 +129,17 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 ## 六、IndexedDB Schema（db.js）
 
 - 数据库名：`nos_publish_data_${namespace}`（**每 namespace 独立库**）
-- `DB_VERSION = 1`
+- `DB_VERSION = 4`
 
 | 仓库 | 版本 | key / keyPath | value |
 |------|------|---------------|-------|
-| `file_chunks` | v1 | key=chunkHash | ArrayBuffer（块原始二进制） |
-| `file_manifests` | v1 | key=fileHash | manifest 对象（含签名） |
+| `file_chunks` | v1+ | key=chunkHash | ArrayBuffer（块原始二进制） |
+| `file_manifests` | v1+ | key=fileHash | manifest 对象（含签名） |
+
+**版本演进**：
+- v1：创建 `file_chunks`、`file_manifests`
+- v3：删除已弃用的 AppManager 相关 store（`published_apps` / `file_refs` / `recommendations`）
+- v4：当前版本（无结构变更）
 
 - `dbCache: Map<namespace, Promise<IDBDatabase>>` -- 连接按 namespace 缓存。
 - `clearPublishData(namespace)` 先关闭缓存连接再 `indexedDB.deleteDatabase`。
@@ -160,10 +165,12 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 
 ## 九、与 README 的对应关系
 
-README 中的数值已与源码对齐：
-
 | 项 | 值 | 说明 |
 |----|----|------|
-| CHUNK_SIZE | 128KB（`128 * 1024`） | data-publisher.js 中的 `CHUNK_SIZE` 常量 |
-| 数据库名 | `nos_publish_data_${namespace}` | 按 namespace 隔离，每用户独立库 |
-| DB_VERSION | 1 | chunks/manifests |
+| CHUNK_SIZE | 128KB（`128 * 1024`） | data-publisher.js 中的 `CHUNK_SIZE` 常量（README 已对齐） |
+| 数据库名 | `nos_publish_data_${namespace}` | 按 namespace 隔离，每用户独立库（README 已对齐） |
+| DB_VERSION | 4 | 当前版本（README 中部分位置仍误写为 "版本 2"，待修正） |
+
+**README 中仍存在的偏差**（待后续维护时修正）：
+- 部分 `bind("message")` 描述应改为 `bind("message")` + `bind("rtc_message")` 双通道
+- 应答方回复描述仅提 `server.relayToUserViaServer`，应补充镜像 RTC 来源（`remoteUser.send`）的路径

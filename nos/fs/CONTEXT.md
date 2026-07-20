@@ -56,8 +56,8 @@ PublicBaseHandle (public/base.js)
 |------|------|
 | `get(path, options)` | 按路径获取句柄，自动路由到 mount/remote/system |
 | `init(name)` | 初始化 OPFS 根目录（`navigator.storage.getDirectory()`） |
-| `open(options?)` | 弹出系统目录选择器，返回 DirHandle（可选 `mount: true` 直接挂载） |
-| `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>name` 路径 |
+| `open(options?)` | 弹出系统目录选择器，返回 DirHandle；options：`{ mode?: "read"|"readwrite"（默认 readwrite）, id?: string, mount?: true }`；不支持 `showDirectoryPicker` 时抛错 |
+| `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>{encodeURI(name)}` 路径；若 handle 已挂载（`RESET_PATH` 已存在）则幂等直接返回 |
 | `unmount(idOrHandle)` | 从 IndexedDB 删除挂载记录 |
 | `getMounted()` | 返回所有已挂载目录列表 `[{id, name, path, handle}]` |
 
@@ -73,8 +73,8 @@ PublicBaseHandle (public/base.js)
 | `id()` | 唯一标识（优先 `getUniqueId`，否则 path 哈希） |
 | `size()` | 文件大小（目录返回 null） |
 | `remove()` | 删除（递归），触发 `notify` |
-| `copyTo(target, name?)` | 递归复制 |
-| `moveTo(target, name?)` | 递归移动（复制后删除原） |
+| `copyTo(target, name?)` | 递归复制；首参数可为字符串（视为新名，target 自动取 `self.parent`）；禁止把目录复制到自身子目录（抛错） |
+| `moveTo(target, name?)` | 递归移动（复制后删除原）；首参数同样可为字符串；与自身同一对象直接返回 self；同样禁止移入子目录 |
 | `observe(func)` | 监听变化，返回取消函数 |
 | `toJSON()` | 序列化为 `{name, path, kind}` |
 
@@ -112,8 +112,8 @@ PublicBaseHandle (public/base.js)
 
 - `open()` 调用 `window.showDirectoryPicker()` 获取真实目录句柄。
 - `mount()` 通过 `saveHandle()` 将原生 `FileSystemHandle` 存入 IndexedDB（`handles-db` 数据库，`handles` store，keyPath 为 `id`）。
-- ID 生成：优先 `handle.getUniqueId()`，否则遍历已有句柄用 `isSameEntry` 去重，最后用 `{kind}-{timestamp}`。
-- `get("$mount-xxx>name/path")` 从 IndexedDB 加载句柄，重建 DirHandle 并设置 `RESET_PATH`。
+- ID 生成：先生成候选 id `{kind}-{Date.now()}`，再遍历已有句柄用 `isSameEntry` 去重 —— 找到相同项则复用已有 id，没找到才使用候选 id；`saveHandle` 写入时会附带 `time: Date.now()` 字段。
+- `get("$mount-xxx>name/path")` 从 IndexedDB 加载句柄，重建 DirHandle 并设置 `RESET_PATH`；**每次 `get` 都会调用 `checkPermission(_handle)`**（readwrite 模式）。
 - Safari 不支持在 IndexedDB 存储 `FileSystemHandle`（`DataCloneError`），会抛出明确错误。
 - 所有挂载操作前会 `checkPermission`（`queryPermission` + `requestPermission`，readwrite 模式）。
 
@@ -121,15 +121,17 @@ PublicBaseHandle (public/base.js)
 
 - Safari 不支持 `FileSystemFileHandle.createWritable()`，降级为 Web Worker。
 - Worker 内通过 `createSyncAccessHandle()` 同步写入：`truncate(0)` → `write(data, {at:0})` → `flush()` → `close()`。
-- Worker 通过 `postMessage` 传递 `{path, content}`，path 用于在 Worker 内重新定位 OPFS 文件。
-- 写入后需要 `setTimeout(resolve, 1)` 延时，否则文件会丢失（已知 BUG）。
+- Worker 通过 `postMessage` 传递 `{path, content}`，path 用于在 Worker 内**逐级 `getDirectoryHandle` + 末段 `getFileHandle`** 重新定位 OPFS 文件（因此 **Worker 仅适用于 OPFS 系统路径，对挂载路径 `$mount-xxx>name` 无效**——这是已知限制）。
+- 主线程会把 Blob 通过 `await data.arrayBuffer()` 转成 ArrayBuffer 后发给 Worker；Worker 内部对 string 类型 content 会用 `new TextEncoder().encode(content)` 编码。
+- 主线程 `worker.onmessage` 收到成功消息后通过 `setTimeout(resolve, 1)` 延时 resolve，否则文件会丢失（已知 BUG）；成功后调用 `notify({path, type:"write", data, remark})`，失败则 `reject(error)` 并 `worker.terminate()`。
 
 ### 4. 观察者系统（public/base.js）
 
 - 优先使用实验性 `FileSystemObserver` API（监听 `disappeared`→remove、`modified`→write）。
 - 降级为自定义观察者：`observers` Set 存储 `{func, handle}`，`notify()` 遍历并匹配路径前缀触发回调。
 - `notify()` 同时通过 `BroadcastChannel` 跨标签页广播（`isCast` 参数避免循环广播）。
-- 回调签名：`func({type: "create"|"remove"|"write", path, ...others})`。
+- 回调签名：`func({type: "remove"|"write", path, ...others})`。**注意**：源码中 `appeared → "create"` 的分支被注释，自定义 `notify()` 只会发出 `remove` 与 `write` 两种类型。
+- **已知设计缺陷**：观察者路径匹配使用 `path.includes(observer.handle.path)` **子串匹配**（非前缀匹配），存在 `/foo` 误匹配 `/foobar/x` 的边界情况。
 
 ### 5. 目录 get 的冲突处理（handle/dir.js）
 
@@ -146,14 +148,16 @@ PublicBaseHandle (public/base.js)
 
 - `../util/zip.js` — 目录下载打包
 - `../util/hash/get-hash.js` — `id()` 的路径哈希降级方案
-- `/packages/user/main.js` — 远端用户目录（动态导入）
-- `./fs-remote/main.js` — 远端文件系统（动态导入，RTC 通信）
+- `/packages/user/main.js` — **运行时 URL**（由 Service Worker 映射到本仓库 `nos/user/main.js`），动态导入用于远端用户目录
+- `./fs-remote/main.js` — **运行时动态加载的远端 FS 模块，本仓库内未提供源码**，需通过 Service Worker 或外部包解析；期望导出 `createGet({remoteUser})`，返回 `remoteGet(path, options)` 句柄获取函数
+- 浏览器 API：`Worker`（Safari 写入降级）、`BroadcastChannel`（跨标签页同步）、`IndexedDB`（挂载句柄持久化）、`showDirectoryPicker`、实验性 `FileSystemObserver`
 
 ## 七、浏览器兼容性
 
-| 特性 | Chrome 86+ | Firefox 111+ | Safari |
+| 特性 | Chrome 102+ | Firefox 111+ | Safari |
 |------|-----------|-------------|--------|
-| OPFS 虚拟文件系统 | ✅ | ✅ | ✅ |
-| `createWritable` 写入 | ✅ | ✅ | ❌（降级 Worker） |
-| 本地目录挂载 | ✅ | ⚠️ 不支持存储 | ❌ |
+| OPFS 虚拟文件系统（`navigator.storage.getDirectory`） | ✅ | ✅ | ✅ |
+| `createWritable` 写入 | ✅ | ✅（仅 OPFS） | ❌（降级 Worker，**且 Worker 不支持挂载路径**） |
+| 本地目录挂载（`showDirectoryPicker`） | ✅（Chrome 86+） | ❌（默认禁用） | ❌ |
+| IndexedDB 持久化 FileSystemHandle | ✅ | ❌（DataCloneError） | ❌（DataCloneError） |
 | `FileSystemObserver` | 实验性 | ❌ | ❌ |

@@ -11,6 +11,7 @@
 ```
 ncomp/
 ├── CONTEXT.md                  # 本文档
+├── README.md                   # 面向人类的说明文档
 ├── user-name/
 │   ├── user-name.html          # 组件实现
 │   └── user-name.sb.html       # sibyl-test 测试用例
@@ -51,6 +52,7 @@ ncomp/
   - `namespace`：指定用户命名空间，默认为 `"default"`。
 - **尺寸**：默认圆点大小为 `8px × 8px`，可通过 `style` 或外部 CSS 覆盖（如 `style="width: 12px; height: 12px;"`）。
 - **实时更新**：组件会监听 `remote_user_connected`、`remote_user_disconnected` 和 `rtc_state` 事件，当目标用户状态变化时自动刷新颜色。
+- **兜底刷新**：由于对端下线目前无主动推送，组件额外以 30 秒低频轮询刷新在线状态；页面重新可见（`visibilitychange`）时也会立即刷新一次。
 
 ## 四、使用方式
 
@@ -68,28 +70,19 @@ ncomp/
 
 ## 五、资源加载与缓存
 
-`/ncomp/` 下的资源由 Service Worker（`sw/src/modules/ncomp-handle.js`）统一代理：
+`/ncomp/` 路由在 `sw/src/main.js` 中注册，实际处理函数是 `sw/src/modules/cache-handlers.js` 中导出的 `handleNcompRequest`（与 `/gh/`、`/npm/` 共用 SWR 工厂）。**注意：项目中不存在 `ncomp-handle.js` 文件**。
 
-- **`localhost:*`（含 `localhost:3002`）**：优先代理到 `localhost:3002`；成功后立即返回最新响应，并在后台异步写入 OPFS `/ncomp/` 缓存，同时记录元数据；3002 不可用时回退 OPFS 缓存，再未命中则请求官方源。
-- **非本地环境**：
-  - 优先读取 OPFS `/ncomp/` 缓存，并校验元数据中的 `cachedAt`。
-  - 缓存未过期（5 分钟 TTL）则直接返回。
-  - 缓存过期或不存在时，请求 `https://core.noneos.com/` 对应路径，成功后**立即返回网络响应**。
-  - 后台异步计算响应内容的 SHA-256 hash，与元数据中的 hash 对比：有变化则更新 OPFS 缓存与元数据；无变化则仅刷新 `cachedAt` 以延长 TTL。
-  - 网络请求失败时，若 OPFS 中存在旧缓存，则返回旧缓存兜底。
+- **`localhost:*`（dev 环境，判定条件 `/^localhost:/.test(location.host)`）**：走"网络优先"模式，候选源依次为 `localhost:3002` → 官方源 `core.noneos.com` → 同域兜底；任一源成功后**同步**写入 OPFS `/ncomp/` 缓存并刷新内存级时间戳；全部失败时回退 OPFS 缓存。
+- **非本地环境**：采用 SWR（Stale-While-Revalidate）策略，单一候选源为 `https://core.noneos.com/`：
+  - 缓存命中且在 5 分钟 TTL 内：直接返回缓存，不发起网络请求。
+  - 缓存命中但已过 TTL：**立即返回旧缓存**，后台异步重新拉取并**直接覆盖**写入 OPFS（无 hash 对比）。
+  - 缓存未命中：同步请求官方源，成功后写入 OPFS 并返回；失败则返回 500 错误响应。
 
-### 元数据
+### TTL 与状态
 
-缓存元数据存储在 OPFS `/nos-config/ncomp-meta/{component}/{file}.json`，结构为：
+5 分钟 TTL 仅维护在 Service Worker **进程内存**中（`cache-handlers.js` 模块级 `lastRefreshAt: Map`），SW 重启后即清空，等价于"重启即视为过期"。OPFS 中只保存组件文件本体，**不保存任何元数据**（无 `cachedAt`/`hash` 字段，也无 `/nos-config/ncomp-meta/` 目录）。
 
-```json
-{
-  "cachedAt": 1735689600000,
-  "hash": "sha256hex..."
-}
-```
-
-因此，组件文件首次被请求后会自动缓存到 OPFS，过期后会自动检查官方源是否有更新，兼顾离线可用与自动更新。
+因此，组件文件首次请求后会缓存到 OPFS；TTL 过期后会在后台**无条件**拉取最新版本覆盖缓存，以兼顾离线可用与自动更新。
 
 ## 六、开发规范
 
