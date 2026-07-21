@@ -997,5 +997,306 @@
         </script>
       </template>
     </sb-test>
+    <!-- ====== 以下为 getLocaleText 新增功能（vars 插值 + JSON 反向索引）====== -->
+
+    <sb-test name="getLocaleText vars - 替换 {key} 为传入值">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("cn");
+            const text = getLocaleText(
+              { cn: "网络失败: {msg}", en: "Network failed: {msg}" },
+              { msg: "timeout" },
+            );
+            setLang(null);
+
+            const replaced = text === "网络失败: timeout";
+            const noBrace = !text.includes("{msg}");
+
+            return {
+              assert: replaced && noBrace,
+              content: {
+                message: "第二参 vars 应将 {key} 替换为对应值",
+                text,
+                checks: { replaced, noBrace },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText vars - 多变量同时替换">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("en");
+            const text = getLocaleText(
+              {
+                cn: "ID: {id} | 模型: {model}",
+                en: "ID: {id} | Model: {model}",
+              },
+              { id: "gpt-4", model: "claude" },
+            );
+            setLang(null);
+
+            const hasId = text.includes("gpt-4");
+            const hasModel = text.includes("claude");
+            const noBrace = !text.includes("{id}") && !text.includes("{model}");
+
+            return {
+              assert: hasId && hasModel && noBrace,
+              content: {
+                message: "多个 {key} 应同时替换",
+                text,
+                checks: { hasId, hasModel, noBrace },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText vars - 未传 vars 时保留 {key} 原文">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("cn");
+            const text = getLocaleText({
+              cn: "值: {val}",
+              en: "Value: {val}",
+            });
+            setLang(null);
+
+            return {
+              assert: text === "值: {val}",
+              content: {
+                message: "不传 vars 时应保留 {key} 占位符原文",
+                text,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText vars - vars 中缺失的 key 保留原文">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("cn");
+            const text = getLocaleText(
+              { cn: "{a} + {b}", en: "{a} + {b}" },
+              { a: "1" },
+            );
+            setLang(null);
+
+            const aReplaced = text.startsWith("1");
+            const bKept = text.includes("{b}");
+
+            return {
+              assert: aReplaced && bKept,
+              content: {
+                message: "vars 中缺失的 key 应保留 {key} 原文",
+                text,
+                checks: { aReplaced, bKept },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText JSON 索引 - ensureLocaleTextJson 后命中扩展语种">
+      <template>
+        <script type="module">
+          {
+            const {
+              getLocaleText,
+              setLang,
+              resetLocaleTextJsonCache,
+              ensureLocaleTextJson,
+            } = await import("/nos/locale-text/get-locale-text.js");
+
+            const baseText_jsonIdx = "JSON索引扩展语种测试文本";
+
+            resetLocaleTextJsonCache();
+            const origFetch_jsonIdx = window.fetch;
+            window.fetch = (input, init) => {
+              if (
+                typeof input === "string" &&
+                input === "/locale-text.json"
+              ) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      "fake-hash-idx": {
+                        cn: baseText_jsonIdx,
+                        ja: "JSONインデックス拡張テスト",
+                      },
+                    }),
+                    {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    },
+                  ),
+                );
+              }
+              return origFetch_jsonIdx(input, init);
+            };
+
+            // 显式等待 JSON 加载完成，构建反向索引
+            await ensureLocaleTextJson();
+            setLang("ja");
+
+            // 内联对象只有 cn/en，但 JSON 有 ja，应命中 JSON
+            const text = getLocaleText({
+              cn: baseText_jsonIdx,
+              en: "JSON index test",
+            });
+
+            window.fetch = origFetch_jsonIdx;
+            setLang(null);
+
+            return {
+              assert: text === "JSONインデックス拡張テスト",
+              content: {
+                message:
+                  "ensureLocaleTextJson 预加载后，getLocaleText 应命中 JSON 的扩展语种（ja），即使内联对象无 ja",
+                text,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText JSON 索引 - JSON 无命中时回退到内联对象">
+      <template>
+        <script type="module">
+          {
+            const {
+              getLocaleText,
+              setLang,
+              resetLocaleTextJsonCache,
+              ensureLocaleTextJson,
+            } = await import("/nos/locale-text/get-locale-text.js");
+
+            resetLocaleTextJsonCache();
+            const origFetch_noHit = window.fetch;
+            window.fetch = (input, init) => {
+              if (
+                typeof input === "string" &&
+                input === "/locale-text.json"
+              ) {
+                return Promise.resolve(
+                  new Response("{}", {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                  }),
+                );
+              }
+              return origFetch_noHit(input, init);
+            };
+
+            await ensureLocaleTextJson();
+            setLang("en");
+
+            const text = getLocaleText({
+              cn: "JSON无命中-中文",
+              en: "JSON-no-hit-English",
+            });
+
+            window.fetch = origFetch_noHit;
+            setLang(null);
+
+            return {
+              assert: text === "JSON-no-hit-English",
+              content: {
+                message: "JSON 无命中时应回退到内联对象（en）",
+                text,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText JSON 索引 - JSON 命中后仍做 vars 插值">
+      <template>
+        <script type="module">
+          {
+            const {
+              getLocaleText,
+              setLang,
+              resetLocaleTextJsonCache,
+              ensureLocaleTextJson,
+            } = await import("/nos/locale-text/get-locale-text.js");
+
+            const baseText_jsonVars = "ID: {id}";
+            resetLocaleTextJsonCache();
+            const origFetch_jsonVars = window.fetch;
+            window.fetch = (input, init) => {
+              if (
+                typeof input === "string" &&
+                input === "/locale-text.json"
+              ) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      "fake-hash-vars": {
+                        cn: baseText_jsonVars,
+                        ja: "ID: {id}",
+                      },
+                    }),
+                    {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    },
+                  ),
+                );
+              }
+              return origFetch_jsonVars(input, init);
+            };
+
+            await ensureLocaleTextJson();
+            setLang("ja");
+
+            // JSON 命中 ja，且翻译文本含 {id}，应被 vars 替换
+            const text = getLocaleText(
+              { cn: baseText_jsonVars, en: "ID: {id}" },
+              { id: "99" },
+            );
+
+            window.fetch = origFetch_jsonVars;
+            setLang(null);
+
+            return {
+              assert: text === "ID: 99",
+              content: {
+                message: "JSON 命中后仍应对结果做 {key} 变量插值",
+                text,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

@@ -162,10 +162,13 @@ export async function chat(messages, options = {}) {
     throw createError(
       specifiedProvider,
       "",
-      getLocaleText({
-        cn: `没有 ${specifiedProvider} 的 API Key`,
-        en: `No API Key for ${specifiedProvider}`,
-      }),
+      getLocaleText(
+        {
+          cn: "没有 {provider} 的 API Key",
+          en: "No API Key for {provider}",
+        },
+        { provider: specifiedProvider },
+      ),
     );
   }
 

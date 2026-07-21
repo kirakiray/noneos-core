@@ -481,6 +481,59 @@
       return { langMap, baseText, baseLang };
     };
 
+    // 从 JS 源码中提取所有 getLocaleText({...}) 调用的语言映射
+    // 通过括号平衡扫描，正确处理字符串内的 { } 和跨行对象字面量
+    const extractFromJs = (source) => {
+      const results = [];
+      const callRe = /getLocaleText\s*\(\s*/g;
+      let m;
+      while ((m = callRe.exec(source)) !== null) {
+        const start = callRe.lastIndex;
+        if (source[start] !== "{") continue; // 非对象字面量参数（如变量），跳过
+
+        // 扫描大括号平衡，跳过字符串内的 { }
+        let depth = 0;
+        let i = start;
+        let inStr = null;
+        for (; i < source.length; i++) {
+          const c = source[i];
+          if (inStr) {
+            if (c === "\\") {
+              i++;
+              continue;
+            }
+            if (c === inStr) inStr = null;
+            continue;
+          }
+          if (c === '"' || c === "'" || c === "`") {
+            inStr = c;
+            continue;
+          }
+          if (c === "{") depth++;
+          else if (c === "}") {
+            depth--;
+            if (depth === 0) {
+              i++;
+              break;
+            }
+          }
+        }
+        const objStr = source.slice(start, i);
+
+        // 从对象字面量字符串里提取 lang: "..." / '...' / `...`
+        const langMap = {};
+        const propRe = /(\w+)\s*:\s*(['"`])([\s\S]*?)\2/g;
+        let pm;
+        while ((pm = propRe.exec(objStr)) !== null) {
+          langMap[pm[1]] = pm[3];
+        }
+        if (Object.keys(langMap).length > 0) {
+          results.push(langMap);
+        }
+      }
+      return results;
+    };
+
     // 模块级变量保存 DirHandle，避免被 ofa.js 包装成 Stanz 代理导致 .get() 被劫持
     let _rootHandle = null;
     // 模块级变量保存最近一次扫描的详细数据（供列表视图读取）
@@ -542,8 +595,8 @@
             }
           },
 
-          // 递归收集所有 .html 文件
-          async collectHtmlFiles(dirHandle, basePath, isIgnored, files) {
+          // 递归收集所有源码文件（.html / .js / .mjs）
+          async collectSourceFiles(dirHandle, basePath, isIgnored, files) {
             for await (const entry of dirHandle.values()) {
               const relPath = basePath
                 ? basePath + "/" + entry.name
@@ -551,10 +604,15 @@
 
               if (entry.kind === "dir") {
                 if (isIgnored(relPath + "/", true)) continue;
-                await this.collectHtmlFiles(entry, relPath, isIgnored, files);
+                await this.collectSourceFiles(entry, relPath, isIgnored, files);
               } else {
                 if (isIgnored(relPath, false)) continue;
-                if (entry.name.endsWith(".html")) {
+                const name = entry.name;
+                if (
+                  name.endsWith(".html") ||
+                  name.endsWith(".js") ||
+                  name.endsWith(".mjs")
+                ) {
                   files.push({ relPath, handle: entry });
                 }
               }
@@ -579,11 +637,11 @@
                 return isIgnored(path, isDir);
               };
 
-              this.statusText = "扫描 HTML 文件 ...";
+              this.statusText = "扫描源码文件 ...";
               const files = [];
-              await this.collectHtmlFiles(root, "", baseIgnored, files);
+              await this.collectSourceFiles(root, "", baseIgnored, files);
 
-              this.statusText = "解析 <locale-text> 节点 ...";
+              this.statusText = "解析 <locale-text> 与 getLocaleText 调用 ...";
               const entries = []; // { langMap, baseText, baseLang, sourceFile }
               const scannedFiles = []; // { relPath, hit, count }
               let hitFiles = 0;
@@ -598,28 +656,53 @@
                   continue;
                 }
 
-                const doc = new DOMParser().parseFromString(text, "text/html");
-                // ofa.js 的 <template page>/<template component> 内容在 .content 里，
-                // querySelectorAll 不会进入，需要递归收集
-                const ltNodes = [];
-                const collectLt = (root) => {
-                  root.querySelectorAll("locale-text").forEach((n) =>
-                    ltNodes.push(n));
-                  root.querySelectorAll("template").forEach((t) => {
-                    if (t.content) collectLt(t.content);
-                  });
-                };
-                collectLt(doc);
-
                 let count = 0;
-                if (ltNodes.length > 0) {
-                  ltNodes.forEach((ltEl) => {
-                    const extracted = extractFromLocaleText(ltEl);
-                    if (!extracted) return;
+
+                if (relPath.endsWith(".js") || relPath.endsWith(".mjs")) {
+                  // JS 源码：正则提取 getLocaleText({...}) 调用
+                  const jsLangMaps = extractFromJs(text);
+                  jsLangMaps.forEach((langMap) => {
+                    const baseText =
+                      langMap.cn ?? langMap.en ?? Object.values(langMap)[0];
+                    const baseLang = langMap.cn
+                      ? "cn"
+                      : langMap.en
+                        ? "en"
+                        : Object.keys(langMap)[0];
                     count++;
-                    entries.push({ ...extracted, sourceFile: relPath });
+                    entries.push({
+                      langMap,
+                      baseText,
+                      baseLang,
+                      sourceFile: relPath,
+                    });
                   });
-                  hitFiles++;
+                  if (count > 0) hitFiles++;
+                } else {
+                  // HTML：DOMParser 解析，递归收集 locale-text（含 template 内嵌）
+                  const doc = new DOMParser().parseFromString(
+                    text,
+                    "text/html",
+                  );
+                  const ltNodes = [];
+                  const collectLt = (root) => {
+                    root.querySelectorAll("locale-text").forEach((n) =>
+                      ltNodes.push(n));
+                    root.querySelectorAll("template").forEach((t) => {
+                      if (t.content) collectLt(t.content);
+                    });
+                  };
+                  collectLt(doc);
+
+                  if (ltNodes.length > 0) {
+                    ltNodes.forEach((ltEl) => {
+                      const extracted = extractFromLocaleText(ltEl);
+                      if (!extracted) return;
+                      count++;
+                      entries.push({ ...extracted, sourceFile: relPath });
+                    });
+                    hitFiles++;
+                  }
                 }
 
                 scannedFiles.push({ relPath, hit: count > 0, count });

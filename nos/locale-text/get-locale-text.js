@@ -37,32 +37,6 @@ export const setLang = (lang) => {
   }
 };
 
-// 通过对象获取对应语言的文本
-export const getLocaleText = (obj) => {
-  if (obj == null || typeof obj !== "object") {
-    return undefined;
-  }
-
-  let text = obj[getLang()];
-
-  // 如果没有对应语言的文本，查找 en
-  if (text === undefined && obj.en !== undefined) {
-    text = obj.en;
-  }
-
-  // 如果没有 en，返回第一个文本
-  if (text === undefined) {
-    const firstKey = Object.keys(obj)[0];
-    if (firstKey !== undefined) {
-      text = obj[firstKey];
-    }
-  }
-
-  return text;
-};
-
-export default getLocaleText;
-
 // locale-text.json 的模块级缓存（同一页面只 fetch 一次）
 let _jsonPromise = null;
 
@@ -75,7 +49,84 @@ export const fetchLocaleTextJson = () => {
   return _jsonPromise;
 };
 
+// locale-text.json 的反向索引：baseText -> entry（同步可读）
+// 预加载后 getLocaleText 可同步命中，未加载时回退到传入对象
+let _jsonIndex = null;
+
+// 提前加载 locale-text.json 并构建反向索引
+export const ensureLocaleTextJson = async () => {
+  if (_jsonIndex !== null) return;
+  const json = (await fetchLocaleTextJson()) || {};
+  _jsonIndex = {};
+  for (const entry of Object.values(json)) {
+    const baseText = entry.cn ?? entry.en ?? Object.values(entry)[0];
+    if (baseText != null) _jsonIndex[baseText] = entry;
+  }
+};
+
+// {key} 占位符替换（与 <locale-text> 组件的插值语法一致）
+const interpolate = (text, vars) => {
+  if (!vars) return text;
+  return String(text).replace(/\{([\w-]+)\}/g, (match, key) => {
+    const val = vars[key];
+    return val !== undefined ? String(val) : match;
+  });
+};
+
+// 通过对象获取对应语言的文本
+// 查找优先级：
+//   1. locale-text.json 反向索引（支持运行时扩展更多语种，需 ensureLocaleTextJson 预加载）
+//   2. 回退到传入对象（lang → en → 第一个字段）
+// 命中后对结果做 {key} 变量插值（vars）
+export const getLocaleText = (obj, vars) => {
+  if (obj == null || typeof obj !== "object") {
+    return undefined;
+  }
+
+  const lang = getLang();
+  let text;
+
+  // 基准文本优先级：cn → en → 第一个字段（与工具/组件保持一致）
+  const baseText = obj.cn ?? obj.en ?? Object.values(obj)[0];
+
+  // 1. 优先查 locale-text.json 反向索引
+  if (_jsonIndex && baseText != null) {
+    const entry = _jsonIndex[baseText];
+    if (entry && entry[lang] !== undefined) {
+      text = entry[lang];
+    }
+  }
+
+  // 2. 回退到传入对象
+  if (text === undefined) {
+    text = obj[lang];
+    if (text === undefined && obj.en !== undefined) {
+      text = obj.en;
+    }
+    if (text === undefined) {
+      const firstKey = Object.keys(obj)[0];
+      if (firstKey !== undefined) {
+        text = obj[firstKey];
+      }
+    }
+  }
+
+  // 3. 变量插值
+  if (vars && text != null) {
+    text = interpolate(text, vars);
+  }
+
+  return text;
+};
+
+export default getLocaleText;
+
 // 重置 JSON 缓存（主要用于测试隔离）
 export const resetLocaleTextJsonCache = () => {
   _jsonPromise = null;
+  _jsonIndex = null;
 };
+
+// 模块加载时即开始预加载（fire-and-forget，不阻塞）
+// 未加载完成时 getLocaleText 回退到传入对象，加载完成后自动命中
+ensureLocaleTextJson();
