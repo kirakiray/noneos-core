@@ -574,10 +574,13 @@
             }
             if (siblingNames.includes(result)) {
               toast({
-                content: getLocaleText({
-                  cn: `重命名失败，${result} 已存在`,
-                  en: `Rename failed, ${result} already exists`,
-                }),
+                content: getLocaleText(
+                  {
+                    cn: "重命名失败，{name} 已存在",
+                    en: "Rename failed, {name} already exists",
+                  },
+                  { name: result },
+                ),
                 color: "error",
               });
               return;
@@ -654,19 +657,26 @@
             const { contextItemPath } = this;
             const handle = await get(contextItemPath);
             this.hideMenu();
+            const itemType = getLocaleText(
+              handle.kind === "dir"
+                ? { cn: "目录", en: "Directory" }
+                : { cn: "文件", en: "File" },
+            );
             const result = await confirm({
-              title: getLocaleText({
-                cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
-                en: `Delete${handle.kind === "dir" ? " Directory" : " File"}`,
-              }),
-              content: getLocaleText({
-                cn: `确认删除 ${
-                  handle.kind === "dir" ? "目录" : "文件"
-                } ${contextItemPath} 吗？此操作不可撤销。`,
-                en: `Are you sure you want to delete ${
-                  handle.kind === "dir" ? "directory" : "file"
-                } ${contextItemPath}? This action cannot be undone.`,
-              }),
+              title: getLocaleText(
+                {
+                  cn: "删除 {type}",
+                  en: "Delete {type}",
+                },
+                { type: itemType },
+              ),
+              content: getLocaleText(
+                {
+                  cn: "确认删除 {type} {name} 吗？此操作不可撤销。",
+                  en: "Are you sure you want to delete {type} {name}? This action cannot be undone.",
+                },
+                { type: itemType, name: contextItemPath },
+              ),
             });
 
             if (!result) {

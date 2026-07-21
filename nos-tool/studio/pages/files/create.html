@@ -172,10 +172,13 @@
 
             if (handle) {
               toast({
-                content: getLocaleText({
-                  cn: `${fullFileName} 已存在`,
-                  en: `${fullFileName} already exists`,
-                }),
+                content: getLocaleText(
+                  {
+                    cn: "{name} 已存在",
+                    en: "{name} already exists",
+                  },
+                  { name: fullFileName },
+                ),
                 type: "error",
               });
               return;

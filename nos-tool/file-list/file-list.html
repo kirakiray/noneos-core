@@ -543,10 +543,13 @@
                 }
 
                 toast({
-                  content: getLocaleText({
-                    cn: `重命名失败，${result} 已存在`,
-                    en: `Rename failed, ${result} already exists`,
-                  }),
+                  content: getLocaleText(
+                    {
+                      cn: "重命名失败，{name} 已存在",
+                      en: "Rename failed, {name} already exists",
+                    },
+                    { name: result },
+                  ),
                   color: "error",
                 });
 
@@ -630,28 +633,25 @@
 
             const fileName = handle.name;
 
+            const itemType = getLocaleText(
+              handle.kind === "dir"
+                ? { cn: "目录", en: "Directory" }
+                : { cn: "文件", en: "File" },
+            );
             const result = await confirm({
               title: getLocaleText(
                 {
-                  cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
-                  en: `Delete ${handle.kind === "dir" ? "Directory" : "File"}`,
+                  cn: "删除 {type}",
+                  en: "Delete {type}",
                 },
-                {
-                  var: [handle.kind],
-                }
+                { type: itemType },
               ),
               content: getLocaleText(
                 {
-                  cn: `确认删除 ${
-                    handle.kind === "dir" ? "目录" : "文件"
-                  } ${fileName} 吗？此操作不可撤销。`,
-                  en: `Are you sure you want to delete ${
-                    handle.kind === "dir" ? "directory" : "file"
-                  } ${fileName}? This action cannot be undone.`,
+                  cn: "确认删除 {type} {name} 吗？此操作不可撤销。",
+                  en: "Are you sure you want to delete {type} {name}? This action cannot be undone.",
                 },
-                {
-                  var: [handle.kind, fileName],
-                }
+                { type: itemType, name: fileName },
               ),
             });
 
