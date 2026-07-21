@@ -183,4 +183,5 @@ const result = await publisher.assembleFile(fileHash);
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
 - [公共组件文档 (ncomp)](references/ncomp.md)
+- [多语言模块 (locale-text)](references/locale-text.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)
