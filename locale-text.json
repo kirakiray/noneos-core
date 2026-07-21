@@ -310,10 +310,6 @@
     "cn": "并发次数",
     "en": "Concurrency"
   },
-  "60b329c75a11cd61cba21781d54ec4671887412f9eebcc3573ab80eed0bff0e8": {
-    "cn": "ID: {{$data.id}} | 模型: {{$data.model}} | 并发:\n                {{$data.concurrency || 1}}",
-    "en": "ID: {{$data.id}} | Model: {{$data.model}} | Concurrency:\n                {{$data.concurrency || 1}}"
-  },
   "051836569928a9f91145a70e00b212b62a06c21a97d2d828cb75acd3fbe851b9": {
     "cn": "编辑",
     "en": "Edit"
@@ -365,14 +361,6 @@
   "081d292eba0264d9880c9cae6e9294e6760fe20fe0320bad2547b5d4c902eaca": {
     "cn": "不支持的提供商",
     "en": "Unsupported provider"
-  },
-  "7b822cdab3dc7a2c6be4b2782ab4972cddba7cbcdb8c7826513755734ce8afc9": {
-    "cn": "网络请求失败: ${err.message}",
-    "en": "Network failed: ${err.message}"
-  },
-  "362560ced92c5e11cdfeed9a5b07546e5363f2447a2329de4bed5a9499eb19f8": {
-    "cn": "API 失败 (${response.status})",
-    "en": "API failed (${response.status})"
   },
   "50e2bf6e1bcef0107eab5c651063f3f5cb146824c974aeb3cb1ef83c9e7c9a86": {
     "cn": "没有可用的 API Key",

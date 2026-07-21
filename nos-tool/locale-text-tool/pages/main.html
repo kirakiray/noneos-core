@@ -1,5 +1,6 @@
 <template page>
   <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
@@ -572,6 +573,7 @@
       const { open } = await load("/nos/fs/main.js");
       const { getHash } = await load("/nos/util/hash/get-hash.js");
       const { getLocaleText } = await load("/nos/locale-text/get-locale-text.js");
+      const { confirm } = await load("/gh/ofajs/Punch-UI@1/packages/util.js");
 
       return {
         data: {
@@ -879,6 +881,7 @@
               added: "新增条目",
               updated: "更新条目",
               kept: "保留条目",
+              orphaned: "冗余条目",
             };
             this.listTitle = titles[type] || type;
 
@@ -909,6 +912,57 @@
 
           backToMain() {
             this.activeView = "main";
+          },
+
+          // 清理所有冗余条目（旧 JSON 中存在但本次扫描未命中的）
+          async cleanOrphaned() {
+            if (!_lastFinalMap || !_rootHandle || !_lastDetail) return;
+            const orphanedEntries = _lastDetail.entries.filter(
+              (e) => e.status === "orphaned",
+            );
+            if (orphanedEntries.length === 0) return;
+
+            const result = await confirm({
+              title: getLocaleText({
+                cn: "确认清理",
+                en: "Confirm Clean",
+              }),
+              content: getLocaleText(
+                {
+                  cn: "确认清理 {count} 条冗余条目吗？此操作不可撤销。",
+                  en: "Are you sure you want to clean {count} orphaned entries? This action cannot be undone.",
+                },
+                { count: orphanedEntries.length },
+              ),
+            });
+            if (!result) return;
+
+            for (const e of orphanedEntries) {
+              delete _lastFinalMap[e.hash];
+            }
+
+            const output = JSON.stringify(_lastFinalMap, null, 2);
+            const outFile = await _rootHandle.get("locale-text.json");
+            await outFile.write(output);
+
+            this.previewText = output;
+
+            _lastDetail.entries = _lastDetail.entries.filter(
+              (e) => e.status !== "orphaned",
+            );
+            this.entryList = [];
+            this.listCount = "0 条";
+
+            this.stats = {
+              ...this.stats,
+              orphaned: 0,
+              totalEntries: Object.keys(_lastFinalMap).length,
+            };
+
+            this.statusText = getLocaleText({
+              cn: "已清理冗余条目",
+              en: "Orphaned entries cleaned",
+            });
           },
         },
         attached() {
