@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>locale-text 多语言模块测试</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+    <script
+      src="/gh/ofajs/ofa.js@latest/dist/ofa.mjs#debug"
+      type="module"
+    ></script>
+  </head>
+  <body>
+    <h1>locale-text 多语言模块测试</h1>
+
+    <!-- 注册 locale-text 组件 -->
+    <l-m src="/nos/locale-text/locale-text.html"></l-m>
+    <div id="query-target"></div>
+
+    <sb-test name="getLang - 返回非空语言码">
+      <template>
+        <script type="module">
+          {
+            const { getLang } =
+              await import("/nos/locale-text/get-locale-text.js");
+            const lang_getLang = getLang();
+            const isString_getLang = typeof lang_getLang === "string";
+            const nonEmpty_getLang = lang_getLang.length > 0;
+
+            return {
+              assert: isString_getLang && nonEmpty_getLang,
+              content: {
+                message: "getLang 应返回非空字符串语言码",
+                lang: lang_getLang,
+                checks: { isString_getLang, nonEmpty_getLang },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText - 返回当前语言对应文本">
+      <template>
+        <script type="module">
+          {
+            const { getLang, getLocaleText } =
+              await import("/nos/locale-text/get-locale-text.js");
+            const lang_match = getLang();
+
+            // 构造包含当前语言的对象，应精确命中
+            const obj_match = { [lang_match]: "当前语言文本", en: "English" };
+            const text_match = getLocaleText(obj_match);
+
+            return {
+              assert: text_match === "当前语言文本",
+              content: {
+                message: "存在当前语言 key 时应返回对应文本",
+                lang: lang_match,
+                text: text_match,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText - 缺少当前语言时回退到 en">
+      <template>
+        <script type="module">
+          {
+            const { getLang, getLocaleText } =
+              await import("/nos/locale-text/get-locale-text.js");
+            const lang_fallbackEn = getLang();
+
+            // 使用一个绝不会命中的语言码，且提供 en，应回退到 en
+            const obj_fallbackEn = {
+              "xx-not-exist": "不该出现",
+              en: "English Fallback",
+            };
+            const text_fallbackEn = getLocaleText(obj_fallbackEn);
+
+            // 确认当前语言确实不是那个假语言码
+            const currentNotFake_fallbackEn =
+              lang_fallbackEn !== "xx-not-exist";
+
+            return {
+              assert:
+                currentNotFake_fallbackEn &&
+                text_fallbackEn === "English Fallback",
+              content: {
+                message: "缺少当前语言但存在 en 时应返回 en 文本",
+                lang: lang_fallbackEn,
+                text: text_fallbackEn,
+                checks: { currentNotFake_fallbackEn },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText - 无当前语言且无 en 时返回第一个值">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText } =
+              await import("/nos/locale-text/get-locale-text.js");
+
+            // 既无当前语言也无 en，应返回第一个 key 的值
+            const obj_first = {
+              "xx-first": "第一个值",
+              "yy-second": "第二个值",
+            };
+            const text_first = getLocaleText(obj_first);
+
+            return {
+              assert: text_first === "第一个值",
+              content: {
+                message: "无匹配语言且无 en 时应返回第一个值",
+                text: text_first,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 显示指定 lang 的子元素">
+      <template>
+        <script type="module">
+          {
+            const container_show = $("#query-target");
+            container_show.html = `
+              <locale-text lang="en">
+                <span lang="cn">中文内容</span>
+                <span lang="en">English Content</span>
+              </locale-text>
+            `;
+
+            // 等待组件渲染完成
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_show = container_show.$('span[lang="cn"]');
+            const enEl_show = container_show.$('span[lang="en"]');
+
+            // 通过 offsetParent 判断元素是否实际可见（display:none 时为 null）
+            const cnVisible_show = cnEl_show.ele.offsetParent !== null;
+            const enVisible_show = enEl_show.ele.offsetParent !== null;
+
+            return {
+              assert: enVisible_show && !cnVisible_show,
+              content: {
+                message: "lang=en 时应仅显示英文子元素",
+                checks: { enVisible_show, cnVisible_show },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 目标语言缺失时回退到 en">
+      <template>
+        <script type="module">
+          {
+            const container_fb = $("#query-target");
+            // 指定一个不存在的语言，内部仅有 cn/en，应回退到 en
+            container_fb.html = `
+              <locale-text lang="xx-not-exist">
+                <span lang="cn">中文回退</span>
+                <span lang="en">English Fallback Content</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_fb = container_fb.$('span[lang="cn"]');
+            const enEl_fb = container_fb.$('span[lang="en"]');
+
+            const cnVisible_fb = cnEl_fb.ele.offsetParent !== null;
+            const enVisible_fb = enEl_fb.ele.offsetParent !== null;
+
+            return {
+              assert: enVisible_fb && !cnVisible_fb,
+              content: {
+                message: "目标语言不存在但有 en 时应回退显示 en",
+                checks: { enVisible_fb, cnVisible_fb },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 目标语言与 en 都缺失时显示第一个">
+      <template>
+        <script type="module">
+          {
+            const container_only = $("#query-target");
+            // 目标语言与 en 都不存在，应显示第一个声明的语言
+            container_only.html = `
+              <locale-text lang="xx-not-exist">
+                <span lang="cn">仅有中文</span>
+                <span lang="ja">日本語</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_only = container_only.$('span[lang="cn"]');
+            const jaEl_only = container_only.$('span[lang="ja"]');
+
+            const cnVisible_only = cnEl_only.ele.offsetParent !== null;
+            const jaVisible_only = jaEl_only.ele.offsetParent !== null;
+
+            return {
+              assert: cnVisible_only && !jaVisible_only,
+              content: {
+                message: "目标语言与 en 都缺失时应显示第一个声明的语言",
+                checks: { cnVisible_only, jaVisible_only },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
