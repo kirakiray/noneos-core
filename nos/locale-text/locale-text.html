@@ -191,30 +191,17 @@
                 return false;
               }
 
-              const { baseText, langMap } = extracted;
+              const { baseText } = extracted;
               const hash = await getHashCached(baseText);
               const entry = json[hash];
 
-              // JSON 中优先取目标语言，否则取 entry 中已有的其他语言（兜底到 langMap 中的 en/第一项）
-              let text;
-              if (entry && entry[targetLang] !== undefined) {
-                text = entry[targetLang];
-              } else if (entry && entry.en !== undefined) {
-                text = entry.en;
-              } else if (langMap.en !== undefined) {
-                text = langMap.en;
-              } else {
-                // 最后兜底：原 slot 第一项文本
-                const firstKey = Object.keys(langMap)[0];
-                text = langMap[firstKey];
-              }
-
-              if (text === undefined) {
+              // JSON 回退仅当条目存在且包含目标语言时生效
+              if (!entry || entry[targetLang] === undefined) {
                 this.clearJsonFallback();
                 return false;
               }
 
-              fallbackEl.ele.innerHTML = text;
+              fallbackEl.ele.innerHTML = entry[targetLang];
               return true;
             } catch (e) {
               this.clearJsonFallback();
