@@ -228,5 +228,336 @@
         </script>
       </template>
     </sb-test>
+
+    <!-- ====== 以下为针对本轮缺陷修复新增的用例 ====== -->
+
+    <sb-test name="setLang - 切换后 getLang 立即生效并可恢复">
+      <template>
+        <script type="module">
+          {
+            const { getLang, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            const before = getLang();
+            setLang("en");
+            const afterSet = getLang();
+            setLang(null);
+            const afterReset = getLang();
+
+            return {
+              assert: afterSet === "en" && afterReset === before,
+              content: {
+                message: "setLang 应立即修改 getLang 返回值，setLang(null) 应回到初始值",
+                before,
+                afterSet,
+                afterReset,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="setLang - 派发 locale-text:lang-change 事件">
+      <template>
+        <script type="module">
+          {
+            const { setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            let fired = false;
+            const handler = () => (fired = true);
+            window.addEventListener("locale-text:lang-change", handler);
+            setLang("cn");
+            // 移除监听，避免影响后续用例
+            window.removeEventListener("locale-text:lang-change", handler);
+
+            return {
+              assert: fired === true,
+              content: {
+                message: "setLang 调用后应派发 locale-text:lang-change 事件",
+                fired,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getLocaleText - null/undefined/空对象不抛错">
+      <template>
+        <script type="module">
+          {
+            const { getLocaleText } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            const checks = {
+              noThrow_null: true,
+              noThrow_undefined: true,
+              noThrow_empty: true,
+            };
+
+            let text_null, text_undefined, text_empty;
+            try {
+              text_null = getLocaleText(null);
+            } catch (e) {
+              checks.noThrow_null = false;
+            }
+            try {
+              text_undefined = getLocaleText(undefined);
+            } catch (e) {
+              checks.noThrow_undefined = false;
+            }
+            try {
+              text_empty = getLocaleText({});
+            } catch (e) {
+              checks.noThrow_empty = false;
+            }
+
+            const undefinedResult =
+              text_null === undefined &&
+              text_undefined === undefined &&
+              text_empty === undefined;
+
+            return {
+              assert:
+                checks.noThrow_null &&
+                checks.noThrow_undefined &&
+                checks.noThrow_empty &&
+                undefinedResult,
+              content: {
+                message:
+                  "getLocaleText 对 null/undefined/空对象应安全返回 undefined，不抛错",
+                text_null,
+                text_undefined,
+                text_empty,
+                checks,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 不设 lang 属性时按 getLang() 显示（ready 钩子）">
+      <template>
+        <script type="module">
+          {
+            const { getLang, setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            // 强制设定一个已知语言，确保组件首次渲染就应显示对应元素
+            setLang("en");
+
+            const container_ready = $("#query-target");
+            container_ready.html = `
+              <locale-text>
+                <span lang="cn">中文-默认</span>
+                <span lang="en">English-Default</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_ready = container_ready.$('span[lang="cn"]');
+            const enEl_ready = container_ready.$('span[lang="en"]');
+            const cnVisible_ready = cnEl_ready.ele.offsetParent !== null;
+            const enVisible_ready = enEl_ready.ele.offsetParent !== null;
+
+            // 恢复语言，避免影响后续用例
+            setLang(null);
+
+            return {
+              assert: enVisible_ready && !cnVisible_ready,
+              content: {
+                message: "不显式设置 lang 时，ready 钩子应保证首屏按 getLang() 正确显示",
+                checks: { enVisible_ready, cnVisible_ready },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - setLang 后自动刷新显示（监听全局事件）">
+      <template>
+        <script type="module">
+          {
+            const { setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            const container_react = $("#query-target");
+            container_react.html = `
+              <locale-text>
+                <span lang="cn">中文-响应式</span>
+                <span lang="en">English-Reactive</span>
+              </locale-text>
+            `;
+
+            // 先设为 cn，等待渲染
+            setLang("cn");
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_react = container_react.$('span[lang="cn"]');
+            const enEl_react = container_react.$('span[lang="en"]');
+            const cnVisible_before = cnEl_react.ele.offsetParent !== null;
+            const enVisible_before = enEl_react.ele.offsetParent !== null;
+
+            // 切换到 en，组件应自动刷新
+            setLang("en");
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnVisible_after = cnEl_react.ele.offsetParent !== null;
+            const enVisible_after = enEl_react.ele.offsetParent !== null;
+
+            // 恢复语言，避免影响后续用例
+            setLang(null);
+
+            return {
+              assert:
+                cnVisible_before && !enVisible_before && !cnVisible_after && enVisible_after,
+              content: {
+                message: "setLang 切换语言后，组件应无需重载即可自动刷新显示",
+                checks: { cnVisible_before, enVisible_before, cnVisible_after, enVisible_after },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 子元素动态变化后自动刷新（MutationObserver）">
+      <template>
+        <script type="module">
+          {
+            const { setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("cn");
+
+            const container_mo = $("#query-target");
+            // 初始只有 cn 子元素，应当显示 cn
+            container_mo.html = `
+              <locale-text>
+                <span lang="cn">中文-动态</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+            const cnEl_mo = container_mo.$('span[lang="cn"]');
+            const cnVisible_before = cnEl_mo.ele.offsetParent !== null;
+
+            // 动态插入 en 子元素，并把全局语言切换为 en，
+            // MutationObserver 与全局事件都应触发刷新
+            const lt = container_mo.$("locale-text");
+            const newEn = document.createElement("span");
+            newEn.setAttribute("lang", "en");
+            newEn.textContent = "English-MO";
+            lt.ele.appendChild(newEn);
+
+            setLang("en");
+            await new Promise((r) => setTimeout(r, 200));
+
+            const enEl_mo = container_mo.$('span[lang="en"]');
+            const cnVisible_after = cnEl_mo.ele.offsetParent !== null;
+            const enVisible_after = enEl_mo.ele.offsetParent !== null;
+
+            setLang(null);
+
+            return {
+              assert:
+                cnVisible_before && enVisible_after && !cnVisible_after,
+              content: {
+                message: "slot 子元素变化与 setLang 都应触发组件刷新",
+                checks: { cnVisible_before, cnVisible_after, enVisible_after },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - 无带 lang 子元素时不生成脏 CSS">
+      <template>
+        <script type="module">
+          {
+            const { setLang } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            setLang("en");
+
+            const container_empty = $("#query-target");
+            // 没有任何带 lang 的子元素
+            container_empty.html = `<locale-text></locale-text>`;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const lt = container_empty.$("locale-text");
+            const styleEl = lt.shadow.$("#lang-style");
+            const styleHtml = styleEl.text.trim();
+
+            setLang(null);
+
+            // 不应出现 lang="undefined" 之类的脏选择器
+            const noDirtyCss = !styleHtml.includes('lang="undefined"') && styleHtml === "";
+
+            return {
+              assert: noDirtyCss,
+              content: {
+                message: "无带 lang 子元素时应清空注入样式，不生成脏 CSS",
+                styleHtml,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text 组件 - lang 属性含特殊字符时不破坏样式（CSS 转义）">
+      <template>
+        <script type="module">
+          {
+            const container_escape = $("#query-target");
+            // 构造一个含双引号/反斜杠的 lang 值，验证 escapeCSSAttr 不破坏样式表
+            // 用 script 方式注入，避免外层 HTML 解析干扰
+            container_escape.html = `<locale-text id="lt-escape"></locale-text>`;
+            await new Promise((r) => setTimeout(r, 50));
+
+            const lt = container_escape.$("#lt-escape");
+            // 显式指定一个含特殊字符的 lang，组件内 onlyLang 集合来源于子元素
+            lt.attr("lang", 'a"b');
+            const span = document.createElement("span");
+            span.setAttribute("lang", 'a"b');
+            span.textContent = "escaped";
+            lt.ele.appendChild(span);
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            // 只要样式表没抛错、子元素能正常显示即说明转义生效
+            const spanVisible = span.offsetParent !== null;
+            // styleSheets 不应存在无法解析的规则异常（间接验证：document 仍可用）
+            const docOk = !!document.body;
+
+            // 清理
+            container_escape.html = "";
+
+            return {
+              assert: spanVisible && docOk,
+              content: {
+                message: "lang 属性含特殊字符时，CSS 选择器应被正确转义，不破坏样式表",
+                checks: { spanVisible, docOk },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>
