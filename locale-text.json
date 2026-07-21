@@ -393,5 +393,13 @@
   "ae407b9b97f96ad2992912da91ca356ae666efb8cff3d1199d228c0457bcb690": {
     "cn": "API 失败 ({status}): {detail}",
     "en": "API failed ({status}): {detail}"
+  },
+  "a36e45384d00707b43b6f3f19e8fb49677f67d2f9c47258d746e7b0d30ce5fd7": {
+    "cn": "冗余",
+    "en": "Orphaned"
+  },
+  "1f69f4c9acd0a55691e01b47a19cc71828fbb03a15b5868fd364c594f67e2248": {
+    "cn": "清理所有冗余条目",
+    "en": "Clean all orphaned entries"
   }
 }

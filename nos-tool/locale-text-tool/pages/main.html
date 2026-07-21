@@ -186,6 +186,13 @@
       background: rgba(96, 96, 96, 0.18);
       color: #777;
     }
+    .entry-row .status-orphaned {
+      background: rgba(176, 0, 32, 0.18);
+      color: #b00020;
+    }
+    .clean-actions {
+      margin-top: 16px;
+    }
     .entry-row .entry-text {
       word-break: break-word;
       line-height: 1.5;
@@ -305,6 +312,15 @@
             </div>
             <div class="value">{{ stats.kept }}</div>
           </div>
+          <div class="stat-card" on:click="showList('orphaned')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">冗余</span>
+                <span lang="en">Orphaned</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.orphaned }}</div>
+          </div>
         </div>
       </o-if>
 
@@ -373,6 +389,17 @@
               </div>
             </div>
           </o-fill>
+          <o-if :value="activeView === 'orphaned' && entryList.length > 0">
+            <div class="clean-actions">
+              <p-button variant="outlined" on:click="cleanOrphaned" style="width:100%;">
+                <n-icon icon="material-symbols:delete-sweep" slot="prefix"></n-icon>
+                <locale-text>
+                  <span lang="cn">清理所有冗余条目</span>
+                  <span lang="en">Clean all orphaned entries</span>
+                </locale-text>
+              </p-button>
+            </div>
+          </o-if>
         </o-if>
       </div>
     </o-if>
@@ -538,10 +565,13 @@
     let _rootHandle = null;
     // 模块级变量保存最近一次扫描的详细数据（供列表视图读取）
     let _lastDetail = null;
+    // 模块级变量保存最近一次合并后的完整 JSON 映射（供冗余清理使用）
+    let _lastFinalMap = null;
 
     export default async ({ load }) => {
       const { open } = await load("/nos/fs/main.js");
       const { getHash } = await load("/nos/util/hash/get-hash.js");
+      const { getLocaleText } = await load("/nos/locale-text/get-locale-text.js");
 
       return {
         data: {
@@ -788,6 +818,22 @@
                 });
               }
 
+              // 统计冗余条目：旧 JSON 中存在但本次扫描未命中的
+              const orphanedRecords = [];
+              for (const [hash, entry] of Object.entries(existing)) {
+                if (!merged[hash]) {
+                  const baseText =
+                    entry.cn ?? entry.en ?? Object.values(entry)[0];
+                  orphanedRecords.push({
+                    hash,
+                    baseText: baseText ?? "",
+                    status: "orphaned",
+                    sourceFile: "",
+                    langs: Object.keys(entry).join(", "),
+                  });
+                }
+              }
+
               const output = JSON.stringify(finalMap, null, 2);
               this.previewText = output;
 
@@ -804,13 +850,15 @@
                 added,
                 updated,
                 kept,
+                orphaned: orphanedRecords.length,
               };
 
               // 保存详细数据供列表视图使用
               _lastDetail = {
                 scannedFiles,
-                entries: entryRecords,
+                entries: [...entryRecords, ...orphanedRecords],
               };
+              _lastFinalMap = finalMap;
 
               this.statusText = "完成。已写入 " + root.name + "/locale-text.json";
             } catch (e) {
