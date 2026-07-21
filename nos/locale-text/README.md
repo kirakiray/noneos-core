@@ -154,34 +154,41 @@ import { getLocaleText, getLang } from "/nos/locale-text/get-locale-text.js";
 import getLocaleText from "/nos/locale-text/get-locale-text.js";
 ```
 
-### `getLocaleText(obj)`
+### `getLocaleText(obj, vars)`
 
-传入一个以语言码为 key 的对象，返回当前语言对应的文本。
+传入一个以语言码为 key 的对象，返回当前语言对应的文本。与 `<locale-text>` 组件共享同一套语言判定与回退逻辑，无需额外配置即可命中 `locale-text.json` 中的扩展语种翻译。
 
 **参数：**
 - `obj` (Object) - 语言码到文本的映射，如 `{ cn: "...", en: "..." }`
+- `vars` (Object, 可选) - 变量映射，用于将文本中的 `{key}` 占位符替换为 `vars[key]` 的值；不传则保留占位符原文
 
 **返回值：** 当前语言对应的文本；找不到时按下述回退规则取值。
 
-**回退规则：**
-1. 返回 `obj[getLang()]`
-2. 若为 `undefined` 且存在 `obj.en`，返回 `obj.en`
-3. 若仍为 `undefined`，返回对象的第一个值
+**查找优先级：**
+1. **`locale-text.json` 反向索引**：模块加载时自动后台拉取 `/locale-text.json` 并构建 `基准文本 → 条目` 的索引（无需手动调用预加载函数）。若 `obj` 的基准文本（`cn` → `en` → 第一个字段）在 JSON 中命中且含当前语言字段，则返回 JSON 的翻译。这样只需在内联对象里写 `cn`/`en`，其他语种（如 `ja`/`ko`）由 JSON 提供
+2. 若 JSON 未命中，回退到内联对象：`obj[getLang()]`
+3. 若为 `undefined` 且存在 `obj.en`，返回 `obj.en`
+4. 若仍为 `undefined`，返回对象的第一个值
+5. 最后对结果做 `{key}` 变量插值（仅当传入 `vars` 时）
 
 **示例：**
 
 ```javascript
+// 基础用法
 getLocaleText({ cn: "没有可用的 API Key", en: "No available API Key" });
 // 当前语言为 cn 时返回 "没有可用的 API Key"
 
-// 常用于动态生成错误提示
+// 带变量的文本：用 {key} 占位符保持基准文本稳定，便于进 JSON
 throw new Error(
-  getLocaleText({
-    cn: `网络请求失败: ${err.message}`,
-    en: `Network failed: ${err.message}`,
-  })
+  getLocaleText(
+    { cn: "网络请求失败: {msg}", en: "Network failed: {msg}" },
+    { msg: err.message },
+  )
 );
+// 当前语言为 cn、msg 为 "timeout" 时返回 "网络请求失败: timeout"
 ```
+
+> **关于动态变量**：旧写法 `` `网络请求失败: ${err.message}` `` 会让每次错误都生成不同的基准文本，无法进入 `locale-text.json`。改用 `{msg}` 占位符后，基准文本固定为 `"网络请求失败: {msg}"`，可被提取工具收录，后续在 JSON 里补充 `ja`/`ko` 等翻译即可，无需改 JS 源码。`{key}` 语法与 `<locale-text>` 组件的 `data-*` 插值完全一致。
 
 ### `getLang()`
 
@@ -229,7 +236,9 @@ setLang(null);   // 恢复到启动期判定的语言
 3. 点击"生成 locale-text.json"
 4. 工具会：
    - 按完整 `.gitignore` 规则跳过匹配文件/目录
-   - 递归扫描所有 `.html` 文件中的 `<locale-text>` 节点
+   - 递归扫描所有 `.html` / `.js` / `.mjs` 源码文件
+   - HTML 文件：提取 `<locale-text>` 节点（含 `<template page>` / `<template component>` 内嵌的）
+   - JS/MJS 文件：正则提取 `getLocaleText({...})` 调用里的语言字段
    - 取每个节点的基准文本（`cn` → `en` → 第一个带 `lang` 的子元素）并计算 SHA-256
    - 与项目根目录已有的 `locale-text.json` 增量合并：旧条目的非基准语言字段保留，仅追加新条目
 5. 生成结果直接写入项目根目录的 `locale-text.json`，UI 同时提供预览
