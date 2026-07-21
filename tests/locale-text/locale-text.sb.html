@@ -836,5 +836,166 @@
         </script>
       </template>
     </sb-test>
+
+    <!-- ====== 以下为 data-* 变量替换功能新增的用例 ====== -->
+
+    <sb-test name="data-* 变量替换 - slot 命中时替换 {key} 为 data-key 值">
+      <template>
+        <script type="module">
+          {
+            const container_interp = $("#query-target");
+            container_interp.html = `
+              <locale-text lang="cn" data-id="42" data-model="gpt-4">
+                <span lang="cn">ID: {id} | 模型: {model}</span>
+                <span lang="en">ID: {id} | Model: {model}</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_interp = container_interp.$('span[lang="cn"]');
+            const cnText_interp = cnEl_interp.ele.textContent.trim();
+
+            const idReplaced = cnText_interp.includes("42");
+            const modelReplaced = cnText_interp.includes("gpt-4");
+            const noBraceLeft = !cnText_interp.includes("{id}") && !cnText_interp.includes("{model}");
+
+            container_interp.html = "";
+
+            return {
+              assert: idReplaced && modelReplaced && noBraceLeft,
+              content: {
+                message: "slot 命中时应将 {key} 替换为 data-key 属性值",
+                cnText: cnText_interp,
+                checks: { idReplaced, modelReplaced, noBraceLeft },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="data-* 变量替换 - data-* 属性变化后自动重新替换">
+      <template>
+        <script type="module">
+          {
+            const container_reInterp = $("#query-target");
+            container_reInterp.html = `
+              <locale-text lang="cn" data-id="42">
+                <span lang="cn">ID: {id}</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const cnEl_reInterp = container_reInterp.$('span[lang="cn"]');
+            const textBefore = cnEl_reInterp.ele.textContent.trim();
+            const has42 = textBefore.includes("42");
+
+            // 修改 data-id，组件应自动重新替换
+            const lt = container_reInterp.$("locale-text");
+            lt.attr("data-id", "99");
+            await new Promise((r) => setTimeout(r, 200));
+
+            const textAfter = cnEl_reInterp.ele.textContent.trim();
+            const has99 = textAfter.includes("99");
+            const no42 = !textAfter.includes("42");
+
+            container_reInterp.html = "";
+
+            return {
+              assert: has42 && has99 && no42,
+              content: {
+                message: "data-* 属性变化后组件应自动重新替换变量",
+                textBefore,
+                textAfter,
+                checks: { has42, has99, no42 },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="data-* 变量替换 - JSON 回退时也做变量替换">
+      <template>
+        <script type="module">
+          {
+            const { setLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+            const { getHash } = await import("/nos/util/hash/get-hash.js");
+
+            // 基准文本含占位符，与提取工具一致
+            const baseText_interpJson = "ID: {id} | 模型: {model}";
+            const hash_interpJson = await getHash(baseText_interpJson);
+
+            resetLocaleTextJsonCache();
+            const origFetch_interpJson = window.fetch;
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      [hash_interpJson]: {
+                        cn: baseText_interpJson,
+                        en: "ID: {id} | Model: {model}",
+                        // 日语翻译也保留占位符
+                        ja: "ID: {id} | モデル: {model}",
+                      },
+                    }),
+                    {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    },
+                  ),
+                );
+              }
+              return origFetch_interpJson(input, init);
+            };
+
+            setLang("ja");
+
+            const container_interpJson = $("#query-target");
+            container_interpJson.html = `
+              <locale-text id="lt-interpJson" data-id="7" data-model="claude">
+                <span lang="cn">${baseText_interpJson}</span>
+                <span lang="en">ID: {id} | Model: {model}</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const lt_interpJson = container_interpJson.$("#lt-interpJson");
+            const fallbackEl_interpJson = lt_interpJson.shadow.$(
+              "#lt-json-fallback",
+            );
+            const fallbackText_interpJson = fallbackEl_interpJson
+              ? fallbackEl_interpJson.text.trim()
+              : "";
+
+            const idReplaced = fallbackText_interpJson.includes("7");
+            const modelReplaced = fallbackText_interpJson.includes("claude");
+            const hasJapanese = fallbackText_interpJson.includes("モデル");
+            const noBraceLeft =
+              !fallbackText_interpJson.includes("{id}") &&
+              !fallbackText_interpJson.includes("{model}");
+
+            window.fetch = origFetch_interpJson;
+            setLang(null);
+            container_interpJson.html = "";
+
+            return {
+              assert: idReplaced && modelReplaced && hasJapanese && noBraceLeft,
+              content: {
+                message: "JSON 回退时应将翻译文本中的 {key} 替换为 data-key 值",
+                fallbackText: fallbackText_interpJson,
+                checks: { idReplaced, modelReplaced, hasJapanese, noBraceLeft },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

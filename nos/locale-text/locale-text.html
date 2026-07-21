@@ -17,6 +17,18 @@
       return String(val).replace(/["\\]/g, "\\$&");
     };
 
+    // 变量替换：{key} → data-key 属性值
+    // 用于支持 ofa.js 模板中的动态值，避免在子元素中使用 {{}} 语法
+    const interpolate = (text, hostEle) => {
+      return String(text).replace(/\{([\w-]+)\}/g, (match, key) => {
+        const val = hostEle.getAttribute("data-" + key);
+        return val !== null ? val : match;
+      });
+    };
+
+    // 子元素原始文本缓存（避免变量替换后丢失原始模板，保证 hash 稳定）
+    const _origTextMap = new WeakMap();
+
     // hash 缓存（同一基准文本不重复计算）
     const _hashCache = new Map();
     const getHashCached = async (text) => {
@@ -44,7 +56,8 @@
 
     // 从当前组件的直接子元素中提取基准文本与语言映射
     // 基准文本优先级：cn → en → 第一个带 lang 的子元素
-    const extractBaseFromHost = (hostEle) => {
+    // origTextMap 用于优先取原始文本（未变量替换），保证 hash 与提取工具一致
+    const extractBaseFromHost = (hostEle, origTextMap) => {
       const langMap = {};
       let firstLang = null;
       let firstText = null;
@@ -52,7 +65,11 @@
       Array.from(hostEle.children || []).forEach((child) => {
         const lang = child.getAttribute("lang");
         if (!lang) return;
-        const text = child.innerHTML.trim();
+        const raw =
+          origTextMap && origTextMap.has(child)
+            ? origTextMap.get(child)
+            : child.innerHTML;
+        const text = raw.trim();
         langMap[lang] = text;
         if (firstLang === null) {
           firstLang = lang;
@@ -92,6 +109,17 @@
             attributeFilter: ["lang"],
           });
 
+          // 监听 data-* 属性变化，触发变量替换更新
+          this._dataMo = new MutationObserver((records) => {
+            const hasData = records.some(
+              (r) =>
+                r.attributeName &&
+                r.attributeName.startsWith("data-"),
+            );
+            if (hasData) this.refreshStyle();
+          });
+          this._dataMo.observe(this.ele, { attributes: true });
+
           // 监听全局语言切换事件（由 setLang 派发）
           this._onLangChange = () => this.refreshStyle();
           window.addEventListener("locale-text:lang-change", this._onLangChange);
@@ -101,6 +129,10 @@
           if (this._mo) {
             this._mo.disconnect();
             this._mo = null;
+          }
+          if (this._dataMo) {
+            this._dataMo.disconnect();
+            this._dataMo = null;
           }
           if (this._onLangChange) {
             window.removeEventListener("locale-text:lang-change", this._onLangChange);
@@ -135,6 +167,7 @@
                   display: revert;
                 }
               `;
+              this.applyInterpolation(finalLang);
               this.clearJsonFallback();
               return;
             }
@@ -159,7 +192,25 @@
                 display: revert;
               }
             `;
+            this.applyInterpolation(finalLang);
             this.clearJsonFallback();
+          },
+
+          // 对指定语言的子元素做 {key} → data-key 变量替换
+          // 首次调用时记录原始文本到 _origTextMap，后续基于原始值替换
+          applyInterpolation(lang) {
+            this.forEach((el) => {
+              if (el.attr("lang") !== lang) return;
+              const nativeEl = el.ele;
+              if (!_origTextMap.has(nativeEl)) {
+                _origTextMap.set(nativeEl, nativeEl.innerHTML);
+              }
+              const orig = _origTextMap.get(nativeEl);
+              const replaced = interpolate(orig, this.ele);
+              if (nativeEl.innerHTML !== replaced) {
+                nativeEl.innerHTML = replaced;
+              }
+            });
           },
 
           // 尝试从 locale-text.json 中取目标语言；命中则注入临时容器返回 true
@@ -167,8 +218,8 @@
             const fallbackEl = this.shadow.$("#lt-json-fallback");
             if (!fallbackEl) return false;
 
-            // 提取基准文本
-            const extracted = extractBaseFromHost(this.ele);
+            // 提取基准文本（使用原始文本计算 hash，保证与提取工具一致）
+            const extracted = extractBaseFromHost(this.ele, _origTextMap);
             if (!extracted) {
               this.clearJsonFallback();
               return false;
@@ -191,7 +242,11 @@
                 return false;
               }
 
-              fallbackEl.ele.innerHTML = entry[targetLang];
+              // 对 JSON 翻译文本也做变量替换
+              fallbackEl.ele.innerHTML = interpolate(
+                entry[targetLang],
+                this.ele,
+              );
               return true;
             } catch (e) {
               this.clearJsonFallback();
