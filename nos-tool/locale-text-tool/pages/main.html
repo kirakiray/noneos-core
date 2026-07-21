@@ -5,6 +5,7 @@
     :host {
       display: block;
       height: 100%;
+      overflow-y: auto;
       background-color: var(--md-sys-color-normal-on-container);
       color: var(--md-sys-color-normal);
     }
@@ -50,6 +51,14 @@
       padding: 16px;
       border-radius: 8px;
       background: var(--md-sys-color-normal-container);
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+    .stat-card:hover {
+      background: var(--md-sys-color-normal-on-container);
+    }
+    .stat-card:active {
+      transform: scale(0.98);
     }
     .stat-card .label {
       font-size: 12px;
@@ -91,6 +100,109 @@
       margin-bottom: 12px;
       word-break: break-all;
     }
+
+    /* 列表视图 */
+    .list-view {
+      margin-top: 8px;
+    }
+    .list-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .list-header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .list-count {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-bottom: 14px;
+    }
+    .list-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: var(--md-sys-color-normal-container);
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .list-row.no-hit {
+      opacity: 0.5;
+    }
+    .list-row .row-path {
+      flex: 1;
+      word-break: break-all;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .list-row .row-icon {
+      font-size: 16px;
+      opacity: 0.7;
+    }
+    .list-row .row-count {
+      font-size: 12px;
+      opacity: 0.7;
+      white-space: nowrap;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--md-sys-color-normal-on-container);
+    }
+    .entry-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: var(--md-sys-color-normal-container);
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .entry-row .entry-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .entry-row .entry-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      font-weight: 600;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .entry-row .status-added {
+      background: rgba(46, 125, 50, 0.18);
+      color: #2e7d32;
+    }
+    .entry-row .status-updated {
+      background: rgba(183, 117, 0, 0.18);
+      color: #b77500;
+    }
+    .entry-row .status-kept {
+      background: rgba(96, 96, 96, 0.18);
+      color: #777;
+    }
+    .entry-row .entry-text {
+      word-break: break-word;
+      line-height: 1.5;
+    }
+    .entry-row .entry-meta {
+      font-size: 11px;
+      opacity: 0.55;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+    .empty-tip {
+      text-align: center;
+      padding: 40px 0;
+      opacity: 0.5;
+      font-size: 14px;
+    }
   </style>
   <div class="container">
     <h1>
@@ -115,95 +227,153 @@
       </div>
     </o-if>
 
-    <div class="actions">
-      <p-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
-        <n-icon icon="material-symbols:folder-open" slot="prefix"></n-icon>
-        <locale-text>
-          <span lang="cn">选择项目目录</span>
-          <span lang="en">Select Project Folder</span>
-        </locale-text>
-      </p-button>
-      <p-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
-        <n-icon icon="material-symbols:build" slot="prefix"></n-icon>
-        <locale-text>
-          <span lang="cn">生成 locale-text.json</span>
-          <span lang="en">Generate locale-text.json</span>
-        </locale-text>
-      </p-button>
-    </div>
-
-    <div class="breadcrumb">{{ rootPath }}</div>
-
-    <div class="status">{{ statusText }}</div>
-
-    <o-if :value="stats">
-      <div class="stats">
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">扫描文件</span>
-              <span lang="en">Files scanned</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.scanned }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">命中文件</span>
-              <span lang="en">Files with hits</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.hitFiles }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">条目总数</span>
-              <span lang="en">Total entries</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.totalEntries }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">新增</span>
-              <span lang="en">Added</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.added }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">更新</span>
-              <span lang="en">Updated</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.updated }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">
-            <locale-text>
-              <span lang="cn">保留</span>
-              <span lang="en">Kept</span>
-            </locale-text>
-          </div>
-          <div class="value">{{ stats.kept }}</div>
-        </div>
+    <o-if :value="activeView === 'main'">
+      <div class="actions">
+        <p-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
+          <n-icon icon="material-symbols:folder-open" slot="prefix"></n-icon>
+          <locale-text>
+            <span lang="cn">选择项目目录</span>
+            <span lang="en">Select Project Folder</span>
+          </locale-text>
+        </p-button>
+        <p-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
+          <n-icon icon="material-symbols:build" slot="prefix"></n-icon>
+          <locale-text>
+            <span lang="cn">生成 locale-text.json</span>
+            <span lang="en">Generate locale-text.json</span>
+          </locale-text>
+        </p-button>
       </div>
+
+      <div class="breadcrumb">{{ rootPath }}</div>
+
+      <div class="status">{{ statusText }}</div>
+
+      <o-if :value="stats">
+        <div class="stats">
+          <div class="stat-card" on:click="showList('scanned')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">扫描文件</span>
+                <span lang="en">Files scanned</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.scanned }}</div>
+          </div>
+          <div class="stat-card" on:click="showList('hits')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">命中文件</span>
+                <span lang="en">Files with hits</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.hitFiles }}</div>
+          </div>
+          <div class="stat-card" on:click="showList('total')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">条目总数</span>
+                <span lang="en">Total entries</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.totalEntries }}</div>
+          </div>
+          <div class="stat-card" on:click="showList('added')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">新增</span>
+                <span lang="en">Added</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.added }}</div>
+          </div>
+          <div class="stat-card" on:click="showList('updated')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">更新</span>
+                <span lang="en">Updated</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.updated }}</div>
+          </div>
+          <div class="stat-card" on:click="showList('kept')">
+            <div class="label">
+              <locale-text>
+                <span lang="cn">保留</span>
+                <span lang="en">Kept</span>
+              </locale-text>
+            </div>
+            <div class="value">{{ stats.kept }}</div>
+          </div>
+        </div>
+      </o-if>
+
+      <o-if :value="previewText">
+        <div class="preview-wrap">
+          <h3>
+            <locale-text>
+              <span lang="cn">预览（合并后）</span>
+              <span lang="en">Preview (merged)</span>
+            </locale-text>
+          </h3>
+          <textarea readonly :value="previewText"></textarea>
+        </div>
+      </o-if>
     </o-if>
 
-    <o-if :value="previewText">
-      <div class="preview-wrap">
-        <h3>
-          <locale-text>
-            <span lang="cn">预览（合并后）</span>
-            <span lang="en">Preview (merged)</span>
-          </locale-text>
-        </h3>
-        <textarea readonly :value="previewText"></textarea>
+    <o-if :value="activeView !== 'main'">
+      <div class="list-view">
+        <div class="list-header">
+          <p-button variant="text" on:click="backToMain">
+            <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
+            <locale-text>
+              <span lang="cn">返回</span>
+              <span lang="en">Back</span>
+            </locale-text>
+          </p-button>
+          <h2>{{ listTitle }}</h2>
+        </div>
+        <div class="list-count">{{ listCount }}</div>
+
+        <o-if :value="activeView === 'scanned' || activeView === 'hits'">
+          <o-if :value="fileList.length === 0">
+            <div class="empty-tip">
+              <locale-text>
+                <span lang="cn">暂无数据</span>
+                <span lang="en">No data</span>
+              </locale-text>
+            </div>
+          </o-if>
+          <o-fill :value="fileList" fill-key="relPath">
+            <div class="list-row" class:no-hit="!$data.hit">
+              <n-icon icon="mdi:file-outline" class="row-icon"></n-icon>
+              <span class="row-path">{{$data.relPath}}</span>
+              <o-if :value="$data.hit">
+                <span class="row-count">{{$data.count}}</span>
+              </o-if>
+            </div>
+          </o-fill>
+        </o-if>
+
+        <o-if :value="activeView !== 'scanned' && activeView !== 'hits'">
+          <o-if :value="entryList.length === 0">
+            <div class="empty-tip">
+              <locale-text>
+                <span lang="cn">暂无数据</span>
+                <span lang="en">No data</span>
+              </locale-text>
+            </div>
+          </o-if>
+          <o-fill :value="entryList" fill-key="hash">
+            <div class="entry-row">
+              <span attr:class="'entry-status status-' + $data.status">{{$data.status}}</span>
+              <div class="entry-main">
+                <div class="entry-text">{{$data.baseText}}</div>
+                <div class="entry-meta">{{$data.sourceFile}} · {{$data.langs}}</div>
+              </div>
+            </div>
+          </o-fill>
+        </o-if>
       </div>
     </o-if>
   </div>
@@ -313,6 +483,8 @@
 
     // 模块级变量保存 DirHandle，避免被 ofa.js 包装成 Stanz 代理导致 .get() 被劫持
     let _rootHandle = null;
+    // 模块级变量保存最近一次扫描的详细数据（供列表视图读取）
+    let _lastDetail = null;
 
     export default async ({ load }) => {
       const { open } = await load("/nos/fs/main.js");
@@ -327,6 +499,11 @@
           statusText: "",
           stats: null,
           previewText: "",
+          activeView: "main", // main | scanned | hits | total | added | updated | kept
+          listTitle: "",
+          listCount: "",
+          fileList: [],
+          entryList: [],
         },
         proto: {
           setStatus(msg) {
@@ -339,6 +516,8 @@
             this.statusText = "";
             this.stats = null;
             this.previewText = "";
+            this.activeView = "main";
+            _lastDetail = null;
             try {
               const handle = await open({ mode: "readwrite" });
               _rootHandle = handle;
@@ -405,7 +584,8 @@
               await this.collectHtmlFiles(root, "", baseIgnored, files);
 
               this.statusText = "解析 <locale-text> 节点 ...";
-              const entries = []; // { hash, langMap }
+              const entries = []; // { langMap, baseText, baseLang, sourceFile }
+              const scannedFiles = []; // { relPath, hit, count }
               let hitFiles = 0;
 
               for (let i = 0; i < files.length; i++) {
@@ -414,19 +594,35 @@
                 try {
                   text = await handle.text();
                 } catch (e) {
+                  scannedFiles.push({ relPath, hit: false, count: 0 });
                   continue;
                 }
 
                 const doc = new DOMParser().parseFromString(text, "text/html");
-                const ltNodes = doc.querySelectorAll("locale-text");
-                if (ltNodes.length === 0) continue;
-                hitFiles++;
+                // ofa.js 的 <template page>/<template component> 内容在 .content 里，
+                // querySelectorAll 不会进入，需要递归收集
+                const ltNodes = [];
+                const collectLt = (root) => {
+                  root.querySelectorAll("locale-text").forEach((n) =>
+                    ltNodes.push(n));
+                  root.querySelectorAll("template").forEach((t) => {
+                    if (t.content) collectLt(t.content);
+                  });
+                };
+                collectLt(doc);
 
-                ltNodes.forEach((ltEl) => {
-                  const extracted = extractFromLocaleText(ltEl);
-                  if (!extracted) return;
-                  entries.push(extracted);
-                });
+                let count = 0;
+                if (ltNodes.length > 0) {
+                  ltNodes.forEach((ltEl) => {
+                    const extracted = extractFromLocaleText(ltEl);
+                    if (!extracted) return;
+                    count++;
+                    entries.push({ ...extracted, sourceFile: relPath });
+                  });
+                  hitFiles++;
+                }
+
+                scannedFiles.push({ relPath, hit: count > 0, count });
               }
 
               this.statusText = "计算 hash 与合并 ...";
@@ -435,7 +631,11 @@
               for (const item of entries) {
                 const hash = await getHash(item.baseText);
                 if (!merged[hash]) {
-                  merged[hash] = { ...item.langMap };
+                  merged[hash] = {
+                    ...item.langMap,
+                    __baseText: item.baseText,
+                    __sourceFile: item.sourceFile,
+                  };
                 } else {
                   // 同 hash，用新条目补充缺失的语言
                   for (const [lang, text] of Object.entries(item.langMap)) {
@@ -461,10 +661,19 @@
               let updated = 0;
               let kept = 0;
               const finalMap = { ...existing };
+              const entryRecords = []; // { hash, baseText, status, sourceFile, langs }
 
-              for (const [hash, langMap] of Object.entries(merged)) {
+              for (const [hash, mergedData] of Object.entries(merged)) {
+                const baseText = mergedData.__baseText;
+                const sourceFile = mergedData.__sourceFile;
+                const langMap = { ...mergedData };
+                delete langMap.__baseText;
+                delete langMap.__sourceFile;
+
+                let status;
                 if (!finalMap[hash]) {
                   finalMap[hash] = langMap;
+                  status = "added";
                   added++;
                 } else {
                   // 保留旧的非基准语言翻译，仅更新/补充基准语言字段
@@ -478,9 +687,22 @@
                       finalMap[hash][lang] = text;
                     }
                   }
-                  if (changed) updated++;
-                  else kept++;
+                  if (changed) {
+                    status = "updated";
+                    updated++;
+                  } else {
+                    status = "kept";
+                    kept++;
+                  }
                 }
+
+                entryRecords.push({
+                  hash,
+                  baseText,
+                  status,
+                  sourceFile: sourceFile || "",
+                  langs: Object.keys(langMap).join(", "),
+                });
               }
 
               const output = JSON.stringify(finalMap, null, 2);
@@ -500,6 +722,13 @@
                 updated,
                 kept,
               };
+
+              // 保存详细数据供列表视图使用
+              _lastDetail = {
+                scannedFiles,
+                entries: entryRecords,
+              };
+
               this.statusText = "完成。已写入 " + root.name + "/locale-text.json";
             } catch (e) {
               this.statusText = "生成失败: " + (e?.message || e);
@@ -507,6 +736,48 @@
             } finally {
               this.busy = false;
             }
+          },
+
+          // 切换到列表视图
+          showList(type) {
+            if (!_lastDetail) return;
+            const titles = {
+              scanned: "扫描的文件",
+              hits: "命中文件",
+              total: "全部条目",
+              added: "新增条目",
+              updated: "更新条目",
+              kept: "保留条目",
+            };
+            this.listTitle = titles[type] || type;
+
+            if (type === "scanned") {
+              this.fileList = _lastDetail.scannedFiles;
+              this.entryList = [];
+              this.listCount = _lastDetail.scannedFiles.length + " 个文件";
+            } else if (type === "hits") {
+              const hits = _lastDetail.scannedFiles.filter((f) => f.hit);
+              this.fileList = hits;
+              this.entryList = [];
+              this.listCount = hits.length + " 个文件";
+            } else {
+              let entries;
+              if (type === "total") {
+                entries = _lastDetail.entries;
+              } else {
+                entries = _lastDetail.entries.filter(
+                  (e) => e.status === type,
+                );
+              }
+              this.entryList = entries;
+              this.fileList = [];
+              this.listCount = entries.length + " 条";
+            }
+            this.activeView = type;
+          },
+
+          backToMain() {
+            this.activeView = "main";
           },
         },
         attached() {
