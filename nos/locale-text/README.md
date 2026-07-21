@@ -80,14 +80,35 @@ await load("/nos/locale-text/locale-text.html");
 当内部没有与目标语言匹配的子元素时，组件按以下顺序回退：
 
 1. 目标语言（`lang` 属性或 `getLang()`）
-2. 若不存在，回退到 `en`
-3. 若仍不存在，使用第一个声明的语言
+2. **`locale-text.json` 中央翻译表**（见下文"JSON 回退"），按基准文本的 hash 查询
+3. 若不存在，回退到 `en`
+4. 若仍不存在，使用第一个声明的语言
 
 ### 工作原理
 
 组件通过注入一段 `::slotted()` 样式来控制显示：默认隐藏所有 slot 子元素，仅让当前语言对应的元素 `display: revert`。因此内容始终存在于 DOM 中，仅通过 CSS 控制可见性。`:host` 使用 `display: contents`，组件本身不产生额外布局盒子。
 
 组件在 `ready` 时计算一次样式，并通过 `MutationObserver` 监听 slot 子元素及子元素 `lang` 属性的变化，自动重新计算显示语言；同时监听全局 `locale-text:lang-change` 事件（`setLang()` 会派发该事件），在 `detached` 时统一清理监听。
+
+### JSON 回退（`locale-text.json`）
+
+当 slot 内没有任何子元素匹配目标语言时，组件会从站点根目录的 `/locale-text.json` 读取中央翻译表，按"基准文本 hash"查找翻译并注入 shadow 内的临时容器渲染，无需修改原 HTML。fetch 失败或文件不存在时静默降级到第 3、4 步的 slot 回退。
+
+- **基准文本**：`cn` 的 innerHTML → 无则 `en` → 无则第一个带 `lang` 的子元素
+- **hash 算法**：基准文本的 SHA-256 十六进制（与提取工具 [nos-tool/locale-text-tool](../../nos-tool/locale-text-tool/) 保持一致）
+- **JSON 格式**：
+
+```json
+{
+  "<sha256-of-base-text>": {
+    "cn": "中文文本",
+    "en": "English text",
+    "ja": "日本語テキスト"
+  }
+}
+```
+
+> 修改源 HTML 中 `cn` 文本会让旧 hash 失效，连带丢失该条目下的其他语种翻译；推荐固定 `cn` 文本，只新增/修改其他语种字段。
 
 ---
 
@@ -161,6 +182,37 @@ setLang(null);   // 恢复到启动期判定的语言
 | 在 HTML 模板中展示静态多语言文案 | `<locale-text>` 组件 |
 | 在 JS 中动态拼接文案 / 抛错提示 / 传参给函数 | `getLocaleText` 函数 |
 | 只需要知道当前语言码 | `getLang` 函数 |
+| 为整个项目集中补充/维护翻译 | 配合 [locale-text-tool](../../nos-tool/locale-text-tool/) 生成 `locale-text.json` |
+
+---
+
+## 翻译提取工具（`locale-text-tool`）
+
+配套的 ofa.js 应用 [nos-tool/locale-text-tool/](../../nos-tool/locale-text-tool/) 用于离线生成和维护 `locale-text.json`。
+
+### 使用步骤
+
+1. 在支持 `showDirectoryPicker` 的浏览器（推荐 Chrome）中打开 `/nos-tool/locale-text-tool/index.html`
+2. 点击"选择项目目录"，授权待翻译项目（需包含 `.gitignore`，否则会跳过 `.git` 外的所有文件）
+3. 点击"生成 locale-text.json"
+4. 工具会：
+   - 按完整 `.gitignore` 规则跳过匹配文件/目录
+   - 递归扫描所有 `.html` 文件中的 `<locale-text>` 节点
+   - 取每个节点的基准文本（`cn` → `en` → 第一个带 `lang` 的子元素）并计算 SHA-256
+   - 与项目根目录已有的 `locale-text.json` 增量合并：旧条目的非基准语言字段保留，仅追加新条目
+5. 生成结果直接写入项目根目录的 `locale-text.json`，UI 同时提供预览
+
+### 工作流
+
+- 初始提取：HTML 内只写 `cn`/`en` 两语，工具生成 JSON
+- 补充语种：直接在 `locale-text.json` 里为对应 hash 添加 `ja`/`ko`/... 字段，无需回到 HTML
+- 部署：将 `locale-text.json` 放到站点根目录，组件运行时会自动回退读取
+
+### 已知限制
+
+- 同一基准文本在不同位置出现会合并为同一条；需保证语义一致
+- 修改源 HTML 中 `cn` 文本会让旧 hash 失效（该条目的其他语种翻译不会自动迁移）
+- 仅 Chrome 系浏览器支持目录选择；运行时回退则对所有浏览器透明
 
 ---
 
@@ -169,4 +221,4 @@ setLang(null);   // 恢复到启动期判定的语言
 | 文件 | 说明 |
 |------|------|
 | [get-locale-text.js](./get-locale-text.js) | 语言判定逻辑，导出 `getLang`、`setLang` 与 `getLocaleText` |
-| [locale-text.html](./locale-text.html) | `<locale-text>` 组件定义，依赖 `get-locale-text.js` 的 `getLang` |
+| [locale-text.html](./locale-text.html) | `<locale-text>` 组件定义，依赖 `get-locale-text.js` 的 `getLang`，含 JSON 回退层 |

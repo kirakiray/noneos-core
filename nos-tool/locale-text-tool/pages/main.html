@@ -1,0 +1,520 @@
+<template page>
+  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      background-color: var(--md-sys-color-normal-on-container);
+      color: var(--md-sys-color-normal);
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    .subtitle {
+      opacity: 0.7;
+      margin: 0 0 24px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .status {
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: var(--md-sys-color-normal-container);
+      font-size: 14px;
+      white-space: pre-wrap;
+      min-height: 20px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      padding: 16px;
+      border-radius: 8px;
+      background: var(--md-sys-color-normal-container);
+    }
+    .stat-card .label {
+      font-size: 12px;
+      opacity: 0.6;
+      margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .preview-wrap {
+      margin-top: 16px;
+    }
+    .preview-wrap textarea {
+      width: 100%;
+      min-height: 320px;
+      box-sizing: border-box;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--md-sys-color-on-normal);
+      background: var(--md-sys-color-normal-container);
+      color: var(--md-sys-color-normal);
+      resize: vertical;
+    }
+    .unsupported {
+      padding: 16px;
+      border-radius: 8px;
+      background: rgba(176, 0, 32, 0.08);
+      color: #b00020;
+      margin-bottom: 24px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .breadcrumb {
+      font-size: 13px;
+      opacity: 0.75;
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+  </style>
+  <div class="container">
+    <h1>
+      <locale-text>
+        <span lang="cn">Locale Text 翻译提取工具</span>
+        <span lang="en">Locale Text Extractor</span>
+      </locale-text>
+    </h1>
+    <p class="subtitle">
+      <locale-text>
+        <span lang="cn">扫描项目内所有 HTML 文件中的 &lt;locale-text&gt; 组件，提取基准文本并生成 locale-text.json 翻译索引。后续只需在 JSON 中补充其他语种，运行时组件会自动回退读取。</span>
+        <span lang="en">Scan all HTML files for &lt;locale-text&gt; components, extract base text and generate locale-text.json. Add other languages in the JSON at any time; the runtime component falls back to it automatically.</span>
+      </locale-text>
+    </p>
+
+    <o-if :value="!canUse">
+      <div class="unsupported">
+        <locale-text>
+          <div lang="cn">当前浏览器不支持 showDirectoryPicker，请使用 Chrome 等现代浏览器。</div>
+          <div lang="en">Your browser does not support showDirectoryPicker. Please use Chrome or other modern browsers.</div>
+        </locale-text>
+      </div>
+    </o-if>
+
+    <div class="actions">
+      <p-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
+        <n-icon icon="material-symbols:folder-open" slot="prefix"></n-icon>
+        <locale-text>
+          <span lang="cn">选择项目目录</span>
+          <span lang="en">Select Project Folder</span>
+        </locale-text>
+      </p-button>
+      <p-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
+        <n-icon icon="material-symbols:build" slot="prefix"></n-icon>
+        <locale-text>
+          <span lang="cn">生成 locale-text.json</span>
+          <span lang="en">Generate locale-text.json</span>
+        </locale-text>
+      </p-button>
+    </div>
+
+    <div class="breadcrumb">{{ rootPath }}</div>
+
+    <div class="status">{{ statusText }}</div>
+
+    <o-if :value="stats">
+      <div class="stats">
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">扫描文件</span>
+              <span lang="en">Files scanned</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.scanned }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">命中文件</span>
+              <span lang="en">Files with hits</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.hitFiles }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">条目总数</span>
+              <span lang="en">Total entries</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.totalEntries }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">新增</span>
+              <span lang="en">Added</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.added }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">更新</span>
+              <span lang="en">Updated</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.updated }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">
+            <locale-text>
+              <span lang="cn">保留</span>
+              <span lang="en">Kept</span>
+            </locale-text>
+          </div>
+          <div class="value">{{ stats.kept }}</div>
+        </div>
+      </div>
+    </o-if>
+
+    <o-if :value="previewText">
+      <div class="preview-wrap">
+        <h3>
+          <locale-text>
+            <span lang="cn">预览（合并后）</span>
+            <span lang="en">Preview (merged)</span>
+          </locale-text>
+        </h3>
+        <textarea readonly :value="previewText"></textarea>
+      </div>
+    </o-if>
+  </div>
+  <script>
+    // 解析 .gitignore 文本为可用的过滤函数（轻量实现，覆盖常见规则）
+    const compileGitignore = (text) => {
+      const patterns = (text || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"));
+
+      const matchers = patterns.map((raw) => {
+        const negated = raw.startsWith("!");
+        let pattern = negated ? raw.slice(1) : raw;
+        const dirOnly = pattern.endsWith("/");
+        if (dirOnly) pattern = pattern.slice(0, -1);
+
+        // 将 glob 转换为正则（支持 * ** ?）
+        let regex = "";
+        let i = 0;
+        while (i < pattern.length) {
+          const c = pattern[i];
+          if (c === "*") {
+            if (pattern[i + 1] === "*") {
+              // ** 匹配任意层级
+              regex += ".*";
+              i += 2;
+              if (pattern[i] === "/") i += 1;
+            } else {
+              // * 匹配除斜杠外任意字符
+              regex += "[^/]*";
+              i += 1;
+            }
+          } else if (c === "?") {
+            regex += "[^/]";
+            i += 1;
+          } else if (c === "/") {
+            regex += "\\/";
+            i += 1;
+          } else if ("\\^$.|+()[]{}".includes(c)) {
+            regex += "\\" + c;
+            i += 1;
+          } else {
+            regex += c;
+            i += 1;
+          }
+        }
+        let re;
+        try {
+          re = new RegExp("(^|\\/)" + regex + (dirOnly ? "(\\/|$)" : "(\\/|$)"));
+        } catch (e) {
+          return null;
+        }
+        return { negated, dirOnly, re };
+      }).filter(Boolean);
+
+      return (relativePath, isDir) => {
+        let ignored = false;
+        for (const m of matchers) {
+          if (m.dirOnly && !isDir) {
+            // 目录规则仅对路径前缀匹配（父目录是目录）
+            const parts = relativePath.split("/");
+            let matched = false;
+            for (let i = 1; i < parts.length; i++) {
+              const prefix = parts.slice(0, i).join("/");
+              if (m.re.test(prefix)) {
+                matched = true;
+                break;
+              }
+            }
+            if (matched) ignored = true;
+            continue;
+          }
+          if (m.re.test(relativePath)) {
+            ignored = !m.negated;
+          }
+        }
+        return ignored;
+      };
+    };
+
+    // 从 <locale-text> 节点提取基准文本和语言映射
+    const extractFromLocaleText = (ltEl) => {
+      const langMap = {};
+      let firstLang = null;
+      let firstText = null;
+
+      // 仅取直接子元素
+      Array.from(ltEl.children).forEach((child) => {
+        const lang = child.getAttribute("lang");
+        if (!lang) return;
+        const text = child.innerHTML.trim();
+        langMap[lang] = text;
+        if (firstLang === null) {
+          firstLang = lang;
+          firstText = text;
+        }
+      });
+
+      if (Object.keys(langMap).length === 0) return null;
+
+      // 基准文本优先级：cn → en → 第一个带 lang 的子元素
+      const baseText = langMap.cn ?? langMap.en ?? firstText;
+      const baseLang = langMap.cn ? "cn" : langMap.en ? "en" : firstLang;
+      return { langMap, baseText, baseLang };
+    };
+
+    // 模块级变量保存 DirHandle，避免被 ofa.js 包装成 Stanz 代理导致 .get() 被劫持
+    let _rootHandle = null;
+
+    export default async ({ load }) => {
+      const { open } = await load("/nos/fs/main.js");
+      const { getHash } = await load("/nos/util/hash/get-hash.js");
+
+      return {
+        data: {
+          canUse: !!window.showDirectoryPicker,
+          busy: false,
+          hasRoot: false,
+          rootPath: "",
+          statusText: "",
+          stats: null,
+          previewText: "",
+        },
+        proto: {
+          setStatus(msg) {
+            this.statusText = msg;
+          },
+
+          async handlePick() {
+            if (this.busy) return;
+            this.busy = true;
+            this.statusText = "";
+            this.stats = null;
+            this.previewText = "";
+            try {
+              const handle = await open({ mode: "readwrite" });
+              _rootHandle = handle;
+              this.hasRoot = true;
+              this.rootPath = handle.name + "/";
+              this.statusText = "已选择: " + handle.name;
+            } catch (e) {
+              this.statusText = "选择目录失败: " + (e?.message || e);
+            } finally {
+              this.busy = false;
+            }
+          },
+
+          // 读取 .gitignore 内容；读取失败返回空字符串
+          async readGitignore(root) {
+            try {
+              const f = await root.get(".gitignore");
+              if (!f) return "";
+              return await f.text();
+            } catch (e) {
+              return "";
+            }
+          },
+
+          // 递归收集所有 .html 文件
+          async collectHtmlFiles(dirHandle, basePath, isIgnored, files) {
+            for await (const entry of dirHandle.values()) {
+              const relPath = basePath
+                ? basePath + "/" + entry.name
+                : entry.name;
+
+              if (entry.kind === "directory") {
+                if (isIgnored(relPath + "/", true)) continue;
+                await this.collectHtmlFiles(entry, relPath, isIgnored, files);
+              } else {
+                if (isIgnored(relPath, false)) continue;
+                if (entry.name.endsWith(".html")) {
+                  files.push({ relPath, handle: entry });
+                }
+              }
+            }
+          },
+
+          async handleGenerate() {
+            if (this.busy || !_rootHandle) return;
+            this.busy = true;
+            this.stats = null;
+            this.previewText = "";
+            const root = _rootHandle;
+
+            try {
+              this.statusText = "读取 .gitignore ...";
+              const gitignoreText = await this.readGitignore(root);
+              const isIgnored = compileGitignore(gitignoreText);
+
+              // 兜底：永远跳过 .git
+              const baseIgnored = (path, isDir) => {
+                if (path === ".git" || path.startsWith(".git/")) return true;
+                return isIgnored(path, isDir);
+              };
+
+              this.statusText = "扫描 HTML 文件 ...";
+              const files = [];
+              await this.collectHtmlFiles(root, "", baseIgnored, files);
+
+              this.statusText = "解析 <locale-text> 节点 ...";
+              const entries = []; // { hash, langMap }
+              let hitFiles = 0;
+
+              for (let i = 0; i < files.length; i++) {
+                const { relPath, handle } = files[i];
+                let text;
+                try {
+                  text = await handle.text();
+                } catch (e) {
+                  continue;
+                }
+
+                const doc = new DOMParser().parseFromString(text, "text/html");
+                const ltNodes = doc.querySelectorAll("locale-text");
+                if (ltNodes.length === 0) continue;
+                hitFiles++;
+
+                ltNodes.forEach((ltEl) => {
+                  const extracted = extractFromLocaleText(ltEl);
+                  if (!extracted) return;
+                  entries.push(extracted);
+                });
+              }
+
+              this.statusText = "计算 hash 与合并 ...";
+              // 合并到 map：相同 hash 聚合
+              const merged = {};
+              for (const item of entries) {
+                const hash = await getHash(item.baseText);
+                if (!merged[hash]) {
+                  merged[hash] = { ...item.langMap };
+                } else {
+                  // 同 hash，用新条目补充缺失的语言
+                  for (const [lang, text] of Object.entries(item.langMap)) {
+                    if (merged[hash][lang] === undefined) {
+                      merged[hash][lang] = text;
+                    }
+                  }
+                }
+              }
+
+              // 读取已有 locale-text.json 做增量合并
+              let existing = {};
+              try {
+                const oldFile = await root.get("locale-text.json");
+                if (oldFile) {
+                  existing = await oldFile.json();
+                }
+              } catch (e) {
+                existing = {};
+              }
+
+              let added = 0;
+              let updated = 0;
+              let kept = 0;
+              const finalMap = { ...existing };
+
+              for (const [hash, langMap] of Object.entries(merged)) {
+                if (!finalMap[hash]) {
+                  finalMap[hash] = langMap;
+                  added++;
+                } else {
+                  // 保留旧的非基准语言翻译，仅更新/补充基准语言字段
+                  let changed = false;
+                  for (const [lang, text] of Object.entries(langMap)) {
+                    if (finalMap[hash][lang] !== text) {
+                      // 已存在则更新（基准语言文本可能已变）
+                      if (finalMap[hash][lang] !== undefined) {
+                        changed = true;
+                      }
+                      finalMap[hash][lang] = text;
+                    }
+                  }
+                  if (changed) updated++;
+                  else kept++;
+                }
+              }
+
+              const output = JSON.stringify(finalMap, null, 2);
+              this.previewText = output;
+
+              this.statusText = "写入 locale-text.json ...";
+              const outFile = await root.get("locale-text.json", {
+                create: "file",
+              });
+              await outFile.write(output);
+
+              this.stats = {
+                scanned: files.length,
+                hitFiles,
+                totalEntries: Object.keys(finalMap).length,
+                added,
+                updated,
+                kept,
+              };
+              this.statusText = "完成。已写入 " + root.name + "/locale-text.json";
+            } catch (e) {
+              this.statusText = "生成失败: " + (e?.message || e);
+              console.error(e);
+            } finally {
+              this.busy = false;
+            }
+          },
+        },
+        attached() {
+          if (!this.canUse) {
+            this.statusText = "浏览器不支持 showDirectoryPicker";
+          }
+        },
+      };
+    };
+  </script>
+</template>
