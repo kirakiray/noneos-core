@@ -370,7 +370,7 @@
                 ? basePath + "/" + entry.name
                 : entry.name;
 
-              if (entry.kind === "directory") {
+              if (entry.kind === "dir") {
                 if (isIgnored(relPath + "/", true)) continue;
                 await this.collectHtmlFiles(entry, relPath, isIgnored, files);
               } else {
