@@ -110,6 +110,38 @@ await load("/nos/locale-text/locale-text.html");
 
 > 修改源 HTML 中 `cn` 文本会让旧 hash 失效，连带丢失该条目下的其他语种翻译；推荐固定 `cn` 文本，只新增/修改其他语种字段。
 
+### 动态变量（`data-*` 插值）
+
+当 `<locale-text>` 内的文本需要拼接动态值时（如 `ID`、`数量` 等），**不要**直接使用 ofa.js 的 `{{$data.xxx}}` 模板语法：
+
+```html
+<!-- ❌ 不推荐：JSON 回退失效 -->
+<locale-text>
+  <span lang="cn">ID: {{$data.id}} | 模型: {{$data.model}}</span>
+  <span lang="en">ID: {{$data.id}} | Model: {{$data.model}}</span>
+</locale-text>
+```
+
+原因：`{{$data.xxx}}` 只有在 **slot 命中目标语言** 时才会被 ofa.js 正确渲染（因为 slot 子元素由 ofa.js 接管）。但是当目标语言走 **JSON 回退** 时，翻译文本会被注入到 shadow DOM 的临时容器里，**不经过 ofa.js 模板渲染**，`{{$data.xxx}}` 会作为字面文本原样显示。
+
+**正确做法**：用 `data-*` 属性传值，子元素文本中用 `{key}` 占位：
+
+```html
+<!-- ✅ 推荐：slot 与 JSON 回退都生效 -->
+<locale-text attr:data-id="$data.id" attr:data-model="$data.model">
+  <span lang="cn">ID: {id} | 模型: {model}</span>
+  <span lang="en">ID: {id} | Model: {model}</span>
+</locale-text>
+```
+
+- ofa.js 的 `attr:data-id="$data.id"` 会把实际值绑定到 `data-id` 属性
+- 组件内部的 `{key}` 占位符会被替换为宿主元素 `data-key` 属性的值
+- **slot 命中** 和 **JSON 回退** 两条路径都会做替换
+- `data-*` 属性变化时组件会自动重新替换（无需手动刷新）
+- 提取工具拿到的基准文本是 `ID: {id} | 模型: {model}`，是稳定文本，hash 不会随数据变化而漂移
+
+> `{key}` 与 ofa.js 的 `{{key}}` 互不冲突，可以放心混用。未提供对应 `data-key` 时，`{key}` 会原样保留。
+
 ---
 
 ## `getLocaleText` 函数
