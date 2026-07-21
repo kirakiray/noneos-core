@@ -385,5 +385,13 @@
   "6f2ec4733d98169308094d5f2f07818e99e9d2915b4eb9bff40fbd765a07890f": {
     "cn": "并发数已满，请稍后重试",
     "en": "Concurrency limit reached, please retry later"
+  },
+  "d8410360c659aaf30fdb71d8782b733970bcd9ef32b5a3d7229fe2eb2a47697b": {
+    "cn": "网络请求失败: {msg}",
+    "en": "Network failed: {msg}"
+  },
+  "ae407b9b97f96ad2992912da91ca356ae666efb8cff3d1199d228c0457bcb690": {
+    "cn": "API 失败 ({status}): {detail}",
+    "en": "API failed ({status}): {detail}"
   }
 }
