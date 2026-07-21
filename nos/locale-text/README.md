@@ -188,7 +188,38 @@ throw new Error(
 // 当前语言为 cn、msg 为 "timeout" 时返回 "网络请求失败: timeout"
 ```
 
-> **关于动态变量**：旧写法 `` `网络请求失败: ${err.message}` `` 会让每次错误都生成不同的基准文本，无法进入 `locale-text.json`。改用 `{msg}` 占位符后，基准文本固定为 `"网络请求失败: {msg}"`，可被提取工具收录，后续在 JSON 里补充 `ja`/`ko` 等翻译即可，无需改 JS 源码。`{key}` 语法与 `<locale-text>` 组件的 `data-*` 插值完全一致。
+### 动态变量：用 `{key}` 占位符，不要用模板字符串插值
+
+当文本需要拼接动态值（如 `err.message`、`status` 等）时，**不要**直接用 JS 模板字符串 `` `${}` `` 插值：
+
+```javascript
+// ❌ 不推荐：基准文本随变量变化，无法进入 locale-text.json
+throw new Error(
+  getLocaleText({
+    cn: `网络请求失败: ${err.message}`,
+    en: `Network failed: ${err.message}`,
+  }),
+);
+```
+
+原因：每次 `err.message` 不同都会生成不同的基准文本，SHA-256 hash 漂移，提取工具无法稳定收录，后续也无法在 JSON 里补充 `ja`/`ko` 等翻译。
+
+**正确做法**：文本里写 `{key}` 占位符保持基准文本稳定，动态值通过第二个参数 `vars` 传入：
+
+```javascript
+// ✅ 推荐：基准文本固定，可进 JSON，其他语种在 JSON 里补充即可
+throw new Error(
+  getLocaleText(
+    { cn: "网络请求失败: {msg}", en: "Network failed: {msg}" },
+    { msg: err.message },
+  ),
+);
+```
+
+- 基准文本固定为 `"网络请求失败: {msg}"`，提取工具可稳定收录进 `locale-text.json`
+- 后续在 JSON 里为该条目补充 `ja`/`ko` 等翻译即可，无需改 JS 源码
+- `{key}` 语法与 `<locale-text>` 组件的 `data-*` 插值完全一致，两条路径（内联对象 / JSON 回退）都会做替换
+- 未传入 `vars` 或 `vars` 中缺失对应 key 时，`{key}` 原样保留
 
 ### `getLang()`
 

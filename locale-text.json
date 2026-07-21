@@ -349,5 +349,41 @@
   "f244a2842f425c2776af9dff145df07010f0a8f9daf45b8fb87bea1c09d155e0": {
     "cn": "搜索历史",
     "en": "Search history"
+  },
+  "d5e52deded35faf47c9d39ecd253bd5d7c872b3e662c63a4fb9c762ed256cc9a": {
+    "cn": "ID: {id} | 模型: {model} | 并发: {concurrency}",
+    "en": "ID: {id} | Model: {model} | Concurrency: {concurrency}"
+  },
+  "63349bd947a5312ee0e08b9f9b67f05b638a36be7f5c3761d778da8581e37453": {
+    "cn": "监听器执行失败:",
+    "en": "Listener failed:"
+  },
+  "4d40a20d9d61a517dce1a09b416435848bf21f5431ec50b717d76dbc085e0ea7": {
+    "cn": "监听器必须是函数",
+    "en": "Listener must be a function"
+  },
+  "081d292eba0264d9880c9cae6e9294e6760fe20fe0320bad2547b5d4c902eaca": {
+    "cn": "不支持的提供商",
+    "en": "Unsupported provider"
+  },
+  "7b822cdab3dc7a2c6be4b2782ab4972cddba7cbcdb8c7826513755734ce8afc9": {
+    "cn": "网络请求失败: ${err.message}",
+    "en": "Network failed: ${err.message}"
+  },
+  "362560ced92c5e11cdfeed9a5b07546e5363f2447a2329de4bed5a9499eb19f8": {
+    "cn": "API 失败 (${response.status})",
+    "en": "API failed (${response.status})"
+  },
+  "50e2bf6e1bcef0107eab5c651063f3f5cb146824c974aeb3cb1ef83c9e7c9a86": {
+    "cn": "没有可用的 API Key",
+    "en": "No available API Key"
+  },
+  "a161b9448365c2aeff991d0b3c048ae1699ef30591675237dc1bc7937d033470": {
+    "cn": "没有 {provider} 的 API Key",
+    "en": "No API Key for {provider}"
+  },
+  "6f2ec4733d98169308094d5f2f07818e99e9d2915b4eb9bff40fbd765a07890f": {
+    "cn": "并发数已满，请稍后重试",
+    "en": "Concurrency limit reached, please retry later"
   }
 }
