@@ -9,14 +9,14 @@
 
 ## 语言判定规则
 
-当前语言由 [get-locale-text.js](./get-locale-text.js) 按以下优先级确定，判定结果在模块加载时计算一次并缓存：
+当前语言由 [get-locale-text.js](./get-locale-text.js) 按以下优先级确定：
 
-1. `sessionStorage` 中的 `lang`
-2. `localStorage` 中的 `lang`
-3. 根据 `navigator.language` 推断：包含 `zh` → `cn`，包含 `ja` → `ja`
+1. `setLang()` 运行时设置的值（最高优先级，见下文）
+2. 模块加载时缓存的 `sessionStorage.lang` / `localStorage.lang`
+3. 根据 `navigator.language` 主子标签推断：`zh*` → `cn`，`ja*` → `ja`，`en*` → `en`
 4. 兜底默认 `en`
 
-> 应用层可通过写入 `sessionStorage.setItem("lang", "cn")` 或 `localStorage.setItem("lang", "en")` 来指定语言。注意判定值是模块加载时缓存的，切换语言后通常需要刷新页面或对 `<locale-text>` 重新设置 `lang` 属性才会生效。
+> 启动期可通过写入 `sessionStorage.setItem("lang", "cn")` 或 `localStorage.setItem("lang", "en")` 来指定初始语言（值在模块加载时缓存）。运行时切换语言应调用 `setLang()`，会自动派发 `locale-text:lang-change` 事件，所有已挂载的 `<locale-text>` 组件都会即时刷新显示。
 
 常用语言码：`cn`（中文）、`en`（英文）、`ja`（日文）。
 
@@ -87,6 +87,8 @@ await load("/nos/locale-text/locale-text.html");
 
 组件通过注入一段 `::slotted()` 样式来控制显示：默认隐藏所有 slot 子元素，仅让当前语言对应的元素 `display: revert`。因此内容始终存在于 DOM 中，仅通过 CSS 控制可见性。`:host` 使用 `display: contents`，组件本身不产生额外布局盒子。
 
+组件在 `ready` 时计算一次样式，并通过 `MutationObserver` 监听 slot 子元素及子元素 `lang` 属性的变化，自动重新计算显示语言；同时监听全局 `locale-text:lang-change` 事件（`setLang()` 会派发该事件），在 `detached` 时统一清理监听。
+
 ---
 
 ## `getLocaleText` 函数
@@ -136,6 +138,20 @@ throw new Error(
 const lang = getLang(); // "cn"
 ```
 
+### `setLang(lang)`
+
+运行时切换当前语言，并派发 `locale-text:lang-change` 事件，所有已挂载的 `<locale-text>` 组件会自动刷新。
+
+**参数：**
+- `lang` (string | falsy) - 目标语言码；传入 `null` / `undefined` / `""` 等 falsy 值时，恢复为模块加载时缓存的初始判定值
+
+```javascript
+import { setLang } from "/nos/locale-text/get-locale-text.js";
+
+setLang("en");   // 切换到英文，<locale-text> 立即重新渲染
+setLang(null);   // 恢复到启动期判定的语言
+```
+
 ---
 
 ## 何时用哪个
@@ -152,5 +168,5 @@ const lang = getLang(); // "cn"
 
 | 文件 | 说明 |
 |------|------|
-| [get-locale-text.js](./get-locale-text.js) | 语言判定逻辑，导出 `getLang` 与 `getLocaleText` |
+| [get-locale-text.js](./get-locale-text.js) | 语言判定逻辑，导出 `getLang`、`setLang` 与 `getLocaleText` |
 | [locale-text.html](./locale-text.html) | `<locale-text>` 组件定义，依赖 `get-locale-text.js` 的 `getLang` |

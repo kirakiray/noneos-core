@@ -10,6 +10,11 @@
   <style id="lang-style"></style>
   <slot></slot>
   <script>
+    // 转义 CSS 属性选择器中的特殊字符，避免选择器解析失败或注入
+    const escapeCSSAttr = (val) => {
+      return String(val).replace(/["\\]/g, "\\$&");
+    };
+
     export default async ({ load }) => {
       const { getLang } = await load("./get-locale-text.js");
 
@@ -19,9 +24,37 @@
           lang: null,
         },
         watch: {
-          lang(lang) {
+          lang() {
             this.refreshStyle();
           },
+        },
+        ready() {
+          // 初次挂载时计算一次样式
+          this.refreshStyle();
+
+          // 监听 slot 内子元素变化，自动重算显示语言
+          this._mo = new MutationObserver(() => this.refreshStyle());
+          this._mo.observe(this.ele, {
+            childList: true,
+            subtree: false,
+            attributes: true,
+            attributeFilter: ["lang"],
+          });
+
+          // 监听全局语言切换事件（由 setLang 派发）
+          this._onLangChange = () => this.refreshStyle();
+          window.addEventListener("locale-text:lang-change", this._onLangChange);
+        },
+        detached() {
+          // 清理监听，避免内存泄漏
+          if (this._mo) {
+            this._mo.disconnect();
+            this._mo = null;
+          }
+          if (this._onLangChange) {
+            window.removeEventListener("locale-text:lang-change", this._onLangChange);
+            this._onLangChange = null;
+          }
         },
         proto: {
           refreshStyle() {
@@ -37,6 +70,12 @@
               }
             });
 
+            // 没有任何带 lang 的子元素时，直接清空样式，避免生成脏 CSS
+            if (allLang.size === 0) {
+              this.shadow.$("#lang-style").html = "";
+              return;
+            }
+
             // 判断是否有当前的lang
             if (!allLang.has(finalLang)) {
               // 第二替代为英语
@@ -49,7 +88,7 @@
             }
 
             this.shadow.$("#lang-style").html = `
-              ::slotted([lang="${finalLang}"]) {
+              ::slotted([lang="${escapeCSSAttr(finalLang)}"]) {
                 display: revert;
               }
             `;
