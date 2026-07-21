@@ -17,16 +17,6 @@
       return String(val).replace(/["\\]/g, "\\$&");
     };
 
-    // locale-text.json 的模块级缓存（同一页面只 fetch 一次）
-    let _jsonPromise = null;
-    const fetchLocaleTextJson = () => {
-      if (_jsonPromise) return _jsonPromise;
-      _jsonPromise = fetch("/locale-text.json")
-        .then((res) => (res.ok ? res.json() : null))
-        .catch(() => null);
-      return _jsonPromise;
-    };
-
     // hash 缓存（同一基准文本不重复计算）
     const _hashCache = new Map();
     const getHashCached = async (text) => {
@@ -77,7 +67,7 @@
     };
 
     export default async ({ load }) => {
-      const { getLang } = await load("./get-locale-text.js");
+      const { getLang, fetchLocaleTextJson } = await load("./get-locale-text.js");
 
       return {
         tag: "locale-text",

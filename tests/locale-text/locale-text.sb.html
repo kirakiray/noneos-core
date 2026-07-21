@@ -559,5 +559,282 @@
         </script>
       </template>
     </sb-test>
+
+    <!-- ====== 以下为针对 locale-text.json 回退机制新增的用例 ====== -->
+
+    <sb-test name="locale-text.json 回退 - JSON 命中目标语言时显示 JSON 翻译">
+      <template>
+        <script type="module">
+          {
+            const { setLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+            const { getHash } = await import("/nos/util/hash/get-hash.js");
+
+            const baseText_jsonHit = "JSON回退测试文本";
+            const hash_jsonHit = await getHash(baseText_jsonHit);
+
+            // 临时向 window 注入 mock fetch，返回伪造的 locale-text.json
+            // 重置模块级 JSON 缓存，确保 mock fetch 生效
+            resetLocaleTextJsonCache();
+            const origFetch_jsonHit = window.fetch;
+            const fakeJson_jsonHit = {
+              [hash_jsonHit]: {
+                cn: baseText_jsonHit,
+                ja: "JSONフォールバックテスト",
+              },
+            };
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response(JSON.stringify(fakeJson_jsonHit), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                  }),
+                );
+              }
+              return origFetch_jsonHit(input, init);
+            };
+
+            // 强制重新加载组件模块以重置 json 缓存（通过唯一的 query 参数）
+            // 由于 _jsonPromise 是模块级缓存，这里改用直接刷新页面的策略不适用
+            // 改为在当前已注册的组件上直接测试
+
+            setLang("ja");
+
+            const container_jsonHit = $("#query-target");
+            container_jsonHit.html = `
+              <locale-text id="lt-jsonHit">
+                <span lang="cn">${baseText_jsonHit}</span>
+                <span lang="en">JSON fallback test</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const lt_jsonHit = container_jsonHit.$("#lt-jsonHit");
+            const fallbackEl_jsonHit = lt_jsonHit.shadow.$("#lt-json-fallback");
+            const fallbackText_jsonHit = fallbackEl_jsonHit
+              ? fallbackEl_jsonHit.text.trim()
+              : "";
+            const cnEl_jsonHit = container_jsonHit.$('span[lang="cn"]');
+            const enEl_jsonHit = container_jsonHit.$('span[lang="en"]');
+            const cnVisible_jsonHit = cnEl_jsonHit.ele.offsetParent !== null;
+            const enVisible_jsonHit = enEl_jsonHit.ele.offsetParent !== null;
+
+            // 还原
+            window.fetch = origFetch_jsonHit;
+            setLang(null);
+
+            return {
+              assert:
+                fallbackText_jsonHit === "JSONフォールバックテスト" &&
+                !cnVisible_jsonHit &&
+                !enVisible_jsonHit,
+              content: {
+                message: "JSON 命中目标语言时应注入 shadow 容器并隐藏 slot 子元素",
+                hash: hash_jsonHit,
+                fallbackText: fallbackText_jsonHit,
+                checks: { cnVisible_jsonHit, enVisible_jsonHit },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text.json 回退 - JSON 无条目时走原有 slot 回退">
+      <template>
+        <script type="module">
+          {
+            const { setLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            // mock fetch 返回空 JSON，确保不会命中
+            // 重置模块级 JSON 缓存，确保 mock fetch 生效
+            resetLocaleTextJsonCache();
+            const origFetch_empty = window.fetch;
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response("{}", {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                  }),
+                );
+              }
+              return origFetch_empty(input, init);
+            };
+
+            setLang("ja");
+
+            const container_emptyJson = $("#query-target");
+            container_emptyJson.html = `
+              <locale-text id="lt-emptyJson">
+                <span lang="cn">无JSON命中</span>
+                <span lang="en">No JSON hit</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const cnEl_emptyJson = container_emptyJson.$('span[lang="cn"]');
+            const enEl_emptyJson = container_emptyJson.$('span[lang="en"]');
+            const cnVisible_emptyJson = cnEl_emptyJson.ele.offsetParent !== null;
+            const enVisible_emptyJson = enEl_emptyJson.ele.offsetParent !== null;
+
+            // JSON 无命中 → 走原有回退：ja 不存在 → 回退 en
+            window.fetch = origFetch_empty;
+            setLang(null);
+
+            return {
+              assert: enVisible_emptyJson && !cnVisible_emptyJson,
+              content: {
+                message: "JSON 无条目时应回退到原有 slot 逻辑（en）",
+                checks: { cnVisible_emptyJson, enVisible_emptyJson },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text.json 回退 - fetch 失败时静默走 slot 回退">
+      <template>
+        <script type="module">
+          {
+            const { setLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+
+            // mock fetch 返回 404
+            // 重置模块级 JSON 缓存，确保 mock fetch 生效
+            resetLocaleTextJsonCache();
+            const origFetch_404 = window.fetch;
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response("Not Found", { status: 404 }),
+                );
+              }
+              return origFetch_404(input, init);
+            };
+
+            setLang("ja");
+
+            const container_404 = $("#query-target");
+            container_404.html = `
+              <locale-text id="lt-404">
+                <span lang="cn">404回退</span>
+                <span lang="en">404 fallback</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const cnEl_404 = container_404.$('span[lang="cn"]');
+            const enEl_404 = container_404.$('span[lang="en"]');
+            const cnVisible_404 = cnEl_404.ele.offsetParent !== null;
+            const enVisible_404 = enEl_404.ele.offsetParent !== null;
+
+            window.fetch = origFetch_404;
+            setLang(null);
+
+            return {
+              assert: enVisible_404 && !cnVisible_404,
+              content: {
+                message: "fetch 失败（404）时应静默降级到 slot 回退（en）",
+                checks: { cnVisible_404, enVisible_404 },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="locale-text.json 回退 - slot 命中目标语言时优先用 slot">
+      <template>
+        <script type="module">
+          {
+            const { setLang, getLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+            const { getHash } = await import("/nos/util/hash/get-hash.js");
+
+            const baseText_slotFirst = "优先slot测试";
+            const hash_slotFirst = await getHash(baseText_slotFirst);
+            // 重置模块级 JSON 缓存，确保 mock fetch 生效
+            resetLocaleTextJsonCache();
+            
+            // mock fetch 返回含 ja 的 JSON
+            const origFetch_slotFirst = window.fetch;
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      [hash_slotFirst]: {
+                        cn: baseText_slotFirst,
+                        ja: "これはJSONから来ました",
+                      },
+                    }),
+                    {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    },
+                  ),
+                );
+              }
+              return origFetch_slotFirst(input, init);
+            };
+
+            setLang("ja");
+
+            const container_slotFirst = $("#query-target");
+            // slot 内有 ja 子元素，应优先用 slot，不触发 JSON 回退
+            container_slotFirst.html = `
+              <locale-text id="lt-slotFirst">
+                <span lang="cn">${baseText_slotFirst}</span>
+                <span lang="ja">スロット優先</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const cnEl_slotFirst = container_slotFirst.$('span[lang="cn"]');
+            const jaEl_slotFirst = container_slotFirst.$('span[lang="ja"]');
+            const cnVisible_slotFirst = cnEl_slotFirst.ele.offsetParent !== null;
+            const jaVisible_slotFirst = jaEl_slotFirst.ele.offsetParent !== null;
+
+            const lt_slotFirst = container_slotFirst.$("#lt-slotFirst");
+            const fallbackEl_slotFirst = lt_slotFirst.shadow.$(
+              "#lt-json-fallback",
+            );
+            const fallbackText_slotFirst = fallbackEl_slotFirst
+              ? fallbackEl_slotFirst.text.trim()
+              : "";
+
+            window.fetch = origFetch_slotFirst;
+            setLang(null);
+
+            return {
+              assert:
+                jaVisible_slotFirst &&
+                !cnVisible_slotFirst &&
+                fallbackText_slotFirst === "",
+              content: {
+                message: "slot 内有目标语言时应优先用 slot，不触发 JSON 回退",
+                checks: {
+                  cnVisible_slotFirst,
+                  jaVisible_slotFirst,
+                  fallbackEmpty: fallbackText_slotFirst === "",
+                },
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

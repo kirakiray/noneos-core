@@ -62,3 +62,20 @@ export const getLocaleText = (obj) => {
 };
 
 export default getLocaleText;
+
+// locale-text.json 的模块级缓存（同一页面只 fetch 一次）
+let _jsonPromise = null;
+
+// 获取中央翻译表（命中缓存后不再重复请求）
+export const fetchLocaleTextJson = () => {
+  if (_jsonPromise) return _jsonPromise;
+  _jsonPromise = fetch("/locale-text.json")
+    .then((res) => (res.ok ? res.json() : null))
+    .catch(() => null);
+  return _jsonPromise;
+};
+
+// 重置 JSON 缓存（主要用于测试隔离）
+export const resetLocaleTextJsonCache = () => {
+  _jsonPromise = null;
+};
