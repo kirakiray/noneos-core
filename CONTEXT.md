@@ -17,7 +17,7 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/crypto/ai/hybrid-data/util 等） |
+| `nos/` | 核心能力层（fs/user/publish/crypto/util 等；另含 `hybrid-data` 与 `ai`，⚠️ 均为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |

@@ -140,11 +140,9 @@
           <span class="provider-tag" slot="prefix">{{$data.provider}}</span>
           <div class="key-text">{{$data.key}}</div>
           <div secondary>
-            <locale-text>
-              <span lang="cn">ID: {{$data.id}} | 模型: {{$data.model}} | 并发:
-                {{$data.concurrency || 1}}</span>
-              <span lang="en">ID: {{$data.id}} | Model: {{$data.model}} | Concurrency:
-                {{$data.concurrency || 1}}</span>
+            <locale-text attr:data-id="$data.id" attr:data-model="$data.model" attr:data-concurrency="$data.concurrency || 1">
+              <span lang="cn">ID: {id} | 模型: {model} | 并发: {concurrency}</span>
+              <span lang="en">ID: {id} | Model: {model} | Concurrency: {concurrency}</span>
             </locale-text>
           </div>
 
@@ -323,10 +321,13 @@
             };
           },
           get placeholder() {
-            return getLocaleText({
-              cn: `请输入 ${this.selectedProvider} 的 API Key`,
-              en: `Enter ${this.selectedProvider} API Key`,
-            });
+            return getLocaleText(
+              {
+                cn: "请输入 {provider} 的 API Key",
+                en: "Enter {provider} API Key",
+              },
+              { provider: this.selectedProvider },
+            );
           },
           get editAvailableModels() {
             return this.providerModels[this.editItem.provider] || [];
@@ -407,10 +408,13 @@
                 cn: "确认删除",
                 en: "Confirm Delete",
               }),
-              message: getLocaleText({
-                cn: `确定要删除这个 ${keyItem.provider} 的 API Key 吗？`,
-                en: `Are you sure you want to delete this ${keyItem.provider} API Key?`,
-              }),
+              message: getLocaleText(
+                {
+                  cn: "确定要删除这个 {provider} 的 API Key 吗？",
+                  en: "Are you sure you want to delete this {provider} API Key?",
+                },
+                { provider: keyItem.provider },
+              ),
             });
 
             if (result) {

@@ -177,10 +177,11 @@ const result = await publisher.assembleFile(fileHash);
 
 ## 其他参考
 
-> ⚠️ **注意**：当前 AI 相关模块（如 AI 操作文档）在未来版本中将被废弃。
+> ⚠️ **实验性特性**：`ai` 与 `hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [AI 操作文档](references/ai.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
 - [公共组件文档 (ncomp)](references/ncomp.md)
+- [多语言模块 (locale-text)](references/locale-text.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)

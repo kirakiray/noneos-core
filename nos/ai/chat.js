@@ -88,10 +88,13 @@ const streamChat = async (messages, keyItem, options = {}) => {
     throw createError(
       provider,
       key,
-      getLocaleText({
-        cn: `网络请求失败: ${err.message}`,
-        en: `Network failed: ${err.message}`,
-      }),
+      getLocaleText(
+        {
+          cn: "网络请求失败: {msg}",
+          en: "Network failed: {msg}",
+        },
+        { msg: err.message },
+      ),
     );
   }
 
@@ -100,10 +103,13 @@ const streamChat = async (messages, keyItem, options = {}) => {
     throw createError(
       provider,
       key,
-      getLocaleText({
-        cn: `API 失败 (${response.status})`,
-        en: `API failed (${response.status})`,
-      }) + `: ${errorText}`,
+      getLocaleText(
+        {
+          cn: "API 失败 ({status}): {detail}",
+          en: "API failed ({status}): {detail}",
+        },
+        { status: response.status, detail: errorText },
+      ),
     );
   }
 
@@ -162,10 +168,13 @@ export async function chat(messages, options = {}) {
     throw createError(
       specifiedProvider,
       "",
-      getLocaleText({
-        cn: `没有 ${specifiedProvider} 的 API Key`,
-        en: `No API Key for ${specifiedProvider}`,
-      }),
+      getLocaleText(
+        {
+          cn: "没有 {provider} 的 API Key",
+          en: "No API Key for {provider}",
+        },
+        { provider: specifiedProvider },
+      ),
     );
   }
 

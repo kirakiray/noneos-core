@@ -1,0 +1,393 @@
+{
+  "3928f9e408fd07a040f0e9bd03f402057579d6affbd6275feb29ef3ab3240dfa": {
+    "cn": "NoneOS Core 是一款轻量级核心引擎，专为运行 ofa.js\n            应用而设计。无需额外安装任何软件，即可一键启动、开发与调试 ofa.js\n            项目。",
+    "en": "NoneOS Core is a lightweight core engine designed to run ofa.js\n            applications. It does not require any additional software to be\n            installed, and can be started, developed, and debugged with just a\n            single click."
+  },
+  "1349538b18d49b89d72015c4765a4cb1daca6a5a866266af774628815f663fa9": {
+    "cn": "<a href=\"/nos-tool/studio/\">OFA Studio</a> ： 用于开发 ofa.js\n              项目的集成开发环境（IDE）",
+    "en": "<a href=\"/nos-tool/studio/\">OFA Studio</a> ： Integrated\n              Development Environment (IDE) for ofa.js projects"
+  },
+  "fd99af503af18d7fa0322e1013adac535a513a3554a45a69573366c88bf0c548": {
+    "cn": "<a href=\"/nos-tool/file-explore/\">File Explore</a>：查看虚拟文件系统",
+    "en": "<a href=\"/nos-tool/file-explore/\">File Explore</a>：View the\n              virtual file system"
+  },
+  "8e5568258ee02a491a1580011eacf8143f1b0571d8df62459536e19a2d7b8bfb": {
+    "cn": "页面未找到",
+    "en": "Page Not Found",
+    "ja": "ページが見つかりません"
+  },
+  "600486bed12e886a9a5dc2ff09b473d24b86a09a90377ae816bfa74e45a3b186": {
+    "cn": "抱歉，您访问的页面不存在或已被移除。",
+    "en": "Sorry, the page you visited does not exist or has been removed.",
+    "ja": "アクセスしたページは存在しないか、削除されました。"
+  },
+  "d66f4359dae37110800e78bee282c2c6eed06365b26eddb0b0c3f7598081c8ca": {
+    "cn": "返回首页",
+    "en": "Back to Home",
+    "ja": "ホームに戻る"
+  },
+  "41bcd1659198a6fd5baa7d39d34c708d9fbda048912b467ba8866b1aceb40506": {
+    "cn": "<p>\n              抱歉，您的浏览器暂不支持选择目录，请更换为 Chrome\n              或其他现代浏览器后再试。\n            </p>\n            <p>\n              本功能依赖\n              <a href=\"https://developer.mozilla.org/zh-CN/docs/Web/API/Window/showOpenFilePicker\">showOpenFilePicker API</a>，仅在支持的浏览器中可用。\n            </p>\n            <p>\n              该 API\n              用于授予浏览器写入本地文件夹的权限；若不被支持，项目将无法正常运行。\n            </p>",
+    "en": "<p>\n              Sorry, your browser does not support the\n              <a href=\"https://developer.mozilla.org/en-US/docs/Web/API/Window/showOpenFilePicker\">showOpenFilePicker API</a>. Please use Chrome or other modern browsers.\n            </p>\n            <p>\n              This feature depends on the showOpenFilePicker API, which is only\n              available in supported browsers.\n            </p>\n            <p>\n              The API is used to grant the browser permission to write to local\n              folders; without it, the project may not function properly.\n            </p>"
+  },
+  "d2bb025a2e51c410b704733316c843087aae60f3b4a336c9040f28d637a47b3a": {
+    "cn": "开始",
+    "en": "Get Started"
+  },
+  "fcf8b4bff0df782ddd4408b926862de7aa3a38be14154c38c050f4d630ebf418": {
+    "cn": "打开文件夹",
+    "en": "Open Folder"
+  },
+  "27ba8ed9f615f81e9749396db05307df7ce15ff0a2b87ee8f6d824a0a35f7044": {
+    "cn": "创建新项目",
+    "en": "Create New Project"
+  },
+  "b6d7cbc94dba88c6c8d7ecf47b26646d95807339975380db81b7749d64ea3670": {
+    "cn": "最近打开",
+    "en": "Recent Projects"
+  },
+  "4dad9d42bca75eb028c6d6f33e87f1758af23d7eefebff0e52af3a69166c0fa0": {
+    "cn": "暂无最近打开项目",
+    "en": "No Recent Projects"
+  },
+  "2118cbc109880ac8bda93335c53f6e8e1d732152de6aa65c09f3bda104219178": {
+    "cn": "学习",
+    "en": "Learning"
+  },
+  "7df9e59b5d33f386fff6ed1ea1f31801fe771652e8f151a4eaf932bd63a7cea4": {
+    "cn": "了解基础知识",
+    "en": "Basic Knowledge"
+  },
+  "0a2cd1135c0837b5dbb34d7cbd71adc628c36286da8b226e6d92534269e62463": {
+    "cn": "视频教程",
+    "en": "Video Tutorials"
+  },
+  "572cf45ba43634b3448aadbc48d5398a1b32ad8a97bf42b689c394de222c30a1": {
+    "cn": "返回",
+    "en": "Back"
+  },
+  "4d9f6fa1861278ff9f973a504654a6e69602a915d2cc907fb57f5107996f940d": {
+    "cn": "项目类型",
+    "en": "Project Type"
+  },
+  "0819aea7b462c3c774d78ba562d93b473bb56af0ed4d72864260af98987363b1": {
+    "cn": "ofa.js 应用 <br>（含路由）",
+    "en": "ofa.js Application <br>（with Router）"
+  },
+  "cc5ca745283988c0bc42fd30efd0249c488c602e565062641b709337fb08312d": {
+    "cn": "路由支持页面跳转、参数传递等单页应用功能。",
+    "en": "Router supports page navigation, parameter passing, etc. for\n                  single-page applications."
+  },
+  "46e1eb2d8785badc69fe850386f02e174f80674683fb70bc9f8f1cd1d1fb6658": {
+    "cn": "项目信息",
+    "en": "Project Information"
+  },
+  "867698fb7b0c730c9c692a01b65a74500b5f44f3589e31703e2957f9ba5ce976": {
+    "cn": "项目名称",
+    "en": "Project Name"
+  },
+  "15af3ee6d95864f323f6c0345acc3e707370e18e431df768b8eaeddefcdd97a3": {
+    "cn": "目录地址：",
+    "en": "Directory Path:"
+  },
+  "15902dd3aa1263096f9c6eb38037114643dfd2a83cb030246074d231784bf80d": {
+    "cn": "已确认覆盖原有的项目",
+    "en": "Confirmed to overwrite the existing project"
+  },
+  "e5fe24ca742f83d9a908d220137501f49db1efaefa6d4d58d31f96e41264137d": {
+    "cn": "选择目录",
+    "en": "Select Directory"
+  },
+  "cd02fc29c2c5001fc9c6978889d1a3ae12fb7f43bd963d8e8c2808106b933937": {
+    "cn": "当选择目录后，系统会弹出权限确认弹窗，请连续点击“确认”以授予写入权限，否则项目将无法正常启动。",
+    "en": "When selecting a directory, the system will pop up a permission\n            confirmation dialog. Please click \"Confirm\" continuously to grant\n            write permissions, otherwise the project will not start\n            normally."
+  },
+  "b447b9731ac42ce2406204c5665b5e75b31b5eaf7b8c1e824cdd5ac3cde5846f": {
+    "cn": "确认创建",
+    "en": "Confirm Create"
+  },
+  "9160449a68b2eed179540d9cb96647c960518778a1a87865ab1452f6f98f41d8": {
+    "cn": "项目已存在",
+    "en": "Project Exists"
+  },
+  "ec9deedf8e3b2c97c9ab5d7e77444a397c8243ae652db6f19c5c300ef4c58d7e": {
+    "cn": "当前目录下已有项目文件，是否覆盖并继续创建？",
+    "en": "The current directory already has project files. Do you want to\n          overwrite and continue creating?"
+  },
+  "ed5e3c20fb0406e53b6f3c158d2a2510bcc5b5ef1ca42bc8a8336b74278f8554": {
+    "cn": "直接打开项目",
+    "en": "Open Project"
+  },
+  "d788c62611634c168ab8843cd32dd5431c011ccbc0a874f9336c32d647f91408": {
+    "cn": "确认覆盖",
+    "en": "Confirm Overwrite"
+  },
+  "2cd0f3be8738a86cede1a1452f874f31d569864bbb00cacd4130990f4610cb5c": {
+    "cn": "取消",
+    "en": "Cancel"
+  },
+  "df1d1c6ee1f86f067a5eb7044479dfbc1cca92b6e5b4d30648b5444ff944c646": {
+    "cn": "创建{{ createTypeLabel }}",
+    "en": "Create {{ createTypeLabel }}"
+  },
+  "fa237c0a8c7359ce7e12af0bc5b9ebeb8ec35f7d003732243f8e3711bf78a795": {
+    "cn": "将要创建{{createTypeLabel}}",
+    "en": "Will create {{createTypeLabel}}"
+  },
+  "5604919683deaa72dddbddc462cb816e3f67e35903adef8d05ba91522be5bf49": {
+    "cn": "{{createTypeLabel}}名称",
+    "en": "{{createTypeLabel}} Name"
+  },
+  "cde2cd071d25bbab4fab3c1956d3034b08c979a25c65bef0c816999e355f6561": {
+    "cn": "创建",
+    "en": "Create"
+  },
+  "deab2a242ca7fa2b4f59dd5eb8909dd7f2a281e8264c33de1ae2313b390cfa22": {
+    "cn": "创建组件",
+    "en": "Create Component"
+  },
+  "f6f87e2c8087578aa95cc1356e806a7d72181495bcb243386e9ac7368ff0e7cb": {
+    "cn": "创建页面",
+    "en": "Create Page"
+  },
+  "13d61fea9f1749051d111b55aec36b315ea6729576e78b3cb29c5e17d7da2d2f": {
+    "cn": "预览",
+    "en": "Preview"
+  },
+  "89c5616b485d1fcb26e0af5570b87d23174590f7e67d2577fa817c0df3830b06": {
+    "cn": "新窗口预览应用",
+    "en": "Preview Application in New Window"
+  },
+  "2e07333c8c7409787674ea41e11da30cb079b3c2249b63c906bf1d848df44a03": {
+    "cn": "手机",
+    "en": "Mobile"
+  },
+  "2e48db143a3c274063d03507ee8edd905d32f516636306e4308201653719f948": {
+    "cn": "平板",
+    "en": "Pad"
+  },
+  "92e83f4dd0c33889b0bfbbb2f8832bebf427f79326bcf160392899db9ad4da81": {
+    "cn": "缩放比例",
+    "en": "Scale Ratio"
+  },
+  "788db1cfec2a3db586e72037c22ed21d09b3a370adc6212f896956a729e59cd3": {
+    "cn": "主题",
+    "en": "Themes"
+  },
+  "070a8016fcc3dffbefd26e4d0c26cf5b7f46590ae9f1b65f0e2636581d05ffef": {
+    "cn": "颜色",
+    "en": "Colors"
+  },
+  "c809bf2396baf5175df91c5761c6e1d7dbb6736fb637b32c662a70e1f58535c3": {
+    "cn": "Locale Text 翻译提取工具",
+    "en": "Locale Text Extractor"
+  },
+  "f99d979f3217eba5ebe0d60a3cb750ce1dbcb1696f9256e53911c6e1550b704f": {
+    "cn": "扫描项目内所有 HTML 文件中的 &lt;locale-text&gt; 组件，提取基准文本并生成 locale-text.json 翻译索引。后续只需在 JSON 中补充其他语种，运行时组件会自动回退读取。",
+    "en": "Scan all HTML files for &lt;locale-text&gt; components, extract base text and generate locale-text.json. Add other languages in the JSON at any time; the runtime component falls back to it automatically."
+  },
+  "b2484657da8736f552dd6068a90d78972b063ba477bb32ceb6c330f67f497420": {
+    "cn": "当前浏览器不支持 showDirectoryPicker，请使用 Chrome 等现代浏览器。",
+    "en": "Your browser does not support showDirectoryPicker. Please use Chrome or other modern browsers."
+  },
+  "54514257354916ee93df6d96f929fd2497b0f8a8819371c8fa09f2c76ff95811": {
+    "cn": "选择项目目录",
+    "en": "Select Project Folder"
+  },
+  "f528b4d1ea9a4c80f5c02411aea5ad64c553fa26b7af3d6889231b6d14223723": {
+    "cn": "生成 locale-text.json",
+    "en": "Generate locale-text.json"
+  },
+  "20ec740be773d95d9878a93aa368a2a13b13b7c938068b4717a91c7011a3973b": {
+    "cn": "扫描文件",
+    "en": "Files scanned"
+  },
+  "71616f1683d27f3fddb99a8b69b72fd7a67aa29a51d584e86c38f87e45ad49bd": {
+    "cn": "命中文件",
+    "en": "Files with hits"
+  },
+  "bae724cff786b6aeec180ec0c60e354bd6ec5144c1f08f5ec6d4a5154d601889": {
+    "cn": "条目总数",
+    "en": "Total entries"
+  },
+  "0006d696d8e1ec28a134667ab0b633e632f11501e4938a9c617ba7212e2e1bf3": {
+    "cn": "新增",
+    "en": "Added"
+  },
+  "3055a035f0eb7a8b00ddc95c65ab5de8fc1df0436e13adfb45607bdaa03673fc": {
+    "cn": "更新",
+    "en": "Updated"
+  },
+  "670ec25af8419f4855fb2bc2ab9b0f90bc90d7c2dad3344ed2dde1b7b5c21f07": {
+    "cn": "保留",
+    "en": "Kept"
+  },
+  "453ae64691f9a1a01817c16a8b85901f14ca9e416f6e340fef9fbc5c5a28d2c5": {
+    "cn": "预览（合并后）",
+    "en": "Preview (merged)"
+  },
+  "497c85690c4cc0fc1aeb7bf60859386fb0f1ec136faea5dcb77c8dc16d88795c": {
+    "cn": "暂无数据",
+    "en": "No data"
+  },
+  "50ef2f4cf6a46924459c7e75f097e86feedf919017a9704eb90995c8b4dd1d1f": {
+    "cn": "新建",
+    "en": "New"
+  },
+  "6ddd1eaccab127dea6a863341bfba4acf0d6020f1870b2538a69d3089ffa004c": {
+    "cn": "新建文件",
+    "en": "New File"
+  },
+  "d5f6f645ff5e4bd98b52f980062daad4a2e12e3c99fd876dd5a20c4d0e1911b6": {
+    "cn": "新建目录",
+    "en": "New Directory"
+  },
+  "410a8e8a6bf253aca72cdf65b08e0fac3de9bae9cd5a6d01ec76854742e5afce": {
+    "cn": "剪切",
+    "en": "Cut"
+  },
+  "63d90d977348ab1f9aa34ebb42b103216ce161feb0a1c08e237607bf42c3cf79": {
+    "cn": "复制",
+    "en": "Copy"
+  },
+  "33517926747180e6b12384edf4826853db5c15a6b9d923e389b17b53e5d0bf71": {
+    "cn": "粘贴",
+    "en": "Paste"
+  },
+  "0d0cbac2eee541136ec2dbba111676952076525a565f02bf688c31970ece1f1a": {
+    "cn": "重命名",
+    "en": "Rename"
+  },
+  "2f9daa828907b93ff8a00d41a16828e0c6388bf3a95dadf816c8ee9c3bdac37d": {
+    "cn": "删除",
+    "en": "Delete"
+  },
+  "66b529300605a2b884fcf16e7ec41f682de105a1a5ce12e6a9c15779c1b75e63": {
+    "cn": "正在剪切",
+    "en": "Cutting"
+  },
+  "f681c1f9edec0e9172bb0b09f963ff37e1c5d882406ca3fd3299b081d5b71487": {
+    "cn": "正在复制",
+    "en": "Copying"
+  },
+  "d03442ffd21e95af3a08a5a12a0b6f8f13c9ca6d39232d8c8e001e2518a0e2cc": {
+    "cn": "AI API Key 配置",
+    "en": "AI API Key Configuration"
+  },
+  "762ed82698eaa86f03a351f288c7db5139a62775df7698f2f70ef4c6f630ba88": {
+    "cn": "选择服务提供商",
+    "en": "Select Provider"
+  },
+  "a3030bf8f16dc63c6b277564c68f78a3be5abe5f2907c51826dee7184ff793fd": {
+    "cn": "保存",
+    "en": "Save"
+  },
+  "d5539d36dca34c443b347304efde51e9429483a5d787168b685b43cd302e686b": {
+    "cn": "已保存的 API Keys",
+    "en": "Saved API Keys"
+  },
+  "ad67d0fb7cac908e93e8dd9d7959a2a0e5a37205f50222d634dfea421c611239": {
+    "cn": "暂无保存的 API Keys",
+    "en": "No saved API Keys"
+  },
+  "c8e0b8602682d872f64f7d0b6d7ce4a34a08043e47385774f99d72cbfadfc5c1": {
+    "cn": "编辑 API Key",
+    "en": "Edit API Key"
+  },
+  "f737efa5c834b2192a63527d0b5fea9db6782fef7016a77a11ee629573b421f6": {
+    "cn": "服务提供商",
+    "en": "Provider"
+  },
+  "3843971dcfdee5083e6289e1bbdbb003e538b5a8a668fc43ae4f19d415ac18a2": {
+    "cn": "ID",
+    "en": "ID"
+  },
+  "c98e118e0a43f078bac8043a1ac8ccac8a554f8e8bca6a7c57de386a7970c71f": {
+    "cn": "模型",
+    "en": "Model"
+  },
+  "059ea786000090c1341e30ea46d8342830146a4526536d6d90b64d01cebd785f": {
+    "cn": "并发次数",
+    "en": "Concurrency"
+  },
+  "051836569928a9f91145a70e00b212b62a06c21a97d2d828cb75acd3fbe851b9": {
+    "cn": "编辑",
+    "en": "Edit"
+  },
+  "db9773faa309c257ed7776f85046d8ed29edc7bdb10e4d8c414f7a1df74cbf9d": {
+    "cn": "自动选择",
+    "en": "Auto"
+  },
+  "8d3119eca0c65db4c26df2aba1bdcbb260a675d8b14f434806b2353f3b92ebe3": {
+    "cn": "开始对话...",
+    "en": "Start chatting..."
+  },
+  "edecf0ae6e5144f9e297af730f9f6ce2ac17914f3368e72ead50c22aacd15db6": {
+    "cn": "发送",
+    "en": "Send"
+  },
+  "77e2d84e564dcbbba5996d884c928d10f487256bda86d9db8205398fef6820a3": {
+    "cn": "直接预览",
+    "en": "Direct Preview"
+  },
+  "841c5e25dcf3d7829a3ec8be913598cf460a78d7e20e8b16461a6f38e76320d5": {
+    "cn": "新窗口预览",
+    "en": "Preview in New Window"
+  },
+  "44ce7ae909bbb28bbbe3cbbba8d617b71217869d62741b4c104dc123a6ef603d": {
+    "cn": "搜索",
+    "en": "Search"
+  },
+  "cef0196f888c2c657e7dcb9b74c192bc6d1ebe4237e5c538ea54c452795011e4": {
+    "cn": "暂无搜索结果",
+    "en": "No search results"
+  },
+  "f244a2842f425c2776af9dff145df07010f0a8f9daf45b8fb87bea1c09d155e0": {
+    "cn": "搜索历史",
+    "en": "Search history"
+  },
+  "d5e52deded35faf47c9d39ecd253bd5d7c872b3e662c63a4fb9c762ed256cc9a": {
+    "cn": "ID: {id} | 模型: {model} | 并发: {concurrency}",
+    "en": "ID: {id} | Model: {model} | Concurrency: {concurrency}"
+  },
+  "63349bd947a5312ee0e08b9f9b67f05b638a36be7f5c3761d778da8581e37453": {
+    "cn": "监听器执行失败:",
+    "en": "Listener failed:"
+  },
+  "4d40a20d9d61a517dce1a09b416435848bf21f5431ec50b717d76dbc085e0ea7": {
+    "cn": "监听器必须是函数",
+    "en": "Listener must be a function"
+  },
+  "081d292eba0264d9880c9cae6e9294e6760fe20fe0320bad2547b5d4c902eaca": {
+    "cn": "不支持的提供商",
+    "en": "Unsupported provider"
+  },
+  "50e2bf6e1bcef0107eab5c651063f3f5cb146824c974aeb3cb1ef83c9e7c9a86": {
+    "cn": "没有可用的 API Key",
+    "en": "No available API Key"
+  },
+  "a161b9448365c2aeff991d0b3c048ae1699ef30591675237dc1bc7937d033470": {
+    "cn": "没有 {provider} 的 API Key",
+    "en": "No API Key for {provider}"
+  },
+  "6f2ec4733d98169308094d5f2f07818e99e9d2915b4eb9bff40fbd765a07890f": {
+    "cn": "并发数已满，请稍后重试",
+    "en": "Concurrency limit reached, please retry later"
+  },
+  "d8410360c659aaf30fdb71d8782b733970bcd9ef32b5a3d7229fe2eb2a47697b": {
+    "cn": "网络请求失败: {msg}",
+    "en": "Network failed: {msg}"
+  },
+  "ae407b9b97f96ad2992912da91ca356ae666efb8cff3d1199d228c0457bcb690": {
+    "cn": "API 失败 ({status}): {detail}",
+    "en": "API failed ({status}): {detail}"
+  },
+  "a36e45384d00707b43b6f3f19e8fb49677f67d2f9c47258d746e7b0d30ce5fd7": {
+    "cn": "冗余",
+    "en": "Orphaned"
+  },
+  "1f69f4c9acd0a55691e01b47a19cc71828fbb03a15b5868fd364c594f67e2248": {
+    "cn": "清理所有冗余条目",
+    "en": "Clean all orphaned entries"
+  }
+}

@@ -16,31 +16,34 @@
       on:item-contextmenu="itemContextmenu"
       style="padding-left: 8px; --item-size: 18px"
     >
-      <p-menu-item
+      <div
+        class="ctx-menu-item"
         slot="create-menu"
         on:click="clickCreateMenu('component',$event)"
       >
         <n-icon
           icon="mynaui:component"
           style="color: var(--md-sys-color-primary)"
-          slot="prefix"
         ></n-icon>
         <locale-text>
           <span lang="cn">创建组件</span>
           <span lang="en">Create Component</span>
         </locale-text>
-      </p-menu-item>
-      <p-menu-item slot="create-menu" on:click="clickCreateMenu('page',$event)">
+      </div>
+      <div
+        class="ctx-menu-item"
+        slot="create-menu"
+        on:click="clickCreateMenu('page',$event)"
+      >
         <n-icon
           icon="ri:pages-line"
           style="color: var(--md-sys-color-primary)"
-          slot="prefix"
         ></n-icon>
         <locale-text>
           <span lang="cn">创建页面</span>
           <span lang="en">Create Page</span>
         </locale-text>
-      </p-menu-item>
+      </div>
       <hr slot="create-menu" />
     </n-file-list>
   </o-provider>

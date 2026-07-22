@@ -60,7 +60,7 @@ export const getColorsData = () => {
     { name: "primary", color: "#1a7bd1" },
     { name: "success", color: "#6b9e52" },
     { name: "error", color: "#fb4747" },
-    { name: "normal", color: "#808080" },
+    { name: "neutral", color: "#808080" },
   ];
 
   // Generate color palettes for each base color
@@ -121,8 +121,8 @@ export const getColorsData = () => {
       return themeItem;
     });
 
-    // Get surface and on-surface colors from normal palette
-    const normalPalette = colorPalettes.find((p) => p.name === "normal");
+    // Get surface and on-surface colors from neutral palette
+    const normalPalette = colorPalettes.find((p) => p.name === "neutral");
     const surfaceItem = normalPalette.colors.find(
       (c) => c.point === theme.surface
     );

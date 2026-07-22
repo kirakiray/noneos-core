@@ -8,24 +8,139 @@
     }
   </style>
   <style id="lang-style"></style>
+  <!-- JSON 回退时注入的临时容器 -->
+  <div id="lt-json-fallback" part="json-fallback"></div>
   <slot></slot>
   <script>
+    // 转义 CSS 属性选择器中的特殊字符，避免选择器解析失败或注入
+    const escapeCSSAttr = (val) => {
+      return String(val).replace(/["\\]/g, "\\$&");
+    };
+
+    // 变量替换：{key} → data-key 属性值
+    // 用于支持 ofa.js 模板中的动态值，避免在子元素中使用 {{}} 语法
+    const interpolate = (text, hostEle) => {
+      return String(text).replace(/\{([\w-]+)\}/g, (match, key) => {
+        const val = hostEle.getAttribute("data-" + key);
+        return val !== null ? val : match;
+      });
+    };
+
+    // 子元素原始文本缓存（避免变量替换后丢失原始模板，保证 hash 稳定）
+    const _origTextMap = new WeakMap();
+
+    // hash 缓存（同一基准文本不重复计算）
+    const _hashCache = new Map();
+    const getHashCached = async (text) => {
+      if (_hashCache.has(text)) return _hashCache.get(text);
+      let hash;
+      if (globalThis.crypto?.subtle) {
+        const buf = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(text),
+        );
+        hash = Array.from(new Uint8Array(buf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      } else {
+        // 降级：简单字符串哈希（非加密强度）
+        let h = 0;
+        for (let i = 0; i < text.length; i++) {
+          h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+        }
+        hash = "fallback_" + (h >>> 0).toString(16);
+      }
+      _hashCache.set(text, hash);
+      return hash;
+    };
+
+    // 从当前组件的直接子元素中提取基准文本与语言映射
+    // 基准文本优先级：cn → en → 第一个带 lang 的子元素
+    // origTextMap 用于优先取原始文本（未变量替换），保证 hash 与提取工具一致
+    const extractBaseFromHost = (hostEle, origTextMap) => {
+      const langMap = {};
+      let firstLang = null;
+      let firstText = null;
+
+      Array.from(hostEle.children || []).forEach((child) => {
+        const lang = child.getAttribute("lang");
+        if (!lang) return;
+        const raw =
+          origTextMap && origTextMap.has(child)
+            ? origTextMap.get(child)
+            : child.innerHTML;
+        const text = raw.trim();
+        langMap[lang] = text;
+        if (firstLang === null) {
+          firstLang = lang;
+          firstText = text;
+        }
+      });
+
+      if (Object.keys(langMap).length === 0) return null;
+
+      const baseText = langMap.cn ?? langMap.en ?? firstText;
+      return { langMap, baseText };
+    };
+
     export default async ({ load }) => {
-      const { getLang } = await load("./get-locale-text.js");
+      const { getLang, fetchLocaleTextJson } = await load("./get-locale-text.js");
 
       return {
         tag: "locale-text",
-        data: {
-          // lang: defaultLang,
+        attrs: {
           lang: null,
         },
         watch: {
-          lang(lang) {
+          lang() {
             this.refreshStyle();
           },
         },
+        ready() {
+          // 初次挂载时计算一次样式
+          this.refreshStyle();
+
+          // 监听 slot 内子元素变化，自动重算显示语言
+          this._mo = new MutationObserver(() => this.refreshStyle());
+          this._mo.observe(this.ele, {
+            childList: true,
+            subtree: false,
+            attributes: true,
+            attributeFilter: ["lang"],
+          });
+
+          // 监听 data-* 属性变化，触发变量替换更新
+          this._dataMo = new MutationObserver((records) => {
+            const hasData = records.some(
+              (r) =>
+                r.attributeName &&
+                r.attributeName.startsWith("data-"),
+            );
+            if (hasData) this.refreshStyle();
+          });
+          this._dataMo.observe(this.ele, { attributes: true });
+
+          // 监听全局语言切换事件（由 setLang 派发）
+          this._onLangChange = () => this.refreshStyle();
+          window.addEventListener("locale-text:lang-change", this._onLangChange);
+        },
+        detached() {
+          // 清理监听，避免内存泄漏
+          if (this._mo) {
+            this._mo.disconnect();
+            this._mo = null;
+          }
+          if (this._dataMo) {
+            this._dataMo.disconnect();
+            this._dataMo = null;
+          }
+          if (this._onLangChange) {
+            window.removeEventListener("locale-text:lang-change", this._onLangChange);
+            this._onLangChange = null;
+          }
+        },
         proto: {
-          refreshStyle() {
+          async refreshStyle() {
             let finalLang = this.lang || getLang();
 
             let allLang = new Set();
@@ -38,22 +153,110 @@
               }
             });
 
-            // 判断是否有当前的lang
-            if (!allLang.has(finalLang)) {
-              // 第二替代为英语
-              if (allLang.has("en")) {
-                finalLang = "en";
-              } else {
-                // 默认第一个
-                finalLang = allLang.values().next().value;
-              }
+            // 没有任何带 lang 的子元素时，直接清空样式与回退，避免生成脏 CSS
+            if (allLang.size === 0) {
+              this.shadow.$("#lang-style").html = "";
+              this.clearJsonFallback();
+              return;
+            }
+
+            // slot 内能命中目标语言 → 直接用 slot，清掉 JSON 回退
+            if (allLang.has(finalLang)) {
+              this.shadow.$("#lang-style").html = `
+                ::slotted([lang="${escapeCSSAttr(finalLang)}"]) {
+                  display: revert;
+                }
+              `;
+              this.applyInterpolation(finalLang);
+              this.clearJsonFallback();
+              return;
+            }
+
+            // slot 内无法命中目标语言 → 尝试 JSON 回退
+            const jsonHit = await this.tryJsonFallback(finalLang);
+            if (jsonHit) {
+              // 隐藏所有 slot 子元素，由 JSON 回退容器承载显示
+              this.shadow.$("#lang-style").html = "";
+              return;
+            }
+
+            // JSON 也没命中 → 回退到现有的 slot 逻辑：en → 第一个
+            if (allLang.has("en")) {
+              finalLang = "en";
+            } else {
+              finalLang = allLang.values().next().value;
             }
 
             this.shadow.$("#lang-style").html = `
-              ::slotted([lang="${finalLang}"]) {
+              ::slotted([lang="${escapeCSSAttr(finalLang)}"]) {
                 display: revert;
               }
             `;
+            this.applyInterpolation(finalLang);
+            this.clearJsonFallback();
+          },
+
+          // 对指定语言的子元素做 {key} → data-key 变量替换
+          // 首次调用时记录原始文本到 _origTextMap，后续基于原始值替换
+          applyInterpolation(lang) {
+            this.forEach((el) => {
+              if (el.attr("lang") !== lang) return;
+              const nativeEl = el.ele;
+              if (!_origTextMap.has(nativeEl)) {
+                _origTextMap.set(nativeEl, nativeEl.innerHTML);
+              }
+              const orig = _origTextMap.get(nativeEl);
+              const replaced = interpolate(orig, this.ele);
+              if (nativeEl.innerHTML !== replaced) {
+                nativeEl.innerHTML = replaced;
+              }
+            });
+          },
+
+          // 尝试从 locale-text.json 中取目标语言；命中则注入临时容器返回 true
+          async tryJsonFallback(targetLang) {
+            const fallbackEl = this.shadow.$("#lt-json-fallback");
+            if (!fallbackEl) return false;
+
+            // 提取基准文本（使用原始文本计算 hash，保证与提取工具一致）
+            const extracted = extractBaseFromHost(this.ele, _origTextMap);
+            if (!extracted) {
+              this.clearJsonFallback();
+              return false;
+            }
+
+            try {
+              const json = await fetchLocaleTextJson();
+              if (!json) {
+                this.clearJsonFallback();
+                return false;
+              }
+
+              const { baseText } = extracted;
+              const hash = await getHashCached(baseText);
+              const entry = json[hash];
+
+              // JSON 回退仅当条目存在且包含目标语言时生效
+              if (!entry || entry[targetLang] === undefined) {
+                this.clearJsonFallback();
+                return false;
+              }
+
+              // 对 JSON 翻译文本也做变量替换
+              fallbackEl.ele.innerHTML = interpolate(
+                entry[targetLang],
+                this.ele,
+              );
+              return true;
+            } catch (e) {
+              this.clearJsonFallback();
+              return false;
+            }
+          },
+
+          clearJsonFallback() {
+            const fallbackEl = this.shadow.$("#lt-json-fallback");
+            if (fallbackEl) fallbackEl.ele.innerHTML = "";
           },
         },
       };

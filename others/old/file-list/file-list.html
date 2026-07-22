@@ -1,8 +1,6 @@
 <template component>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="/nos/locale-text/locale-text.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/menu/menu.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
   <l-m src="./handle-icon.html"></l-m>
   <l-m src="./create-handle.html"></l-m>
   <style>
@@ -154,6 +152,94 @@
     #file-list-menu {
       position: fixed;
       z-index: 31;
+      display: none;
+      min-width: 180px;
+      padding: 4px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      border: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
+      box-shadow: 0 4px 16px rgb(from var(--md-sys-color-on-surface) r g b / 0.18);
+      user-select: none;
+    }
+
+    #file-list-menu.open {
+      display: block;
+    }
+
+    .ctx-menu-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .ctx-menu-item:hover {
+      background-color: var(--md-sys-color-surface-variant);
+    }
+
+    .ctx-menu-item[disabled] {
+      opacity: 0.4;
+      pointer-events: none;
+      cursor: default;
+    }
+
+    .ctx-menu-item .ctx-arrow {
+      margin-left: auto;
+      font-size: 16px;
+      opacity: 0.7;
+    }
+
+    #file-list-menu hr {
+      margin: 4px 6px;
+      border: none;
+      border-top: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
+    }
+
+    .ctx-submenu {
+      display: none;
+      position: absolute;
+      left: 100%;
+      top: -5px;
+      min-width: 160px;
+      padding: 4px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      border: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
+      box-shadow: 0 4px 16px rgb(from var(--md-sys-color-on-surface) r g b / 0.18);
+    }
+
+    .ctx-menu-item.has-sub:hover > .ctx-submenu {
+      display: block;
+    }
+
+    /* 通过 create-menu 插槽注入的原生菜单项 */
+    ::slotted(.ctx-menu-item) {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    ::slotted(.ctx-menu-item:hover) {
+      background-color: var(--md-sys-color-surface-variant);
+    }
+    ::slotted(hr) {
+      margin: 4px 6px;
+      border: none;
+      border-top: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
     }
 
     .menu-item-icon {
@@ -161,7 +247,7 @@
     }
 
     .contextmenu-focus {
-      background-color: var(--md-sys-color-normal-container);
+      background-color: var(--md-sys-color-surface-variant);
     }
   </style>
   <h5>
@@ -238,101 +324,80 @@
 
   <div class="menu-mask" style="display: none" on:mousedown="hideMenu"></div>
 
-  <p-menu open="off" id="file-list-menu">
-    <p-menu-item>
-      <n-icon
-        icon="mdi:plus-circle"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+  <div id="file-list-menu">
+    <div class="ctx-menu-item has-sub">
+      <n-icon icon="mdi:plus-circle" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">新建</span>
         <span lang="en">New</span>
       </locale-text>
-      <p-menu>
+      <n-icon icon="mingcute:right-line" class="ctx-arrow"></n-icon>
+      <div class="ctx-submenu">
         <slot name="create-menu"></slot>
-        <p-menu-item on:click="clickCreate('file',$event)">
+        <div class="ctx-menu-item" on:click="clickCreate('file',$event)">
           <n-icon
             icon="mdi:file-document-plus-outline"
             class="menu-item-icon"
-            slot="prefix"
           ></n-icon>
           <locale-text>
             <span lang="cn">新建文件</span>
             <span lang="en">New File</span>
           </locale-text>
-        </p-menu-item>
-        <p-menu-item on:click="clickCreate('dir',$event)">
+        </div>
+        <div class="ctx-menu-item" on:click="clickCreate('dir',$event)">
           <n-icon
             icon="mdi:folder-plus-outline"
             class="menu-item-icon"
-            slot="prefix"
           ></n-icon>
           <locale-text>
             <span lang="cn">新建目录</span>
             <span lang="en">New Directory</span>
           </locale-text>
-        </p-menu-item>
-      </p-menu>
-    </p-menu-item>
+        </div>
+      </div>
+    </div>
     <hr />
-    <p-menu-item on:click="clickCut">
-      <n-icon
-        icon="mdi:content-cut"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+    <div class="ctx-menu-item" on:click="clickCut">
+      <n-icon icon="mdi:content-cut" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">剪切</span>
         <span lang="en">Cut</span>
       </locale-text>
-    </p-menu-item>
-    <p-menu-item on:click="clickCopy">
-      <n-icon
-        icon="mdi:content-copy"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+    </div>
+    <div class="ctx-menu-item" on:click="clickCopy">
+      <n-icon icon="mdi:content-copy" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">复制</span>
         <span lang="en">Copy</span>
       </locale-text>
-    </p-menu-item>
-    <p-menu-item attr:disabled="!clipboard.type" on:click="clickPaste">
-      <n-icon
-        icon="mdi:content-paste"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+    </div>
+    <div
+      class="ctx-menu-item"
+      attr:disabled="!clipboard.type"
+      on:click="clickPaste"
+    >
+      <n-icon icon="mdi:content-paste" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">粘贴</span>
         <span lang="en">Paste</span>
       </locale-text>
-    </p-menu-item>
+    </div>
     <hr />
-    <p-menu-item on:click="clickRename">
-      <n-icon
-        icon="mdi:rename-box-outline"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+    <div class="ctx-menu-item" on:click="clickRename">
+      <n-icon icon="mdi:rename-box-outline" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">重命名</span>
         <span lang="en">Rename</span>
       </locale-text>
-    </p-menu-item>
-    <p-menu-item on:click="clickDelete">
-      <n-icon
-        icon="mdi:delete-forever-outline"
-        slot="prefix"
-        class="menu-item-icon"
-      ></n-icon>
+    </div>
+    <div class="ctx-menu-item" on:click="clickDelete">
+      <n-icon icon="mdi:delete-forever-outline" class="menu-item-icon"></n-icon>
       <locale-text>
         <span lang="cn">删除</span>
         <span lang="en">Delete</span>
       </locale-text>
-    </p-menu-item>
-  </p-menu>
+    </div>
+  </div>
 
   <style>
     .bottom {
@@ -412,7 +477,7 @@
       );
 
       const { confirm, prompt, toast } = await load(
-        "/gh/ofajs/Punch-UI@1/packages/util.js"
+        "https://punch-ui-v2.pages.dev/packages/util.js"
       );
 
       // 使用 Set 数据结构提高查找性能
@@ -543,10 +608,13 @@
                 }
 
                 toast({
-                  content: getLocaleText({
-                    cn: `重命名失败，${result} 已存在`,
-                    en: `Rename failed, ${result} already exists`,
-                  }),
+                  content: getLocaleText(
+                    {
+                      cn: "重命名失败，{name} 已存在",
+                      en: "Rename failed, {name} already exists",
+                    },
+                    { name: result },
+                  ),
                   color: "error",
                 });
 
@@ -630,28 +698,25 @@
 
             const fileName = handle.name;
 
+            const itemType = getLocaleText(
+              handle.kind === "dir"
+                ? { cn: "目录", en: "Directory" }
+                : { cn: "文件", en: "File" },
+            );
             const result = await confirm({
               title: getLocaleText(
                 {
-                  cn: `删除${handle.kind === "dir" ? "目录" : "文件"}`,
-                  en: `Delete ${handle.kind === "dir" ? "Directory" : "File"}`,
+                  cn: "删除 {type}",
+                  en: "Delete {type}",
                 },
-                {
-                  var: [handle.kind],
-                }
+                { type: itemType },
               ),
               content: getLocaleText(
                 {
-                  cn: `确认删除 ${
-                    handle.kind === "dir" ? "目录" : "文件"
-                  } ${fileName} 吗？此操作不可撤销。`,
-                  en: `Are you sure you want to delete ${
-                    handle.kind === "dir" ? "directory" : "file"
-                  } ${fileName}? This action cannot be undone.`,
+                  cn: "确认删除 {type} {name} 吗？此操作不可撤销。",
+                  en: "Are you sure you want to delete {type} {name}? This action cannot be undone.",
                 },
-                {
-                  var: [handle.kind, fileName],
-                }
+                { type: itemType, name: fileName },
               ),
             });
 
@@ -721,7 +786,7 @@
           },
           hideMenu(bool = true) {
             this.shadow.$(".menu-mask").style.display = "none";
-            this.shadow.$("#file-list-menu").open = "off";
+            this.shadow.$("#file-list-menu").classList.remove("open");
             bool && (this.contextItemPath = null);
           },
           itemContextMenu(event) {
@@ -748,7 +813,7 @@
               const menuEl = this.shadow.$("#file-list-menu");
 
               // 显示菜单
-              menuEl.open = "on";
+              menuEl.classList.add("open");
 
               this.contextItemPath = item.data.path;
 
