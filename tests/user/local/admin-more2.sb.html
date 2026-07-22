@@ -294,10 +294,17 @@
           await bigrUserB.server.connect(bigrUrl);
 
           // 等待 bigrUserB 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let bigrTargetSession;
           for (let i = 0; i < 10; i++) {
-            const q = await bigrAdmin.server.queryUserOnline(bigrUrl, bigrUserB.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await bigrAdmin.server.queryUserOnline(bigrUrl, bigrUserB.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               bigrTargetSession = q.sessions[0];
               break;
             }
@@ -374,10 +381,17 @@
           await smallaUserB.server.connect(smallaUrl);
 
           // 等待 smallaUserB 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let smallaTargetSession;
           for (let i = 0; i < 10; i++) {
-            const q = await smallaAdmin.server.queryUserOnline(smallaUrl, smallaUserB.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await smallaAdmin.server.queryUserOnline(smallaUrl, smallaUserB.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               smallaTargetSession = q.sessions[0];
               break;
             }
@@ -448,10 +462,17 @@
           await adminnlUser.server.connect(adminnlUrl);
 
           // 等待 adminnlUser 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let adminnlTargetSession;
           for (let i = 0; i < 10; i++) {
-            const q = await adminnlAdmin.server.queryUserOnline(adminnlUrl, adminnlUser.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await adminnlAdmin.server.queryUserOnline(adminnlUrl, adminnlUser.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               adminnlTargetSession = q.sessions[0];
               break;
             }
@@ -527,10 +548,17 @@
           await raiseqUserB.server.connect(raiseqUrl);
 
           // 等待 raiseqUserB 上线并注册到服务器
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
           let raiseqTargetSession;
           for (let i = 0; i < 10; i++) {
-            const q = await raiseqAdmin.server.queryUserOnline(raiseqUrl, raiseqUserB.userId);
-            if (q.online && q.sessions.length > 0) {
+            let q;
+            try {
+              q = await raiseqAdmin.server.queryUserOnline(raiseqUrl, raiseqUserB.userId);
+            } catch (e) {
+              await new Promise(r => setTimeout(r, 300));
+              continue;
+            }
+            if (q && q.online && q.sessions.length > 0) {
               raiseqTargetSession = q.sessions[0];
               break;
             }
