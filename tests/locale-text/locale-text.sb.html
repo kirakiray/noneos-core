@@ -47,13 +47,20 @@
       <template>
         <script type="module">
           {
-            const { getLang, getLocaleText } =
+            const { getLang, getLocaleText, setLang } =
               await import("/nos/locale-text/get-locale-text.js");
+
+            // 强制使用非 en 语言，避免对象字面量中出现重复的 en key
+            const beforeLang_match = getLang();
+            setLang("cn");
             const lang_match = getLang();
 
             // 构造包含当前语言的对象，应精确命中
             const obj_match = { [lang_match]: "当前语言文本", en: "English" };
             const text_match = getLocaleText(obj_match);
+
+            // 恢复语言
+            setLang(beforeLang_match);
 
             return {
               assert: text_match === "当前语言文本",
