@@ -1,7 +1,7 @@
 {
-  "version": "4.2.5",
+  "version": "4.2.6",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1784720743896,
+  "signTime": 1784723973284,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -45,8 +45,8 @@
     },
     {
       "path": "fs/README.md",
-      "hash": "4a29e3893f76c43fd371a7cec445f7c57ac48aa81c5cc410df90266a27d5c26e",
-      "size": 12820
+      "hash": "afbffd3422755f0354a45cd5d49218aeb3a14b85901f947427122c30225e85e4",
+      "size": 12829
     },
     {
       "path": "fs/download.js",
@@ -294,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "nyTAToWuwC1keg8W4tNODaZirf57dwFWuD+mMC0SYNswmUIIHPJLilId+W+Bvlweufu67fA7qVF/E00ADnYJ7A=="
+  "signature": "xv9QwTc0Sonzgvpgn/FvoH8TyfiO8czOic/8RL2QIk1WV2qifFNZ43AKF5XrvLfoNi1z3ZHr2Ls0DZKDnK9Zkw=="
 }
