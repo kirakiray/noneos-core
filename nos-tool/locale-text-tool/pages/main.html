@@ -1,14 +1,14 @@
 <template page>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
       display: block;
       height: 100%;
       overflow-y: auto;
-      background-color: var(--md-sys-color-normal-on-container);
-      color: var(--md-sys-color-normal);
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
     }
     .container {
       max-width: 960px;
@@ -37,7 +37,7 @@
       margin-bottom: 16px;
       padding: 12px 16px;
       border-radius: 8px;
-      background: var(--md-sys-color-normal-container);
+      background: var(--md-sys-color-surface-variant);
       font-size: 14px;
       white-space: pre-wrap;
       min-height: 20px;
@@ -51,12 +51,12 @@
     .stat-card {
       padding: 16px;
       border-radius: 8px;
-      background: var(--md-sys-color-normal-container);
+      background: var(--md-sys-color-surface-variant);
       cursor: pointer;
       transition: background-color 0.15s ease, transform 0.1s ease;
     }
     .stat-card:hover {
-      background: var(--md-sys-color-normal-on-container);
+      background: var(--md-sys-color-neutral-container);
     }
     .stat-card:active {
       transform: scale(0.98);
@@ -81,9 +81,9 @@
       font-size: 12px;
       padding: 12px;
       border-radius: 8px;
-      border: 1px solid var(--md-sys-color-on-normal);
-      background: var(--md-sys-color-normal-container);
-      color: var(--md-sys-color-normal);
+      border: 1px solid var(--md-sys-color-on-surface-variant);
+      background: var(--md-sys-color-surface-variant);
+      color: var(--md-sys-color-on-surface);
       resize: vertical;
     }
     .unsupported {
@@ -128,7 +128,7 @@
       gap: 10px;
       padding: 10px 14px;
       border-radius: 6px;
-      background: var(--md-sys-color-normal-container);
+      background: var(--md-sys-color-surface-variant);
       margin-bottom: 6px;
       font-size: 13px;
     }
@@ -150,7 +150,7 @@
       white-space: nowrap;
       padding: 2px 8px;
       border-radius: 10px;
-      background: var(--md-sys-color-normal-on-container);
+      background: var(--md-sys-color-neutral-container);
     }
     .entry-row {
       display: flex;
@@ -158,7 +158,7 @@
       gap: 10px;
       padding: 10px 14px;
       border-radius: 6px;
-      background: var(--md-sys-color-normal-container);
+      background: var(--md-sys-color-surface-variant);
       margin-bottom: 6px;
       font-size: 13px;
     }
@@ -573,7 +573,7 @@
       const { open } = await load("/nos/fs/main.js");
       const { getHash } = await load("/nos/util/hash/get-hash.js");
       const { getLocaleText } = await load("/nos/locale-text/get-locale-text.js");
-      const { confirm } = await load("/gh/ofajs/Punch-UI@1/packages/util.js");
+      const { confirm } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
 
       return {
         data: {
