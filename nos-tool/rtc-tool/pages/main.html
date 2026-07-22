@@ -1,0 +1,580 @@
+<template page>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/switch/switch.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      overflow-y: auto;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 0 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .subtitle {
+      opacity: 0.65;
+      margin: 0 0 28px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 添加/编辑表单 */
+    .form-card {
+      padding: 18px 20px;
+      border-radius: 12px;
+      background: var(--md-sys-color-surface-variant);
+    }
+    .form-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .form-row > * {
+      flex: 1;
+      min-width: 160px;
+    }
+    .form-row .type-select {
+      flex: 0 0 120px;
+      min-width: 120px;
+    }
+    .form-row .action-btns {
+      flex: 0 0 auto;
+      min-width: auto;
+      display: flex;
+      gap: 8px;
+    }
+    .turn-fields {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .turn-fields > * {
+      flex: 1;
+      min-width: 160px;
+    }
+
+    /* 服务器列表 */
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .list-header .title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .list-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .server-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface-variant);
+      margin-bottom: 8px;
+      transition: opacity 0.15s ease;
+    }
+    .server-row.disabled {
+      opacity: 0.5;
+    }
+    .order-num {
+      flex: 0 0 28px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--md-sys-color-neutral-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .type-badge {
+      flex: 0 0 auto;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .type-badge.stun {
+      background: rgba(46, 125, 50, 0.16);
+      color: #2e7d32;
+    }
+    .type-badge.turn {
+      background: rgba(183, 117, 0, 0.16);
+      color: #b77500;
+    }
+    .server-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .server-url {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .server-cred {
+      font-size: 11px;
+      opacity: 0.55;
+      margin-top: 2px;
+    }
+    .test-result {
+      flex: 0 0 auto;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      min-width: 72px;
+      text-align: center;
+    }
+    .test-result.idle {
+      opacity: 0.4;
+    }
+    .test-result.testing {
+      background: rgba(33, 102, 178, 0.14);
+      color: var(--md-sys-color-primary);
+    }
+    .test-result.ok {
+      background: rgba(46, 125, 50, 0.16);
+      color: #2e7d32;
+    }
+    .test-result.fail {
+      background: rgba(176, 0, 32, 0.14);
+      color: #b00020;
+    }
+    .row-actions {
+      flex: 0 0 auto;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .empty-tip {
+      text-align: center;
+      padding: 48px 0;
+      opacity: 0.45;
+      font-size: 14px;
+    }
+    .footer-tip {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface-variant);
+      font-size: 12px;
+      line-height: 1.7;
+      opacity: 0.75;
+      white-space: pre-wrap;
+    }
+    .footer-tip code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      background: var(--md-sys-color-neutral-container);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+  </style>
+
+  <div class="container">
+    <h1>
+      <n-icon icon="material-symbols:settings-ethernet"></n-icon>
+      RTC ICE 服务器管理
+    </h1>
+    <p class="subtitle">
+      配置 WebRTC 的 STUN/TURN 服务器列表，支持测试连通性、延迟、调整顺序与临时启停。配置保存后，RTCManager 在下次构建连接时自动读取生效。
+    </p>
+
+    <!-- 添加 / 编辑表单 -->
+    <div class="section">
+      <div class="section-title">
+        <n-icon icon="material-symbols:add-circle-outline"></n-icon>
+        {{ editingId ? '编辑服务器' : '添加服务器' }}
+      </div>
+      <div class="form-card">
+        <div class="form-row">
+          <p-select class="type-select" sync:value="formType" variant="filled" size="s">
+            <span slot="label">类型</span>
+            <p-option value="stun">STUN</p-option>
+            <p-option value="turn">TURN</p-option>
+          </p-select>
+          <p-input sync:value="formUrls" variant="filled" size="s" placeholder="stun:host:port 或 turn:host:port?transport=udp">
+            <span slot="label">服务器 URL</span>
+          </p-input>
+          <div class="action-btns">
+            <p-button variant="filled" color="primary" size="s" on:click="handleSubmit" attr:disabled="!formUrls.trim()">
+              <n-icon icon="material-symbols:check" slot="prefix"></n-icon>
+              {{ editingId ? '保存' : '添加' }}
+            </p-button>
+            <o-if :value="editingId">
+              <p-button variant="text" size="s" on:click="cancelEdit">取消</p-button>
+            </o-if>
+          </div>
+        </div>
+        <o-if :value="formType === 'turn'">
+          <div class="turn-fields">
+            <p-input sync:value="formUsername" variant="filled" size="s" placeholder="TURN 用户名">
+              <span slot="label">用户名</span>
+            </p-input>
+            <p-input sync:value="formCredential" variant="filled" size="s" placeholder="TURN 凭证" type="password">
+              <span slot="label">凭证</span>
+            </p-input>
+          </div>
+        </o-if>
+      </div>
+    </div>
+
+    <!-- 服务器列表 -->
+    <div class="section">
+      <div class="list-header">
+        <div class="title-group">
+          <n-icon icon="material-symbols:format-list-numbered"></n-icon>
+          <div class="section-title" style="margin: 0;">服务器列表</div>
+          <span style="font-size:12px; opacity:0.55;">（{{ enabledCount }}/{{ servers.length }} 启用）</span>
+        </div>
+        <div class="list-actions">
+          <p-button variant="outlined" size="s" on:click="testAll" attr:disabled="servers.length === 0">
+            <n-icon icon="material-symbols:speed" slot="prefix"></n-icon>
+            全部测试
+          </p-button>
+          <p-button variant="text" size="s" on:click="resetDefaults">
+            <n-icon icon="material-symbols:restart-alt" slot="prefix"></n-icon>
+            恢复默认
+          </p-button>
+        </div>
+      </div>
+
+      <o-if :value="servers.length === 0">
+        <div class="empty-tip">暂无服务器，请在上方添加</div>
+      </o-if>
+
+      <o-fill :value="servers" fill-key="id">
+        <div class="server-row" class:disabled="!$data.enabled">
+          <span class="order-num">{{$index + 1}}</span>
+          <span attr:class="'type-badge ' + $data.type">{{$data.type}}</span>
+          <div class="server-main">
+            <div class="server-url">{{$data.urls}}</div>
+            <o-if :value="$data.username">
+              <div class="server-cred">user: {{$data.username}}</div>
+            </o-if>
+          </div>
+          <span attr:class="'test-result ' + $data.testStatus">
+            <o-if :value="$data.testStatus === 'idle'">未测试</o-if>
+            <o-if :value="$data.testStatus === 'testing'">测试中…</o-if>
+            <o-if :value="$data.testStatus === 'ok'">{{$data.testLatency}}ms · {{$data.testType}}</o-if>
+            <o-if :value="$data.testStatus === 'fail'">失败</o-if>
+          </span>
+          <p-switch
+            :value="$data.enabled ? 'on' : 'off'"
+            on:change="$host.toggleEnabled($index)"
+            size="s"
+          ></p-switch>
+          <div class="row-actions">
+            <p-button variant="text" size="s" on:click="$host.moveUp($index)" attr:disabled="$index === 0" title="上移">
+              <n-icon icon="material-symbols:arrow-upward"></n-icon>
+            </p-button>
+            <p-button variant="text" size="s" on:click="$host.moveDown($index)" attr:disabled="$index === $host.servers.length - 1" title="下移">
+              <n-icon icon="material-symbols:arrow-downward"></n-icon>
+            </p-button>
+            <p-button variant="outlined" size="s" on:click="$host.testOne($index)" attr:disabled="$data.testStatus === 'testing'">
+              <n-icon icon="material-symbols:network-check" slot="prefix"></n-icon>
+              测试
+            </p-button>
+            <p-button variant="text" size="s" on:click="$host.editServer($index)" title="编辑">
+              <n-icon icon="material-symbols:edit"></n-icon>
+            </p-button>
+            <p-button variant="text" size="s" color="error" on:click="$host.deleteServer($index)" title="删除">
+              <n-icon icon="material-symbols:delete-outline"></n-icon>
+            </p-button>
+          </div>
+        </div>
+      </o-fill>
+    </div>
+
+    <div class="footer-tip">
+配置说明：
+· 顺序即优先级，排在越前的服务器在 ICE 候选收集中优先级越高。
+· 点击"启用/禁用"开关可临时停用某台服务器而不删除它；停用的服务器不会参与 RTC 建链。
+· 配置自动保存到 localStorage，RTCManager 构造时会读取并生效。
+· STUN 测试成功表示可获取公网反射地址（srflx）；TURN 测试成功表示可分配中继地址（relay）。
+    </div>
+  </div>
+
+  <script>
+    // localStorage key，与 nos/user/rtc.js 中的 ICE_STORAGE_KEY 保持一致
+    const ICE_STORAGE_KEY = "noneos:rtc:ice_servers";
+
+    // 默认服务器列表
+    const DEFAULT_SERVERS = [
+      { type: "stun", urls: "stun:stun.l.google.com:19302", username: "", credential: "", enabled: true },
+      { type: "stun", urls: "stun:stun1.l.google.com:19302", username: "", credential: "", enabled: true },
+      { type: "stun", urls: "stun:stun.cloudflare.com:3478", username: "", credential: "", enabled: true },
+    ];
+
+    // 生成唯一 id
+    const genId = () => "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+
+    // 从 localStorage 读取配置
+    const loadServers = () => {
+      try {
+        const raw = localStorage.getItem(ICE_STORAGE_KEY);
+        if (!raw) return DEFAULT_SERVERS.map((s) => ({ ...s, id: genId() }));
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          return DEFAULT_SERVERS.map((s) => ({ ...s, id: genId() }));
+        }
+        return parsed.map((s) => ({
+          id: s.id || genId(),
+          type: s.type === "turn" ? "turn" : "stun",
+          urls: s.urls || "",
+          username: s.username || "",
+          credential: s.credential || "",
+          enabled: s.enabled !== false,
+          testStatus: "idle",
+          testLatency: null,
+          testType: "",
+          testError: "",
+        }));
+      } catch {
+        return DEFAULT_SERVERS.map((s) => ({ ...s, id: genId() }));
+      }
+    };
+
+    // 保存到 localStorage（剥离测试状态字段）
+    const saveServers = (servers) => {
+      const data = servers.map((s) => ({
+        id: s.id,
+        type: s.type,
+        urls: s.urls,
+        username: s.username,
+        credential: s.credential,
+        enabled: s.enabled,
+      }));
+      localStorage.setItem(ICE_STORAGE_KEY, JSON.stringify(data));
+    };
+
+    // 测试单个 ICE 服务器：收集候选，判断 srflx(STUN)/relay(TURN) 是否可用并测量延迟
+    const testIceServer = (server) => {
+      const iceServer = { urls: server.urls };
+      if (server.type === "turn") {
+        iceServer.username = server.username;
+        iceServer.credential = server.credential;
+      }
+
+      const pc = new RTCPeerConnection({ iceServers: [iceServer] });
+      const t0 = performance.now();
+
+      return new Promise((resolve) => {
+        let settled = false;
+        const done = (result) => {
+          if (settled) return;
+          settled = true;
+          try { pc.close(); } catch { /* ignore */ }
+          resolve(result);
+        };
+
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) {
+            // 收集结束，仍未拿到可用候选
+            done({ ok: false, latency: null, type: "", error: "未收集到可用候选" });
+            return;
+          }
+          const cand = e.candidate.candidate || "";
+          const typMatch = cand.match(/typ\s+(\w+)/);
+          const typ = typMatch ? typMatch[1] : "";
+          if (typ === "srflx" || typ === "relay") {
+            done({
+              ok: true,
+              latency: Math.round(performance.now() - t0),
+              type: typ,
+              error: "",
+            });
+          }
+        };
+
+        // 创建 DataChannel 触发 ICE 收集
+        try { pc.createDataChannel("test"); } catch { /* ignore */ }
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer))
+          .catch(() => done({ ok: false, latency: null, type: "", error: "创建 offer 失败" }));
+
+        // 超时 8s
+        setTimeout(() => done({ ok: false, latency: null, type: "", error: "超时（8s）" }), 8000);
+      });
+    };
+
+    export default async () => {
+      return {
+        data: {
+          servers: loadServers(),
+          formType: "stun",
+          formUrls: "",
+          formUsername: "",
+          formCredential: "",
+          editingId: null,
+        },
+        proto: {
+          get enabledCount() {
+            return (this.servers || []).filter((s) => s.enabled).length;
+          },
+          // 持久化保存
+          persist() {
+            saveServers(this.servers);
+          },
+
+          // 提交添加/编辑
+          handleSubmit() {
+            const urls = this.formUrls.trim();
+            if (!urls) return;
+
+            const data = {
+              type: this.formType,
+              urls,
+              username: this.formType === "turn" ? this.formUsername.trim() : "",
+              credential: this.formType === "turn" ? this.formCredential : "",
+              enabled: true,
+              testStatus: "idle",
+              testLatency: null,
+              testType: "",
+              testError: "",
+            };
+
+            if (this.editingId) {
+              const idx = this.servers.findIndex((s) => s.id === this.editingId);
+              if (idx >= 0) {
+                this.servers[idx] = { ...this.servers[idx], ...data };
+              }
+            } else {
+              this.servers.push({ ...data, id: genId() });
+            }
+
+            this.cancelEdit();
+            this.persist();
+          },
+
+          cancelEdit() {
+            this.editingId = null;
+            this.formType = "stun";
+            this.formUrls = "";
+            this.formUsername = "";
+            this.formCredential = "";
+          },
+
+          editServer(index) {
+            const s = this.servers[index];
+            if (!s) return;
+            this.editingId = s.id;
+            this.formType = s.type;
+            this.formUrls = s.urls;
+            this.formUsername = s.username;
+            this.formCredential = s.credential;
+          },
+
+          deleteServer(index) {
+            this.servers.splice(index, 1);
+            this.persist();
+          },
+
+          toggleEnabled(index) {
+            const s = this.servers[index];
+            if (!s) return;
+            s.enabled = !s.enabled;
+            this.persist();
+          },
+
+          moveUp(index) {
+            if (index <= 0) return;
+            const arr = this.servers;
+            const tmp = arr[index - 1];
+            arr[index - 1] = arr[index];
+            arr[index] = tmp;
+            this.persist();
+          },
+
+          moveDown(index) {
+            const arr = this.servers;
+            if (index >= arr.length - 1) return;
+            const tmp = arr[index + 1];
+            arr[index + 1] = arr[index];
+            arr[index] = tmp;
+            this.persist();
+          },
+
+          // 测试单个服务器
+          async testOne(index) {
+            const s = this.servers[index];
+            if (!s || s.testStatus === "testing") return;
+
+            s.testStatus = "testing";
+            const result = await testIceServer(s);
+            // 重新取引用防止异步期间数组变化
+            const cur = this.servers[index];
+            if (!cur) return;
+            if (result.ok) {
+              cur.testStatus = "ok";
+              cur.testLatency = result.latency;
+              cur.testType = result.type;
+              cur.testError = "";
+            } else {
+              cur.testStatus = "fail";
+              cur.testLatency = null;
+              cur.testType = "";
+              cur.testError = result.error;
+            }
+          },
+
+          // 依次测试所有服务器
+          async testAll() {
+            for (let i = 0; i < this.servers.length; i++) {
+              await this.testOne(i);
+            }
+          },
+
+          // 恢复默认配置
+          resetDefaults() {
+            this.servers = DEFAULT_SERVERS.map((s) => ({
+              ...s,
+              id: genId(),
+              testStatus: "idle",
+              testLatency: null,
+              testType: "",
+              testError: "",
+            }));
+            this.persist();
+          },
+        },
+      };
+    };
+  </script>
+</template>

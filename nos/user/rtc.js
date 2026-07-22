@@ -16,16 +16,67 @@ const DEFAULT_ICE_SERVERS = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
+// localStorage key，用于持久化用户自定义 ICE 配置（供 rtc-tool 等工具写入）。
+const ICE_STORAGE_KEY = "noneos:rtc:ice_servers";
+
+// 从 localStorage 读取用户自定义配置，解析失败或为空则返回默认配置。
+const loadStoredIceServers = () => {
+  try {
+    const raw = localStorage.getItem(ICE_STORAGE_KEY);
+    if (!raw) return DEFAULT_ICE_SERVERS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_ICE_SERVERS;
+    }
+    // 仅保留启用的服务器，并映射为 RTC 标准格式
+    const servers = parsed
+      .filter((item) => item && item.enabled !== false && item.urls)
+      .map((item) => {
+        const out = { urls: item.urls };
+        if (item.username) out.username = item.username;
+        if (item.credential) out.credential = item.credential;
+        return out;
+      });
+    return servers.length > 0 ? servers : DEFAULT_ICE_SERVERS;
+  } catch {
+    return DEFAULT_ICE_SERVERS;
+  }
+};
+
 export class RTCManager {
   #user;
   #peers = new Map(); // key: "userId:sessionId" -> { pc, dc, state }
   #connectPromises = new Map(); // key -> Promise，防止并发重复建连
+  #iceServers = DEFAULT_ICE_SERVERS; // 当前生效的 ICE 服务器配置
 
   /**
    * @param {import("./user.js").LocalUser} user - 本地用户实例
    */
   constructor(user) {
     this.#user = user;
+    // 构造时从 localStorage 读取用户自定义配置（若有）
+    this.#iceServers = loadStoredIceServers();
+  }
+
+  /**
+   * 设置 ICE 服务器配置（运行时即时生效，对后续新建的 RTCPeerConnection 生效）。
+   * 已建立的连接不受影响，会在重连时采用新配置。
+   * @param {Array<Object>} servers - ICE 服务器数组，每项形如 { urls, username?, credential? }
+   */
+  setIceServers(servers) {
+    if (!Array.isArray(servers) || servers.length === 0) {
+      this.#iceServers = DEFAULT_ICE_SERVERS;
+      return;
+    }
+    this.#iceServers = servers;
+  }
+
+  /**
+   * 获取当前生效的 ICE 服务器配置。
+   * @returns {Array<Object>}
+   */
+  getIceServers() {
+    return this.#iceServers;
   }
 
   /**
@@ -89,7 +140,7 @@ export class RTCManager {
   async #doConnect(userId, sessionId) {
     const key = this.#key(userId, sessionId);
 
-    const pc = new RTCPeerConnection({ iceServers: DEFAULT_ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: this.#iceServers });
     const dc = pc.createDataChannel("noneos", { ordered: true });
 
     this.#setupDataChannel(dc, userId, sessionId);
@@ -104,7 +155,7 @@ export class RTCManager {
   }
 
   async #handleOffer(key, userId, sessionId, signal) {
-    const pc = new RTCPeerConnection({ iceServers: DEFAULT_ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: this.#iceServers });
     this.#setupPeerConnection(pc, userId, sessionId);
 
     pc.ondatachannel = (event) => {
