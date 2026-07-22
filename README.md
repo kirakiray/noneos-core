@@ -1,5 +1,7 @@
 # NoneOS Core
 
+> English | [中文](README.zh-CN.md)
+
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-4.1.2-blue.svg)](package.json)
 [![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
@@ -7,6 +9,8 @@
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
 
 **NoneOS Core** is a browser-based virtual operating system core that provides a **virtual filesystem** and a **decentralized user interconnection** system — no server-side installation required for basic usage. Applications built on NoneOS Core can read/write files in a sandboxed virtual filesystem and communicate peer-to-peer between users.
+
+> **In essence**, NoneOS Core is an innovative **Micro-Frontend Containerization Technology**. While it *appears* as a browser-based virtual operating system, its technical essence is micro-frontend containerization built on Service Worker resource virtualization — it intercepts browser fetches through a routing layer, hosts independently published apps, and runs each one inside a sandboxed, persistent container with no server-side installation.
 
 ```js
 import { getUser } from "/nos/user/main.js";
@@ -68,6 +72,20 @@ await remote.send(sessionId, { text: "Hello from NoneOS!" });
 ```
 
 The Rust relay server provides **challenge-response authentication** (ECDSA P-256), **message relay**, and **RTC signaling tunnel** between users. Server-negotiated relay is always available as a fallback, but once peers discover each other they can switch to direct **WebRTC** connections — the relay server transparently passes SDP/ICE signaling messages as ordinary relay data, with no server-side awareness of the signaling protocol.
+
+---
+
+## Micro-Frontend Containerization
+
+Although NoneOS Core *presents itself* as a virtual operating system, its technical essence is **Micro-Frontend Containerization**. The "OS" metaphor is the user-facing surface; underneath, containerization is realized through three engineering pillars:
+
+| Pillar | What it means | Where it lives |
+|--------|---------------|----------------|
+| **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | [`nos/publish/`](nos/publish/README.md), [`nos-tool/studio/`](nos-tool/studio/) |
+| **Container isolation** | Each app runs inside a sandboxed runtime: an OPFS-backed virtual filesystem for isolation and persistence, plus a decentralized identity & messaging system that acts as the app's I/O surface to the outside world. | [`nos/fs/`](nos/fs/), [`nos/user/`](nos/user/README.md) |
+| **Resource virtualization** | The containerization is built on a Service Worker layer that intercepts every fetch and maps a set of *virtual URL prefixes* (`/packages/`, `/nos/`, `/$/`, `/gh/`, `/npm/`, `/$mount-.../`) to different backends — local OPFS, CDN, the official source, or remote users. The browser sees one origin, but the app perceives many. | [`sw/`](sw/) |
+
+In short: **micro-frontend hosting** keeps apps independent, the **container** gives each app a private, persistent, connected runtime, and **resource virtualization** is the Service Worker foundation that makes the container work — all running purely in the browser.
 
 ---
 
