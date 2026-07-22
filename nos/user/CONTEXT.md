@@ -138,7 +138,7 @@ EventTarget
 ### 4. WebRTC 建链（rtc.js）
 
 - 信令通道复用服务端中继：`rtc_signal` 消息携带 `{type:"offer"|"answer"|"ice", ...}`。
-- **无 STUN/TURN**：`iceServers: []`，仅在 NAT 友好或同局域网可直连；否则降级为中继。
+- **ICE 配置（可运行时变动）**：默认使用 Google 与 Cloudflare 公共 STUN 服务器（`stun.l.google.com:19302`、`stun.cloudflare.com:3478` 等）。支持 `setIceServers(servers)` 运行时替换配置（即时对新连接生效），`getIceServers()` 读取当前配置。构造时自动从 localStorage key `noneos:rtc:ice_servers` 读取用户自定义配置（由 `nos-tool/rtc-tool` 写入，仅取 `enabled !== false` 项）。对称型 NAT 等更严格环境仍需追加 TURN，否则降级为中继。
 - DataChannel 名 `"noneos"`，`ordered: true`。
 - 状态机：connecting → connected → failed/disconnected/closed；失败回退到中继。
 
