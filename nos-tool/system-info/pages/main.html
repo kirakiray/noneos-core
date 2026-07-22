@@ -244,7 +244,7 @@
       NoneOS 系统信息
     </h1>
     <p class="subtitle">
-      查看当前系统版本、Service Worker 注册状态，并手动管理系统更新。所有操作直接调用 _install/main.js 的安装 API。
+      查看当前系统版本、Service Worker 注册状态，并手动管理系统更新。所有操作直接调用 nos-tool/_install/main.js 的安装 API。
     </p>
 
     <!-- 系统版本 -->
@@ -387,8 +387,8 @@
 
   <script>
     export default async ({ load }) => {
-      const { check, install, installServiceWorker } = await load("../../../_install/main.js");
-      const { registerSw, clearSw, getOnlineData } = await load("../../../_install/util.js");
+      const { check, install, installServiceWorker } = await load("../../_install/main.js");
+      const { registerSw, clearSw, getOnlineData } = await load("../../_install/util.js");
 
       return {
         data: {

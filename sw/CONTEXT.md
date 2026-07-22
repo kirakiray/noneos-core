@@ -136,7 +136,7 @@ sw/src/main.js
 
 - `systemConfig` 初始为空对象，SW 脚本加载时与 activate 后 1s 各触发一次加载。
 - `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置；读取失败返回 500。
-- 配置存储在 OPFS `nos-config/system.json` 中，由 `_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。
+- 配置存储在 OPFS `nos-config/system.json` 中，由 `nos-tool/_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。
 
 ## 六、依赖关系
 
@@ -147,5 +147,5 @@ sw/src/main.js
 
 - 源码使用 ES Modules 编写，通过 Rollup 打包为 `sw/dist.js` 与 `sw/dist.min.js`（以及对应的 `.map` sourcemap 文件）。
 - 构建命令：`npm run build:sw`；开发模式可使用 `npm run watch:sw`（监听 `sw/src/**` 自动重建）。
-- **SW 注册链路**：`_install/main.js`（生产）或 `_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
+- **SW 注册链路**：`nos-tool/_install/main.js`（生产）或 `nos-tool/_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `nos-tool/_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
 - 修改 `sw/src/` 后必须重新构建，否则线上运行的 Service Worker 不会生效。

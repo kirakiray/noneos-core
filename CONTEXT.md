@@ -22,10 +22,9 @@
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |
 | `server/client/` | 服务端管理前端（admin 页面） |
-| `nos-tool/` | 开发工具集（编辑器、studio、file-explore） |
+| `nos-tool/` | 开发工具集（编辑器、studio、file-explore、安装/升级入口 `_install/`） |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
 | `skills/` | Skill 知识库（`noneos-core-docs` 等） |
-| `_install/` | 安装/升级入口（生产环境注册 SW、写入 OPFS 系统文件） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |
 
