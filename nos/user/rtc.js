@@ -8,6 +8,14 @@
  * - 任何环节失败都静默放弃，业务层继续走服务器中转兜底。
  */
 
+// 默认 ICE 服务器配置：使用公共 STUN 服务器支持 NAT 穿透打洞。
+// 如需更严格的 NAT 环境（对称型 NAT 等）支持，应追加 TURN 服务器。
+const DEFAULT_ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
+
 export class RTCManager {
   #user;
   #peers = new Map(); // key: "userId:sessionId" -> { pc, dc, state }
@@ -81,7 +89,7 @@ export class RTCManager {
   async #doConnect(userId, sessionId) {
     const key = this.#key(userId, sessionId);
 
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({ iceServers: DEFAULT_ICE_SERVERS });
     const dc = pc.createDataChannel("noneos", { ordered: true });
 
     this.#setupDataChannel(dc, userId, sessionId);
@@ -96,7 +104,7 @@ export class RTCManager {
   }
 
   async #handleOffer(key, userId, sessionId, signal) {
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({ iceServers: DEFAULT_ICE_SERVERS });
     this.#setupPeerConnection(pc, userId, sessionId);
 
     pc.ondatachannel = (event) => {
