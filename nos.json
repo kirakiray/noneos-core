@@ -1,12 +1,12 @@
 {
-  "version": "4.2.3",
+  "version": "4.2.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1784482449385,
+  "signTime": 1784705505651,
   "hashes": [
     {
       "path": "ai/chat.js",
-      "hash": "10b4ec56de231c4b047c3a7a11ff5484bc8d7f16ba2cbd971f78f43cf8a7f9dc",
-      "size": 5447
+      "hash": "2d7e81989b9c86fdd8d6f14d586e57d55cafd664e8eca1f9834debd1f1ea56a8",
+      "size": 5586
     },
     {
       "path": "ai/concurrency.js",
@@ -40,8 +40,8 @@
     },
     {
       "path": "fs/CONTEXT.md",
-      "hash": "f20c118936b55ffb82de89349536ee49b563cefb03a1a943fe7a7398e2bb645b",
-      "size": 8360
+      "hash": "c5c6240aa46893efeacc1a7a89bd123d8db74c12a76667e24205a02375b77af6",
+      "size": 10490
     },
     {
       "path": "fs/README.md",
@@ -129,14 +129,19 @@
       "size": 1765
     },
     {
+      "path": "locale-text/README.md",
+      "hash": "d18950eeb0d8ebe5d0e606f4201d7d09f7ddc677a63fea87a36eb2775293185d",
+      "size": 12658
+    },
+    {
       "path": "locale-text/get-locale-text.js",
-      "hash": "d8f863039bc32918b75589e646b7824abf36b504e1a81b7b552eef1d1ef101af",
-      "size": 833
+      "hash": "b213d2a2924cb2f5f58aa9cc2e6b554949e643cce64d18b221ba833aff6cd107",
+      "size": 4019
     },
     {
       "path": "locale-text/locale-text.html",
-      "hash": "a81220c405f3b310a4137ac37fb040ef2ef8aa05dcfe5a2080a6774e171792e3",
-      "size": 1452
+      "hash": "a0b7a4b80eea24ee5b5c38671bebbf3edc9dd21edb505dbb7eb0a5667c78f4a2",
+      "size": 9014
     },
     {
       "path": "n-icon/db.js",
@@ -150,8 +155,8 @@
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "eaf06114b2b7ac9d1beb638c1d80b394b59922f7a1f8de6474b3e8cfca71f4a8",
-      "size": 11078
+      "hash": "5dd1a849cf17daaf57104c7af3f6b1fce98d7dafdd6289996a0e38ca9cf2c6ab",
+      "size": 11827
     },
     {
       "path": "publish/README.md",
@@ -175,8 +180,8 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "7156deac4531dfdb6adc09450111a0f8b81d1759ad3bffdb0f98fc5c1a6f4d37",
-      "size": 17630
+      "hash": "e9bc2d866cd2809c9528049005bad4be33096faf871c3a8112da1e2cb0f11f2e",
+      "size": 18473
     },
     {
       "path": "user/README.md",
@@ -289,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "+eUNU25/OgvNQEc5Z2tEcQgds5Z0jNb9+68+8rH0yBKWziiYH+uJtImeWCyEWaE8j8xita0rtFtY4jm/oC5H9w=="
+  "signature": "WZ0O6H+yRSN6A6ineoxijbslyUVBv7b7kJzcsQeS0bvcn1ePpPZX4VD+DFEb+cKty8KAI7kKSjttOvfhmgbj2Q=="
 }
