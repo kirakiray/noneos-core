@@ -1,8 +1,7 @@
 <template page>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/input/input.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/tooltips/tooltips.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <l-m src="../../comps/path-view.html"></l-m>
@@ -21,7 +20,7 @@
       margin: 32px 0 16px;
       font-size: 20px;
       font-weight: 500;
-      color: var(--md-sys-color-normal);
+      color: var(--md-sys-color-neutral);
     }
     .container {
       display: flex;
@@ -40,11 +39,11 @@
       transition: all 0.1s ease;
       cursor: pointer;
       text-align: center;
-      border: 1px solid var(--md-sys-color-on-normal);
+      border: 1px solid var(--md-sys-color-on-surface-variant);
     }
     .card:hover {
       transform: translateY(-2px);
-      background-color: var(--md-sys-color-on-normal);
+      background-color: var(--md-sys-color-surface-variant);
     }
     .card .main-icon {
       font-size: 32px;
@@ -54,7 +53,7 @@
     .card-text {
       font-size: 14px;
       line-height: 1.4em;
-      color: var(--md-sys-color-normal);
+      color: var(--md-sys-color-neutral);
     }
 
     .card.active {
@@ -125,27 +124,6 @@
             <span lang="cn">ofa.js 应用 <br />（含路由）</span>
             <span lang="en">ofa.js Application <br />（with Router）</span>
           </locale-text>
-          <p-tooltips style="vertical-align: middle">
-            <n-icon
-              icon="stash:question"
-              style="
-                font-size: 20px;
-                display: inline-block;
-                vertical-align: middle;
-              "
-            ></n-icon>
-            <div slot="tips">
-              <locale-text>
-                <span lang="cn"
-                  >路由支持页面跳转、参数传递等单页应用功能。</span
-                >
-                <span lang="en"
-                  >Router supports page navigation, parameter passing, etc. for
-                  single-page applications.</span
-                >
-              </locale-text>
-            </div>
-          </p-tooltips>
         </div>
       </div>
       <!-- <div
@@ -181,7 +159,7 @@
         white-space: nowrap;
       "
     >
-      <span style="font-weight: 500; color: var(--md-sys-color-normal)">
+      <span style="font-weight: 500; color: var(--md-sys-color-neutral)">
         <locale-text>
           <span lang="cn">目录地址：</span>
           <span lang="en">Directory Path:</span>
@@ -189,22 +167,14 @@
       </span>
       <path-view :path="dirPath"></path-view>
       <o-if :value="isCover">
-        <p-tooltips>
-          <n-icon
-            icon="ep:warn-triangle-filled"
-            style="
-              color: var(--md-sys-color-primary);
-              margin-left: 4px;
-              font-size: 18px;
-            "
-          ></n-icon>
-          <div slot="tips">
-            <locale-text>
-              <span lang="cn">已确认覆盖原有的项目</span>
-              <span lang="en">Confirmed to overwrite the existing project</span>
-            </locale-text>
-          </div>
-        </p-tooltips>
+        <n-icon
+          icon="ep:warn-triangle-filled"
+          style="
+            color: var(--md-sys-color-primary);
+            margin-left: 4px;
+            font-size: 18px;
+          "
+        ></n-icon>
       </o-if>
       <p-button
         variant="outlined"
@@ -292,7 +262,7 @@
     export default async ({ load, url, query }) => {
       const { open, mount } = await load("/nos/fs/handle/mount/mount.js");
       const { confirm, prompt, toast } = await load(
-        "/gh/ofajs/Punch-UI@1/packages/util.js"
+        "https://punch-ui-v2.pages.dev/packages/util.js"
       );
 
       return {

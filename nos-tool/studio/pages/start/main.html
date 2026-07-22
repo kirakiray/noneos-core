@@ -1,6 +1,6 @@
 <template page>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/list/list.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <style>
@@ -10,7 +10,7 @@
       font-family:
         -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
         "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
-      background-color: var(--md-sys-color-normal-on-container);
+      background-color: var(--md-sys-color-surface-variant);
     }
 
     .main {
@@ -26,7 +26,7 @@
       font-size: 26px;
       font-weight: normal;
       margin: 0 0 20px;
-      color: var(--md-sys-color-normal);
+      color: var(--md-sys-color-neutral);
     }
 
     .welcome-page h3 {
@@ -54,7 +54,7 @@
     }
 
     .empty-recent {
-      color: var(--md-sys-color-normal);
+      color: var(--md-sys-color-neutral);
       font-style: italic;
       padding: 4px 8px;
     }
@@ -225,7 +225,7 @@
       const { getLocaleText } = await load(
         "/nos/locale-text/get-locale-text.js",
       );
-      const { confirm } = await load("/gh/ofajs/Punch-UI@1/packages/util.js");
+      const { confirm } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
 
       return {
         data: {

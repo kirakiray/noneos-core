@@ -1,9 +1,9 @@
 <template page>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/button.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/select/select.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/button/group.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/input/input.html"></l-m>
-  <l-m src="/gh/ofajs/Punch-UI@1/packages/switch/switch.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/group.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/switch/switch.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
 
   <style>
@@ -94,10 +94,10 @@
           <span lang="en">Preview Application in New Window</span>
         </locale-text>
       </p-button>
-      <p-button-group size="small" style="margin-left: 8px">
+      <p-button-group size="s" style="margin-left: 8px">
         <p-button
           on:click="device = 'mobile'"
-          attr:variant="device === 'mobile' ? 'contained' : 'outlined'"
+          attr:variant="device === 'mobile' ? 'filled' : 'outlined'"
         >
           <n-icon icon="mynaui:mobile" slot="prefix"></n-icon>
           <locale-text>
@@ -107,7 +107,7 @@
         </p-button>
         <p-button
           on:click="device = 'pad'"
-          attr:variant="device === 'pad' ? 'contained' : 'outlined'"
+          attr:variant="device === 'pad' ? 'filled' : 'outlined'"
         >
           <n-icon icon="mingcute:pad-line" slot="prefix"></n-icon>
           <locale-text>
@@ -117,7 +117,7 @@
         </p-button>
         <p-button
           on:click="device = 'pc'"
-          attr:variant="device === 'pc' ? 'contained' : 'outlined'"
+          attr:variant="device === 'pc' ? 'filled' : 'outlined'"
         >
           <n-icon icon="ic:round-laptop" slot="prefix"></n-icon>
           PC
@@ -125,7 +125,7 @@
       </p-button-group>
       <p-button
         icon
-        size="small"
+        size="s"
         variant="outlined"
         attr:disabled="device === 'pc'"
         on:click="isHorizontal = !isHorizontal"
@@ -137,7 +137,7 @@
           icon="material-symbols:mobile-rotate-sharp"
         ></n-icon>
       </p-button>
-      <p-select sync:value="scale" size="small" style="margin-left: 8px">
+      <p-select sync:value="scale" size="s" style="margin-left: 8px">
         <label>
           <locale-text>
             <span lang="cn">缩放比例</span>
