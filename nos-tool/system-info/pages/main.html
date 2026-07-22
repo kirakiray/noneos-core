@@ -1,0 +1,552 @@
+<template page>
+  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
+  <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      overflow-y: auto;
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 0 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .subtitle {
+      opacity: 0.65;
+      margin: 0 0 28px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 信息卡片 */
+    .info-card {
+      padding: 18px 20px;
+      border-radius: 12px;
+      background: var(--md-sys-color-surface-variant);
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .info-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.55;
+    }
+    .info-value {
+      font-size: 18px;
+      font-weight: 600;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      line-height: 1.3;
+    }
+    .info-value.muted {
+      opacity: 0.35;
+      font-weight: 400;
+    }
+
+    /* 状态徽章 */
+    .state-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .state-badge.installed {
+      background: rgba(46, 125, 50, 0.16);
+      color: #2e7d32;
+    }
+    .state-badge.upgradable {
+      background: rgba(183, 117, 0, 0.16);
+      color: #b77500;
+    }
+    .state-badge.uninstalled {
+      background: rgba(176, 0, 32, 0.14);
+      color: #b00020;
+    }
+    .state-badge.unknown {
+      background: rgba(100, 100, 100, 0.14);
+      color: #666;
+    }
+    .state-badge.activated {
+      background: rgba(46, 125, 50, 0.16);
+      color: #2e7d32;
+    }
+    .state-badge.activating,
+    .state-badge.installing {
+      background: rgba(33, 102, 178, 0.14);
+      color: var(--md-sys-color-primary);
+    }
+    .state-badge.redundant {
+      background: rgba(176, 0, 32, 0.14);
+      color: #b00020;
+    }
+
+    .info-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .config-detail {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(128, 128, 128, 0.15);
+      font-size: 12px;
+      opacity: 0.65;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    /* Service Worker 区域 */
+    .controller-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .controller-info .ctrl-label {
+      opacity: 0.55;
+      font-size: 12px;
+    }
+    .controller-info .script-url {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      background: var(--md-sys-color-neutral-container);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .controller-info code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      background: var(--md-sys-color-neutral-container);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .controller-info .muted {
+      opacity: 0.45;
+    }
+    .sw-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface);
+      margin-bottom: 8px;
+    }
+    .sw-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .sw-main code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .sw-meta {
+      font-size: 11px;
+      opacity: 0.55;
+      margin-top: 2px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    /* 进度条 */
+    .install-progress {
+      margin-bottom: 14px;
+    }
+    .install-desc {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-bottom: 6px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .progress {
+      width: 100%;
+      height: 6px;
+      background: var(--md-sys-color-neutral-container);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--md-sys-color-primary);
+      border-radius: 3px;
+      transition: width 0.3s ease-in-out;
+    }
+
+    .error-box {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: rgba(176, 0, 32, 0.1);
+      color: #b00020;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .empty-tip {
+      text-align: center;
+      padding: 24px 0;
+      opacity: 0.45;
+      font-size: 14px;
+    }
+    .footer-tip {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface-variant);
+      font-size: 12px;
+      line-height: 1.7;
+      opacity: 0.75;
+      white-space: pre-wrap;
+    }
+    .footer-tip code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      background: var(--md-sys-color-neutral-container);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+  </style>
+
+  <div class="container">
+    <h1>
+      <n-icon icon="material-symbols:info"></n-icon>
+      NoneOS 系统信息
+    </h1>
+    <p class="subtitle">
+      查看当前系统版本、Service Worker 注册状态，并手动管理系统更新。所有操作直接调用 _install/main.js 的安装 API。
+    </p>
+
+    <!-- 系统版本 -->
+    <div class="section">
+      <div class="section-title">
+        <n-icon icon="material-symbols:new-releases"></n-icon>
+        系统版本
+      </div>
+      <div class="info-card">
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">本地版本</span>
+            <span attr:class="'info-value' + (localVersion ? '' : ' muted')">{{ localVersion || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">线上版本</span>
+            <span attr:class="'info-value' + (onlineVersion ? '' : ' muted')">{{ onlineVersion || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">SW 版本</span>
+            <span attr:class="'info-value' + (swVersion ? '' : ' muted')">{{ swVersion || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">状态</span>
+            <span attr:class="'state-badge ' + systemState">{{ stateText }}</span>
+          </div>
+        </div>
+        <div class="info-actions">
+          <p-button variant="outlined" color="primary" size="s" on:click="checkUpdate" attr:disabled="checking">
+            <n-icon icon="material-symbols:sync" slot="prefix"></n-icon>
+            {{ checking ? '检查中…' : '检查更新' }}
+          </p-button>
+          <p-button variant="text" size="s" on:click="refreshAll">
+            <n-icon icon="material-symbols:refresh" slot="prefix"></n-icon>
+            刷新全部
+          </p-button>
+        </div>
+        <o-if :value="systemConfig.mode">
+          <div class="config-detail">
+            mode: {{ systemConfig.mode }} · nosMapPath: {{ systemConfig.nosMapPath || '—' }}
+          </div>
+        </o-if>
+      </div>
+    </div>
+
+    <!-- Service Worker -->
+    <div class="section">
+      <div class="section-title">
+        <n-icon icon="material-symbols:cached"></n-icon>
+        Service Worker
+      </div>
+      <div class="info-card">
+        <div class="controller-info">
+          <span class="ctrl-label">当前控制器:</span>
+          <o-if :value="controllerInfo">
+            <span class="script-url">{{ controllerInfo.scriptURL }}</span>
+            <span attr:class="'state-badge ' + controllerInfo.state">{{ controllerInfo.state }}</span>
+          </o-if>
+          <o-else>
+            <span class="muted">无（页面未被 SW 控制）</span>
+          </o-else>
+        </div>
+
+        <o-if :value="registrations.length === 0">
+          <div class="empty-tip">无已注册的 Service Worker</div>
+        </o-if>
+
+        <o-fill :value="registrations" fill-key="scope">
+          <div class="sw-row">
+            <div class="sw-main">
+              <span class="script-url">{{ $data.scriptURL }}</span>
+              <div class="sw-meta">scope: {{ $data.scope }}</div>
+            </div>
+            <span attr:class="'state-badge ' + $data.state">{{ $data.state }}</span>
+          </div>
+        </o-fill>
+
+        <div class="info-actions" style="margin-top: 14px;">
+          <p-button variant="outlined" size="s" on:click="manualRegisterSw">
+            <n-icon icon="material-symbols:cloud-upload" slot="prefix"></n-icon>
+            注册 SW
+          </p-button>
+          <p-button variant="outlined" color="primary" size="s" on:click="updateSwOnly" attr:disabled="updatingSw || installing">
+            <n-icon icon="material-symbols:upgrade" slot="prefix"></n-icon>
+            {{ updatingSw ? '更新中…' : '更新 SW（拉取线上版本号）' }}
+          </p-button>
+          <p-button variant="text" size="s" on:click="refreshSwInfo">
+            <n-icon icon="material-symbols:refresh" slot="prefix"></n-icon>
+            刷新列表
+          </p-button>
+          <p-button variant="text" color="error" size="s" on:click="manualClearSw">
+            <n-icon icon="material-symbols:delete-outline" slot="prefix"></n-icon>
+            卸载全部
+          </p-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系统更新 -->
+    <div class="section">
+      <div class="section-title">
+        <n-icon icon="material-symbols:system-update"></n-icon>
+        系统更新
+      </div>
+      <div class="info-card">
+        <o-if :value="installing || updatingSw">
+          <div class="install-progress">
+            <div class="install-desc">{{ installDesc }} ({{ installStep }}/{{ installStepTotal }})</div>
+            <div class="progress">
+              <div
+                class="progress-bar"
+                :style.width="(installStepTotal > 0 ? (installStep / installStepTotal * 100) : 0) + '%'"
+              ></div>
+            </div>
+          </div>
+        </o-if>
+
+        <div class="info-actions">
+          <p-button variant="filled" color="primary" size="s" on:click="installSystem" attr:disabled="installing || updatingSw">
+            <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
+            {{ installing ? '更新中…' : '立即更新系统（完整）' }}
+          </p-button>
+        </div>
+
+        <o-if :value="errorMsg">
+          <div class="error-box">{{ errorMsg }}</div>
+        </o-if>
+      </div>
+    </div>
+
+    <div class="footer-tip">
+说明：
+· 检查更新 会比对本地版本与线上 <code>nos.json</code> 的版本号。
+· 注册 SW 直接注册 <code>sw.js</code>（不带版本号参数），适用于首次安装或调试。
+· 更新 SW 先拉取线上版本号，再以 <code>sw.js?v=版本号</code> 方式重新注册，可绕过浏览器对 sw.js 的缓存。
+· 立即更新系统 执行完整流程：重新注册 SW → 下载 nos.zip → 哈希校验 → 写入 OPFS。
+· 完整更新或 SW 更新后，建议刷新页面让新版本 Service Worker 接管。
+    </div>
+  </div>
+
+  <script>
+    export default async ({ load }) => {
+      const { check, install, installServiceWorker } = await load("../../../_install/main.js");
+      const { registerSw, clearSw, getOnlineData } = await load("../../../_install/util.js");
+
+      return {
+        data: {
+          checking: false,
+          updatingSw: false,
+          installing: false,
+          installDesc: "",
+          installStep: 0,
+          installStepTotal: 0,
+          localVersion: "",
+          onlineVersion: "",
+          swVersion: "",
+          systemState: "unknown",
+          systemConfig: {},
+          errorMsg: "",
+          registrations: [],
+          controllerInfo: null,
+        },
+        proto: {
+          get stateText() {
+            switch (this.systemState) {
+              case "installed": return "已是最新";
+              case "upgradable": return "可更新";
+              case "uninstalled": return "未安装";
+              default: return "未知";
+            }
+          },
+
+          async refreshAll() {
+            this.errorMsg = "";
+            await Promise.all([this.checkUpdate(), this.refreshSwInfo()]);
+          },
+
+          async checkUpdate() {
+            this.checking = true;
+            this.errorMsg = "";
+            try {
+              const result = await check();
+              this.systemState = result.state;
+              this.localVersion = result.version || result.localVersion || "";
+              this.swVersion = result.serviceWorkerVersion || "";
+              this.systemConfig = result.systemConfig || {};
+
+              if (result.onlineVersion) {
+                this.onlineVersion = result.onlineVersion;
+              } else {
+                // installed 状态下 check 不返回 onlineVersion，单独获取
+                try {
+                  const { onlineNosConfig } = await getOnlineData();
+                  this.onlineVersion = onlineNosConfig.version || "";
+                } catch {
+                  this.onlineVersion = "";
+                }
+              }
+            } catch (err) {
+              this.errorMsg = "检查失败: " + (err.message || String(err));
+            }
+            this.checking = false;
+          },
+
+          async refreshSwInfo() {
+            if (!("serviceWorker" in navigator)) {
+              this.registrations = [];
+              this.controllerInfo = null;
+              return;
+            }
+            try {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              this.registrations = regs.map((reg) => {
+                const worker = reg.active || reg.waiting || reg.installing;
+                return {
+                  scope: reg.scope,
+                  scriptURL: worker ? worker.scriptURL : "(unknown)",
+                  state: worker ? worker.state : "unknown",
+                };
+              });
+              const ctrl = navigator.serviceWorker.controller;
+              this.controllerInfo = ctrl
+                ? { scriptURL: ctrl.scriptURL, state: ctrl.state }
+                : null;
+            } catch (err) {
+              this.errorMsg = "读取 SW 信息失败: " + (err.message || String(err));
+            }
+          },
+
+          // 直接注册 sw.js（不带版本号，用于首次安装/调试）
+          async manualRegisterSw() {
+            this.errorMsg = "";
+            try {
+              await registerSw("sw.js");
+              await this.refreshSwInfo();
+            } catch (err) {
+              this.errorMsg = "注册失败: " + (err.message || String(err));
+            }
+          },
+
+          // 卸载所有 Service Worker
+          async manualClearSw() {
+            this.errorMsg = "";
+            try {
+              await clearSw();
+              await this.refreshSwInfo();
+            } catch (err) {
+              this.errorMsg = "卸载失败: " + (err.message || String(err));
+            }
+          },
+
+          // 仅更新 SW（拉取线上版本号 → 带版本参数重注册）
+          async updateSwOnly() {
+            this.updatingSw = true;
+            this.installStep = 0;
+            this.installStepTotal = 0;
+            this.installDesc = "";
+            this.errorMsg = "";
+            try {
+              await installServiceWorker((e) => {
+                if (typeof e === "string") return;
+                this.installStep = e.step || 0;
+                this.installDesc = e.desc || "";
+                this.installStepTotal = e.total || 0;
+              });
+              this.updatingSw = false;
+              await this.refreshSwInfo();
+            } catch (err) {
+              this.updatingSw = false;
+              this.errorMsg = "SW 更新失败: " + (err.message || String(err));
+            }
+          },
+
+          // 完整更新系统（SW + 系统文件）
+          async installSystem() {
+            this.installing = true;
+            this.installStep = 0;
+            this.installStepTotal = 0;
+            this.installDesc = "";
+            this.errorMsg = "";
+            try {
+              await install((e) => {
+                if (typeof e === "string") {
+                  this.installDesc = "writing: " + e;
+                  return;
+                }
+                this.installStep = e.step || 0;
+                this.installDesc = e.desc || "";
+                this.installStepTotal = e.total || 0;
+              });
+              this.installing = false;
+              await this.refreshAll();
+            } catch (err) {
+              this.installing = false;
+              this.errorMsg = "更新失败: " + (err.message || String(err));
+            }
+          },
+        },
+        attached() {
+          this.refreshAll();
+        },
+      };
+    };
+  </script>
+</template>
