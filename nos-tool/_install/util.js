@@ -1,8 +1,8 @@
-import { verifyData } from "../nos/crypto/crypto-verify.js";
+import { verifyData } from "../../nos/crypto/crypto-verify.js";
 
 export const getOnlineData = async () => {
   const rootCert = await fetch(
-    new URL("../nos/root-cert.json", import.meta.url).href,
+    new URL("../../nos/root-cert.json", import.meta.url).href,
     {
       cache: "no-store",
     }
@@ -15,7 +15,7 @@ export const getOnlineData = async () => {
   }
 
   const onlineNosConfig = await fetch(
-    new URL("../nos.json", import.meta.url).href,
+    new URL("../../nos.json", import.meta.url).href,
     {
       cache: "no-store",
     }

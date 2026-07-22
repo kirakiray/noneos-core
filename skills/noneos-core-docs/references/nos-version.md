@@ -120,4 +120,4 @@ UI 表现对应关系：
 
 ## 依赖
 
-`../../_install/main.js` — 提供 `check()` 和 `install()` 两个异步方法。
+`../_install/main.js` — 提供 `check()` 和 `install()` 两个异步方法。

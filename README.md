@@ -85,11 +85,11 @@ nos-tool/             # Desktop-like UI tools
   studio/             #   OFA Studio (app dev environment)
   editor/             #   Monaco-based code editor
   file-explore/       #   File explorer
+  _install/           #   Service worker registration & system installer
 sw/                   # Service Worker (fetch interception, routing, caching)
 server/               # Backend implementations
   rust/               #   Rust handshake & relay server (production)
   client/             #   Server admin dashboard (web UI)
-_install/             # Service worker registration & system installer
 tests/                # Browser-based test suites (.sb.html)
 scripts/              # Build, signing, packing utilities
 docs/                 # Multi-language documentation site (OBook)
