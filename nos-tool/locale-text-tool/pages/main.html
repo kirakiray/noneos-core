@@ -257,7 +257,7 @@
 
       <div class="status">{{ statusText }}</div>
 
-      <o-if :value="stats">
+      <o-if :value="hasResult">
         <div class="stats">
           <div class="stat-card" on:click="showList('scanned')">
             <div class="label">
@@ -582,7 +582,16 @@
           hasRoot: false,
           rootPath: "",
           statusText: "",
-          stats: null,
+          hasResult: false,
+          stats: {
+            scanned: 0,
+            hitFiles: 0,
+            totalEntries: 0,
+            added: 0,
+            updated: 0,
+            kept: 0,
+            orphaned: 0,
+          },
           previewText: "",
           activeView: "main", // main | scanned | hits | total | added | updated | kept
           listTitle: "",
@@ -599,7 +608,7 @@
             if (this.busy) return;
             this.busy = true;
             this.statusText = "";
-            this.stats = null;
+            this.hasResult = false;
             this.previewText = "";
             this.activeView = "main";
             _lastDetail = null;
@@ -654,7 +663,7 @@
           async handleGenerate() {
             if (this.busy || !_rootHandle) return;
             this.busy = true;
-            this.stats = null;
+            this.hasResult = false;
             this.previewText = "";
             const root = _rootHandle;
 
@@ -854,6 +863,7 @@
                 kept,
                 orphaned: orphanedRecords.length,
               };
+              this.hasResult = true;
 
               // 保存详细数据供列表视图使用
               _lastDetail = {
