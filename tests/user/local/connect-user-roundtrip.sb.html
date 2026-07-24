@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>多轮往返通信测试</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>用户间多轮往返通信测试</h1>
+
+  <!-- Test 1: 10 轮双向 ping-pong，每轮间隔一定时间 -->
+  <sb-test name="10-Round Bidirectional Ping-Pong with Interval">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t1_nsA = "roundtrip-1-a";
+        const t1_nsB = "roundtrip-1-b";
+        const t1_url = "ws://localhost:8081";
+        const t1_rounds = 10;
+        const t1_interval = 200; // 每轮间隔 ms
+
+        const t1_userA = new LocalUser(t1_nsA);
+        const t1_userB = new LocalUser(t1_nsB);
+        await Promise.all([t1_userA.ready(), t1_userB.ready()]);
+        await Promise.all([
+          t1_userA.server.connect(t1_url),
+          t1_userB.server.connect(t1_url),
+        ]);
+
+        // 双向连接，保证双方互持有 RemoteUser
+        const t1_remoteB = await t1_userA.connectUser(t1_userB.userId);
+        const t1_remoteA = await t1_userB.connectUser(t1_userA.userId);
+
+        // 双方注册同一个 service，onMessage 直接拿到干净的对象
+        const t1_aReceived = [];
+        const t1_bReceived = [];
+        t1_userA.registerService("pingpong-app", {
+          onMessage(data) { t1_aReceived.push(data); },
+        });
+        t1_userB.registerService("pingpong-app", {
+          onMessage(data) { t1_bReceived.push(data); },
+        });
+
+        // 等待 __service_available 互相推送完成
+        await new Promise((r) => setTimeout(r, 300));
+
+        // 10 轮双向同时发送，每轮间隔 t1_interval ms
+        for (let i = 0; i < t1_rounds; i++) {
+          await Promise.all([
+            t1_remoteB.sendToService("pingpong-app", { round: i, from: "A" }),
+            t1_remoteA.sendToService("pingpong-app", { round: i, from: "B" }),
+          ]);
+          await new Promise((r) => setTimeout(r, t1_interval));
+        }
+
+        // 轮询等待最后一批消息到达
+        for (let i = 0; i < 30; i++) {
+          if (t1_aReceived.length >= t1_rounds && t1_bReceived.length >= t1_rounds) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t1_aCountOk = t1_aReceived.length === t1_rounds;
+        const t1_bCountOk = t1_bReceived.length === t1_rounds;
+        // A 收到的应全部来自 B，且 round 序号连续
+        const t1_aContentOk = t1_aReceived.every((d, i) => d.round === i && d.from === "B");
+        const t1_bContentOk = t1_bReceived.every((d, i) => d.round === i && d.from === "A");
+
+        t1_userA.server.disconnectAll();
+        t1_userB.server.disconnectAll();
+
+        const t1_pass = t1_aCountOk && t1_bCountOk && t1_aContentOk && t1_bContentOk;
+        return {
+          assert: t1_pass,
+          content: {
+            message: t1_pass ? "10 轮双向 ping-pong 测试通过" : "10 轮双向 ping-pong 测试失败",
+            checks: {
+              aReceivedCount: t1_aReceived.length,
+              bReceivedCount: t1_bReceived.length,
+              expectedCount: t1_rounds,
+              aCountOk: t1_aCountOk,
+              bCountOk: t1_bCountOk,
+              aContentOk: t1_aContentOk,
+              bContentOk: t1_bContentOk,
+            },
+            aReceivedRounds: t1_aReceived.map((d) => `${d.from}:${d.round}`),
+            bReceivedRounds: t1_bReceived.map((d) => `${d.from}:${d.round}`),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 顺序投递 - A 连续发 20 条，校验到达顺序 -->
+  <sb-test name="Sequential Ordering - Burst 20 Messages">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t2_nsA = "roundtrip-2-a";
+        const t2_nsB = "roundtrip-2-b";
+        const t2_url = "ws://localhost:8081";
+        const t2_count = 20;
+
+        const t2_userA = new LocalUser(t2_nsA);
+        const t2_userB = new LocalUser(t2_nsB);
+        await Promise.all([t2_userA.ready(), t2_userB.ready()]);
+        await Promise.all([
+          t2_userA.server.connect(t2_url),
+          t2_userB.server.connect(t2_url),
+        ]);
+
+        const t2_remoteB = await t2_userA.connectUser(t2_userB.userId);
+
+        const t2_bReceived = [];
+        t2_userB.registerService("seq-app", {
+          onMessage(data) { t2_bReceived.push(data); },
+        });
+
+        await new Promise((r) => setTimeout(r, 300));
+
+        // A 连续顺序发送 20 条（逐条 await 确保发送顺序）
+        for (let i = 0; i < t2_count; i++) {
+          await t2_remoteB.sendToService("seq-app", { seq: i });
+        }
+
+        // 轮询等待全部到达
+        for (let i = 0; i < 40; i++) {
+          if (t2_bReceived.length >= t2_count) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t2_countOk = t2_bReceived.length === t2_count;
+        // 校验到达顺序与发送顺序一致
+        const t2_orderOk = t2_bReceived.every((d, i) => d.seq === i);
+
+        t2_userA.server.disconnectAll();
+        t2_userB.server.disconnectAll();
+
+        const t2_pass = t2_countOk && t2_orderOk;
+        return {
+          assert: t2_pass,
+          content: {
+            message: t2_pass ? "顺序投递测试通过" : "顺序投递测试失败",
+            checks: {
+              receivedCount: t2_bReceived.length,
+              expectedCount: t2_count,
+              countOk: t2_countOk,
+              orderOk: t2_orderOk,
+            },
+            receivedSeqs: t2_bReceived.map((d) => d.seq),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: 并发互发 - A 和 B 同时各发 10 条 -->
+  <sb-test name="Concurrent Bidirectional - Each Side Sends 10 Simultaneously">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t3_nsA = "roundtrip-3-a";
+        const t3_nsB = "roundtrip-3-b";
+        const t3_url = "ws://localhost:8081";
+        const t3_count = 10;
+
+        const t3_userA = new LocalUser(t3_nsA);
+        const t3_userB = new LocalUser(t3_nsB);
+        await Promise.all([t3_userA.ready(), t3_userB.ready()]);
+        await Promise.all([
+          t3_userA.server.connect(t3_url),
+          t3_userB.server.connect(t3_url),
+        ]);
+
+        const t3_remoteB = await t3_userA.connectUser(t3_userB.userId);
+        const t3_remoteA = await t3_userB.connectUser(t3_userA.userId);
+
+        const t3_aReceived = [];
+        const t3_bReceived = [];
+        t3_userA.registerService("concurrent-app", {
+          onMessage(data) { t3_aReceived.push(data); },
+        });
+        t3_userB.registerService("concurrent-app", {
+          onMessage(data) { t3_bReceived.push(data); },
+        });
+
+        await new Promise((r) => setTimeout(r, 300));
+
+        // 双方同时各发 10 条（不逐条 await，全部并发）
+        const t3_sends = [];
+        for (let i = 0; i < t3_count; i++) {
+          t3_sends.push(t3_remoteB.sendToService("concurrent-app", { from: "A", n: i }));
+          t3_sends.push(t3_remoteA.sendToService("concurrent-app", { from: "B", n: i }));
+        }
+        await Promise.all(t3_sends);
+
+        // 轮询等待全部到达
+        for (let i = 0; i < 40; i++) {
+          if (t3_aReceived.length >= t3_count && t3_bReceived.length >= t3_count) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t3_aCountOk = t3_aReceived.length === t3_count;
+        const t3_bCountOk = t3_bReceived.length === t3_count;
+        const t3_aAllFromB = t3_aReceived.every((d) => d.from === "B");
+        const t3_bAllFromA = t3_bReceived.every((d) => d.from === "A");
+        // 并发下不要求顺序，但要求 n 的集合完整
+        const t3_expectedNs = Array.from({ length: t3_count }, (_, i) => i).join(",");
+        const t3_aNsOk = t3_aReceived.map((d) => d.n).sort((a, b) => a - b).join(",") === t3_expectedNs;
+        const t3_bNsOk = t3_bReceived.map((d) => d.n).sort((a, b) => a - b).join(",") === t3_expectedNs;
+
+        t3_userA.server.disconnectAll();
+        t3_userB.server.disconnectAll();
+
+        const t3_pass = t3_aCountOk && t3_bCountOk && t3_aAllFromB && t3_bAllFromA && t3_aNsOk && t3_bNsOk;
+        return {
+          assert: t3_pass,
+          content: {
+            message: t3_pass ? "并发互发测试通过" : "并发互发测试失败",
+            checks: {
+              aReceivedCount: t3_aReceived.length,
+              bReceivedCount: t3_bReceived.length,
+              expectedCount: t3_count,
+              aCountOk: t3_aCountOk,
+              bCountOk: t3_bCountOk,
+              aAllFromB: t3_aAllFromB,
+              bAllFromA: t3_bAllFromA,
+              aNsComplete: t3_aNsOk,
+              bNsComplete: t3_bNsOk,
+            },
+            aReceivedNs: t3_aReceived.map((d) => d.n).sort((a, b) => a - b),
+            bReceivedNs: t3_bReceived.map((d) => d.n).sort((a, b) => a - b),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: 二进制多轮往返 - 底层 send 交替收发 -->
+  <sb-test name="Binary Round-Trip - 5 Rounds of Uint8Array">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t4_nsA = "roundtrip-4-a";
+        const t4_nsB = "roundtrip-4-b";
+        const t4_url = "ws://localhost:8081";
+        const t4_rounds = 5;
+
+        const t4_userA = new LocalUser(t4_nsA);
+        const t4_userB = new LocalUser(t4_nsB);
+        await Promise.all([t4_userA.ready(), t4_userB.ready()]);
+        await Promise.all([
+          t4_userA.server.connect(t4_url),
+          t4_userB.server.connect(t4_url),
+        ]);
+
+        const t4_remoteB = await t4_userA.connectUser(t4_userB.userId);
+        const t4_remoteA = await t4_userB.connectUser(t4_userA.userId);
+
+        // 底层 send 二进制：接收端 event.detail.data 是 Blob，需按帧格式解析
+        const t4_aReceived = [];
+        const t4_bReceived = [];
+
+        const t4_parseBinary = async (rawData) => {
+          if (!(rawData instanceof Blob)) return null;
+          const buffer = await rawData.arrayBuffer();
+          const view = new DataView(buffer);
+          const headerLen = view.getUint32(0, false); // u32 BE
+          const headerBytes = new Uint8Array(buffer, 4, headerLen);
+          const header = JSON.parse(new TextDecoder().decode(headerBytes));
+          const payload = new Uint8Array(buffer, 4 + headerLen);
+          return { header, payload };
+        };
+
+        t4_userA.bind("message", async (event) => {
+          const parsed = await t4_parseBinary(event.detail.data);
+          if (parsed) t4_aReceived.push(parsed);
+        });
+        t4_userB.bind("message", async (event) => {
+          const parsed = await t4_parseBinary(event.detail.data);
+          if (parsed) t4_bReceived.push(parsed);
+        });
+
+        // 每轮生成确定性的 payload（校验内容完整性）
+        const t4_makePayload = (round) => {
+          const arr = new Uint8Array(16);
+          for (let i = 0; i < 16; i++) arr[i] = (round * 16 + i) % 256;
+          return arr;
+        };
+
+        // 5 轮双向二进制发送，每轮间隔 200ms
+        for (let i = 0; i < t4_rounds; i++) {
+          await t4_remoteB.send(t4_userB.sessionId, t4_makePayload(i));
+          await t4_remoteA.send(t4_userA.sessionId, t4_makePayload(i));
+          await new Promise((r) => setTimeout(r, 200));
+        }
+
+        // 轮询等待全部到达
+        for (let i = 0; i < 30; i++) {
+          if (t4_aReceived.length >= t4_rounds && t4_bReceived.length >= t4_rounds) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t4_payloadMatch = (item, round) => {
+          const expected = t4_makePayload(round);
+          return item.payload.length === expected.length &&
+            item.payload.every((b, j) => b === expected[j]);
+        };
+
+        const t4_aCountOk = t4_aReceived.length === t4_rounds;
+        const t4_bCountOk = t4_bReceived.length === t4_rounds;
+        const t4_aPayloadOk = t4_aReceived.every((item, i) => t4_payloadMatch(item, i));
+        const t4_bPayloadOk = t4_bReceived.every((item, i) => t4_payloadMatch(item, i));
+
+        t4_userA.server.disconnectAll();
+        t4_userB.server.disconnectAll();
+
+        const t4_pass = t4_aCountOk && t4_bCountOk && t4_aPayloadOk && t4_bPayloadOk;
+        return {
+          assert: t4_pass,
+          content: {
+            message: t4_pass ? "二进制多轮往返测试通过" : "二进制多轮往返测试失败",
+            checks: {
+              aReceivedCount: t4_aReceived.length,
+              bReceivedCount: t4_bReceived.length,
+              expectedCount: t4_rounds,
+              aCountOk: t4_aCountOk,
+              bCountOk: t4_bCountOk,
+              aPayloadOk: t4_aPayloadOk,
+              bPayloadOk: t4_bPayloadOk,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
