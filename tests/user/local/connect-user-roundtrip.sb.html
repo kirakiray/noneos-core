@@ -94,8 +94,8 @@
     </template>
   </sb-test>
 
-  <!-- Test 2: 顺序投递 - A 连续发 20 条，校验到达顺序 -->
-  <sb-test name="Sequential Ordering - Burst 20 Messages">
+  <!-- Test 2: 突发投递 - A 连续发 20 条，校验全部到达且 seq 集合完整 -->
+  <sb-test name="Burst Delivery - 20 Messages All Arrive with Complete Seq Set">
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
@@ -134,24 +134,32 @@
         }
 
         const t2_countOk = t2_bReceived.length === t2_count;
-        // 校验到达顺序与发送顺序一致
-        const t2_orderOk = t2_bReceived.every((d, i) => d.seq === i);
+        // 不要求严格到达顺序（server/RTC 混合路径不保证全局有序），
+        // 但要求 seq 集合完整：0..count-1 每个恰好出现一次
+        const t2_sortedSeqs = t2_bReceived.map((d) => d.seq).sort((a, b) => a - b);
+        const t2_expectedSeqs = Array.from({ length: t2_count }, (_, i) => i);
+        const t2_setComplete = t2_sortedSeqs.length === t2_count &&
+          t2_sortedSeqs.every((s, i) => s === t2_expectedSeqs[i]);
+        // 验证无重复：排序后相邻元素不等
+        const t2_noDuplicates = t2_sortedSeqs.every((s, i) => i === 0 || s !== t2_sortedSeqs[i - 1]);
 
         t2_userA.server.disconnectAll();
         t2_userB.server.disconnectAll();
 
-        const t2_pass = t2_countOk && t2_orderOk;
+        const t2_pass = t2_countOk && t2_setComplete && t2_noDuplicates;
         return {
           assert: t2_pass,
           content: {
-            message: t2_pass ? "顺序投递测试通过" : "顺序投递测试失败",
+            message: t2_pass ? "突发投递测试通过" : "突发投递测试失败",
             checks: {
               receivedCount: t2_bReceived.length,
               expectedCount: t2_count,
               countOk: t2_countOk,
-              orderOk: t2_orderOk,
+              setComplete: t2_setComplete,
+              noDuplicates: t2_noDuplicates,
             },
             receivedSeqs: t2_bReceived.map((d) => d.seq),
+            sortedSeqs: t2_sortedSeqs,
           },
         };
       </script>
