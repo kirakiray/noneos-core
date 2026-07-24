@@ -288,6 +288,16 @@ export class LocalUser extends BaseUser {
         }
       }
 
+      // RTC DataChannel 传输的未加密消息为 JSON 字符串，
+      // 需要 parse 成对象后才能被 #dispatchToRemote 正确路由（如 __app 分发）
+      if (typeof messageData === "string") {
+        try {
+          messageData = JSON.parse(messageData);
+        } catch {
+          // 非 JSON 文本，保持原样透传
+        }
+      }
+
       this.#dispatchToRemote(fromUserId, fromSessionId, messageData, "rtc");
     });
   }

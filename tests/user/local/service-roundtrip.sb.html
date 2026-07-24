@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Service 多轮通信与生命周期测试</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Service 多轮通信与生命周期测试</h1>
+
+  <!-- Test 1: 同 appId 连续 10 次投递 + 顺序校验 -->
+  <sb-test name="Same appId 10 Sequential Deliveries with Order Check">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t1_nsA = "svc-rt-1-a";
+        const t1_nsB = "svc-rt-1-b";
+        const t1_url = "ws://localhost:8081";
+        const t1_count = 10;
+
+        const t1_userA = new LocalUser(t1_nsA);
+        const t1_userB = new LocalUser(t1_nsB);
+        await Promise.all([t1_userA.ready(), t1_userB.ready()]);
+        await Promise.all([
+          t1_userA.server.connect(t1_url),
+          t1_userB.server.connect(t1_url),
+        ]);
+
+        const t1_received = [];
+        const t1_svc = t1_userB.registerService("seq-delivery-app", {
+          onMessage(data) { t1_received.push(data); },
+        });
+
+        const t1_remoteB = await t1_userA.connectUser(t1_userB.userId);
+        await new Promise((r) => setTimeout(r, 300));
+
+        // A 连续顺序发送 10 条
+        for (let i = 0; i < t1_count; i++) {
+          await t1_remoteB.sendToService("seq-delivery-app", { seq: i, payload: `msg-${i}` });
+        }
+
+        // 轮询等待全部到达
+        for (let i = 0; i < 30; i++) {
+          if (t1_received.length >= t1_count) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t1_countOk = t1_received.length === t1_count;
+        const t1_orderOk = t1_received.every((d, i) => d.seq === i && d.payload === `msg-${i}`);
+
+        t1_svc.unregister();
+        t1_userA.server.disconnectAll();
+        t1_userB.server.disconnectAll();
+
+        const t1_pass = t1_countOk && t1_orderOk;
+        return {
+          assert: t1_pass,
+          content: {
+            message: t1_pass ? "同 appId 连续 10 次投递测试通过" : "同 appId 连续 10 次投递测试失败",
+            checks: {
+              receivedCount: t1_received.length,
+              expectedCount: t1_count,
+              countOk: t1_countOk,
+              orderOk: t1_orderOk,
+            },
+            receivedSeqs: t1_received.map((d) => d.seq),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: register → 发送 → unregister → 发送(失败) → 再 register → 发送(成功) -->
+  <sb-test name="Service Lifecycle - Register/Unregister/Re-register">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t2_nsA = "svc-rt-2-a";
+        const t2_nsB = "svc-rt-2-b";
+        const t2_url = "ws://localhost:8081";
+
+        const t2_userA = new LocalUser(t2_nsA);
+        const t2_userB = new LocalUser(t2_nsB);
+        await Promise.all([t2_userA.ready(), t2_userB.ready()]);
+        await Promise.all([
+          t2_userA.server.connect(t2_url),
+          t2_userB.server.connect(t2_url),
+        ]);
+
+        const t2_remoteB = await t2_userA.connectUser(t2_userB.userId);
+
+        const t2_received = [];
+        let t2_svc = t2_userB.registerService("lifecycle-app", {
+          onMessage(data) { t2_received.push(data); },
+        });
+        await new Promise((r) => setTimeout(r, 300));
+
+        // 阶段 1：已注册，发送应成功
+        const t2_res1 = await t2_remoteB.sendToService("lifecycle-app", { phase: 1 });
+        await new Promise((r) => setTimeout(r, 200));
+        const t2_phase1Delivered = t2_res1.some((r) => r.status === "ok" && r.delivered === true);
+        const t2_phase1Received = t2_received.length === 1 && t2_received[0].phase === 1;
+
+        // 阶段 2：注销后发送应失败（no_receiver 或 offline）
+        t2_svc.unregister();
+        // 等待 __service_unavailable 推送到 A 端
+        await new Promise((r) => setTimeout(r, 400));
+        const t2_res2 = await t2_remoteB.sendToService("lifecycle-app", { phase: 2 });
+        await new Promise((r) => setTimeout(r, 200));
+        const t2_phase2Status = t2_res2[0]?.status;
+        const t2_phase2Failed = t2_phase2Status === "no_receiver" || t2_phase2Status === "offline";
+        const t2_phase2NotReceived = t2_received.length === 1; // 仍然只有 phase 1 那一条
+
+        // 阶段 3：重新注册后发送应恢复成功
+        t2_svc = t2_userB.registerService("lifecycle-app", {
+          onMessage(data) { t2_received.push(data); },
+        });
+        // 等待 __service_available 推送到 A 端
+        await new Promise((r) => setTimeout(r, 400));
+        const t2_res3 = await t2_remoteB.sendToService("lifecycle-app", { phase: 3 });
+        await new Promise((r) => setTimeout(r, 200));
+        const t2_phase3Delivered = t2_res3.some((r) => r.status === "ok" && r.delivered === true);
+        const t2_phase3Received = t2_received.length === 2 && t2_received[1].phase === 3;
+
+        t2_svc.unregister();
+        t2_userA.server.disconnectAll();
+        t2_userB.server.disconnectAll();
+
+        const t2_pass = t2_phase1Delivered && t2_phase1Received && t2_phase2Failed && t2_phase2NotReceived && t2_phase3Delivered && t2_phase3Received;
+        return {
+          assert: t2_pass,
+          content: {
+            message: t2_pass ? "服务生命周期测试通过" : "服务生命周期测试失败",
+            checks: {
+              phase1Delivered: t2_phase1Delivered,
+              phase1Received: t2_phase1Received,
+              phase2Status: t2_phase2Status,
+              phase2Failed: t2_phase2Failed,
+              phase2NotReceived: t2_phase2NotReceived,
+              phase3Delivered: t2_phase3Delivered,
+              phase3Received: t2_phase3Received,
+            },
+            receivedPhases: t2_received.map((d) => d.phase),
+            phase2Results: t2_res2,
+            phase3Results: t2_res3,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: 多 appId 并发交替 20 次 -->
+  <sb-test name="Multi appId Concurrent Alternating 20 Times">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t3_nsA = "svc-rt-3-a";
+        const t3_nsB = "svc-rt-3-b";
+        const t3_url = "ws://localhost:8081";
+        const t3_rounds = 20;
+
+        const t3_userA = new LocalUser(t3_nsA);
+        const t3_userB = new LocalUser(t3_nsB);
+        await Promise.all([t3_userA.ready(), t3_userB.ready()]);
+        await Promise.all([
+          t3_userA.server.connect(t3_url),
+          t3_userB.server.connect(t3_url),
+        ]);
+
+        // B 同时注册两个 appId
+        const t3_xReceived = [];
+        const t3_yReceived = [];
+        t3_userB.registerService("multi-x", {
+          onMessage(data) { t3_xReceived.push(data); },
+        });
+        t3_userB.registerService("multi-y", {
+          onMessage(data) { t3_yReceived.push(data); },
+        });
+
+        const t3_remoteB = await t3_userA.connectUser(t3_userB.userId);
+        await new Promise((r) => setTimeout(r, 300));
+
+        // 交替向 x / y 发送 20 次（不 await，全部并发）
+        const t3_sends = [];
+        for (let i = 0; i < t3_rounds; i++) {
+          if (i % 2 === 0) {
+            t3_sends.push(t3_remoteB.sendToService("multi-x", { seq: i }));
+          } else {
+            t3_sends.push(t3_remoteB.sendToService("multi-y", { seq: i }));
+          }
+        }
+        await Promise.all(t3_sends);
+
+        // 轮询等待全部到达
+        const t3_expectedX = Math.floor(t3_rounds / 2);
+        const t3_expectedY = t3_rounds - t3_expectedX;
+        for (let i = 0; i < 40; i++) {
+          if (t3_xReceived.length >= t3_expectedX && t3_yReceived.length >= t3_expectedY) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const t3_xCountOk = t3_xReceived.length === t3_expectedX;
+        const t3_yCountOk = t3_yReceived.length === t3_expectedY;
+        // x 的序号应全部为偶数，y 的应全部为奇数
+        const t3_xSeqsOk = t3_xReceived.every((d) => d.seq % 2 === 0);
+        const t3_ySeqsOk = t3_yReceived.every((d) => d.seq % 2 === 1);
+        // 验证不串扰：x 不该收到奇数 seq，y 不该收到偶数 seq
+        const t3_xNoOdd = t3_xReceived.every((d) => d.seq % 2 === 0);
+        const t3_yNoEven = t3_yReceived.every((d) => d.seq % 2 === 1);
+
+        t3_userA.server.disconnectAll();
+        t3_userB.server.disconnectAll();
+
+        const t3_pass = t3_xCountOk && t3_yCountOk && t3_xSeqsOk && t3_ySeqsOk && t3_xNoOdd && t3_yNoEven;
+        return {
+          assert: t3_pass,
+          content: {
+            message: t3_pass ? "多 appId 并发交替测试通过" : "多 appId 并发交替测试失败",
+            checks: {
+              xReceivedCount: t3_xReceived.length,
+              yReceivedCount: t3_yReceived.length,
+              expectedX: t3_expectedX,
+              expectedY: t3_expectedY,
+              xCountOk: t3_xCountOk,
+              yCountOk: t3_yCountOk,
+              xSeqsOk: t3_xSeqsOk,
+              ySeqsOk: t3_ySeqsOk,
+              xNoOdd: t3_xNoOdd,
+              yNoEven: t3_yNoEven,
+            },
+            xReceivedSeqs: t3_xReceived.map((d) => d.seq).sort((a, b) => a - b),
+            yReceivedSeqs: t3_yReceived.map((d) => d.seq).sort((a, b) => a - b),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: ctx.remoteUser 5 轮 ping-pong -->
+  <sb-test name="ctx.remoteUser 5-Round Ping-Pong">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t4_nsA = "svc-rt-4-a";
+        const t4_nsB = "svc-rt-4-b";
+        const t4_url = "ws://localhost:8081";
+        const t4_rounds = 5;
+
+        const t4_userA = new LocalUser(t4_nsA);
+        const t4_userB = new LocalUser(t4_nsB);
+        await Promise.all([t4_userA.ready(), t4_userB.ready()]);
+        await Promise.all([
+          t4_userA.server.connect(t4_url),
+          t4_userB.server.connect(t4_url),
+        ]);
+
+        // A 注册 reply-app：收到消息后用底层 send 精准回复到 B 的 session
+        // （不走 sendToService，否则服务发现会把消息发回给 A 自己形成回环）
+        const t4_aReceived = [];
+        const t4_sendResults = [];
+        t4_userA.registerService("reply-app", {
+          onMessage(data, ctx) {
+            t4_aReceived.push(data);
+            ctx.remoteUser.send(ctx.fromSessionId, {
+              __app: "reply-app",
+              __data: { ack: data.round, from: "A" },
+            });
+          },
+        });
+
+        // B 注册 reply-app：接收 A 的回复，记录下来
+        const t4_acks = [];
+        t4_userB.registerService("reply-app", {
+          onMessage(data) { t4_acks.push(data); },
+        });
+
+        const t4_remoteA = await t4_userB.connectUser(t4_userA.userId);
+        await new Promise((r) => setTimeout(r, 300));
+
+        // B 发起 5 轮请求，每轮等收到 ack 后再发下一轮（真正的 ping-pong）
+        for (let i = 0; i < t4_rounds; i++) {
+          const t4_res = await t4_remoteA.sendToService("reply-app", { round: i, from: "B" });
+          t4_sendResults.push({ round: i, status: t4_res[0]?.status, delivered: t4_res[0]?.delivered });
+          // 等待本轮 ack 到达
+          for (let j = 0; j < 20; j++) {
+            if (t4_acks.length > i) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+
+        const t4_acksCountOk = t4_acks.length === t4_rounds;
+        const t4_acksContentOk = t4_acks.every((d, i) => d.ack === i && d.from === "A");
+
+        t4_userA.server.disconnectAll();
+        t4_userB.server.disconnectAll();
+
+        const t4_pass = t4_acksCountOk && t4_acksContentOk;
+        return {
+          assert: t4_pass,
+          content: {
+            message: t4_pass ? "ctx 回复 5 轮 ping-pong 测试通过" : "ctx 回复 5 轮 ping-pong 测试失败",
+            checks: {
+              acksCount: t4_acks.length,
+              expectedCount: t4_rounds,
+              acksCountOk: t4_acksCountOk,
+              acksContentOk: t4_acksContentOk,
+              aReceivedCount: t4_aReceived.length,
+            },
+            acks: t4_acks.map((d) => `${d.from}:ack${d.ack}`),
+            aReceived: t4_aReceived.map((d) => `${d.from}:round${d.round}`),
+            sendResults: t4_sendResults,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
