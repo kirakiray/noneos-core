@@ -109,7 +109,7 @@ EventTarget
 |--------|---------|
 | `CertManager` (cert.js) | `issue`/`import`/`query`/`has`/`delete`/`count`/`values`；`query(query)` 返回数组；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
 | `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
-| `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；`iceServers: []`（仅靠服务端中继，无 STUN/TURN）；DataChannel `"noneos"` ordered |
+| `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
 ## 五、关键实现细节
@@ -141,6 +141,10 @@ EventTarget
 - **ICE 配置（可运行时变动）**：默认使用 Google 与 Cloudflare 公共 STUN 服务器（`stun.l.google.com:19302`、`stun.cloudflare.com:3478` 等）。支持 `setIceServers(servers)` 运行时替换配置（即时对新连接生效），`getIceServers()` 读取当前配置。构造时自动从 localStorage key `noneos:rtc:ice_servers` 读取用户自定义配置（由 `nos-tool/rtc-tool` 写入，仅取 `enabled !== false` 项）。对称型 NAT 等更严格环境仍需追加 TURN，否则降级为中继。
 - DataChannel 名 `"noneos"`，`ordered: true`。
 - 状态机：connecting → connected → failed/disconnected/closed；失败回退到中继。
+- **Perfect Negotiation（glare 处理）**：每对 peer 维护 `polite` 标志（由 `this.#user.userId < otherUserId` 字典序比较决定，两侧互补）。双方同时发 offer（glare）时，`polite` 方 `setLocalDescription({type:"rollback"})` 回退自身 offer 并接受对方；`impolite` 方坚持自身 offer 并忽略对方。永不死锁。
+- **ICE 候选缓冲**：每对 peer 维护 `pendingCandidates: []`。当 `pc.remoteDescription === null` 或 `signalingState === "have-local-offer"` 时收到的 ICE 候选先缓冲；`setRemoteDescription` 成功后 `#flushPendingCandidates` 依次 `addIceCandidate`，单条失败仅告警不中断。即使 ICE 早于 offer 到达，`#handleIce` 也会预建占位 peer 缓冲候选。
+- **peer 写入时机**：`#handleOffer` / `#doConnect` 均在异步操作（`setRemoteDescription` / `createOffer`）之前写入 `#peers`，保证并发到达的 ICE 候选能立即查到 peer。
+- **错误处理策略**：`handleSignal` 的 catch 仅在 PC 处于 `closed`/`failed` 时清理 peer；其他可恢复错误（乱序、状态错误）只记录告警，保留 peer 让后续信令继续推进。
 
 ### 5. E2EE 端到端加密
 

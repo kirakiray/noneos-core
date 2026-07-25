@@ -271,28 +271,30 @@
         const t4_remoteB = await t4_userA.connectUser(t4_userB.userId);
         const t4_remoteA = await t4_userB.connectUser(t4_userA.userId);
 
-        // 底层 send 二进制：接收端 event.detail.data 是 Blob，需按帧格式解析
+        // 底层 send 二进制：监听 RemoteUser 的 message（server 与 RTC 两种路径都会触发）
+        // - server 中转：data 是 Uint8Array（已剥离帧头的 payload）
+        // - RTC 直连：data 是 Blob（DataChannel 默认 binaryType=blob，含原始 payload）
         const t4_aReceived = [];
         const t4_bReceived = [];
 
-        const t4_parseBinary = async (rawData) => {
-          if (!(rawData instanceof Blob)) return null;
-          const buffer = await rawData.arrayBuffer();
-          const view = new DataView(buffer);
-          const headerLen = view.getUint32(0, false); // u32 BE
-          const headerBytes = new Uint8Array(buffer, 4, headerLen);
-          const header = JSON.parse(new TextDecoder().decode(headerBytes));
-          const payload = new Uint8Array(buffer, 4 + headerLen);
-          return { header, payload };
+        const t4_toUint8 = async (data) => {
+          if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
+          if (data instanceof ArrayBuffer) return new Uint8Array(data);
+          if (ArrayBuffer.isView(data)) {
+            return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+          }
+          return null;
         };
 
-        t4_userA.bind("message", async (event) => {
-          const parsed = await t4_parseBinary(event.detail.data);
-          if (parsed) t4_aReceived.push(parsed);
+        // remoteB 是 A 端代表 B 的 RemoteUser：其 message 即 A 收到的（来自 B）
+        // remoteA 是 B 端代表 A 的 RemoteUser：其 message 即 B 收到的（来自 A）
+        t4_remoteB.bind("message", async (event) => {
+          const payload = await t4_toUint8(event.detail.data);
+          if (payload) t4_aReceived.push(payload);
         });
-        t4_userB.bind("message", async (event) => {
-          const parsed = await t4_parseBinary(event.detail.data);
-          if (parsed) t4_bReceived.push(parsed);
+        t4_remoteA.bind("message", async (event) => {
+          const payload = await t4_toUint8(event.detail.data);
+          if (payload) t4_bReceived.push(payload);
         });
 
         // 每轮生成确定性的 payload（校验内容完整性）
@@ -317,8 +319,8 @@
 
         const t4_payloadMatch = (item, round) => {
           const expected = t4_makePayload(round);
-          return item.payload.length === expected.length &&
-            item.payload.every((b, j) => b === expected[j]);
+          return item.length === expected.length &&
+            item.every((b, j) => b === expected[j]);
         };
 
         const t4_aCountOk = t4_aReceived.length === t4_rounds;
