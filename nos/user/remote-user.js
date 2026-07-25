@@ -19,6 +19,10 @@ export class RemoteUser extends BaseUser {
   #pendingPings = new Map(); // pingId -> { sessionId, resolve, reject, timeoutId }
   #lastSendVia = new Map(); // sessionId -> { via: 'rtc'|'server', url?: string }
   #pingSeq = 0;
+  // sessionId -> 冷却截止时间戳；RTC 断开后此期间内不重新发起 connect，
+  // 防止网络抖动 / 对端频繁刷新时 PC 反复重建造成风暴。
+  #rtcCooldownUntil = new Map();
+  #RECONNECT_COOLDOWN_MS = 5000;
   // appId -> { sessions: string[], timestamp: number }
   // 缓存对端各 appId 对应的 sessionId 列表，供 sendToService 精准投递
   #serviceSessionCache = new Map();
@@ -111,8 +115,29 @@ export class RemoteUser extends BaseUser {
     const sentCount = this.#sendCounts.get(sessionId) || 0;
     this.#sendCounts.set(sessionId, sentCount + 1);
     if (sentCount >= 1 && !this.#rtcInitiated.has(sessionId)) {
-      this.#rtcInitiated.add(sessionId);
-      this.#localUser.rtc.connect(this.#userId, sessionId).catch(() => {});
+      // 冷却期内跳过：刚断开的 session 立即重连大概率再次失败，
+      // 且会造成 PC 风暴。冷却结束后下一次 send 会重新触发。
+      const cooldownUntil = this.#rtcCooldownUntil.get(sessionId);
+      const now = Date.now();
+      if (!cooldownUntil || now >= cooldownUntil) {
+        console.log(
+          `[RemoteUser] send() triggering rtc.connect: userId=${this.#userId}, sessionId=${sessionId}, sentCount=${sentCount}`,
+        );
+        this.#rtcInitiated.add(sessionId);
+        this.#rtcCooldownUntil.delete(sessionId);
+        this.#localUser.rtc
+          .connect(this.#userId, sessionId)
+          .catch((err) => {
+            console.warn(
+              `[RemoteUser] send() rtc.connect failed: userId=${this.#userId}, sessionId=${sessionId}`,
+              err,
+            );
+          });
+      } else {
+        console.log(
+          `[RemoteUser] send() rtc.connect skipped (cooldown): userId=${this.#userId}, sessionId=${sessionId}, remainingMs=${cooldownUntil - now}`,
+        );
+      }
     }
 
     // RTC 未就绪，走服务器中转
@@ -293,6 +318,34 @@ export class RemoteUser extends BaseUser {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * 处理 RTC 状态变化（由 LocalUser 的 rtc_state 监听器调用）。
+   *
+   * disconnected 时清理该 session 的"已触发 RTC"标记与路径缓存，
+   * 使下一次 send() 能重新发起 rtc.connect()，避免对端刷新 / 网络抖动后
+   * 永久退化为服务端中转。同时进入冷却期，防止 PC 反复重建。
+   *
+   * 注意：#sendCounts 不清零 —— RTC 触发条件是 sentCount >= 1，
+   * 清零会让下一次 send 又被当作"首次 send"延迟一轮才触发 RTC。
+   *
+   * @param {string} sessionId
+   * @param {"connected"|"disconnected"} state
+   */
+  _handleRTCStateChange(sessionId, state) {
+    console.log(
+      `[RemoteUser] _handleRTCStateChange: userId=${this.#userId}, sessionId=${sessionId}, state=${state}`,
+    );
+    if (state !== "disconnected") return;
+    const hadInitiated = this.#rtcInitiated.has(sessionId);
+    this.#rtcInitiated.delete(sessionId);
+    this.#lastSendVia.delete(sessionId);
+    const cooldownUntil = Date.now() + this.#RECONNECT_COOLDOWN_MS;
+    this.#rtcCooldownUntil.set(sessionId, cooldownUntil);
+    console.log(
+      `[RemoteUser] _handleRTCStateChange cleared: userId=${this.#userId}, sessionId=${sessionId}, hadInitiated=${hadInitiated}, cooldownUntil=${cooldownUntil} (${this.#RECONNECT_COOLDOWN_MS}ms)`,
+    );
   }
 
   /**

@@ -51,6 +51,9 @@ export class RTCManager {
   #peers = new Map();
   #connectPromises = new Map(); // key -> Promise，防止并发重复建连
   #iceServers = DEFAULT_ICE_SERVERS; // 当前生效的 ICE 服务器配置
+  // key -> Promise chain，串行化对同一 PC 的操作（#doConnect / #handleOffer）
+  // 避免 createOffer 期间到达的 offer 与 #doConnect 并发操作 PC 导致状态混乱
+  #pcLocks = new Map();
 
   /**
    * @param {import("./user.js").LocalUser} user - 本地用户实例
@@ -102,21 +105,40 @@ export class RTCManager {
 
     // 已连接 / DataChannel 已开 → 不重复建连
     const existing = this.#peers.get(key);
-    if (existing?.state === "connected") return;
-    if (existing?.dc?.readyState === "open") return;
+    if (existing?.state === "connected") {
+      console.log(
+        `[RTCManager] connect() skipped: already connected, key=${key}`,
+      );
+      return;
+    }
+    if (existing?.dc?.readyState === "open") {
+      console.log(
+        `[RTCManager] connect() skipped: dc already open, key=${key}`,
+      );
+      return;
+    }
     // 已有 PC 且正处于协商中（have-local-offer / have-remote-offer）→ 不打断
     if (
       existing?.pc &&
       existing.pc.signalingState !== "stable" &&
       existing.pc.signalingState !== "closed"
     ) {
+      console.log(
+        `[RTCManager] connect() skipped: negotiating (signalingState=${existing.pc.signalingState}), key=${key}`,
+      );
       return;
     }
 
     if (this.#connectPromises.has(key)) {
+      console.log(
+        `[RTCManager] connect() reused: in-flight promise, key=${key}`,
+      );
       return this.#connectPromises.get(key);
     }
 
+    console.log(
+      `[RTCManager] connect() initiating new connection, key=${key}, polite=${this.#isPolite(userId)}`,
+    );
     const promise = this.#doConnect(userId, sessionId).finally(() => {
       this.#connectPromises.delete(key);
     });
@@ -135,6 +157,9 @@ export class RTCManager {
    */
   async handleSignal(fromUserId, fromSessionId, signal) {
     const key = this.#key(fromUserId, fromSessionId);
+    console.log(
+      `[RTCManager] handleSignal recv: from=${fromUserId}:${fromSessionId}, type=${signal.type}, key=${key}`,
+    );
 
     try {
       if (signal.type === "offer") {
@@ -145,7 +170,10 @@ export class RTCManager {
         await this.#handleIce(key, signal);
       }
     } catch (err) {
-      console.warn("[RTCManager] handleSignal failed:", err);
+      console.warn(
+        `[RTCManager] handleSignal failed: key=${key}, type=${signal.type}`,
+        err,
+      );
       // 仅在 PC 真正不可恢复时清理；乱序/状态错误等可恢复情况保留 peer，
       // 让后续信令仍能继续推进（或触发重连）。
       const peer = this.#peers.get(key);
@@ -193,25 +221,58 @@ export class RTCManager {
   async #doConnect(userId, sessionId) {
     const key = this.#key(userId, sessionId);
 
-    const pc = this.#createPeerConnection(userId, sessionId);
-    const dc = pc.createDataChannel("noneos", { ordered: true });
-    this.#setupDataChannel(dc, userId, sessionId);
+    await this.#withPcLock(key, async () => {
+      // 获取锁后再次检查：等待期间 #handleOffer 可能已建立 RTC 或正在协商
+      const existing = this.#peers.get(key);
+      if (existing?.dc?.readyState === "open") {
+        console.log(
+          `[RTCManager] #doConnect aborted: dc already open, key=${key}`,
+        );
+        return;
+      }
+      if (
+        existing?.pc &&
+        existing.pc.remoteDescription !== null &&
+        existing.pc.connectionState !== "closed"
+      ) {
+        // PC 已被 #handleOffer 接管并完成 setRemoteDescription（作为 answer 方），
+        // #doConnect 不再发 offer 避免覆盖已建立的协商
+        console.log(
+          `[RTCManager] #doConnect aborted: PC already in use (connectionState=${existing.pc.connectionState}, hasRemoteDesc=true), key=${key}`,
+        );
+        return;
+      }
 
-    // 提前写 #peers：保留可能存在的 pendingCandidates（早到的 ICE 候选），
-    // 让后续 #handleIce / onicecandidate 能立即查到 peer，避免候选丢失。
-    const previous = this.#peers.get(key);
-    this.#peers.set(key, {
-      pc,
-      dc,
-      state: "connecting",
-      pendingCandidates: previous?.pendingCandidates ?? [],
-      polite: this.#isPolite(userId),
+      const pc = this.#createPeerConnection(userId, sessionId);
+      const dc = pc.createDataChannel("noneos", { ordered: true });
+      this.#setupDataChannel(dc, userId, sessionId);
+
+      // 提前写 #peers：保留可能存在的 pendingCandidates（早到的 ICE 候选），
+      // 让后续 #handleIce / onicecandidate 能立即查到 peer，避免候选丢失。
+      const previous = this.#peers.get(key);
+      this.#peers.set(key, {
+        pc,
+        dc,
+        state: "connecting",
+        pendingCandidates: previous?.pendingCandidates ?? [],
+        polite: this.#isPolite(userId),
+      });
+      console.log(
+        `[RTCManager] #doConnect peer created, key=${key}, pendingCandidates=${previous?.pendingCandidates?.length ?? 0}`,
+      );
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      console.log(
+        `[RTCManager] #doConnect local offer set, signalingState=${pc.signalingState}, key=${key}`,
+      );
+
+      await this.#sendSignal(userId, sessionId, {
+        type: "offer",
+        sdp: offer.sdp,
+      });
+      console.log(`[RTCManager] #doConnect offer signal sent, key=${key}`);
     });
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    await this.#sendSignal(userId, sessionId, { type: "offer", sdp: offer.sdp });
   }
 
   /**
@@ -224,78 +285,118 @@ export class RTCManager {
    */
   async #handleOffer(key, userId, sessionId, signal) {
     const polite = this.#isPolite(userId);
-    let peer = this.#peers.get(key);
 
-    // 已通过 DataChannel 直连成功，忽略重复 offer
-    if (peer?.dc?.readyState === "open") {
-      return;
-    }
+    await this.#withPcLock(key, async () => {
+      let peer = this.#peers.get(key);
 
-    // Glare：本地已发出 offer（have-local-offer）
-    if (peer?.pc && peer.pc.signalingState === "have-local-offer") {
-      if (!polite) {
-        // impolite 方坚持自己的 offer，忽略对方
+      // 已通过 DataChannel 直连成功，忽略重复 offer
+      if (peer?.dc?.readyState === "open") {
+        console.log(
+          `[RTCManager] #handleOffer skipped: dc already open, key=${key}`,
+        );
         return;
       }
-      // polite 方回退自己的 offer，沿用同一 PC 后续 setRemoteDescription(对方 offer)
+
+      // Glare：本地已发出 offer（have-local-offer）
+      // 由于 #withPcLock 串行化，此时 #doConnect 的 setLocalDescription 已完成，
+      // signalingState 要么是 have-local-offer（#doConnect 成功）要么是 stable
+      if (peer?.pc && peer.pc.signalingState === "have-local-offer") {
+        if (!polite) {
+          // impolite 方坚持自己的 offer，忽略对方
+          console.log(
+            `[RTCManager] #handleOffer glare: impolite, ignore incoming offer, key=${key}`,
+          );
+          return;
+        }
+        // polite 方回退自己的 offer，沿用同一 PC 后续 setRemoteDescription(对方 offer)
+        console.log(
+          `[RTCManager] #handleOffer glare: polite, rollback local offer, key=${key}`,
+        );
+        try {
+          await peer.pc.setLocalDescription({ type: "rollback" });
+          peer.dc = null; // 旧 DC 属于已回滚的 offer，置空等对端 ondatachannel
+        } catch (err) {
+          console.warn(
+            `[RTCManager] rollback local offer failed: key=${key}`,
+            err,
+          );
+          return;
+        }
+      } else if (!peer?.pc || peer.pc.connectionState === "closed") {
+        // 无可用 PC：新建并写入 #peers（提前写入，确保并发 ICE 能查到）
+        console.log(
+          `[RTCManager] #handleOffer creating new PC: key=${key}, polite=${polite}, oldPcState=${peer?.pc?.connectionState ?? "null"}`,
+        );
+        const pc = this.#createPeerConnection(userId, sessionId);
+        peer = {
+          pc,
+          dc: peer?.dc ?? null,
+          state: "connecting",
+          pendingCandidates: peer?.pendingCandidates ?? [],
+          polite,
+        };
+        this.#peers.set(key, peer);
+      }
+
+      // 此时 peer.pc 必然存在且处于 stable（已 rollback 或刚创建）
       try {
-        await peer.pc.setLocalDescription({ type: "rollback" });
-        peer.dc = null; // 旧 DC 属于已回滚的 offer，置空等对端 ondatachannel
+        await peer.pc.setRemoteDescription(
+          new RTCSessionDescription({ type: "offer", sdp: signal.sdp }),
+        );
+        console.log(
+          `[RTCManager] #handleOffer setRemoteDescription(offer) ok, signalingState=${peer.pc.signalingState}, key=${key}`,
+        );
+        // flush 在 remoteDescription 为 null 期间缓冲的 ICE 候选
+        await this.#flushPendingCandidates(peer);
+
+        const answer = await peer.pc.createAnswer();
+        await peer.pc.setLocalDescription(answer);
+
+        await this.#sendSignal(userId, sessionId, {
+          type: "answer",
+          sdp: answer.sdp,
+        });
+        console.log(`[RTCManager] #handleOffer answer sent, key=${key}`);
       } catch (err) {
-        console.warn("[RTCManager] rollback local offer failed:", err);
-        return;
+        console.warn(
+          `[RTCManager] handleOffer processing failed: key=${key}`,
+          err,
+        );
       }
-    } else if (!peer?.pc || peer.pc.connectionState === "closed") {
-      // 无可用 PC：新建并写入 #peers（提前写入，确保并发 ICE 能查到）
-      const pc = this.#createPeerConnection(userId, sessionId);
-      peer = {
-        pc,
-        dc: peer?.dc ?? null,
-        state: "connecting",
-        pendingCandidates: peer?.pendingCandidates ?? [],
-        polite,
-      };
-      this.#peers.set(key, peer);
-    }
-
-    // 此时 peer.pc 必然存在且处于 stable（已 rollback 或刚创建）
-    try {
-      await peer.pc.setRemoteDescription(
-        new RTCSessionDescription({ type: "offer", sdp: signal.sdp }),
-      );
-      // flush 在 remoteDescription 为 null 期间缓冲的 ICE 候选
-      await this.#flushPendingCandidates(peer);
-
-      const answer = await peer.pc.createAnswer();
-      await peer.pc.setLocalDescription(answer);
-
-      await this.#sendSignal(userId, sessionId, {
-        type: "answer",
-        sdp: answer.sdp,
-      });
-    } catch (err) {
-      console.warn("[RTCManager] handleOffer processing failed:", err);
-    }
+    });
   }
 
   async #handleAnswer(key, signal) {
-    const peer = this.#peers.get(key);
-    if (!peer?.pc) return;
+    await this.#withPcLock(key, async () => {
+      const peer = this.#peers.get(key);
+      if (!peer?.pc) {
+        console.log(
+          `[RTCManager] #handleAnswer skipped: no peer/pc, key=${key}`,
+        );
+        return;
+      }
 
-    // 仅在 have-local-offer 时接受 answer；stable/have-remote-offer 收到 answer 是
-    // 乱序或 glare 残留，忽略即可，不抛错以免触发外层 catch 的错误处理。
-    if (peer.pc.signalingState !== "have-local-offer") {
-      return;
-    }
+      // 仅在 have-local-offer 时接受 answer；stable/have-remote-offer 收到 answer 是
+      // 乱序或 glare 残留，忽略即可，不抛错以免触发外层 catch 的错误处理。
+      if (peer.pc.signalingState !== "have-local-offer") {
+        console.log(
+          `[RTCManager] #handleAnswer skipped: signalingState=${peer.pc.signalingState} (not have-local-offer), key=${key}`,
+        );
+        return;
+      }
 
-    try {
-      await peer.pc.setRemoteDescription(
-        new RTCSessionDescription({ type: "answer", sdp: signal.sdp }),
-      );
-      await this.#flushPendingCandidates(peer);
-    } catch (err) {
-      console.warn("[RTCManager] handleAnswer failed:", err);
-    }
+      try {
+        await peer.pc.setRemoteDescription(
+          new RTCSessionDescription({ type: "answer", sdp: signal.sdp }),
+        );
+        console.log(
+          `[RTCManager] #handleAnswer setRemoteDescription(answer) ok, signalingState=${peer.pc.signalingState}, key=${key}`,
+        );
+        await this.#flushPendingCandidates(peer);
+      } catch (err) {
+        console.warn(`[RTCManager] handleAnswer failed: key=${key}`, err);
+      }
+    });
   }
 
   /**
@@ -309,6 +410,9 @@ export class RTCManager {
 
     // peer 尚不存在（极少数情况：ICE 早于 offer 到达）→ 预建占位 peer 缓冲候选
     if (!peer) {
+      console.log(
+        `[RTCManager] #handleIce: peer not exist, creating placeholder, key=${key}`,
+      );
       peer = {
         pc: null,
         dc: null,
@@ -326,13 +430,19 @@ export class RTCManager {
       peer.pc.signalingState === "have-local-offer"
     ) {
       peer.pendingCandidates.push(signal.candidate);
+      console.log(
+        `[RTCManager] #handleIce buffered (pending=${peer.pendingCandidates.length}): pcState=${peer.pc?.connectionState ?? "null"}, signalingState=${peer.pc?.signalingState ?? "null"}, key=${key}`,
+      );
       return;
     }
 
     try {
       await peer.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      console.log(
+        `[RTCManager] #handleIce addIceCandidate ok, key=${key}`,
+      );
     } catch (err) {
-      console.warn("[RTCManager] addIceCandidate failed:", err);
+      console.warn(`[RTCManager] addIceCandidate failed: key=${key}`, err);
     }
   }
 
@@ -367,6 +477,9 @@ export class RTCManager {
 
     pc.onconnectionstatechange = () => {
       const peer = this.#peers.get(key);
+      console.log(
+        `[RTCManager] onconnectionstatechange: key=${key}, pcState=${pc.connectionState}, peerState=${peer?.state ?? "null"}`,
+      );
       if (!peer) return;
 
       if (pc.connectionState === "connected") {
@@ -374,7 +487,16 @@ export class RTCManager {
       } else if (
         ["failed", "disconnected", "closed"].includes(pc.connectionState)
       ) {
-        this.#peers.delete(key);
+        // PC 层先于 DataChannel 感知断开（如对端刷新导致 ICE 失败），
+        // 这里主动 close 并上报 disconnected，让上层清理状态并允许重连。
+        this.#teardownPeer(
+          key,
+          userId,
+          sessionId,
+          peer,
+          pc,
+          `pc:${pc.connectionState}`,
+        );
       }
     };
   }
@@ -385,6 +507,9 @@ export class RTCManager {
     dc.onopen = () => {
       const peer = this.#peers.get(key);
       if (peer) peer.state = "connected";
+      console.log(
+        `[RTCManager] dc.onopen: key=${key}, peerState=${peer?.state ?? "null"}`,
+      );
       this.#user._trigger("rtc_state", {
         userId,
         sessionId,
@@ -401,22 +526,61 @@ export class RTCManager {
     };
 
     dc.onclose = () => {
-      this.#peers.delete(key);
-      this.#user._trigger("rtc_state", {
-        userId,
-        sessionId,
-        state: "disconnected",
-      });
+      const peer = this.#peers.get(key);
+      console.log(
+        `[RTCManager] dc.onclose: key=${key}, peerState=${peer?.state ?? "null"}`,
+      );
+      // peer 已被 #teardownPeer 处理过（PC 断开先触发）→ 跳过，避免重复事件
+      if (!peer || peer.state === "disconnected") return;
+      this.#teardownPeer(key, userId, sessionId, peer, peer.pc, "dc:close");
     };
 
-    dc.onerror = () => {
-      this.#peers.delete(key);
-      this.#user._trigger("rtc_state", {
-        userId,
-        sessionId,
-        state: "disconnected",
-      });
+    dc.onerror = (e) => {
+      const peer = this.#peers.get(key);
+      console.log(
+        `[RTCManager] dc.onerror: key=${key}, peerState=${peer?.state ?? "null"}, error=${e?.message ?? e}`,
+      );
+      if (!peer || peer.state === "disconnected") return;
+      this.#teardownPeer(key, userId, sessionId, peer, peer.pc, "dc:error");
     };
+  }
+
+  /**
+   * 统一清理断开的 peer：幂等（同一 peer 只触发一次 disconnected 事件）。
+   * - 关闭 PC 释放 ICE agent / 事件回调等资源
+   * - 从 #peers 删除引用
+   * - 上报 rtc_state(disconnected)，驱动上层 RemoteUser 清理重连标记
+   *
+   * @param {string} reason - 触发清理的来源，用于排查（如 "pc:failed"、"dc:close"）
+   */
+  #teardownPeer(key, userId, sessionId, peer, pc, reason) {
+    if (peer.state === "disconnected") {
+      console.log(
+        `[RTCManager] #teardownPeer skipped (already disconnected): key=${key}, reason=${reason}`,
+      );
+      return;
+    }
+    console.log(
+      `[RTCManager] #teardownPeer start: key=${key}, reason=${reason}, pcState=${pc?.connectionState ?? "null"}`,
+    );
+    peer.state = "disconnected";
+    try {
+      pc?.close();
+    } catch (err) {
+      console.warn(
+        `[RTCManager] #teardownPeer pc.close() failed: key=${key}`,
+        err,
+      );
+    }
+    this.#peers.delete(key);
+    this.#user._trigger("rtc_state", {
+      userId,
+      sessionId,
+      state: "disconnected",
+    });
+    console.log(
+      `[RTCManager] #teardownPeer done, triggered rtc_state(disconnected): key=${key}, reason=${reason}`,
+    );
   }
 
   async #sendSignal(targetUserId, targetSessionId, signal) {
@@ -430,5 +594,29 @@ export class RTCManager {
 
   #key(userId, sessionId) {
     return `${userId}:${sessionId}`;
+  }
+
+  /**
+   * 串行化对同一 key PC 的操作。
+   * #doConnect 的 createOffer/setLocalDescription 与 #handleOffer 的
+   * setRemoteDescription 不能并发（会导致 signalingState 混乱），
+   * 用 promise chain 保证同一 key 的 PC 操作按调用顺序依次执行。
+   */
+  async #withPcLock(key, fn) {
+    const prev = this.#pcLocks.get(key) || Promise.resolve();
+    let resolveNext;
+    const next = new Promise((r) => {
+      resolveNext = r;
+    });
+    this.#pcLocks.set(key, next);
+    try {
+      await prev;
+      return await fn();
+    } finally {
+      resolveNext();
+      if (this.#pcLocks.get(key) === next) {
+        this.#pcLocks.delete(key);
+      }
+    }
   }
 }
