@@ -1,7 +1,7 @@
 {
-  "version": "4.2.7",
+  "version": "4.2.8",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1784900770285,
+  "signTime": 1785001546911,
   "hashes": [
     {
       "path": "ai/chat.js",
@@ -180,8 +180,8 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "4904a772292316e093781f72ed88846219c8f58e0e799941558555df78bc8997",
-      "size": 18891
+      "hash": "48cdfc9ad077ca8d0572c6b3c96ba7836dd84ab450c7e1735f0d5184f2d942f4",
+      "size": 20283
     },
     {
       "path": "user/README.md",
@@ -225,8 +225,8 @@
     },
     {
       "path": "user/rtc.js",
-      "hash": "3c828c51cbe9360eb31e84c54b999ea940954820eda3560b479bb02f1f126072",
-      "size": 8239
+      "hash": "d6a2f095af2222bafcd22ca6b1505b790c0b668bd344eb804097fd88b88e15a4",
+      "size": 14389
     },
     {
       "path": "user/server.js",
@@ -294,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "k1QUR51ZfMgysFzZKepxCfWGdt3q7b0aU19pA59ZwU8I7zQPECu7ynWlZHsAGVRUnzWTO3SeMPI6PbesgNrLpQ=="
+  "signature": "vf3YT9mpCjHrZYIC3LQk2KcB7eB1Pqo3oprnaCfLJPkC/n0SeATzKVCBF2ff+1Qzct/ytvrjdyqZbzQfhatCMA=="
 }
