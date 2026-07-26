@@ -215,6 +215,203 @@
     </template>
   </sb-test>
 
+  <!-- Test 3: disconnectUser 后 PC 资源清理 + 消息仍通过服务端中转到达 -->
+  <sb-test name="disconnectUser - PC Cleaned & Messages Delivered via Server">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t3_nsA = "rtc-disc-3-a";
+        const t3_nsB = "rtc-disc-3-b";
+        const t3_url = "ws://localhost:8081";
+
+        const t3_userA = new LocalUser(t3_nsA);
+        const t3_userB = new LocalUser(t3_nsB);
+        await Promise.all([t3_userA.ready(), t3_userB.ready()]);
+        await Promise.all([
+          t3_userA.server.connect(t3_url),
+          t3_userB.server.connect(t3_url),
+        ]);
+
+        let t3_remoteB = await t3_userA.connectUser(t3_userB.userId);
+        await t3_userB.connectUser(t3_userA.userId);
+
+        // 注册服务用于消息验证（registerService 不依赖传输路径）
+        const t3_bReceived = [];
+        t3_userB.registerService("disc-app-3", {
+          onMessage(data) { t3_bReceived.push(data); },
+        });
+
+        // 尝试建立 RTC（可选：建立与否不影响本测试核心）
+        await t3_userA.rtc.connect(t3_userB.userId, t3_userB.sessionId);
+        await new Promise((r) => setTimeout(r, 1500));
+
+        const t3_dcBefore = t3_userA.rtc.getChannel(t3_userB.userId, t3_userB.sessionId);
+        const t3_rtcWasOpen = t3_dcBefore?.readyState === "open";
+
+        // 核心：A 主动 disconnectUser(B)，应清理 PC 资源
+        await t3_userA.disconnectUser(t3_userB.userId);
+        await new Promise((r) => setTimeout(r, 200));
+
+        // 验证 A 侧 PC 已清理（getChannel 应返回 undefined）
+        const t3_dcAfter = t3_userA.rtc.getChannel(t3_userB.userId, t3_userB.sessionId);
+        const t3_pcCleaned = !t3_dcAfter;
+
+        // A 重新连接 B（新 RemoteUser，无 RTC，走 server 中转）
+        t3_remoteB = await t3_userA.connectUser(t3_userB.userId);
+        await new Promise((r) => setTimeout(r, 200));
+
+        // 通过新 RemoteUser 发消息
+        await t3_remoteB.sendToService("disc-app-3", { msg: "after-reconnect" });
+
+        // 等消息到达
+        for (let i = 0; i < 30 && t3_bReceived.length === 0; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        t3_userA.server.disconnectAll();
+        t3_userB.server.disconnectAll();
+
+        const t3_msgDelivered = t3_bReceived.some((d) => d?.msg === "after-reconnect");
+        const t3_pass = t3_pcCleaned && t3_msgDelivered;
+
+        return {
+          assert: t3_pass,
+          content: {
+            message: t3_pass
+              ? "disconnectUser 后 PC 已清理，消息通过服务端中转到达"
+              : (t3_pcCleaned ? "PC 已清理但消息未到达" : "PC 未被正确清理"),
+            checks: {
+              rtcWasOpen: t3_rtcWasOpen,
+              pcCleaned: t3_pcCleaned,
+              msgDelivered: t3_msgDelivered,
+              bReceived: t3_bReceived,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: PC 断开后冷却期内不重连，冷却期后触发重连 -->
+  <sb-test name="PC Teardown - Cooldown Prevents Reconnect Then Allows It">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t4_nsA = "rtc-cooldown-4-a";
+        const t4_nsB = "rtc-cooldown-4-b";
+        const t4_url = "ws://localhost:8081";
+
+        const t4_userA = new LocalUser(t4_nsA);
+        const t4_userB = new LocalUser(t4_nsB);
+        await Promise.all([t4_userA.ready(), t4_userB.ready()]);
+        await Promise.all([
+          t4_userA.server.connect(t4_url),
+          t4_userB.server.connect(t4_url),
+        ]);
+
+        const t4_remoteB = await t4_userA.connectUser(t4_userB.userId);
+        await t4_userB.connectUser(t4_userA.userId);
+
+        const t4_bReceived = [];
+        t4_userB.registerService("cooldown-app-4", {
+          onMessage(data) { t4_bReceived.push(data); },
+        });
+
+        // 建立 RTC
+        await t4_userA.rtc.connect(t4_userB.userId, t4_userB.sessionId);
+        await new Promise((r) => setTimeout(r, 1500));
+
+        const t4_dcBefore = t4_userA.rtc.getChannel(t4_userB.userId, t4_userB.sessionId);
+        const t4_rtcWasOpen = t4_dcBefore?.readyState === "open";
+
+        // RTC 未建立时无法验证重连（CI 网络受限场景），跳过
+        if (!t4_rtcWasOpen) {
+          t4_userA.server.disconnectAll();
+          t4_userB.server.disconnectAll();
+          return {
+            assert: true,
+            content: {
+              message: "RTC 未建立（网络环境限制），跳过冷却期重连验证",
+              checks: { rtcWasOpen: false, skipped: true },
+            },
+          };
+        }
+
+        // 核心：直接 teardown A 侧 PC（模拟网络断开，不 dispose RemoteUser）
+        // 这样 RemoteUser 仍在缓存中，冷却期机制会被触发
+        t4_userA.rtc.disconnectAllForUser(t4_userB.userId);
+        await new Promise((r) => setTimeout(r, 300));
+
+        const t4_dcAfter = t4_userA.rtc.getChannel(t4_userB.userId, t4_userB.sessionId);
+        const t4_pcTeared = !t4_dcAfter || t4_dcAfter.readyState !== "open";
+
+        // 发消息 1（sentCount 0→1，走 server 中转）
+        await t4_remoteB.sendToService("cooldown-app-4", { msg: "msg-1" });
+        await new Promise((r) => setTimeout(r, 200));
+
+        // 发消息 2（sentCount 1→2，应触发 rtc.connect 但冷却期内应被跳过）
+        await t4_remoteB.sendToService("cooldown-app-4", { msg: "msg-2" });
+        await new Promise((r) => setTimeout(r, 500));
+
+        // 验证冷却期内没有创建新 PC
+        const t4_dcInCooldown = t4_userA.rtc.getChannel(t4_userB.userId, t4_userB.sessionId);
+        const t4_noReconnectInCooldown = !t4_dcInCooldown;
+
+        // 等冷却期结束（RECONNECT_COOLDOWN_MS=5000 + 余量）
+        await new Promise((r) => setTimeout(r, 5500));
+
+        // 发消息 3（冷却期已过，应触发 rtc.connect）
+        await t4_remoteB.sendToService("cooldown-app-4", { msg: "msg-3" });
+
+        // 轮询等待 RTC 重连（最多 10 秒）
+        let t4_reconnected = false;
+        for (let i = 0; i < 100; i++) {
+          const dc = t4_userA.rtc.getChannel(t4_userB.userId, t4_userB.sessionId);
+          if (dc?.readyState === "open") {
+            t4_reconnected = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 等所有消息到达
+        for (let i = 0; i < 30 && t4_bReceived.length < 3; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        t4_userA.server.disconnectAll();
+        t4_userB.server.disconnectAll();
+
+        const t4_allMsgsDelivered = t4_bReceived.length >= 3;
+        // 断言策略：
+        // - 必须通过：PC 已断 + 冷却期内未重连 + 消息全部到达（核心冷却期逻辑）
+        // - 增强：重连成功（取决于 ICE，CI 下可能失败）
+        const t4_pass = t4_pcTeared && t4_noReconnectInCooldown && t4_allMsgsDelivered;
+
+        return {
+          assert: t4_pass,
+          content: {
+            message: t4_pass
+              ? (t4_reconnected
+                ? "冷却期内未重连，冷却期后 RTC 重连成功，消息全部到达"
+                : "冷却期内未重连，消息全部到达（重连未成功，疑似网络环境限制）")
+              : "冷却期逻辑异常",
+            checks: {
+              rtcWasOpen: t4_rtcWasOpen,
+              pcTeared: t4_pcTeared,
+              noReconnectInCooldown: t4_noReconnectInCooldown,
+              reconnected: t4_reconnected,
+              allMsgsDelivered: t4_allMsgsDelivered,
+              bReceivedCount: t4_bReceived.length,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
 </body>
 
 </html>

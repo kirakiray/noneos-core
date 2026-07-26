@@ -209,6 +209,9 @@ export class LocalUser extends BaseUser {
     // 拦截 RTC 信令，交由 RTCManager 处理，不透传给 RemoteUser
     // 同时阻止外部 message 监听器收到内部信令
     if (parsed.data?.type === "rtc_signal") {
+      console.log(
+        `[LocalUser] rtc_signal recv: from=${fromUserId}:${parsed.from_session_id}, signalType=${parsed.data.signal?.type}`,
+      );
       event.stopImmediatePropagation();
       this.#rtc.handleSignal(
         fromUserId,
@@ -303,16 +306,33 @@ export class LocalUser extends BaseUser {
   }
 
   /**
-   * 监听 RTC 状态变化：DataChannel 建立或断开时，
-   * 通知缓存的 RemoteUser 实例重新测量该 session 的 RTT。
+   * 监听 RTC 状态变化：
+   * - connected：DataChannel 建立，重新测量 RTT
+   * - disconnected：DataChannel/PC 断开，清理 RemoteUser 的重连标记与冷却，
+   *   使下一次 send() 能重新发起 RTC 配对（避免刷新/抖动后永久走服务端中转）
    */
   #setupRTCStateListener() {
     this.bind("rtc_state", (event) => {
-      const { userId, sessionId } = event.detail;
+      const { userId, sessionId, state } = event.detail;
+      console.log(
+        `[LocalUser] rtc_state event: userId=${userId}, sessionId=${sessionId}, state=${state}, hasRemoteUser=${this.#remoteUserCache.has(userId)}`,
+      );
       if (!this.#remoteUserCache.has(userId)) return;
       Promise.resolve(this.#remoteUserCache.get(userId))
-        .then((remoteUser) => remoteUser.recalcRTT(sessionId))
-        .catch(() => {});
+        .then((remoteUser) => {
+          if (state === "disconnected") {
+            remoteUser._handleRTCStateChange(sessionId, "disconnected");
+          }
+          // connected / disconnected 都重测 RTT：
+          // connected → 测新路径；disconnected → ping 自动回落到 server 路径
+          remoteUser.recalcRTT(sessionId);
+        })
+        .catch((err) => {
+          console.warn(
+            `[LocalUser] rtc_state handler failed: userId=${userId}, sessionId=${sessionId}`,
+            err,
+          );
+        });
     });
   }
 
@@ -776,7 +796,15 @@ export class LocalUser extends BaseUser {
     const remoteUser = await Promise.resolve(cached).catch(() => null);
     this.#remoteUserCache.delete(userId);
     if (remoteUser) {
+      // 先 dispose RemoteUser（清内部状态/定时器），再断底层 PC 资源
+      // 顺序：dispose 不依赖 PC；disconnectAllForUser 触发的 rtc_state(disconnected)
+      // 回调到已 dispose 的 RemoteUser 时 _handleRTCStateChange 仍是安全的（只做 delete）
+      remoteUser.dispose();
+      this.#rtc.disconnectAllForUser(userId);
       this.#triggerRemoteUserDisconnected(userId, remoteUser, "manual");
+    } else {
+      // remoteUser 为 null（之前连接失败），仍需清理可能残留的 PC 资源
+      this.#rtc.disconnectAllForUser(userId);
     }
   }
 

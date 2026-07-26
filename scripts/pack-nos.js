@@ -1,4 +1,4 @@
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,7 +10,7 @@ const nosPath = path.resolve(__dirname, '../nos');
 const outputPath = path.resolve(__dirname, '../nos.zip');
 
 const output = fs.createWriteStream(outputPath);
-const archive = archiver('zip', {
+const archive = new ZipArchive({
   zlib: { level: 9 }
 });
 

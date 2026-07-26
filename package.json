@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.2.8",
+  "version": "4.2.9",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -30,10 +30,10 @@
     "test": "sb-test"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^24.0.0",
+    "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "@rollup/plugin-terser": "^1.0.0",
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "http-server": "^14.1.1",
     "playwright": "^1.59.1",
     "rollup": "^3.0.0",

@@ -1,4 +1,4 @@
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,7 +21,7 @@ if (!fs.existsSync(skillDir)) {
 }
 
 const output = fs.createWriteStream(outputPath);
-const archive = archiver('zip', {
+const archive = new ZipArchive({
   zlib: { level: 9 }
 });
 
