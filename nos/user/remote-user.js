@@ -349,6 +349,30 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
+   * 销毁 RemoteUser，清理所有内部状态和定时器。
+   * 由 LocalUser.disconnectUser 调用，避免 RemoteUser 被 GC 前残留定时器/状态。
+   * 注意：底层 PC 资源由 RTCManager.disconnectAllForUser 单独清理。
+   */
+  dispose() {
+    console.log(
+      `[RemoteUser] dispose: userId=${this.#userId}, pendingPings=${this.#pendingPings.size}, rtcInitiated=${this.#rtcInitiated.size}`,
+    );
+    // 清理所有 pending ping 的定时器，防止 dispose 后定时器仍触发
+    for (const { timeoutId } of this.#pendingPings.values()) {
+      clearTimeout(timeoutId);
+    }
+    this.#pendingPings.clear();
+    this.#sendCounts.clear();
+    this.#rtcInitiated.clear();
+    this.#rttMap.clear();
+    this.#lastSendVia.clear();
+    this.#rtcCooldownUntil.clear();
+    this.#serviceSessionCache.clear();
+    this.#serviceWaiters.clear();
+    this.#pingSeq = 0;
+  }
+
+  /**
    * 获取目标 session 的最新 RTT、传输方式及服务器 URL（若走服务端）。
    * 不传 sessionId 时返回所有 session 中的最佳（最低 RTT）结果。
    *

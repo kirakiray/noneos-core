@@ -96,6 +96,49 @@ export class RTCManager {
   }
 
   /**
+   * 断开与指定用户的所有 RTC 连接（跨所有 session）。
+   * 用于 LocalUser.disconnectUser 时清理底层 PC 资源，避免幽灵 PC 泄漏。
+   * 会为每个 peer 触发 rtc_state(disconnected)，进而清理 RemoteUser 的 #rtcInitiated。
+   * @param {string} userId - 目标用户 ID
+   */
+  disconnectAllForUser(userId) {
+    const keysToTeardown = [];
+    for (const [key, peer] of this.#peers) {
+      if (peer.userId === userId) {
+        keysToTeardown.push({ key, peer });
+      }
+    }
+    if (keysToTeardown.length === 0) {
+      console.log(
+        `[RTCManager] disconnectAllForUser: no peers found, userId=${userId}`,
+      );
+      return;
+    }
+    console.log(
+      `[RTCManager] disconnectAllForUser: tearing down ${keysToTeardown.length} peer(s), userId=${userId}`,
+    );
+    for (const { key, peer } of keysToTeardown) {
+      const pc = peer.pc;
+      // placeholder peer（pc 为 null，仅缓冲了 ICE）直接 delete
+      if (!pc) {
+        this.#peers.delete(key);
+        console.log(
+          `[RTCManager] disconnectAllForUser: deleted placeholder peer, key=${key}`,
+        );
+        continue;
+      }
+      this.#teardownPeer(
+        key,
+        userId,
+        peer.sessionId,
+        peer,
+        pc,
+        "manual:disconnectUser",
+      );
+    }
+  }
+
+  /**
    * 发起与指定用户 session 的 RTC 连接（幂等）
    * @param {string} userId - 目标用户 ID
    * @param {string} sessionId - 目标会话 ID
@@ -256,6 +299,8 @@ export class RTCManager {
         state: "connecting",
         pendingCandidates: previous?.pendingCandidates ?? [],
         polite: this.#isPolite(userId),
+        userId,
+        sessionId,
       });
       console.log(
         `[RTCManager] #doConnect peer created, key=${key}, pendingCandidates=${previous?.pendingCandidates?.length ?? 0}`,
@@ -334,6 +379,8 @@ export class RTCManager {
           state: "connecting",
           pendingCandidates: peer?.pendingCandidates ?? [],
           polite,
+          userId,
+          sessionId,
         };
         this.#peers.set(key, peer);
       }
@@ -413,12 +460,16 @@ export class RTCManager {
       console.log(
         `[RTCManager] #handleIce: peer not exist, creating placeholder, key=${key}`,
       );
+      // 从 key 反解 userId/sessionId，供 disconnectAllForUser 按 userId 批量清理
+      const [userId, sessionId] = this.#splitKey(key);
       peer = {
         pc: null,
         dc: null,
         state: "connecting",
         pendingCandidates: [],
         polite: false,
+        userId,
+        sessionId,
       };
       this.#peers.set(key, peer);
     }
@@ -594,6 +645,15 @@ export class RTCManager {
 
   #key(userId, sessionId) {
     return `${userId}:${sessionId}`;
+  }
+
+  /**
+   * 从 key 反解 userId/sessionId。
+   * userId 是 hex 字符串（不含冒号），按第一个冒号分割即可。
+   */
+  #splitKey(key) {
+    const idx = key.indexOf(":");
+    return [key.slice(0, idx), key.slice(idx + 1)];
   }
 
   /**
