@@ -120,9 +120,9 @@ export class RemoteUser extends BaseUser {
       const cooldownUntil = this.#rtcCooldownUntil.get(sessionId);
       const now = Date.now();
       if (!cooldownUntil || now >= cooldownUntil) {
-        console.log(
-          `[RemoteUser] send() triggering rtc.connect: userId=${this.#userId}, sessionId=${sessionId}, sentCount=${sentCount}`,
-        );
+        // console.log(
+        //   `[RemoteUser] send() triggering rtc.connect: userId=${this.#userId}, sessionId=${sessionId}, sentCount=${sentCount}`,
+        // );
         this.#rtcInitiated.add(sessionId);
         this.#rtcCooldownUntil.delete(sessionId);
         this.#localUser.rtc
@@ -134,9 +134,9 @@ export class RemoteUser extends BaseUser {
             );
           });
       } else {
-        console.log(
-          `[RemoteUser] send() rtc.connect skipped (cooldown): userId=${this.#userId}, sessionId=${sessionId}, remainingMs=${cooldownUntil - now}`,
-        );
+        // console.log(
+        //   `[RemoteUser] send() rtc.connect skipped (cooldown): userId=${this.#userId}, sessionId=${sessionId}, remainingMs=${cooldownUntil - now}`,
+        // );
       }
     }
 
@@ -334,18 +334,18 @@ export class RemoteUser extends BaseUser {
    * @param {"connected"|"disconnected"} state
    */
   _handleRTCStateChange(sessionId, state) {
-    console.log(
-      `[RemoteUser] _handleRTCStateChange: userId=${this.#userId}, sessionId=${sessionId}, state=${state}`,
-    );
+    // console.log(
+    //   `[RemoteUser] _handleRTCStateChange: userId=${this.#userId}, sessionId=${sessionId}, state=${state}`,
+    // );
     if (state !== "disconnected") return;
     const hadInitiated = this.#rtcInitiated.has(sessionId);
     this.#rtcInitiated.delete(sessionId);
     this.#lastSendVia.delete(sessionId);
     const cooldownUntil = Date.now() + this.#RECONNECT_COOLDOWN_MS;
     this.#rtcCooldownUntil.set(sessionId, cooldownUntil);
-    console.log(
-      `[RemoteUser] _handleRTCStateChange cleared: userId=${this.#userId}, sessionId=${sessionId}, hadInitiated=${hadInitiated}, cooldownUntil=${cooldownUntil} (${this.#RECONNECT_COOLDOWN_MS}ms)`,
-    );
+    // console.log(
+    //   `[RemoteUser] _handleRTCStateChange cleared: userId=${this.#userId}, sessionId=${sessionId}, hadInitiated=${hadInitiated}, cooldownUntil=${cooldownUntil} (${this.#RECONNECT_COOLDOWN_MS}ms)`,
+    // );
   }
 
   /**
@@ -354,9 +354,9 @@ export class RemoteUser extends BaseUser {
    * 注意：底层 PC 资源由 RTCManager.disconnectAllForUser 单独清理。
    */
   dispose() {
-    console.log(
-      `[RemoteUser] dispose: userId=${this.#userId}, pendingPings=${this.#pendingPings.size}, rtcInitiated=${this.#rtcInitiated.size}`,
-    );
+    // console.log(
+    //   `[RemoteUser] dispose: userId=${this.#userId}, pendingPings=${this.#pendingPings.size}, rtcInitiated=${this.#rtcInitiated.size}`,
+    // );
     // 清理所有 pending ping 的定时器，防止 dispose 后定时器仍触发
     for (const { timeoutId } of this.#pendingPings.values()) {
       clearTimeout(timeoutId);
