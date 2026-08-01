@@ -1,4 +1,9 @@
 import {
+  handleAppCacheRequest,
+  hasAppCachePath,
+  initAppCachePaths,
+} from "./modules/app-cache-handle.js";
+import {
   handleGitHubRequest,
   handleNpmRequest,
   handleNcompRequest,
@@ -101,6 +106,11 @@ self.addEventListener("fetch", (event) => {
         }),
       );
     }
+
+    // 应用缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
+    if (request.method === "GET" && hasAppCachePath(pathname)) {
+      return event.respondWith(handleAppCacheRequest({ path: pathname }));
+    }
   } catch (err) {
     return new Response(err.stack || err.toString(), {
       status: 400,
@@ -124,6 +134,7 @@ self.addEventListener("activate", () => {
 
   setTimeout(() => {
     reloadSystemConfig();
+    initAppCachePaths();
   }, 1000);
 });
 
@@ -139,10 +150,14 @@ const reloadSystemConfig = async () => {
       systemConfig = JSON.parse(content);
     }
 
+    // 刷新应用缓存路径集合
+    await initAppCachePaths();
+
     return new Response(
       JSON.stringify({
         serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
         systemConfig,
+        appCacheConfig: globalThis.NONEOS_APP_CACHE || null,
       }),
     );
   } catch (err) {

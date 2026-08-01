@@ -131,6 +131,86 @@
     }
   };
 
+  const CACHE_DIR = "app-cache";
+
+  // 内存中缓存的路径集合，用于快速判断是否需要拦截
+  // 从 OPFS app-cache/manifest.json 构建
+  let cachedPaths = null;
+
+  /**
+   * 从 OPFS 读取 manifest 并构建已缓存路径集合
+   * 在 SW activate 和 /__config 请求时调用
+   */
+  const initAppCachePaths = async () => {
+    try {
+      const manifestHandle = await getFileHandle({
+        path: `${CACHE_DIR}/manifest.json`,
+      }).catch(() => null);
+
+      if (!manifestHandle) {
+        cachedPaths = null;
+        return;
+      }
+
+      const file = await manifestHandle.getFile();
+      const manifest = JSON.parse(await file.text());
+
+      if (Array.isArray(manifest.files)) {
+        cachedPaths = new Set(
+          manifest.files.map((f) => (f.startsWith("/") ? f : "/" + f)),
+        );
+      }
+    } catch {
+      cachedPaths = null;
+    }
+  };
+
+  /**
+   * 判断路径是否在应用缓存中
+   */
+  const hasAppCachePath = (pathname) => {
+    if (!cachedPaths) return false;
+    if (cachedPaths.has(pathname)) return true;
+    // 目录访问自动补全 index.html
+    if (pathname.endsWith("/")) {
+      return cachedPaths.has(pathname + "index.html");
+    }
+    return false;
+  };
+
+  /**
+   * 从 OPFS 读取应用缓存文件
+   */
+  const handleAppCacheRequest = async ({ path }) => {
+    let relativePath = path.replace(/^\//, "");
+
+    // 目录访问自动补全 index.html
+    if (path.endsWith("/")) {
+      relativePath += "index.html";
+    }
+
+    const fullPath = `${CACHE_DIR}/${relativePath}`;
+    const fileHandle = await getFileHandle({ path: fullPath }).catch(() => null);
+
+    if (fileHandle) {
+      const file = await fileHandle.getFile();
+      if (file.size) {
+        return new Response(file, {
+          headers: {
+            "Content-Type": getContentType(path),
+          },
+        });
+      }
+    }
+
+    return new Response("Not Found", {
+      status: 404,
+      headers: {
+        "Content-Type": getContentType(path),
+      },
+    });
+  };
+
   /**
    * 统一的 SWR（Stale-While-Revalidate）资源处理器。
    *
@@ -607,6 +687,11 @@
           }),
         );
       }
+
+      // 应用缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
+      if (request.method === "GET" && hasAppCachePath(pathname)) {
+        return event.respondWith(handleAppCacheRequest({ path: pathname }));
+      }
     } catch (err) {
       return new Response(err.stack || err.toString(), {
         status: 400,
@@ -630,6 +715,7 @@
 
     setTimeout(() => {
       reloadSystemConfig();
+      initAppCachePaths();
     }, 1000);
   });
 
@@ -645,10 +731,14 @@
         systemConfig = JSON.parse(content);
       }
 
+      // 刷新应用缓存路径集合
+      await initAppCachePaths();
+
       return new Response(
         JSON.stringify({
           serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
           systemConfig,
+          appCacheConfig: globalThis.NONEOS_APP_CACHE || null,
         }),
       );
     } catch (err) {
