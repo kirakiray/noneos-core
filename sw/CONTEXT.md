@@ -23,6 +23,7 @@ sw/
 ├── src/
 │   ├── main.js                  # Service Worker 入口：fetch 事件分发与配置加载
 │   └── modules/
+│       ├── host-cache-handle.js  # 宿主项目缓存代理（OPFS 读取 + 路径 Set 拦截）
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
 │       ├── cache-handlers.js    # /gh/ /npm/ /ncomp/ 统一 SWR 处理器
@@ -45,8 +46,11 @@ sw/src/main.js
 ├── handleNpmRequest          (modules/cache-handlers.js)
 ├── handleNcompRequest        (modules/cache-handlers.js)
 ├── handleMountRequest        (modules/mount-handle.js)
-└── handleFileRequest         (modules/file-handler.js)
-    └── getFileHandle         (modules/file-system.js)
+├── handleFileRequest         (modules/file-handler.js)
+│   └── getFileHandle         (modules/file-system.js)
+├── handleHostCacheRequest     (modules/host-cache-handle.js)   ← fetch 链末尾兜底
+├── hasHostCachePath           (modules/host-cache-handle.js)   ← 路径匹配判断
+└── initHostCachePaths         (modules/host-cache-handle.js)   ← activate/__config 时构建路径 Set
 ```
 
 ## 四、关键 API
@@ -56,10 +60,10 @@ sw/src/main.js
 | 事件/函数 | 说明 |
 |-----------|------|
 | `fetch` 事件监听 | 拦截同域及 `core.noneos.com` 请求（默认 `core.noneos.com`，可通过 `globalThis.SERVER_OPTIONS.coreHostName` 覆盖），按前缀路由 |
-| `/__config` 路径 | 特殊路由：触发 `reloadSystemConfig()` 并返回 `{ serviceWorkerVersion, systemConfig }` JSON；`serviceWorkerVersion` 来自 `NONEOS_CORE_VERSION` 常量（如 `"noneos-core@4.2.3"`，去掉前缀后输出） |
+| `/__config` 路径 | 特殊路由：触发 `reloadSystemConfig()` 并返回 `{ serviceWorkerVersion, systemConfig, hostCacheConfig }` JSON；`hostCacheConfig` 来自宿主 sw.js 中的 `globalThis.NONEOS_HOST_CACHE`（未配置时为 `null`） |
 | `install` | `skipWaiting()` 立即激活 |
-| `activate` | `clients.claim()` 接管页面，1s 后刷新配置 |
-| `reloadSystemConfig()` | 从 OPFS `nos-config/system.json` 读取 `systemConfig`；失败返回 500 状态码 |
+| `activate` | `clients.claim()` 接管页面，1s 后刷新配置 + `initHostCachePaths()` |
+| `reloadSystemConfig()` | 从 OPFS `nos-config/system.json` 读取 `systemConfig`，同时调用 `initHostCachePaths()` 刷新宿主缓存路径集合；失败返回 500 状态码 |
 | 初始加载 | SW 脚本加载时（文件末尾）也会立即同步触发一次 `reloadSystemConfig()`，不等 activate |
 
 ### 路径路由表
@@ -76,6 +80,7 @@ sw/src/main.js
 | `/npm/` | `cache-handlers.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
 | `/\$mount-/` | `mount-handle.js` | 本地挂载目录文件代理；URL 形态 `/$mount-{id}>/{相对路径}`，id 通过正则 `/\$mount\-(.+)>.+/` 提取 |
 | `/\$/` | `file-handler.js` | 本地 OPFS 文件代理；命中时返回带正确 `Content-Type` 头的 Response |
+| （兜底）已缓存路径 | `host-cache-handle.js` | 宿主项目缓存；GET 请求路径命中内存 `cachedPaths` Set 时，从 OPFS `host-cache/` 读取；否则不拦截 |
 
 ### 通用工具
 
@@ -135,8 +140,45 @@ sw/src/main.js
 ### 6. 配置热更新
 
 - `systemConfig` 初始为空对象，SW 脚本加载时与 activate 后 1s 各触发一次加载。
-- `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置；读取失败返回 500。
+- `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置（含 `hostCacheConfig`）；读取失败返回 500。
+- `reloadSystemConfig()` 同时调用 `initHostCachePaths()` 刷新宿主缓存路径集合。
 - 配置存储在 OPFS `nos-config/system.json` 中，由 `nos-tool/_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。
+
+### 7. 宿主项目缓存（host-cache-handle.js）
+
+允许使用 NoneOS Core 的宿主项目（如 Mazmot）缓存自己的文件实现离线访问。
+
+**配置方式**：宿主在自己的 `sw.js` 中，`importScripts` **之前**设置全局变量：
+
+```js
+globalThis.NONEOS_HOST_CACHE = { manifest: "/host-cache.json" };
+importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
+```
+
+**工作原理**：
+1. `/__config` 响应中携带 `hostCacheConfig`（即 `globalThis.NONEOS_HOST_CACHE`），页面侧通过 `check()` 获取。
+2. `install()` 完成后自动调用 `installHostCacheIfConfigured()`，下载清单内所有文件写入 OPFS `host-cache/`。
+3. SW activate / `/__config` 时调用 `initHostCachePaths()` 从 OPFS `host-cache/manifest.json` 构建内存路径 `Set`。
+4. fetch 链末尾兜底：GET 请求路径命中 `cachedPaths` 时从 OPFS 返回，否则不拦截。
+
+**OPFS 存储结构**：
+```
+host-cache/
+├── manifest.json          ← 清单副本（SW 构建路径 Set 的数据源）
+├── apps/main/home.html    ← 按 manifest.files 中的相对路径存储
+└── ...
+```
+
+**system.json 扩展**：
+```json
+{
+  "hostCache": {
+    "version": "1.2.0",
+    "cachePath": "host-cache",
+    "mode": "local"
+  }
+}
+```
 
 ## 六、依赖关系
 

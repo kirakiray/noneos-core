@@ -7,7 +7,16 @@ const packagePath = path.join(__dirname, "..", "package.json");
 const packageContent = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
 
 const [major, minor, patch] = packageContent.version.split(".").map(Number);
-const newVersion = `${major}.${minor}.${patch + 1}`;
+
+const arg = process.argv[2];
+let newVersion;
+if (arg === "--minor" || arg === "-m") {
+  newVersion = `${major}.${minor + 1}.0`;
+} else if (arg === "--major" || arg === "-M") {
+  newVersion = `${major + 1}.0.0`;
+} else {
+  newVersion = `${major}.${minor}.${patch + 1}`;
+}
 
 const versionPattern = new RegExp(`noneos-core@\\d+\\.\\d+\\.\\d+`, "g");
 

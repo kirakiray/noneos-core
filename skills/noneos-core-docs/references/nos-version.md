@@ -24,7 +24,7 @@ NoneOS Core 版本管理组件，用于检测当前安装版本、提示升级�
 | `installStep` | number | `0` | 当前安装进度步数 |
 | `installStepTotal` | number | `0` | 安装总步数 |
 | `upgradable` | boolean | `false` | 是否存在可升级的新版本 |
-| `lastVersion` | string | `""` | 可升级到的线上最新版本号 |
+| `lastVersion` | string | `""` | 可升级到的目标版本号（NoneOS 升级时为线上版本，宿主缓存升级时为 manifest 中的 version） |
 
 ## 方法 (proto)
 
@@ -47,7 +47,7 @@ NoneOS Core 版本管理组件，用于检测当前安装版本、提示升级�
 |--------|-------------|----------|
 | `check-start` | 无 | 开始检测版本状态时 |
 | `uninstalled` | 无 | 检测到系统未安装时 |
-| `upgradable` | `{ version, lastVersion }` | 检测到可升级到新版本时 |
+| `upgradable` | `{ version, lastVersion, hostCacheUpgradeOnly, hostCacheOnlineVersion }` | 检测到可升级到新版本时 |
 | `install-start` | 无 | 开始安装/升级时 |
 | `install-progress` | `{ step, desc, total }` | 安装进度更新时 |
 | `install-complete` | 无 | 安装/升级完成时 |
@@ -109,7 +109,12 @@ UI 表现对应关系：
   });
 
   $("#nv").on("upgradable", (e) => {
-    console.log("可升级:", e.detail.version, "→", e.detail.lastVersion);
+    const { version, lastVersion, hostCacheUpgradeOnly, hostCacheOnlineVersion } = e.detail;
+    if (hostCacheUpgradeOnly) {
+      console.log("宿主缓存可升级:", hostCacheOnlineVersion);
+    } else {
+      console.log("NoneOS 可升级:", version, "→", lastVersion);
+    }
   });
 
   $("#nv").on("error", (e) => {
@@ -121,3 +126,22 @@ UI 表现对应关系：
 ## 依赖
 
 `../_install/main.js` — 提供 `check()` 和 `install()` 两个异步方法。
+
+## 宿主项目缓存（Host Cache）
+
+NoneOS Core 支持宿主项目缓存自己的文件实现离线访问。该功能通过宿主 `sw.js` 中的全局变量配置，**无需在组件上额外声明**，安装时会自动下载清单中的文件。
+
+完整的配置方式、清单文件格式、工作原理与 OPFS 存储结构参考：[宿主项目缓存文档](host-cache.md)
+
+### 与组件的联动
+
+当检测到宿主缓存版本可升级时，`check()` 返回 `state: "upgradable"`（带 `hostCacheUpgradeOnly: true` 标记），组件会自动触发升级（`auto-install` 模式下）或显示升级按钮。此时 `lastVersion` 显示的是宿主缓存的新版本号。
+
+触发 `upgradable` 事件时，`detail` 中包含以下字段用于区分升级类型：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `version` | string | 当前已安装的 NoneOS Core 版本号 |
+| `lastVersion` | string | 目标版本号（与 `hostCacheOnlineVersion` 或线上 NoneOS 版本一致） |
+| `hostCacheUpgradeOnly` | boolean | `true` 表示仅宿主缓存需要升级，NoneOS Core 本身无需变动 |
+| `hostCacheOnlineVersion` | string | 宿主缓存的线上最新版本号（仅 `hostCacheUpgradeOnly` 为 `true` 时有意义） |

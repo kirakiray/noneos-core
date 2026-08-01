@@ -412,6 +412,111 @@
     </template>
   </sb-test>
 
+  <!-- Test 5: RTC 确定无法打通时，消息自动 fallback 到握手服务器中转 -->
+  <!--
+    方案 A（轻量 mock）：直接在 RTCManager 实例上覆盖方法，
+    让 connect() 永远 reject（模拟 ICE/打洞失败）、getChannel() 永远返回 undefined
+    （模拟无可用 DataChannel）。这样 RemoteUser.send() 必然跳过 RTC 路径走 #sendViaServer。
+    断言：
+    1. RTC 尝试被触发过（connect 调用计数 > 0）
+    2. 消息确实经 server 中转到达（via === "server"）
+    3. A 侧始终无 DataChannel（RTC 确实没建立）
+  -->
+  <sb-test name="RTC Failure - Fallback to Server Relay">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const t5_nsA = "rtc-fallback-5-a";
+        const t5_nsB = "rtc-fallback-5-b";
+        const t5_url = "ws://localhost:8081";
+
+        const t5_userA = new LocalUser(t5_nsA);
+        const t5_userB = new LocalUser(t5_nsB);
+        await Promise.all([t5_userA.ready(), t5_userB.ready()]);
+        await Promise.all([
+          t5_userA.server.connect(t5_url),
+          t5_userB.server.connect(t5_url),
+        ]);
+
+        const t5_remoteB = await t5_userA.connectUser(t5_userB.userId);
+        await t5_userB.connectUser(t5_userA.userId);
+
+        const t5_bReceived = [];
+        t5_userB.registerService("fallback-app-5", {
+          onMessage(data) { t5_bReceived.push(data); },
+        });
+        await new Promise((r) => setTimeout(r, 300));
+
+        // ── Mock A 侧 RTCManager：模拟「RTC 永远打不通」──
+        // 实例属性会遮蔽原型方法，不影响其他 LocalUser 实例
+        const t5_rtc = t5_userA.rtc;
+        let t5_connectCalled = 0;
+        t5_rtc.connect = async () => {
+          t5_connectCalled++;
+          // 模拟 ICE 协商失败：短暂延迟后抛错（与真实 failed 路径一致）
+          await new Promise((r) => setTimeout(r, 50));
+          throw new Error("Mock: ICE negotiation failed");
+        };
+        t5_rtc.getChannel = () => undefined;
+
+        // 连发 3 条消息，验证 fallback 机制对业务完全无感：
+        // - 第 1 条：sentCount 0→1，不触发 RTC，直接走 server
+        // - 第 2 条：sentCount 1→2，触发 rtc.connect()（被 mock reject），
+        //           但 RTC 触发是 fire-and-forget，消息仍走 server 成功送达
+        // - 第 3 条：sentCount 2→3，#rtcInitiated 已 set，不重复触发 RTC
+        // 核心验证：即使 RTC 永远打不通，3 条消息必须全部经 server 到达，
+        // 且 sendToService 的 Promise 全部正常 resolve（via === "server"）。
+        const t5_results = [];
+        for (let i = 1; i <= 3; i++) {
+          const res = await t5_remoteB.sendToService("fallback-app-5", {
+            msg: `fallback-${i}`,
+          });
+          t5_results.push(res);
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 等消息全部到达
+        for (let i = 0; i < 30 && t5_bReceived.length < 3; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // A 侧 DataChannel 应始终不存在（RTC 被模拟为失败）
+        const t5_dcA = t5_userA.rtc.getChannel(t5_userB.userId, t5_userB.sessionId);
+        const t5_noDc = !t5_dcA;
+
+        // 所有返回结果都应标记 via === "server"
+        const t5_allViaServer = t5_results.every((arr) =>
+          Array.isArray(arr) && arr.some((r) => r?.via === "server")
+        );
+
+        t5_userA.server.disconnectAll();
+        t5_userB.server.disconnectAll();
+
+        const t5_allDelivered = t5_bReceived.length === 3;
+        const t5_pass =
+          t5_connectCalled > 0 && t5_noDc && t5_allViaServer && t5_allDelivered;
+
+        return {
+          assert: t5_pass,
+          content: {
+            message: t5_pass
+              ? "RTC 失败时消息全部经握手服务器中转到达，via=server"
+              : "Fallback 路径异常",
+            checks: {
+              connectCalled: t5_connectCalled,
+              noDataChannel: t5_noDc,
+              allViaServer: t5_allViaServer,
+              allDelivered: t5_allDelivered,
+              bReceivedCount: t5_bReceived.length,
+              bReceived: t5_bReceived,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
 </body>
 
 </html>

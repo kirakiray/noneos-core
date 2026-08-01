@@ -173,9 +173,16 @@
 
               if (stateData.state === "upgradable") {
                 this.upgradable = true;
-                this.lastVersion = stateData.onlineVersion;
+                this.lastVersion = stateData.hostCacheUpgradeOnly
+                  ? stateData.hostCacheOnlineVersion
+                  : stateData.onlineVersion;
 
-                this.emit("upgradable", { data: { version: stateData.version, lastVersion: stateData.onlineVersion } });
+                this.emit("upgradable", { data: {
+                  version: stateData.version,
+                  lastVersion: this.lastVersion,
+                  hostCacheUpgradeOnly: stateData.hostCacheUpgradeOnly || false,
+                  hostCacheOnlineVersion: stateData.hostCacheOnlineVersion || "",
+                } });
 
                 if (this.autoInstall !== null) {
                   this.installNoneOSCore();
