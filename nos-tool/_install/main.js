@@ -14,7 +14,7 @@ export const install = async (callback) => {
   const state = await check().catch(() => ({ state: "uninstalled" }));
   const needNoneOS =
     state.state === "uninstalled" ||
-    (state.state === "upgradable" && !state.appCacheUpgradeOnly);
+    (state.state === "upgradable" && !state.hostCacheUpgradeOnly);
 
   if (needNoneOS) {
     await installServiceWorker(callback);
