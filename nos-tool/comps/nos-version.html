@@ -177,7 +177,12 @@
                   ? stateData.hostCacheOnlineVersion
                   : stateData.onlineVersion;
 
-                this.emit("upgradable", { data: { version: stateData.version, lastVersion: this.lastVersion } });
+                this.emit("upgradable", { data: {
+                  version: stateData.version,
+                  lastVersion: this.lastVersion,
+                  hostCacheUpgradeOnly: stateData.hostCacheUpgradeOnly || false,
+                  hostCacheOnlineVersion: stateData.hostCacheOnlineVersion || "",
+                } });
 
                 if (this.autoInstall !== null) {
                   this.installNoneOSCore();
