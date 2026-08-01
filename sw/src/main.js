@@ -1,9 +1,4 @@
 import {
-  handleHostCacheRequest,
-  hasHostCachePath,
-  initHostCachePaths,
-} from "./modules/host-cache-handle.js";
-import {
   handleGitHubRequest,
   handleNpmRequest,
   handleNcompRequest,
@@ -17,7 +12,7 @@ import { handleNosToolRequest } from "./modules/nostool-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-const NONEOS_CORE_VERSION = "noneos-core@4.3.0";
+const NONEOS_CORE_VERSION = "noneos-core@4.2.9";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -106,13 +101,6 @@ self.addEventListener("fetch", (event) => {
         }),
       );
     }
-
-    // 宿主缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
-    if (request.method === "GET" && hasHostCachePath(pathname)) {
-      return event.respondWith(
-        handleHostCacheRequest({ path: pathname, request }),
-      );
-    }
   } catch (err) {
     return new Response(err.stack || err.toString(), {
       status: 400,
@@ -136,7 +124,6 @@ self.addEventListener("activate", () => {
 
   setTimeout(() => {
     reloadSystemConfig();
-    initHostCachePaths();
   }, 1000);
 });
 
@@ -152,14 +139,10 @@ const reloadSystemConfig = async () => {
       systemConfig = JSON.parse(content);
     }
 
-    // 刷新宿主缓存路径集合
-    await initHostCachePaths();
-
     return new Response(
       JSON.stringify({
         serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
         systemConfig,
-        hostCacheConfig: globalThis.NONEOS_HOST_CACHE || null,
       }),
     );
   } catch (err) {
