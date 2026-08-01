@@ -121,7 +121,8 @@ const precacheFiles = async (manifest) => {
     try {
       await precacheFile(filePath);
       downloaded++;
-    } catch {
+    } catch (err) {
+      console.warn(`[host-cache] precache failed: ${filePath}`, err.message || err);
       failed++;
     }
     broadcast({
@@ -139,6 +140,7 @@ const precacheFiles = async (manifest) => {
 
 export const updateHostCache = async (newManifest) => {
   if (precaching) {
+    console.log("[host-cache] update skipped: already precaching");
     return { ok: false, reason: "already-precaching" };
   }
   precaching = true;
@@ -166,7 +168,13 @@ export const updateHostCache = async (newManifest) => {
 
     broadcast({ type: "host-cache-complete", ...result });
 
+    console.log(
+      `[host-cache] update success: ${result.downloaded}/${result.total} downloaded, ${result.failed} failed`,
+    );
     return { ok: true, ...result };
+  } catch (err) {
+    console.error("[host-cache] update failed:", err);
+    return { ok: false, reason: "update-error", error: err.message };
   } finally {
     precaching = false;
   }
@@ -179,6 +187,7 @@ export const initHostCache = async () => {
   hostManifest = await loadManifestFromOPFS();
   if (hostManifest) {
     fileSet = new Set(hostManifest.files || []);
+    console.log(`[host-cache] loaded from OPFS: ${hostManifest.name}@${hostManifest.version}`);
   }
 
   // 尝试从网络拉取最新 manifest
@@ -189,15 +198,17 @@ export const initHostCache = async () => {
       const latest = await response.json();
       if (!hostManifest || latest.version !== hostManifest.version) {
         // 版本变化或首次加载，触发预缓存
+        console.log(`[host-cache] version changed, triggering update: ${latest.version}`);
         await updateHostCache(latest);
       } else {
         // 版本相同，仅更新内存状态
         hostManifest = latest;
         fileSet = new Set(latest.files || []);
+        console.log(`[host-cache] version up-to-date: ${latest.version}`);
       }
     }
-  } catch {
-    // 离线或 manifest 不可用，使用 OPFS 中的持久化版本
+  } catch (err) {
+    console.warn("[host-cache] init fetch failed, using OPFS cache:", err.message || err);
   }
 };
 
@@ -291,6 +302,7 @@ export const triggerHostCacheUpdate = async () => {
   } catch {}
 
   if (!manifest) {
+    console.warn("[host-cache] update failed: manifest not available");
     return new Response(
       JSON.stringify({ ok: false, reason: "manifest-not-available" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -300,12 +312,14 @@ export const triggerHostCacheUpdate = async () => {
   // 从 OPFS 读取持久化的版本进行对比（而非内存，确保手动删除 OPFS 后能重新拉取）
   const persisted = await loadManifestFromOPFS();
   if (persisted && manifest.version === persisted.version) {
+    console.log(`[host-cache] version up-to-date: ${manifest.version}`);
     return new Response(
       JSON.stringify({ ok: true, reason: "version-up-to-date", version: manifest.version }),
       { headers: { "Content-Type": "application/json" } },
     );
   }
 
+  console.log(`[host-cache] triggering update: ${manifest.name}@${manifest.version}`);
   const result = await updateHostCache(manifest);
   return new Response(JSON.stringify(result), {
     headers: { "Content-Type": "application/json" },
