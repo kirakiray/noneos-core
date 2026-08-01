@@ -10,6 +10,7 @@ import {
   handleHostCacheStatus,
   initHostCache,
   isHostCachedFile,
+  triggerHostCacheUpdate,
 } from "./modules/host-cache-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
@@ -38,6 +39,10 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__host-cache" && globalThis.HOST_CACHE_CONFIG) {
     return event.respondWith(handleHostCacheStatus());
+  }
+
+  if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
+    return event.respondWith(triggerHostCacheUpdate());
   }
 
   try {

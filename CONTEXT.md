@@ -42,6 +42,7 @@
 | `/$/{path}` | 本地 OPFS 系统目录文件 | file-handler.js |
 | `/__config` | 特殊路由：触发 SW 重载 `nos-config/system.json` 并返回版本信息 | main.js 内联 |
 | `/__host-cache` | 特殊路由：返回宿主项目离线缓存状态（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
+| `/__update-host-cache` | 特殊路由：触发宿主项目离线缓存更新（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | (fallback) | 同域 GET 请求且路径在 host-cache manifest files 列表中时，从 OPFS 缓存返回 | host-cache-handler.js |
 
 **举例**：`nos/fs/main.js` 中动态 `import("./fs-remote/main.js")` —— 这里的 `./fs-remote/main.js` 是运行时通过 SW 加载的远端 FS 模块，**本仓库内未提供源码**，请不要在仓库中搜索它。

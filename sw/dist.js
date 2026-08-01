@@ -629,6 +629,42 @@
     );
   };
 
+  // --- 触发更新路由 ---
+
+  /**
+   * 触发 host-cache 更新。
+   * SW 自行从网络拉取最新 manifest，版本变化时才执行预缓存。
+   */
+  const triggerHostCacheUpdate = async () => {
+    let manifest;
+    try {
+      const response = await fetch(getManifestPath(), { cache: "no-store" });
+      if (response.ok) {
+        manifest = await response.json();
+      }
+    } catch {}
+
+    if (!manifest) {
+      return new Response(
+        JSON.stringify({ ok: false, reason: "manifest-not-available" }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // 版本相同，无需更新
+    if (hostManifest && manifest.version === hostManifest.version) {
+      return new Response(
+        JSON.stringify({ ok: true, reason: "version-up-to-date", version: manifest.version }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const result = await updateHostCache(manifest);
+    return new Response(JSON.stringify(result), {
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
   // --- postMessage 处理 ---
 
   const handleHostCacheMessage = async (data) => {
@@ -645,10 +681,16 @@
       } catch {}
     }
 
-    if (manifest) {
-      return await updateHostCache(manifest);
+    if (!manifest) {
+      return { ok: false, reason: "manifest-not-available" };
     }
-    return { ok: false, reason: "manifest-not-available" };
+
+    // 版本相同，无需更新
+    if (hostManifest && manifest.version === hostManifest.version) {
+      return { ok: true, reason: "version-up-to-date", version: manifest.version };
+    }
+
+    return await updateHostCache(manifest);
   };
 
   // db相关的操作
@@ -833,6 +875,10 @@
 
     if (pathname === "/__host-cache" && globalThis.HOST_CACHE_CONFIG) {
       return event.respondWith(handleHostCacheStatus());
+    }
+
+    if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
+      return event.respondWith(triggerHostCacheUpdate());
     }
 
     try {

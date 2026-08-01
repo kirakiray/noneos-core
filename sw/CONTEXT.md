@@ -50,6 +50,7 @@ sw/src/main.js
 ├── handleFileRequest         (modules/file-handler.js)
 ├── handleHostCacheRequest    (modules/host-cache-handler.js)  # fetch fallback
 ├── handleHostCacheStatus     (modules/host-cache-handler.js)  # /__host-cache 路由
+├── triggerHostCacheUpdate    (modules/host-cache-handler.js)  # /__update-host-cache 路由
 ├── handleHostCacheMessage    (modules/host-cache-handler.js)  # postMessage 处理
 ├── initHostCache             (modules/host-cache-handler.js)  # SW 加载时初始化
 └── isHostCachedFile          (modules/host-cache-handler.js)  # 同步路径检查
@@ -65,6 +66,7 @@ sw/src/main.js
 | `fetch` 事件监听 | 拦截同域及 `core.noneos.com` 请求（默认 `core.noneos.com`，可通过 `globalThis.SERVER_OPTIONS.coreHostName` 覆盖），按前缀路由 |
 | `/__config` 路径 | 特殊路由：触发 `reloadSystemConfig()` 并返回 `{ serviceWorkerVersion, systemConfig }` JSON；`serviceWorkerVersion` 来自 `NONEOS_CORE_VERSION` 常量（如 `"noneos-core@4.2.3"`，去掉前缀后输出） |
 | `/__host-cache` 路径 | 特殊路由（仅在 `globalThis.HOST_CACHE_CONFIG` 设置时生效）：返回当前 host-cache 状态 JSON `{ name, version, fileCount, precaching }` |
+| `/__update-host-cache` 路径 | 特殊路由（仅在 `globalThis.HOST_CACHE_CONFIG` 设置时生效）：触发 host-cache 更新，SW 自行拉取最新 manifest 并预缓存，返回更新结果 JSON |
 | `message` 事件 | 监听 `host-cache-update` 消息，触发宿主项目缓存更新流程；完成后回复 `host-cache-update-result` |
 | `install` | `skipWaiting()` 立即激活 |
 | `activate` | `clients.claim()` 接管页面，1s 后刷新配置 |
@@ -80,6 +82,7 @@ sw/src/main.js
 |----------|--------|------|
 | `/__config` | (main.js 内联) | 特殊路由，触发配置重载并返回 JSON |
 | `/__host-cache` | `host-cache-handler.js` | 特殊路由，返回 host-cache 状态 JSON（需 `HOST_CACHE_CONFIG`） |
+| `/__update-host-cache` | `host-cache-handler.js` | 特殊路由，触发 host-cache 更新，返回结果 JSON（需 `HOST_CACHE_CONFIG`） |
 | `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
 | `/ncomp/` | `cache-handlers.js` | ncomp 公共组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
@@ -186,6 +189,7 @@ host-cache/
 | `isHostCachedFile(path)` | 同步检查路径是否在缓存列表中（用于 main.js 路由判断） |
 | `handleHostCacheRequest({ path, request })` | 处理 fetch 请求，返回缓存或回退网络 |
 | `handleHostCacheStatus()` | 返回当前 host-cache 状态 JSON |
+| `triggerHostCacheUpdate()` | 触发更新流程（SW 自行拉取 manifest），返回结果 JSON Response |
 | `handleHostCacheMessage(data)` | 处理 `host-cache-update` postMessage |
 | `updateHostCache(manifest)` | 执行预缓存更新流程 |
 

@@ -51,7 +51,7 @@ SW 加载时会读取 manifest，将 `files` 列表中的文件逐个下载并�
 
 ### 版本更新检测
 
-SW 不会自动检测 `host-cache.json` 的变化（浏览器只在 `sw.js` 本身变化时才更新 SW）。需要前端主动检查：
+SW 不会自动检测 `host-cache.json` 的变化（浏览器只在 `sw.js` 本身变化时才更新 SW）。需要前端主动检查并触发更新：
 
 ```javascript
 // 1. 获取当前 SW 缓存的版本
@@ -61,14 +61,14 @@ const cached = await fetch("/__host-cache").then(r => r.json());
 // 2. 获取最新 manifest
 const latest = await fetch("/host-cache.json", { cache: "no-store" }).then(r => r.json());
 
-// 3. 版本不同时，通知 SW 更新
+// 3. 版本不同时，触发更新
 if (cached.version !== latest.version) {
-  navigator.serviceWorker.controller.postMessage({
-    type: "host-cache-update",
-    manifest: latest,
-  });
+  const result = await fetch("/__update-host-cache").then(r => r.json());
+  // result: { ok: true, downloaded: 42, failed: 0, total: 42 }
 }
 ```
+
+> 也可以直接调用 `fetch("/__update-host-cache")` 触发更新，无需先检查版本。SW 会自行拉取最新 manifest 并在版本变化时执行预缓存。
 
 ### 进度监听
 
