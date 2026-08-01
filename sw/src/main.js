@@ -4,6 +4,13 @@ import {
   handleNcompRequest,
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
+import {
+  handleHostCacheMessage,
+  handleHostCacheRequest,
+  handleHostCacheStatus,
+  initHostCache,
+  isHostCachedFile,
+} from "./modules/host-cache-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
 import { handleNosToolRequest } from "./modules/nostool-handle.js";
@@ -27,6 +34,10 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__config") {
     return event.respondWith(reloadSystemConfig());
+  }
+
+  if (pathname === "/__host-cache" && globalThis.HOST_CACHE_CONFIG) {
+    return event.respondWith(handleHostCacheStatus());
   }
 
   try {
@@ -101,6 +112,17 @@ self.addEventListener("fetch", (event) => {
         }),
       );
     }
+
+    // 宿主项目缓存 fallback：不匹配 noneos-core 路由的同域 GET 请求
+    if (
+      globalThis.HOST_CACHE_CONFIG &&
+      request.method === "GET" &&
+      isHostCachedFile(pathname)
+    ) {
+      return event.respondWith(
+        handleHostCacheRequest({ path: pathname, request }),
+      );
+    }
   } catch (err) {
     return new Response(err.stack || err.toString(), {
       status: 400,
@@ -125,6 +147,19 @@ self.addEventListener("activate", () => {
   setTimeout(() => {
     reloadSystemConfig();
   }, 1000);
+});
+
+// 宿主项目缓存更新消息处理
+self.addEventListener("message", (event) => {
+  if (!globalThis.HOST_CACHE_CONFIG) return;
+  if (event.data?.type !== "host-cache-update") return;
+
+  handleHostCacheMessage(event.data).then((result) => {
+    event.source?.postMessage({
+      type: "host-cache-update-result",
+      ...result,
+    });
+  });
 });
 
 const reloadSystemConfig = async () => {
@@ -154,3 +189,8 @@ const reloadSystemConfig = async () => {
 };
 
 reloadSystemConfig();
+
+// 初始化宿主项目缓存（仅在宿主项目配置了 HOST_CACHE_CONFIG 时生效）
+if (globalThis.HOST_CACHE_CONFIG) {
+  initHostCache();
+}

@@ -180,6 +180,7 @@ const result = await publisher.assembleFile(fileHash);
 > ⚠️ **实验性特性**：`ai` 与 `hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [AI 操作文档](references/ai.md)
+- [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
 - [公共组件文档 (ncomp)](references/ncomp.md)
