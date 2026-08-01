@@ -21,8 +21,8 @@ export const install = async (callback) => {
     await installSystemFile(callback);
   }
 
-  // 自动安装/升级应用缓存（如果宿主项目配置了 NONEOS_APP_CACHE）
-  await installAppCacheIfConfigured(callback);
+  // 自动安装/升级宿主缓存（如果宿主项目配置了 NONEOS_HOST_CACHE）
+  await installHostCacheIfConfigured(callback);
 };
 
 // 检查系统的状况
@@ -36,14 +36,14 @@ export const check = async () => {
       systemConfig: {},
     }));
 
-  const { systemConfig, serviceWorkerVersion, appCacheConfig } = configData;
+  const { systemConfig, serviceWorkerVersion, hostCacheConfig } = configData;
 
   if (!serviceWorkerVersion || !systemConfig.version) {
     return {
       state: "uninstalled",
       systemConfig,
       serviceWorkerVersion,
-      appCacheConfig,
+      hostCacheConfig,
     };
   }
 
@@ -56,29 +56,29 @@ export const check = async () => {
       localVersion: systemConfig.version,
       onlineVersion: onlineNosConfig.version,
       serviceWorkerVersion,
-      appCacheConfig,
+      hostCacheConfig,
     };
   }
 
-  // NoneOS 已是最新，检查应用缓存是否需要升级
-  if (appCacheConfig?.manifest) {
+  // NoneOS 已是最新，检查宿主缓存是否需要升级
+  if (hostCacheConfig?.manifest) {
     try {
-      const manifest = await fetch(appCacheConfig.manifest, {
+      const manifest = await fetch(hostCacheConfig.manifest, {
         cache: "no-store",
       }).then((r) => r.json());
 
-      const localAppCacheVersion = systemConfig.appCache?.version;
-      if (localAppCacheVersion !== manifest.version) {
+      const localHostCacheVersion = systemConfig.hostCache?.version;
+      if (localHostCacheVersion !== manifest.version) {
         return {
           state: "upgradable",
           version: systemConfig.version,
           localVersion: systemConfig.version,
           onlineVersion: onlineNosConfig.version,
           serviceWorkerVersion,
-          appCacheConfig,
-          appCacheUpgradeOnly: true,
-          appCacheLocalVersion: localAppCacheVersion || "",
-          appCacheOnlineVersion: manifest.version,
+          hostCacheConfig,
+          hostCacheUpgradeOnly: true,
+          hostCacheLocalVersion: localHostCacheVersion || "",
+          hostCacheOnlineVersion: manifest.version,
         };
       }
     } catch {
@@ -89,7 +89,7 @@ export const check = async () => {
   return {
     state: "installed",
     version: systemConfig.version,
-    appCacheConfig,
+    hostCacheConfig,
   };
 };
 
@@ -261,19 +261,19 @@ export const updateSystemConfig = async (options) => {
   return systemConfig;
 };
 
-// 应用缓存默认存储目录
-const APP_CACHE_DIR = "app-cache";
+// 宿主缓存默认存储目录
+const HOST_CACHE_DIR = "host-cache";
 
 /**
- * 安装/升级应用缓存
+ * 安装/升级宿主缓存
  * 从 manifestUrl 获取清单，下载所有文件写入 OPFS，并更新 system.json
- * @param {string} manifestUrl - 清单文件的 URL（如 "/app-cache.json"）
+ * @param {string} manifestUrl - 清单文件的 URL（如 "/host-cache.json"）
  * @param {Function} callback - 进度回调 ({ step, total, desc })
  */
-export const installAppCache = async (manifestUrl, callback) => {
+export const installHostCache = async (manifestUrl, callback) => {
   callback = callback || (() => {});
 
-  callback({ desc: "loading app cache manifest", step: 1, total: 1 });
+  callback({ desc: "loading host cache manifest", step: 1, total: 1 });
 
   const manifest = await fetch(manifestUrl, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error(`Failed to fetch manifest: ${r.status}`);
@@ -288,15 +288,15 @@ export const installAppCache = async (manifestUrl, callback) => {
   const systemConfig = (await configFile.json().catch(() => null)) || {};
 
   if (
-    systemConfig.appCache?.version &&
-    systemConfig.appCache.version === manifest.version
+    systemConfig.hostCache?.version &&
+    systemConfig.hostCache.version === manifest.version
   ) {
-    callback({ desc: "app cache up to date", step: total, total });
+    callback({ desc: "host cache up to date", step: total, total });
     return;
   }
 
   // 准备缓存目录
-  await init(APP_CACHE_DIR);
+  await init(HOST_CACHE_DIR);
 
   // 逐个下载并缓存文件
   for (let i = 0; i < manifest.files.length; i++) {
@@ -308,43 +308,43 @@ export const installAppCache = async (manifestUrl, callback) => {
       return r.blob();
     });
 
-    const fileHandle = await get(`${APP_CACHE_DIR}/${filePath}`, {
+    const fileHandle = await get(`${HOST_CACHE_DIR}/${filePath}`, {
       create: "file",
     });
     await fileHandle.write(blob);
   }
 
   // 写入 manifest 副本（SW 读取此文件构建拦截路径集合）
-  callback({ desc: "finalizing app cache", step: total, total });
-  const manifestHandle = await get(`${APP_CACHE_DIR}/manifest.json`, {
+  callback({ desc: "finalizing host cache", step: total, total });
+  const manifestHandle = await get(`${HOST_CACHE_DIR}/manifest.json`, {
     create: "file",
   });
   await manifestHandle.write(JSON.stringify(manifest));
 
   // 更新 system.json
   await updateSystemConfig({
-    appCache: {
+    hostCache: {
       version: manifest.version,
-      cachePath: APP_CACHE_DIR,
+      cachePath: HOST_CACHE_DIR,
       mode: "local",
     },
   });
 };
 
 /**
- * 检查 SW 是否配置了应用缓存，如果有则自动安装
- * 通过 /__config 获取 appCacheConfig（由宿主 sw.js 中的 globalThis.NONEOS_APP_CACHE 提供）
+ * 检查 SW 是否配置了宿主缓存，如果有则自动安装
+ * 通过 /__config 获取 hostCacheConfig（由宿主 sw.js 中的 globalThis.NONEOS_HOST_CACHE 提供）
  */
-const installAppCacheIfConfigured = async (callback) => {
+const installHostCacheIfConfigured = async (callback) => {
   try {
     const configData = await fetch("/__config")
       .then((e) => e.json())
       .catch(() => null);
 
-    if (configData?.appCacheConfig?.manifest) {
-      await installAppCache(configData.appCacheConfig.manifest, callback);
+    if (configData?.hostCacheConfig?.manifest) {
+      await installHostCache(configData.hostCacheConfig.manifest, callback);
     }
   } catch (err) {
-    console.warn("App cache installation skipped:", err);
+    console.warn("Host cache installation skipped:", err);
   }
 };

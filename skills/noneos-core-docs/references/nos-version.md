@@ -122,7 +122,7 @@ UI 表现对应关系：
 
 `../_install/main.js` — 提供 `check()` 和 `install()` 两个异步方法。
 
-## 宿主项目应用缓存（App Cache）
+## 宿主项目缓存（Host Cache）
 
 NoneOS Core 支持宿主项目缓存自己的文件实现离线访问。该功能通过宿主 `sw.js` 中的全局变量配置，**无需在组件上额外声明**。
 
@@ -131,7 +131,7 @@ NoneOS Core 支持宿主项目缓存自己的文件实现离线访问。该功�
 宿主在自己的 `sw.js` 中，`importScripts` **之前**设置：
 
 ```js
-globalThis.NONEOS_APP_CACHE = { manifest: "/app-cache.json" };
+globalThis.NONEOS_HOST_CACHE = { manifest: "/host-cache.json" };
 importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 ```
 
@@ -151,8 +151,8 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 
 ### 自动安装流程
 
-当宿主配置了 `NONEOS_APP_CACHE` 后，`install()` 会在 NoneOS Core 安装/升级完成后自动下载清单中的所有文件并写入 OPFS。终端用户无需额外操作，安装遮罩会自动展示应用缓存的下载进度。
+当宿主配置了 `NONEOS_HOST_CACHE` 后，`install()` 会在 NoneOS Core 安装/升级完成后自动下载清单中的所有文件并写入 OPFS。终端用户无需额外操作，安装遮罩会自动展示宿主缓存的下载进度。
 
 ### 版本升级检测
 
-当清单中的 `version` 与本地 `system.json` 中的 `appCache.version` 不一致时，`check()` 返回 `state: "upgradable"`（带 `appCacheUpgradeOnly: true` 标记），组件会自动触发升级（`auto-install` 模式下）或显示升级按钮。此时 `lastVersion` 显示的是应用缓存的新版本号。
+当清单中的 `version` 与本地 `system.json` 中的 `hostCache.version` 不一致时，`check()` 返回 `state: "upgradable"`（带 `hostCacheUpgradeOnly: true` 标记），组件会自动触发升级（`auto-install` 模式下）或显示升级按钮。此时 `lastVersion` 显示的是宿主缓存的新版本号。

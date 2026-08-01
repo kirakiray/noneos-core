@@ -131,17 +131,17 @@
     }
   };
 
-  const CACHE_DIR = "app-cache";
+  const CACHE_DIR = "host-cache";
 
   // 内存中缓存的路径集合，用于快速判断是否需要拦截
-  // 从 OPFS app-cache/manifest.json 构建
+  // 从 OPFS host-cache/manifest.json 构建
   let cachedPaths = null;
 
   /**
    * 从 OPFS 读取 manifest 并构建已缓存路径集合
    * 在 SW activate 和 /__config 请求时调用
    */
-  const initAppCachePaths = async () => {
+  const initHostCachePaths = async () => {
     try {
       const manifestHandle = await getFileHandle({
         path: `${CACHE_DIR}/manifest.json`,
@@ -166,9 +166,9 @@
   };
 
   /**
-   * 判断路径是否在应用缓存中
+   * 判断路径是否在宿主缓存中
    */
-  const hasAppCachePath = (pathname) => {
+  const hasHostCachePath = (pathname) => {
     if (!cachedPaths) return false;
     if (cachedPaths.has(pathname)) return true;
     // 目录访问自动补全 index.html
@@ -179,9 +179,9 @@
   };
 
   /**
-   * 从 OPFS 读取应用缓存文件，读不到时回退网络
+   * 从 OPFS 读取宿主缓存文件，读不到时回退网络
    */
-  const handleAppCacheRequest = async ({ path, request }) => {
+  const handleHostCacheRequest = async ({ path, request }) => {
     let relativePath = path.replace(/^\//, "");
 
     // 目录访问自动补全 index.html
@@ -690,10 +690,10 @@
         );
       }
 
-      // 应用缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
-      if (request.method === "GET" && hasAppCachePath(pathname)) {
+      // 宿主缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
+      if (request.method === "GET" && hasHostCachePath(pathname)) {
         return event.respondWith(
-          handleAppCacheRequest({ path: pathname, request }),
+          handleHostCacheRequest({ path: pathname, request }),
         );
       }
     } catch (err) {
@@ -719,7 +719,7 @@
 
     setTimeout(() => {
       reloadSystemConfig();
-      initAppCachePaths();
+      initHostCachePaths();
     }, 1000);
   });
 
@@ -735,14 +735,14 @@
         systemConfig = JSON.parse(content);
       }
 
-      // 刷新应用缓存路径集合
-      await initAppCachePaths();
+      // 刷新宿主缓存路径集合
+      await initHostCachePaths();
 
       return new Response(
         JSON.stringify({
           serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
           systemConfig,
-          appCacheConfig: globalThis.NONEOS_APP_CACHE || null,
+          hostCacheConfig: globalThis.NONEOS_HOST_CACHE || null,
         }),
       );
     } catch (err) {

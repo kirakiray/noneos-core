@@ -173,8 +173,8 @@
 
               if (stateData.state === "upgradable") {
                 this.upgradable = true;
-                this.lastVersion = stateData.appCacheUpgradeOnly
-                  ? stateData.appCacheOnlineVersion
+                this.lastVersion = stateData.hostCacheUpgradeOnly
+                  ? stateData.hostCacheOnlineVersion
                   : stateData.onlineVersion;
 
                 this.emit("upgradable", { data: { version: stateData.version, lastVersion: this.lastVersion } });

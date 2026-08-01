@@ -1,17 +1,17 @@
 import { getFileHandle } from "./file-system.js";
 import { getContentType } from "./mime-types.js";
 
-const CACHE_DIR = "app-cache";
+const CACHE_DIR = "host-cache";
 
 // 内存中缓存的路径集合，用于快速判断是否需要拦截
-// 从 OPFS app-cache/manifest.json 构建
+// 从 OPFS host-cache/manifest.json 构建
 let cachedPaths = null;
 
 /**
  * 从 OPFS 读取 manifest 并构建已缓存路径集合
  * 在 SW activate 和 /__config 请求时调用
  */
-export const initAppCachePaths = async () => {
+export const initHostCachePaths = async () => {
   try {
     const manifestHandle = await getFileHandle({
       path: `${CACHE_DIR}/manifest.json`,
@@ -36,9 +36,9 @@ export const initAppCachePaths = async () => {
 };
 
 /**
- * 判断路径是否在应用缓存中
+ * 判断路径是否在宿主缓存中
  */
-export const hasAppCachePath = (pathname) => {
+export const hasHostCachePath = (pathname) => {
   if (!cachedPaths) return false;
   if (cachedPaths.has(pathname)) return true;
   // 目录访问自动补全 index.html
@@ -49,9 +49,9 @@ export const hasAppCachePath = (pathname) => {
 };
 
 /**
- * 从 OPFS 读取应用缓存文件，读不到时回退网络
+ * 从 OPFS 读取宿主缓存文件，读不到时回退网络
  */
-export const handleAppCacheRequest = async ({ path, request }) => {
+export const handleHostCacheRequest = async ({ path, request }) => {
   let relativePath = path.replace(/^\//, "");
 
   // 目录访问自动补全 index.html
