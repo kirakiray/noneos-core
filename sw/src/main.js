@@ -109,7 +109,9 @@ self.addEventListener("fetch", (event) => {
 
     // 应用缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
     if (request.method === "GET" && hasAppCachePath(pathname)) {
-      return event.respondWith(handleAppCacheRequest({ path: pathname }));
+      return event.respondWith(
+        handleAppCacheRequest({ path: pathname, request }),
+      );
     }
   } catch (err) {
     return new Response(err.stack || err.toString(), {

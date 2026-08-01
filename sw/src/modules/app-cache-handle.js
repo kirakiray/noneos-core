@@ -49,9 +49,9 @@ export const hasAppCachePath = (pathname) => {
 };
 
 /**
- * 从 OPFS 读取应用缓存文件
+ * 从 OPFS 读取应用缓存文件，读不到时回退网络
  */
-export const handleAppCacheRequest = async ({ path }) => {
+export const handleAppCacheRequest = async ({ path, request }) => {
   let relativePath = path.replace(/^\//, "");
 
   // 目录访问自动补全 index.html
@@ -59,24 +59,26 @@ export const handleAppCacheRequest = async ({ path }) => {
     relativePath += "index.html";
   }
 
-  const fullPath = `${CACHE_DIR}/${relativePath}`;
-  const fileHandle = await getFileHandle({ path: fullPath }).catch(() => null);
+  try {
+    const fullPath = `${CACHE_DIR}/${relativePath}`;
+    const fileHandle = await getFileHandle({ path: fullPath }).catch(
+      () => null,
+    );
 
-  if (fileHandle) {
-    const file = await fileHandle.getFile();
-    if (file.size) {
-      return new Response(file, {
-        headers: {
-          "Content-Type": getContentType(path),
-        },
-      });
+    if (fileHandle) {
+      const file = await fileHandle.getFile();
+      if (file.size) {
+        return new Response(file, {
+          headers: {
+            "Content-Type": getContentType(path),
+          },
+        });
+      }
     }
-  }
 
-  return new Response("Not Found", {
-    status: 404,
-    headers: {
-      "Content-Type": getContentType(path),
-    },
-  });
+    // OPFS 未命中，回退网络
+    return fetch(request);
+  } catch {
+    return fetch(request);
+  }
 };

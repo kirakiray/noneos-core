@@ -179,9 +179,9 @@
   };
 
   /**
-   * 从 OPFS 读取应用缓存文件
+   * 从 OPFS 读取应用缓存文件，读不到时回退网络
    */
-  const handleAppCacheRequest = async ({ path }) => {
+  const handleAppCacheRequest = async ({ path, request }) => {
     let relativePath = path.replace(/^\//, "");
 
     // 目录访问自动补全 index.html
@@ -189,26 +189,28 @@
       relativePath += "index.html";
     }
 
-    const fullPath = `${CACHE_DIR}/${relativePath}`;
-    const fileHandle = await getFileHandle({ path: fullPath }).catch(() => null);
+    try {
+      const fullPath = `${CACHE_DIR}/${relativePath}`;
+      const fileHandle = await getFileHandle({ path: fullPath }).catch(
+        () => null,
+      );
 
-    if (fileHandle) {
-      const file = await fileHandle.getFile();
-      if (file.size) {
-        return new Response(file, {
-          headers: {
-            "Content-Type": getContentType(path),
-          },
-        });
+      if (fileHandle) {
+        const file = await fileHandle.getFile();
+        if (file.size) {
+          return new Response(file, {
+            headers: {
+              "Content-Type": getContentType(path),
+            },
+          });
+        }
       }
-    }
 
-    return new Response("Not Found", {
-      status: 404,
-      headers: {
-        "Content-Type": getContentType(path),
-      },
-    });
+      // OPFS 未命中，回退网络
+      return fetch(request);
+    } catch {
+      return fetch(request);
+    }
   };
 
   /**
@@ -690,7 +692,9 @@
 
       // 应用缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
       if (request.method === "GET" && hasAppCachePath(pathname)) {
-        return event.respondWith(handleAppCacheRequest({ path: pathname }));
+        return event.respondWith(
+          handleAppCacheRequest({ path: pathname, request }),
+        );
       }
     } catch (err) {
       return new Response(err.stack || err.toString(), {
