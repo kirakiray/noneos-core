@@ -633,7 +633,7 @@
 
   /**
    * 触发 host-cache 更新。
-   * SW 自行从网络拉取最新 manifest，版本变化时才执行预缓存。
+   * SW 自行从网络拉取最新 manifest，与 OPFS 中持久化的版本对比，版本变化时才执行预缓存。
    */
   const triggerHostCacheUpdate = async () => {
     let manifest;
@@ -651,8 +651,9 @@
       );
     }
 
-    // 版本相同，无需更新
-    if (hostManifest && manifest.version === hostManifest.version) {
+    // 从 OPFS 读取持久化的版本进行对比（而非内存，确保手动删除 OPFS 后能重新拉取）
+    const persisted = await loadManifestFromOPFS();
+    if (persisted && manifest.version === persisted.version) {
       return new Response(
         JSON.stringify({ ok: true, reason: "version-up-to-date", version: manifest.version }),
         { headers: { "Content-Type": "application/json" } },
@@ -685,8 +686,9 @@
       return { ok: false, reason: "manifest-not-available" };
     }
 
-    // 版本相同，无需更新
-    if (hostManifest && manifest.version === hostManifest.version) {
+    // 从 OPFS 读取持久化的版本进行对比
+    const persisted = await loadManifestFromOPFS();
+    if (persisted && manifest.version === persisted.version) {
       return { ok: true, reason: "version-up-to-date", version: manifest.version };
     }
 
