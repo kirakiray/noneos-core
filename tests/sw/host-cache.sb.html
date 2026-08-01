@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>host-cache 离线缓存测试</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>host-cache 离线缓存测试</h1>
+
+    <!-- 注意：此测试需单独运行，不能与其他 SW 测试混跑 -->
+    <!-- 用法: npx sb-test -f tests/sw/host-cache.sb.html --browsers chrome -->
+
+    <sb-test name="注册测试 SW 并等待 initHostCache 完成">
+      <template>
+        <script type="module">
+          // 先清理已有 SW
+          const regs_1 = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_1.map((r) => r.unregister()));
+
+          // 注册测试 SW（启用 HOST_CACHE_CONFIG）
+          await navigator.serviceWorker.register("/host-cache-test-sw.js");
+          await navigator.serviceWorker.ready;
+
+          // 等待 SW 接管页面并完成 initHostCache
+          let status_1;
+          for (let i_1 = 0; i_1 < 50; i_1++) {
+            try {
+              const response_1 = await fetch("/__host-cache", {
+                cache: "no-store",
+              });
+              if (response_1.ok) {
+                status_1 = await response_1.json();
+                if (!status_1.precaching) break;
+              }
+            } catch {}
+            await new Promise((r_1) => setTimeout(r_1, 200));
+          }
+
+          const checks_1 = {
+            swRegistered: !!navigator.serviceWorker.controller,
+            hasName: status_1?.name === "test-host-cache",
+            hasVersion: status_1?.version === "1.0.0",
+            hasFileCount: status_1?.fileCount === 1,
+            notPrecaching: status_1?.precaching === false,
+          };
+
+          return {
+            assert: Object.values(checks_1).every(Boolean),
+            content: { status: status_1, checks: checks_1 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="预缓存的文件可通过 fetch 正常访问">
+      <template>
+        <script type="module">
+          const response_2 = await fetch(
+            "/tests/sw/host-cache-test-file.txt",
+            { cache: "no-store" }
+          );
+          const text_2 = await response_2.text();
+
+          return {
+            assert:
+              response_2.status === 200 && text_2 === "Hello host-cache test!",
+            content: { status: response_2.status, text: text_2 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="OPFS 中存在已缓存的文件">
+      <template>
+        <script type="module">
+          const root_3 = await navigator.storage.getDirectory();
+          let hasFile_3 = false;
+          let fileContent_3 = "";
+
+          try {
+            const dir_3 = await root_3.getDirectoryHandle("host-cache");
+            const filesDir_3 = await dir_3.getDirectoryHandle("files");
+            const testsDir_3 = await filesDir_3.getDirectoryHandle("tests");
+            const swDir_3 = await testsDir_3.getDirectoryHandle("sw");
+            const fileHandle_3 = await swDir_3.getFileHandle(
+              "host-cache-test-file.txt"
+            );
+            const file_3 = await fileHandle_3.getFile();
+            fileContent_3 = await file_3.text();
+            hasFile_3 = fileContent_3.length > 0;
+          } catch {}
+
+          return {
+            assert: hasFile_3 && fileContent_3 === "Hello host-cache test!",
+            content: { hasFile: hasFile_3, fileContent: fileContent_3 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="版本未变化时 __update-host-cache 返回 version-up-to-date">
+      <template>
+        <script type="module">
+          const result_4 = await fetch("/__update-host-cache", {
+            cache: "no-store",
+          }).then((r) => r.json());
+
+          return {
+            assert:
+              result_4.ok === true && result_4.reason === "version-up-to-date",
+            content: { result: result_4 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="删除 OPFS 缓存后 __update-host-cache 重新拉取">
+      <template>
+        <script type="module">
+          // 删除 OPFS 中的 host-cache 目录
+          const root_5 = await navigator.storage.getDirectory();
+          await root_5
+            .removeEntry("host-cache", { recursive: true })
+            .catch(() => {});
+
+          // 触发更新
+          const result_5 = await fetch("/__update-host-cache", {
+            cache: "no-store",
+          }).then((r) => r.json());
+
+          // 验证重新拉取成功
+          const checks_5 = {
+            ok: result_5.ok === true,
+            downloaded: result_5.downloaded === 1,
+            failed: result_5.failed === 0,
+          };
+
+          // 验证文件已重新缓存
+          let hasFile_5 = false;
+          try {
+            const dir_5 = await root_5.getDirectoryHandle("host-cache");
+            const filesDir_5 = await dir_5.getDirectoryHandle("files");
+            const testsDir_5 = await filesDir_5.getDirectoryHandle("tests");
+            const swDir_5 = await testsDir_5.getDirectoryHandle("sw");
+            const fileHandle_5 = await swDir_5.getFileHandle(
+              "host-cache-test-file.txt"
+            );
+            const file_5 = await fileHandle_5.getFile();
+            hasFile_5 = (await file_5.text()) === "Hello host-cache test!";
+          } catch {}
+
+          checks_5.hasFile = hasFile_5;
+
+          return {
+            assert: Object.values(checks_5).every(Boolean),
+            content: { result: result_5, checks: checks_5 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="清理测试环境后重新注册正式 SW">
+      <template>
+        <script type="module">
+          // 清理 OPFS host-cache
+          const root_6 = await navigator.storage.getDirectory();
+          await root_6
+            .removeEntry("host-cache", { recursive: true })
+            .catch(() => {});
+
+          // 注销测试 SW，注册正式 SW
+          const regs_6 = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_6.map((r) => r.unregister()));
+          await navigator.serviceWorker.register("/sw.js");
+          await navigator.serviceWorker.ready;
+
+          return {
+            assert: true,
+            content: { message: "测试环境已清理，正式 SW 已恢复" },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

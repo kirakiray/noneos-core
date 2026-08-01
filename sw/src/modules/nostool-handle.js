@@ -16,8 +16,7 @@ export const handleNosToolRequest = async ({ request }) => {
     try {
       return await fetch(newUrl);
     } catch {
-      // localhost:3002 未启动，直接从当前静态服务器请求
-      return fetch(request);
+      return returnOfficial();
     }
   }
 

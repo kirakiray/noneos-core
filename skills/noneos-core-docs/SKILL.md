@@ -29,29 +29,6 @@ importScripts("https://core.noneos.com/sw/dist.js");
 ```
 参考：[nos-version 组件文档](references/nos-version.md)
 
-### 3. 宿主项目离线缓存（可选）
-
-如果宿主项目需要缓存自己的文件实现离线访问，在 `sw.js` 中配置 `NONEOS_HOST_CACHE` 并编写清单文件即可：
-
-```js
-globalThis.NONEOS_HOST_CACHE = { manifest: "/host-cache.json" };
-importScripts("https://core.noneos.com/sw/dist.js");
-```
-
-清单文件 `host-cache.json` 示例：
-
-```json
-{
-  "name": "my-project",
-  "version": "1.0.0",
-  "files": ["index.html", "apps/main/home.html"]
-}
-```
-
-安装 NoneOS Core 时会自动下载清单内文件并缓存，修改 `version` 即触发升级。
-
-更多详细操作参考：[宿主项目缓存文档](references/host-cache.md)
-
 ---
 
 ## 核心功能 1：挂载文件系统 (静态文件托管)
@@ -203,8 +180,8 @@ const result = await publisher.assembleFile(fileHash);
 > ⚠️ **实验性特性**：`ai` 与 `hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [AI 操作文档](references/ai.md)
+- [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
-- [宿主项目缓存 (host-cache)](references/host-cache.md) — 离线缓存宿主文件、清单格式、版本升级
 - [图标组件文档 (n-icon)](references/n-icon.md)
 - [公共组件文档 (ncomp)](references/ncomp.md)
 - [多语言模块 (locale-text)](references/locale-text.md)

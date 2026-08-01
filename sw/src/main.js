@@ -1,14 +1,17 @@
 import {
-  handleHostCacheRequest,
-  hasHostCachePath,
-  initHostCachePaths,
-} from "./modules/host-cache-handle.js";
-import {
   handleGitHubRequest,
   handleNpmRequest,
   handleNcompRequest,
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
+import {
+  handleHostCacheMessage,
+  handleHostCacheRequest,
+  handleHostCacheStatus,
+  initHostCache,
+  isHostCachedFile,
+  triggerHostCacheUpdate,
+} from "./modules/host-cache-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
 import { handleNosToolRequest } from "./modules/nostool-handle.js";
@@ -17,7 +20,7 @@ import { handleNosToolRequest } from "./modules/nostool-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-const NONEOS_CORE_VERSION = "noneos-core@4.3.0";
+const NONEOS_CORE_VERSION = "noneos-core@4.3.1";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -32,6 +35,14 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__config") {
     return event.respondWith(reloadSystemConfig());
+  }
+
+  if (pathname === "/__host-cache" && globalThis.HOST_CACHE_CONFIG) {
+    return event.respondWith(handleHostCacheStatus());
+  }
+
+  if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
+    return event.respondWith(triggerHostCacheUpdate());
   }
 
   try {
@@ -107,8 +118,12 @@ self.addEventListener("fetch", (event) => {
       );
     }
 
-    // 宿主缓存兜底：命中已缓存的宿主项目文件时，从 OPFS 返回
-    if (request.method === "GET" && hasHostCachePath(pathname)) {
+    // 宿主项目缓存 fallback：不匹配 noneos-core 路由的同域 GET 请求
+    if (
+      globalThis.HOST_CACHE_CONFIG &&
+      request.method === "GET" &&
+      isHostCachedFile(pathname)
+    ) {
       return event.respondWith(
         handleHostCacheRequest({ path: pathname, request }),
       );
@@ -136,8 +151,20 @@ self.addEventListener("activate", () => {
 
   setTimeout(() => {
     reloadSystemConfig();
-    initHostCachePaths();
   }, 1000);
+});
+
+// 宿主项目缓存更新消息处理
+self.addEventListener("message", (event) => {
+  if (!globalThis.HOST_CACHE_CONFIG) return;
+  if (event.data?.type !== "host-cache-update") return;
+
+  handleHostCacheMessage(event.data).then((result) => {
+    event.source?.postMessage({
+      type: "host-cache-update-result",
+      ...result,
+    });
+  });
 });
 
 const reloadSystemConfig = async () => {
@@ -152,14 +179,10 @@ const reloadSystemConfig = async () => {
       systemConfig = JSON.parse(content);
     }
 
-    // 刷新宿主缓存路径集合
-    await initHostCachePaths();
-
     return new Response(
       JSON.stringify({
         serviceWorkerVersion: NONEOS_CORE_VERSION.replace("noneos-core@", ""),
         systemConfig,
-        hostCacheConfig: globalThis.NONEOS_HOST_CACHE || null,
       }),
     );
   } catch (err) {
@@ -171,3 +194,8 @@ const reloadSystemConfig = async () => {
 };
 
 reloadSystemConfig();
+
+// 初始化宿主项目缓存（仅在宿主项目配置了 HOST_CACHE_CONFIG 时生效）
+if (globalThis.HOST_CACHE_CONFIG) {
+  initHostCache();
+}

@@ -1,186 +1,114 @@
-# 宿主项目缓存 (Host Cache)
+# 宿主项目离线缓存 (host-cache)
 
-NoneOS Core 允许基于它开发的宿主项目（二次操作系统、Web 应用等）缓存自己的文件，实现离线访问。该功能通过 **manifest 清单文件** 驱动，安装时预缓存到 OPFS，Service Worker 在请求时优先从本地返回。
+NoneOS Core 的 Service Worker 提供了宿主项目离线缓存功能，允许使用 noneos-core 的项目缓存自己的文件列表，实现离线访问。
 
-> 宿主项目指通过 `importScripts("https://core.noneos.com/sw/dist.js")` 引用 NoneOS Core 的项目。
+## 启用方式
 
----
+在宿主项目的 `sw.js` 中，`importScripts` 之前设置 `globalThis.HOST_CACHE_CONFIG`：
 
-## 快速开始
+```javascript
+globalThis.HOST_CACHE_CONFIG = true;
+importScripts("https://core.noneos.com/sw/dist.js");
+```
 
-### 1. 编写清单文件
+可选配置：
+```javascript
+globalThis.HOST_CACHE_CONFIG = {
+  manifestPath: "/host-cache.json", // 自定义 manifest 路径，默认 /host-cache.json
+};
+```
 
-在宿主项目根目录创建 `host-cache.json`：
+## Manifest 文件
+
+在项目根目录创建 `host-cache.json`（或自定义路径）：
 
 ```json
 {
-  "name": "mazmot",
+  "name": "my-app",
   "version": "1.0.0",
   "files": [
     "index.html",
-    "apps/main/home.html",
-    "comps/ercode/ercode.html"
+    "main.js",
+    "css/style.css",
+    "apps/home.html"
   ]
 }
 ```
 
-### 2. 在 sw.js 中声明
-
-在 `importScripts` **之前**设置全局变量，指向清单文件的 URL：
-
-```js
-globalThis.NONEOS_HOST_CACHE = { manifest: "/host-cache.json" };
-importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
-```
-
-完成。终端用户安装/升级 NoneOS Core 时，清单内的文件会被自动下载并缓存，后续离线也能正常访问。
-
----
-
-## 清单文件格式 (host-cache.json)
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `name` | string | 否 | 项目名称，仅用于标识 |
-| `version` | string | 是 | 缓存版本号。**修改此值即触发升级**——系统检测到与本地版本不一致时自动重新下载所有文件 |
-| `files` | string[] | 是 | 需要缓存的文件路径列表，使用相对根目录的路径（不带开头的 `/`） |
-
-### files 路径规则
-
-- 路径相对于宿主项目根目录，不带开头的 `/`
-- 示例：`"apps/main/home.html"` 对应请求路径 `/apps/main/home.html`
-- 目录路径（如 `/apps/main/`）会自动补全为 `index.html`，因此若需缓存目录入口，请将 `apps/main/index.html` 写入列表
-
-### 示例
-
-```json
-{
-  "name": "mazmot",
-  "version": "1.2.0",
-  "files": [
-    "index.html",
-    "apps/main/home.html",
-    "apps/main/index.html",
-    "comps/ercode/ercode.html",
-    "comps/ercode/ercode.js"
-  ]
-}
-```
-
----
+- `name`：项目名称
+- `version`：版本号，版本变化时触发缓存更新
+- `files`：需要离线缓存的文件路径列表（相对于根目录，不带前导 `/`）
 
 ## 工作原理
 
-### 安装时预缓存
+### 预缓存
 
-当用户安装或升级 NoneOS Core 时，`install()` 流程会在系统文件安装完成后自动执行：
+SW 加载时会读取 manifest，将 `files` 列表中的文件逐个下载并写入 OPFS 缓存。版本变化时，先删除不再需要的旧文件，再重新下载所有文件。
 
-1. 拉取 `host-cache.json` 清单
-2. 逐个下载 `files` 列表中的文件，写入 OPFS `host-cache/` 目录
-3. 最后写入 `host-cache/manifest.json` 副本（供 Service Worker 构建拦截路径集合）
-4. 更新 `system.json` 中的 `hostCache` 字段
+### fetch 拦截
 
-下载进度会通过 nos-version 组件的安装遮罩统一展示。
+当页面请求同域 GET 资源时，如果路径在 manifest 的 files 列表中，SW 优先从 OPFS 缓存返回。缓存未命中时回退到网络，并将响应写入缓存。
 
-### 请求时拦截
+### 版本更新检测
 
-Service Worker 在 fetch 路由链**末端**检查请求路径是否命中 `host-cache/manifest.json` 的文件列表：
+SW 不会自动检测 `host-cache.json` 的变化（浏览器只在 `sw.js` 本身变化时才更新 SW）。需要前端主动检查并触发更新：
 
-- **命中** → 优先从 OPFS 返回（离线可用）
-- **OPFS 未命中** → 回退到网络请求（与 `/nos/` 路径行为一致）
+```javascript
+// 1. 获取当前 SW 缓存的版本
+const cached = await fetch("/__host-cache").then(r => r.json());
+// cached: { name, version, fileCount, precaching }
 
-> `manifest.json` 在所有文件下载完成后才写入，因此安装未完成时 Service Worker 不会拦截，避免返回不完整的缓存。
+// 2. 获取最新 manifest
+const latest = await fetch("/host-cache.json", { cache: "no-store" }).then(r => r.json());
 
-### OPFS 存储结构
-
-```
-host-cache/
-├── manifest.json          # 清单副本（SW 读取此文件构建拦截路径集合）
-├── index.html
-├── apps/
-│   └── main/
-│       └── home.html
-└── comps/
-    └── ercode/
-        └── ercode.html
-```
-
-### system.json 新增字段
-
-安装完成后，`system.json` 中会记录宿主缓存状态：
-
-```json
-{
-  "hostCache": {
-    "version": "1.2.0",
-    "cachePath": "host-cache",
-    "mode": "local"
-  }
+// 3. 版本不同时，触发更新
+if (cached.version !== latest.version) {
+  const result = await fetch("/__update-host-cache").then(r => r.json());
+  // result: { ok: true, downloaded: 42, failed: 0, total: 42 }
 }
 ```
 
----
+> 也可以直接调用 `fetch("/__update-host-cache")` 触发更新，无需先检查版本。SW 会自行拉取最新 manifest 并在版本变化时执行预缓存。
 
-## 版本升级
+### 进度监听
 
-只需修改 `host-cache.json` 中的 `version` 字段并重新部署。系统会在版本检测时（`check()`）发现线上 manifest 的 `version` 与本地 `system.json` 中的 `hostCache.version` 不一致，自动触发升级流程，重新下载所有文件。
+SW 在预缓存过程中会通过 `postMessage` 广播进度：
 
-### 智能跳过
-
-当**仅宿主缓存**需要升级（NoneOS Core 本身已是最新）时，`install()` 会跳过 NoneOS Core 的重装，仅执行宿主缓存下载，避免不必要的开销。
-
-### 与 nos-version 组件的联动
-
-版本检测与升级通过 `<nos-version>` 组件驱动。当检测到宿主缓存可升级时，组件触发 `upgradable` 事件，`detail` 中包含区分字段：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `version` | string | 当前已安装的 NoneOS Core 版本号 |
-| `lastVersion` | string | 目标版本号（宿主缓存升级时为 manifest 的 version） |
-| `hostCacheUpgradeOnly` | boolean | `true` 表示仅宿主缓存需要升级 |
-| `hostCacheOnlineVersion` | string | 宿主缓存的线上最新版本号 |
-
-监听示例：
-
-```html
-<nos-version id="nv" auto-install></nos-version>
-<script>
-  $("#nv").on("upgradable", (e) => {
-    const { version, lastVersion, hostCacheUpgradeOnly } = e.detail;
-    if (hostCacheUpgradeOnly) {
-      console.log("宿主缓存可升级到:", lastVersion);
-    } else {
-      console.log("NoneOS 可升级:", version, "→", lastVersion);
-    }
-  });
-</script>
+```javascript
+navigator.serviceWorker.addEventListener("message", (event) => {
+  const { type, total, downloaded, failed } = event.data;
+  if (type === "host-cache-progress") {
+    console.log(`预缓存进度: ${downloaded}/${total} (失败: ${failed})`);
+  } else if (type === "host-cache-complete") {
+    console.log(`预缓存完成: ${downloaded} 成功, ${failed} 失败`);
+  }
+});
 ```
 
-更多组件细节参考：[nos-version 组件文档](nos-version.md)
+## 状态查询
 
----
+通过 `/__host-cache` 路由查询当前缓存状态：
 
-## 未配置时的行为
-
-如果宿主未设置 `NONEOS_HOST_CACHE`，所有 host-cache 逻辑透明跳过：
-
-- `check()` 不会检测宿主缓存版本
-- `install()` 不会下载额外文件
-- Service Worker 不会拦截额外路径
-
-不会产生任何报错，功能完全可选。
-
----
-
-## 配置参考
-
-`globalThis.NONEOS_HOST_CACHE` 接受一个对象：
-
-| 属性 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `manifest` | string | 是 | 清单文件的 URL 路径，如 `/host-cache.json` |
-
-```js
-// 标准用法
-globalThis.NONEOS_HOST_CACHE = { manifest: "/host-cache.json" };
+```javascript
+const status = await fetch("/__host-cache").then(r => r.json());
+// { name: "my-app", version: "1.0.0", fileCount: 42, precaching: false }
 ```
+
+## OPFS 存储结构
+
+```
+host-cache/
+  manifest.json    # 持久化的 manifest
+  files/           # 缓存文件，保持原始路径结构
+    index.html
+    main.js
+    css/style.css
+    ...
+```
+
+## 注意事项
+
+- manifest 文件本身不走缓存，始终从网络获取，确保前端能检测到版本变化。
+- 文件路径不应以 `/nos/`、`/gh/`、`/npm/`、`/ncomp/`、`/nos-tool/`、`/$` 等 noneos-core 保留前缀开头，否则会被对应路由优先处理。
+- 预缓存是异步的，不阻塞 SW 的 install/activate。预缓存完成前，未缓存的文件会回退到网络。
+- 首次安装时所有文件都需要网络下载，请确保在网络环境下完成首次预缓存。

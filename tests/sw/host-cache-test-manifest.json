@@ -1,0 +1,5 @@
+{
+  "name": "test-host-cache",
+  "version": "1.0.0",
+  "files": ["tests/sw/host-cache-test-file.txt"]
+}
