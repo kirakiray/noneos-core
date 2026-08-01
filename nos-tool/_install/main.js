@@ -291,9 +291,16 @@ export const installHostCache = async (manifestUrl, callback) => {
     systemConfig.hostCache?.version &&
     systemConfig.hostCache.version === manifest.version
   ) {
+    console.log(
+      `[host-cache] v${manifest.version} up to date, skip`,
+    );
     callback({ desc: "host cache up to date", step: total, total });
     return;
   }
+
+  console.log(
+    `[host-cache] installing v${manifest.version} (${systemConfig.hostCache?.version || "none"} → v${manifest.version}), ${manifest.files.length} files`,
+  );
 
   // 准备缓存目录
   await init(HOST_CACHE_DIR);
@@ -312,6 +319,7 @@ export const installHostCache = async (manifestUrl, callback) => {
       create: "file",
     });
     await fileHandle.write(blob);
+    console.log(`[host-cache] cached: ${filePath}`);
   }
 
   // 写入 manifest 副本（SW 读取此文件构建拦截路径集合）
@@ -329,6 +337,8 @@ export const installHostCache = async (manifestUrl, callback) => {
       mode: "local",
     },
   });
+
+  console.log(`[host-cache] v${manifest.version} installed successfully`);
 };
 
 /**
