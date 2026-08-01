@@ -1,4 +1,4 @@
-/* noneos-core version: 4.3.0 */
+/* noneos-core version: 4.3.1 */
 (function () {
   'use strict';
 
@@ -858,7 +858,7 @@
   // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
   let systemConfig = {};
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.2.9";
+  const NONEOS_CORE_VERSION = "noneos-core@4.3.1";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
