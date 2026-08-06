@@ -6,7 +6,10 @@
 
 ```javascript
 const servers = await user.server.getServers();
-// 默认返回：["ws://localhost:8081", "ws://localhost:8082"]
+// localhost / 127.0.0.1 下默认返回：
+// ["ws://localhost:8081", "ws://localhost:8082",
+//  "wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4331", "wss://hand3-hk1.noneos.com:4331"]
+// 其他域名下默认只返回三个线上服务器
 ```
 
 ## 添加自定义服务器
@@ -15,7 +18,7 @@ const servers = await user.server.getServers();
 await user.server.addServer("ws://localhost:9090");
 
 const servers = await user.server.getServers();
-// ["ws://localhost:8081", "ws://localhost:8082", "ws://localhost:9090"]
+// 默认列表末尾追加 "ws://localhost:9090"
 ```
 
 添加重复的 URL 不会产生重复条目。
