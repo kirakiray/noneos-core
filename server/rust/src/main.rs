@@ -52,8 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         global_data.inbound_bytes, global_data.outbound_bytes, global_data.relay_forwarded_bytes
     );
 
-    // 加载当前自然月的服务器整体用量（跨月停机会自动归零）
-    let period_data = traffic::load_period_usage(&db, traffic::now_ms());
+    // 加载当前计费周期的服务器整体用量（跨周期停机会自动归零）
+    let period_data = traffic::load_period_usage(
+        &db,
+        traffic::now_ms(),
+        config.quota_period_reset_day,
+    );
     println!(
         "Loaded period usage: used={} bytes (inbound={}, outbound={}), period_start={}",
         period_data.total_bytes(),
@@ -184,8 +188,8 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
         let now = traffic::now_ms();
         let ts_30s = now / 30_000;
 
-        // 自然月翻转时把服务器整体月度用量归零（低频检查，不占用中继热路径）
-        if state.traffic.roll_period_if_needed(now) {
+        // 进入新计费周期时把服务器整体月度用量归零（低频检查，不占用中继热路径）
+        if state.traffic.roll_period_if_needed(now, state.config.quota_period_reset_day) {
             println!("Global relay quota period rolled over, usage counters reset.");
         }
 

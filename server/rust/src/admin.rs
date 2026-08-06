@@ -637,6 +637,7 @@ pub async fn handle_admin_command(
                     "inboundBytes": period.inbound_bytes,
                     "outboundBytes": period.outbound_bytes,
                     "periodStartAt": period.period_start_ms,
+                    "periodResetDay": state.config.quota_period_reset_day,
                     "remainingBytes": quota.saturating_sub(used),
                     "unlimited": quota == 0,
                     "exceeded": state.is_global_quota_exceeded(),

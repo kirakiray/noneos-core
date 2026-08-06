@@ -276,14 +276,14 @@
               <span>入站 {{quotaInboundText}}</span>
               <span>出站 {{quotaOutboundText}}</span>
               <span>剩余 {{quotaRemainingText}}</span>
-              <span>本周期始于 {{quotaPeriodStartText}}</span>
+              <span>本周期始于 {{quotaPeriodStartText}}（{{quotaResetDayText}}重置）</span>
             </div>
           </o-if>
           <o-else>
             <div class="quota-meta" style="margin-top: 10px">
               <span>入站 {{quotaInboundText}}</span>
               <span>出站 {{quotaOutboundText}}</span>
-              <span>本周期始于 {{quotaPeriodStartText}}</span>
+              <span>本周期始于 {{quotaPeriodStartText}}（{{quotaResetDayText}}重置）</span>
             </div>
           </o-else>
 
@@ -291,7 +291,7 @@
             <div class="quota-note">
               已达服务器月度限额：非管理员的中继已降级为仅放行小消息（≤ 配置的
               relay_small_message_max_bytes）。WebRTC 信令与名片交换仍可通行，用户可继续建立
-              P2P 直连。下月初自动恢复。
+              P2P 直连。到下个重置日（{{quotaResetDayText}}）自动恢复。
             </div>
           </o-if>
         </div>
@@ -462,6 +462,12 @@
               + String(d.getDate()).padStart(2, "0") + " "
               + String(d.getHours()).padStart(2, "0") + ":"
               + String(d.getMinutes()).padStart(2, "0");
+          },
+
+          /** 服务器配置的重置日，如「每月 15 号」 */
+          get quotaResetDayText() {
+            const day = this.quotaData?.periodResetDay || 1;
+            return "每月 " + day + " 号";
           },
 
           get hasTrafficTimeDist() {

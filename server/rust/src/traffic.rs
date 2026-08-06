@@ -235,17 +235,18 @@ impl TrafficStats {
             .saturating_add(self.period.outbound_bytes.load(Ordering::Relaxed))
     }
 
-    /// 若 now_ms 已进入新的自然月，则将周期用量归零并把周期起点推进到当月月初
+    /// 若 now_ms 已进入新的计费周期，则将周期用量归零并把周期起点推进到新周期起始
+    /// `reset_day` 来自配置 `quota_period_reset_day`（每月几号重置）
     /// 返回 true 表示本次调用发生了周期切换（由低频 flush 定时器驱动，不在热路径判断）
-    pub fn roll_period_if_needed(&self, now_ms: u64) -> bool {
-        let month_start = month_start_ms(now_ms);
+    pub fn roll_period_if_needed(&self, now_ms: u64, reset_day: u32) -> bool {
+        let start = period_start_ms(now_ms, reset_day);
         let current_start = self.period.period_start_ms.load(Ordering::Relaxed);
-        if current_start >= month_start {
+        if current_start >= start {
             return false;
         }
         self.period.inbound_bytes.store(0, Ordering::Relaxed);
         self.period.outbound_bytes.store(0, Ordering::Relaxed);
-        self.period.period_start_ms.store(month_start, Ordering::Relaxed);
+        self.period.period_start_ms.store(start, Ordering::Relaxed);
         true
     }
 
@@ -489,25 +490,99 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// 将毫秒时间戳换算为其所在自然月的月初零点时间戳（毫秒，UTC）
+/// 读取服务器本地时区相对 UTC 的偏移秒数（含夏令时）
 ///
-/// 采用 Howard Hinnant 的 civil_from_days 历法算法反推「当月第几天」，
-/// 再回退到当月 1 号零点，因此无需引入 chrono 等额外依赖。
-/// 注意：月份边界按 UTC 判定。
-pub fn month_start_ms(ts_ms: u64) -> u64 {
-    const MS_PER_DAY: u64 = 86_400_000;
-    let days = (ts_ms / MS_PER_DAY) as i64;
+/// 通过 libc 的 `localtime_r` 获取，等价于 `date +%z` 的结果。
+/// 失败时回退 0（按 UTC 处理）。
+fn local_utc_offset_secs(ts_ms: u64) -> i64 {
+    let t = (ts_ms / 1000) as libc::time_t;
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    // SAFETY: 传入合法的 time_t 与已零初始化的 tm 结构体；localtime_r 是线程安全版本
+    let res = unsafe { libc::localtime_r(&t, &mut tm) };
+    if res.is_null() {
+        return 0;
+    }
+    tm.tm_gmtoff as i64
+}
 
-    // civil_from_days：由 1970-01-01 起的天数反推年/月/日
+/// 由「1970-01-01 起的天数」反推公历年月日
+///
+/// Howard Hinnant 的 civil_from_days 算法，纯整数运算，无需额外依赖。
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let z = days + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
     let doe = z - era * 146_097; // [0, 146096]
     let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let y = yoe + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
     let mp = (5 * doy + 2) / 153; // [0, 11]
-    let day_of_month = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32; // [1, 12]
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
 
-    ((days - (day_of_month - 1)) as u64) * MS_PER_DAY
+/// 由公历年月日算出「1970-01-01 起的天数」
+///
+/// Howard Hinnant 的 days_from_civil 算法，是 `civil_from_days` 的逆运算。
+fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400; // [0, 399]
+    let mp = if m > 2 { m - 3 } else { m + 9 } as i64; // [0, 11]
+    let doy = (153 * mp + 2) / 5 + d as i64 - 1; // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
+    era * 146_097 + doe - 719_468
+}
+
+/// 指定年月的天数
+fn days_in_month(year: i64, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+            if leap { 29 } else { 28 }
+        }
+        _ => 30,
+    }
+}
+
+/// 计算 `ts_ms` 所处计费周期的起始时间戳（毫秒，UTC 时间轴）
+///
+/// `reset_day` 为配置的重置日（每月几号，取值 1-31）。归零时刻是
+/// **服务器本地时区**当天的 00:00。例如 `reset_day = 15`：
+/// - 传入 8 月 20 日 → 返回 8 月 15 日 00:00
+/// - 传入 8 月 3 日（还没到本月 15 号）→ 返回 7 月 15 日 00:00
+///
+/// 若目标月份天数不足（如 `reset_day = 31` 而当月只有 30 天），自动取该月最后一天。
+/// 返回值是 UTC 时间轴上的绝对时间戳，可直接与 `now_ms()` 比较。
+pub fn period_start_ms(ts_ms: u64, reset_day: u32) -> u64 {
+    const MS_PER_DAY: i64 = 86_400_000;
+    let reset_day = reset_day.clamp(1, 31);
+    let offset_ms = local_utc_offset_secs(ts_ms) * 1000;
+
+    // 换算到本地时间轴，取出当前的年/月/日
+    let local_ms = ts_ms as i64 + offset_ms;
+    let (year, month, day) = civil_from_days(local_ms.div_euclid(MS_PER_DAY));
+
+    // 本月的实际重置日（天数不足时取当月最后一天）
+    let this_month_reset = reset_day.min(days_in_month(year, month));
+
+    // 还没到本月的重置日 → 周期起点在上一个月
+    let (py, pm) = if day >= this_month_reset {
+        (year, month)
+    } else if month == 1 {
+        (year - 1, 12)
+    } else {
+        (year, month - 1)
+    };
+    let pd = reset_day.min(days_in_month(py, pm));
+
+    let local_start = days_from_civil(py, pm, pd) * MS_PER_DAY;
+    // 用周期起点当刻的本地偏移换回 UTC，避免夏令时切换导致偏差
+    let approx_utc = local_start - offset_ms;
+    let start_offset_ms = local_utc_offset_secs(approx_utc.max(0) as u64) * 1000;
+    (local_start - start_offset_ms).max(0) as u64
 }
 
 /// 获取消息字节大小（用于统计）
@@ -596,14 +671,14 @@ pub fn load_global_data(db: &Database) -> GlobalTraffic {
 
 /// 加载计费周期用量（启动时调用）
 ///
-/// 若持久化的周期起点早于当前自然月（例如服务器跨月停机），则视为新周期，
-/// 返回归零后的用量并把周期起点设为当月月初。
-pub fn load_period_usage(db: &Database, now_ms_val: u64) -> PeriodUsage {
-    let month_start = month_start_ms(now_ms_val);
+/// 若持久化的周期起点早于当前周期起始（例如服务器跨周期停机），则视为新周期，
+/// 返回归零后的用量并把周期起点设为当前周期起始。
+pub fn load_period_usage(db: &Database, now_ms_val: u64, reset_day: u32) -> PeriodUsage {
+    let start = period_start_ms(now_ms_val, reset_day);
     let fresh = PeriodUsage {
         inbound_bytes: 0,
         outbound_bytes: 0,
-        period_start_ms: month_start,
+        period_start_ms: start,
     };
 
     let read_txn = match db.begin_read() {
@@ -616,7 +691,7 @@ pub fn load_period_usage(db: &Database, now_ms_val: u64) -> PeriodUsage {
     };
 
     let period_start = table.get(KEY_PERIOD_START).ok().flatten().map(|v| v.value()).unwrap_or(0);
-    if period_start < month_start {
+    if period_start < start {
         return fresh;
     }
 
@@ -795,4 +870,126 @@ pub fn perform_final_flush(
     }
     write_txn.commit()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 由本地时区的年月日 00:00 构造 UTC 毫秒时间戳（测试辅助）
+    fn local_ymd_ms(y: i64, m: u32, d: u32) -> u64 {
+        let local = days_from_civil(y, m, d) * 86_400_000;
+        // 迭代一次以消除偏移带来的误差（时区偏移不超过 1 天）
+        let off = local_utc_offset_secs((local - 0).max(0) as u64) * 1000;
+        let approx = local - off;
+        let off2 = local_utc_offset_secs(approx.max(0) as u64) * 1000;
+        (local - off2).max(0) as u64
+    }
+
+    #[test]
+    fn civil_roundtrip() {
+        // days_from_civil 与 civil_from_days 应互为逆运算
+        for days in [0_i64, 1, 59, 60, 20_000, 20_667, 30_000] {
+            let (y, m, d) = civil_from_days(days);
+            assert_eq!(days_from_civil(y, m, d), days, "roundtrip failed at {days}");
+        }
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+    }
+
+    #[test]
+    fn days_in_month_leap_years() {
+        assert_eq!(days_in_month(2024, 2), 29); // 闰年
+        assert_eq!(days_in_month(2025, 2), 28);
+        assert_eq!(days_in_month(2000, 2), 29); // 400 整除是闰年
+        assert_eq!(days_in_month(1900, 2), 28); // 100 整除但非 400 → 平年
+        assert_eq!(days_in_month(2026, 4), 30);
+    }
+
+    #[test]
+    fn reset_day_1_returns_month_start() {
+        // reset_day = 1：周期起点就是当月 1 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 20), 1),
+            local_ymd_ms(2026, 8, 1)
+        );
+        // 正好在 1 号当天，起点是当天而非上月
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 1), 1),
+            local_ymd_ms(2026, 8, 1)
+        );
+    }
+
+    #[test]
+    fn reset_day_mid_month() {
+        // reset_day = 15，已过本月 15 号 → 起点为本月 15 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 20), 15),
+            local_ymd_ms(2026, 8, 15)
+        );
+        // 正好是 15 号 → 起点为当天
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 15), 15),
+            local_ymd_ms(2026, 8, 15)
+        );
+        // 还没到本月 15 号 → 起点回退到上月 15 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 3), 15),
+            local_ymd_ms(2026, 7, 15)
+        );
+    }
+
+    #[test]
+    fn reset_day_crosses_year_boundary() {
+        // 1 月还没到重置日 → 回退到上一年 12 月
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 1, 5), 20),
+            local_ymd_ms(2025, 12, 20)
+        );
+    }
+
+    #[test]
+    fn reset_day_clamped_to_short_month() {
+        // reset_day = 31，但 4 月只有 30 天 → 取 4 月 30 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 4, 30), 31),
+            local_ymd_ms(2026, 4, 30)
+        );
+        // 4 月 15 号还没到（4 月的重置日被夹到 30）→ 回退到 3 月 31 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 4, 15), 31),
+            local_ymd_ms(2026, 3, 31)
+        );
+        // reset_day = 30，2 月只有 28 天（2026 平年）→ 取 2 月 28 号
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 2, 28), 30),
+            local_ymd_ms(2026, 2, 28)
+        );
+    }
+
+    #[test]
+    fn reset_day_out_of_range_is_clamped() {
+        // 0 与 99 应被夹到合法区间 [1, 31]，不 panic
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 20), 0),
+            period_start_ms(local_ymd_ms(2026, 8, 20), 1)
+        );
+        assert_eq!(
+            period_start_ms(local_ymd_ms(2026, 8, 20), 99),
+            period_start_ms(local_ymd_ms(2026, 8, 20), 31)
+        );
+    }
+
+    #[test]
+    fn period_start_is_monotonic_within_period() {
+        // 同一周期内任意时刻的起点必须一致
+        let a = period_start_ms(local_ymd_ms(2026, 8, 15), 15);
+        let b = period_start_ms(local_ymd_ms(2026, 8, 15) + 3_600_000 * 5, 15);
+        let c = period_start_ms(local_ymd_ms(2026, 9, 14) + 3_600_000 * 23, 15);
+        assert_eq!(a, b);
+        assert_eq!(a, c);
+        // 跨过下一个重置日后起点前进
+        let d = period_start_ms(local_ymd_ms(2026, 9, 15), 15);
+        assert!(d > a);
+        assert_eq!(d, local_ymd_ms(2026, 9, 15));
+    }
 }

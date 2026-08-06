@@ -112,6 +112,23 @@ EventTarget
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
+### AdminUser（admin-user.js）
+
+所有方法都经 `#adminCommand(url, action, extra)` 发送 `{type:"admin", action, ...}` 并等待匹配 `action` 的 `admin_response`（失败自动重试一次）。
+
+| 方法 | 对应 action |
+|------|------------|
+| `listUsers(url, {page, pageSize})` | `list_users` |
+| `listUserGroups(url, {page, pageSize})` | `list_user_groups` |
+| `listAllUsers(url, {page, pageSize})` | `list_all_users` |
+| `disconnectUser(url, userId)` / `disconnectSession(url, userId, sessionId)` | `disconnect_user` / `disconnect_session` |
+| `getSystemInfo(url)` | `get_system_info` |
+| `getTrafficStats(url, {limit})` | `get_traffic_stats` |
+| `getTrafficHistory(url, {...})` | `get_traffic_history`（服务端已废弃，返回空数组） |
+| `getSystemStatsHistory(url, {limit})` | `get_system_stats_history` |
+| `setUserRelayQuota(url, userId, quotaBytes)` / `getUserRelayQuota(url, userId)` | `set_user_relay_quota` / `get_user_relay_quota`（后者传数组则批量查询，结果在 `quotas`） |
+| `getGlobalRelayQuota(url)` | `get_global_relay_quota` —— 服务器整体月度流量限额。响应 `quota` 含 `quotaBytes`(0=不限制)/`usedBytes`/`inboundBytes`/`outboundBytes`/`periodStartAt`/`periodResetDay`/`remainingBytes`/`unlimited`/`exceeded` |
+
 ## 五、关键实现细节
 
 ### 1. 握手挑战应答（server.js）
