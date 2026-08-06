@@ -73,7 +73,8 @@
 便捷组合：
 - `npm run dev` = `npm run static` + `npm run watch:sw`（不含 ws，需另起）
 - `npm run ws` = `npm run ws1` + `npm run ws2`
-- `npm run static2` = 额外的静态服务器（`localhost:30028`，用于多区域测试）
+- `npm start` = 本地正式部署用的静态服务器（`localhost:30028`，默认握手服务器会包含线上节点；同时也是自动化测试使用的端口）
+
 
 **Rust 服务配置文件**：`server/rust/test-space/config.example.toml`（ws1）与 `config2.toml`（ws2），测试环境已关闭内存过载保护、放宽 session/relay 限制。
 
