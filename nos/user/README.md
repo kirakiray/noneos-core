@@ -321,7 +321,7 @@ console.log(result.success, result.version);
 await user.server.connectAll();
 ```
 
-连接成功后服务器地址会被持久化。默认服务器列表在 `localhost` / `127.0.0.1` 下为 `["ws://localhost:8081", "ws://localhost:8082", "wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4331", "wss://hand3-hk1.noneos.com:4331"]`，其他域名下仅包含三个线上服务器。
+连接成功后服务器地址会被持久化。默认服务器列表：`localhost:3002`（本地开发主端口）为 `["ws://localhost:8081", "ws://localhost:8082"]`；其他本地端口会在此基础上追加三个线上服务器 `wss://hand3-jp1.noneos.com:4331`、`wss://hand3-us1.noneos.com:4331`、`wss://hand3-hk1.noneos.com:4331`；非本地域名下仅包含这三个线上服务器。
 
 > **通常不需要手动连接**：`getUser()` 内部会调用 `ready()`，`ready()` 会自动执行 `connectAll()`，因此多数场景下直接 `await getUser("namespace")` 即可。只有需要连接非默认服务器时，才显式调用 `connect(url)`。
 

@@ -10,8 +10,13 @@ const ONLINE_SERVERS = [
 const DEFAULT_SERVERS = (() => {
   const hostname =
     typeof window !== "undefined" ? window.location.hostname : "";
+  const port = typeof window !== "undefined" ? window.location.port : "";
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    // 本地开发时，本地服务器优先，同时保留线上服务器作为备选
+    // 3002 为本地开发主端口，只用本地握手服务器
+    if (port === "3002") {
+      return ["ws://localhost:8081", "ws://localhost:8082"];
+    }
+    // 其他本地端口：本地服务器优先，同时保留线上服务器作为备选
     return ["ws://localhost:8081", "ws://localhost:8082", ...ONLINE_SERVERS];
   }
   return [...ONLINE_SERVERS];

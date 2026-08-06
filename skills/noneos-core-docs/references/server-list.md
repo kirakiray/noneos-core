@@ -6,7 +6,9 @@
 
 ```javascript
 const servers = await user.server.getServers();
-// localhost / 127.0.0.1 下默认返回：
+// localhost:3002（本地开发主端口）默认返回：
+// ["ws://localhost:8081", "ws://localhost:8082"]
+// 其他本地端口（localhost / 127.0.0.1）默认返回：
 // ["ws://localhost:8081", "ws://localhost:8082",
 //  "wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4331", "wss://hand3-hk1.noneos.com:4331"]
 // 其他域名下默认只返回三个线上服务器
