@@ -120,9 +120,12 @@
         t2_svc = t2_userB.registerService("lifecycle-app", {
           onMessage(data) { t2_received.push(data); },
         });
-        // 等待 __service_available 推送到 A 端
-        await new Promise((r) => setTimeout(r, 400));
-        const t2_res3 = await t2_remoteB.sendToService("lifecycle-app", { phase: 3 });
+        // __service_available 的推送是 fire-and-forget（#broadcastAvailability 不 await，
+        // 内部要先查服务器再发送），不同浏览器/网络下到达时间有差异。
+        // 用 waitForService 让 sendToService 内部等待服务上线通知，避免固定 sleep。
+        const t2_res3 = await t2_remoteB.sendToService(
+          "lifecycle-app", { phase: 3 }, { waitForService: 3000 }
+        );
         await new Promise((r) => setTimeout(r, 200));
         const t2_phase3Delivered = t2_res3.some((r) => r.status === "ok" && r.delivered === true);
         const t2_phase3Received = t2_received.length === 2 && t2_received[1].phase === 3;
