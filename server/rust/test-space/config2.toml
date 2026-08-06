@@ -21,8 +21,8 @@ relay_fail_limit = 9999
 # relay 失败计数窗口时间（秒）
 relay_fail_window_secs = 60
 
-# 每个用户的默认转发流量额度（字节，默认 500MB）
-default_relay_quota_bytes = 1099511627776
+# 每个用户的默认转发流量额度（字节，默认 500MB，现手动设置100M）
+default_relay_quota_bytes = 104857600
 
 # 超额后仍允许转发的单条消息最大字节数（默认 1KB）
 relay_small_message_max_bytes = 256

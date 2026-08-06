@@ -27,6 +27,11 @@ default_relay_quota_bytes = 1099511627776
 # 超额后仍允许转发的单条消息最大字节数（默认 1KB）
 relay_small_message_max_bytes = 256
 
+# 服务器整体的月度转发流量额度（字节，口径 = inbound + outbound）
+# 用于约束服务器自身的带宽账单；自然月翻转时自动归零
+# 0 表示不限制。示例：1TB = 1099511627776
+global_relay_quota_bytes = 0
+
 # 数据库文件路径（redb 格式，无默认值，必配）
 redb_path = "test-space/config.redb"
 

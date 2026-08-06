@@ -95,11 +95,22 @@ impl AppState {
         record
     }
 
+    /// 检查服务器整体的月度转发流量额度是否已耗尽。
+    /// `global_relay_quota_bytes` 为 0 时表示不限制。
+    pub fn is_global_quota_exceeded(&self) -> bool {
+        let quota = self.config.global_relay_quota_bytes;
+        quota > 0 && self.traffic.period_used_bytes() >= quota
+    }
+
     /// 检查用户是否允许转发指定大小的消息。
-    /// 管理员始终允许；未超额允许；超额后仅允许 <= small_message_max_bytes 的消息。
+    /// 管理员始终允许；用户配额与服务器整体月度配额任一超限后，
+    /// 均仅允许 <= small_message_max_bytes 的消息（保证 WebRTC 信令仍可通行）。
     pub fn check_relay_quota(&self, user_id: &str, msg_size: u64) -> bool {
         if self.is_admin(user_id) {
             return true;
+        }
+        if self.is_global_quota_exceeded() {
+            return msg_size <= self.config.relay_small_message_max_bytes;
         }
         let quota = self.get_or_create_user_quota(user_id);
         if quota.used_bytes < quota.quota_bytes {

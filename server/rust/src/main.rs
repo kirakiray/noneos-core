@@ -52,11 +52,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         global_data.inbound_bytes, global_data.outbound_bytes, global_data.relay_forwarded_bytes
     );
 
+    // 加载当前自然月的服务器整体用量（跨月停机会自动归零）
+    let period_data = traffic::load_period_usage(&db, traffic::now_ms());
+    println!(
+        "Loaded period usage: used={} bytes (inbound={}, outbound={}), period_start={}",
+        period_data.total_bytes(),
+        period_data.inbound_bytes,
+        period_data.outbound_bytes,
+        period_data.period_start_ms
+    );
+
     // 5. 创建应用共享状态，存储已连接用户和管理员配置
     let state = Arc::new(AppState::new(config.admin_user_id.clone(), config.clone(), db.clone()));
 
     // 将加载的全局数据写入 TrafficStats
     state.traffic.set_global(global_data);
+    state.traffic.set_period(period_data);
 
     // 创建关闭通知器，用于优雅关闭
     let shutdown = Arc::new(Notify::new());
@@ -122,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (inbound_delta, outbound_delta, relay_delta);
     let user_traffic_records;
     let global;
+    let period;
     {
         let deltas = state.traffic.take_interval_deltas();
         inbound_delta = deltas.0;
@@ -129,6 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         relay_delta = deltas.2;
         user_traffic_records = state.traffic.take_user_traffic_map();
         global = state.traffic.compute_global();
+        period = state.traffic.compute_period();
     }
     let db_final = state.db.clone();
     let _ = tokio::task::spawn_blocking(move || {
@@ -140,6 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             relay_delta,
             &user_traffic_records,
             &global,
+            &period,
         ) {
             eprintln!("Final redb flush error: {}", e);
         }
@@ -170,10 +184,16 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
         let now = traffic::now_ms();
         let ts_30s = now / 30_000;
 
+        // 自然月翻转时把服务器整体月度用量归零（低频检查，不占用中继热路径）
+        if state.traffic.roll_period_if_needed(now) {
+            println!("Global relay quota period rolled over, usage counters reset.");
+        }
+
         // 从内存中提取 30s 窗口的 delta 和用户流量分布
         let (inbound_delta, outbound_delta, relay_delta);
         let user_traffic_records;
         let global;
+        let period;
         {
             let deltas = state.traffic.take_interval_deltas();
             inbound_delta = deltas.0;
@@ -181,6 +201,7 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
             relay_delta = deltas.2;
             user_traffic_records = state.traffic.take_user_traffic_map();
             global = state.traffic.compute_global();
+            period = state.traffic.compute_period();
         }
 
         // 采集系统指标
@@ -204,6 +225,7 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
                 relay_delta,
                 &user_traffic_records,
                 &global,
+                &period,
             ) {
                 eprintln!("Redb flush error: {}", e);
             }

@@ -15,7 +15,8 @@ const USERS: TableDefinition<&str, Vec<u8>> = TableDefinition::new("users");
 const USER_TRAFFIC_DIST: TableDefinition<(u64, &str, &str), u64> = TableDefinition::new("user_traffic_dist");
 
 /// 全局累计数据：key_name -> cumulative_value
-/// key: "total_inbound", "total_outbound", "total_relay"
+/// key: "total_inbound", "total_outbound", "total_relay",
+///      "period_inbound", "period_outbound", "period_start"
 const GLOBAL_DATA: TableDefinition<&str, u64> = TableDefinition::new("global_data");
 
 /// 全局流量时间分布（每30秒 delta）：ts_30s -> (inbound_delta, outbound_delta, relay_delta)
@@ -28,6 +29,12 @@ const SYSTEM_STATS: TableDefinition<u64, (f64, f64)> = TableDefinition::new("sys
 const KEY_TOTAL_INBOUND: &str = "total_inbound";
 const KEY_TOTAL_OUTBOUND: &str = "total_outbound";
 const KEY_TOTAL_RELAY: &str = "total_relay";
+/// 当前计费周期（自然月）内的入站累计字节数
+const KEY_PERIOD_INBOUND: &str = "period_inbound";
+/// 当前计费周期（自然月）内的出站累计字节数
+const KEY_PERIOD_OUTBOUND: &str = "period_outbound";
+/// 当前计费周期的起始时间戳（毫秒），用于判断自然月是否已翻转
+const KEY_PERIOD_START: &str = "period_start";
 
 // ===== 数据结构 =====
 
@@ -131,10 +138,39 @@ pub struct GlobalTraffic {
     pub handshake_bytes: u64,
 }
 
+/// 当前计费周期（自然月）的服务器整体流量用量
+/// 统计口径为 inbound + outbound，贴近服务器真实带宽账单
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct PeriodUsage {
+    /// 周期内入站累计字节数
+    pub inbound_bytes: u64,
+    /// 周期内出站累计字节数
+    pub outbound_bytes: u64,
+    /// 周期起始时间戳（毫秒）
+    pub period_start_ms: u64,
+}
+
+impl PeriodUsage {
+    /// 周期内合计用量（inbound + outbound）
+    pub fn total_bytes(&self) -> u64 {
+        self.inbound_bytes.saturating_add(self.outbound_bytes)
+    }
+}
+
+/// 计费周期用量（原子版本）
+#[derive(Debug, Default)]
+pub struct AtomicPeriodUsage {
+    pub inbound_bytes: AtomicU64,
+    pub outbound_bytes: AtomicU64,
+    pub period_start_ms: AtomicU64,
+}
+
 /// 流量统计容器（高性能并发版）
 pub struct TrafficStats {
     pub sessions: DashMap<String, SessionTraffic>,
     pub global: AtomicGlobalTraffic,
+    /// 当前计费周期（自然月）的服务器整体用量，用于 global_relay_quota_bytes 限额判定
+    pub period: AtomicPeriodUsage,
 
     // ---- 以下字段用于 30s 周期 flush ----
 
@@ -159,6 +195,7 @@ impl TrafficStats {
         Self {
             sessions: DashMap::new(),
             global: AtomicGlobalTraffic::default(),
+            period: AtomicPeriodUsage::default(),
             interval_inbound: AtomicU64::new(0),
             interval_outbound: AtomicU64::new(0),
             interval_relay: AtomicU64::new(0),
@@ -174,6 +211,42 @@ impl TrafficStats {
         self.global.outbound_bytes.store(global.outbound_bytes, Ordering::Relaxed);
         self.global.relay_forwarded_bytes.store(global.relay_forwarded_bytes, Ordering::Relaxed);
         self.global.handshake_bytes.store(global.handshake_bytes, Ordering::Relaxed);
+    }
+
+    /// 写入计费周期用量（启动时从 redb 恢复）
+    pub fn set_period(&self, period: PeriodUsage) {
+        self.period.inbound_bytes.store(period.inbound_bytes, Ordering::Relaxed);
+        self.period.outbound_bytes.store(period.outbound_bytes, Ordering::Relaxed);
+        self.period.period_start_ms.store(period.period_start_ms, Ordering::Relaxed);
+    }
+
+    /// 读取当前计费周期用量快照
+    pub fn compute_period(&self) -> PeriodUsage {
+        PeriodUsage {
+            inbound_bytes: self.period.inbound_bytes.load(Ordering::Relaxed),
+            outbound_bytes: self.period.outbound_bytes.load(Ordering::Relaxed),
+            period_start_ms: self.period.period_start_ms.load(Ordering::Relaxed),
+        }
+    }
+
+    /// 当前计费周期已用字节数（inbound + outbound）
+    pub fn period_used_bytes(&self) -> u64 {
+        self.period.inbound_bytes.load(Ordering::Relaxed)
+            .saturating_add(self.period.outbound_bytes.load(Ordering::Relaxed))
+    }
+
+    /// 若 now_ms 已进入新的自然月，则将周期用量归零并把周期起点推进到当月月初
+    /// 返回 true 表示本次调用发生了周期切换（由低频 flush 定时器驱动，不在热路径判断）
+    pub fn roll_period_if_needed(&self, now_ms: u64) -> bool {
+        let month_start = month_start_ms(now_ms);
+        let current_start = self.period.period_start_ms.load(Ordering::Relaxed);
+        if current_start >= month_start {
+            return false;
+        }
+        self.period.inbound_bytes.store(0, Ordering::Relaxed);
+        self.period.outbound_bytes.store(0, Ordering::Relaxed);
+        self.period.period_start_ms.store(month_start, Ordering::Relaxed);
+        true
     }
 
     pub fn register_session(
@@ -217,10 +290,11 @@ impl TrafficStats {
         count
     }
 
-    /// 入站流量：更新 session 计数 + 全局累计 + 区间 delta
+    /// 入站流量：更新 session 计数 + 全局累计 + 计费周期用量 + 区间 delta
     pub fn add_inbound(&self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, bytes, 0, 0);
         self.global.inbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.period.inbound_bytes.fetch_add(bytes, Ordering::Relaxed);
         self.interval_inbound.fetch_add(bytes, Ordering::Relaxed);
         if let Some(s) = self.sessions.get(conn_key) {
             s.inbound_bytes.fetch_add(bytes, Ordering::Relaxed);
@@ -228,10 +302,11 @@ impl TrafficStats {
         }
     }
 
-    /// 出站流量：更新 session 计数 + 全局累计 + 区间 delta
+    /// 出站流量：更新 session 计数 + 全局累计 + 计费周期用量 + 区间 delta
     pub fn add_outbound(&self, conn_key: &str, bytes: u64, now_ms: u64) {
         self.update_minute_bucket(now_ms, 0, bytes, 0);
         self.global.outbound_bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.period.outbound_bytes.fetch_add(bytes, Ordering::Relaxed);
         self.interval_outbound.fetch_add(bytes, Ordering::Relaxed);
         if let Some(s) = self.sessions.get(conn_key) {
             s.outbound_bytes.fetch_add(bytes, Ordering::Relaxed);
@@ -414,6 +489,27 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+/// 将毫秒时间戳换算为其所在自然月的月初零点时间戳（毫秒，UTC）
+///
+/// 采用 Howard Hinnant 的 civil_from_days 历法算法反推「当月第几天」，
+/// 再回退到当月 1 号零点，因此无需引入 chrono 等额外依赖。
+/// 注意：月份边界按 UTC 判定。
+pub fn month_start_ms(ts_ms: u64) -> u64 {
+    const MS_PER_DAY: u64 = 86_400_000;
+    let days = (ts_ms / MS_PER_DAY) as i64;
+
+    // civil_from_days：由 1970-01-01 起的天数反推年/月/日
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097; // [0, 146096]
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let day_of_month = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+
+    ((days - (day_of_month - 1)) as u64) * MS_PER_DAY
+}
+
 /// 获取消息字节大小（用于统计）
 pub fn message_byte_size(msg: &tungstenite::Message) -> usize {
     match msg {
@@ -495,6 +591,39 @@ pub fn load_global_data(db: &Database) -> GlobalTraffic {
         outbound_bytes: table.get(KEY_TOTAL_OUTBOUND).ok().flatten().map(|v| v.value()).unwrap_or(0),
         relay_forwarded_bytes: table.get(KEY_TOTAL_RELAY).ok().flatten().map(|v| v.value()).unwrap_or(0),
         handshake_bytes: 0,
+    }
+}
+
+/// 加载计费周期用量（启动时调用）
+///
+/// 若持久化的周期起点早于当前自然月（例如服务器跨月停机），则视为新周期，
+/// 返回归零后的用量并把周期起点设为当月月初。
+pub fn load_period_usage(db: &Database, now_ms_val: u64) -> PeriodUsage {
+    let month_start = month_start_ms(now_ms_val);
+    let fresh = PeriodUsage {
+        inbound_bytes: 0,
+        outbound_bytes: 0,
+        period_start_ms: month_start,
+    };
+
+    let read_txn = match db.begin_read() {
+        Ok(txn) => txn,
+        Err(_) => return fresh,
+    };
+    let table = match read_txn.open_table(GLOBAL_DATA) {
+        Ok(t) => t,
+        Err(_) => return fresh,
+    };
+
+    let period_start = table.get(KEY_PERIOD_START).ok().flatten().map(|v| v.value()).unwrap_or(0);
+    if period_start < month_start {
+        return fresh;
+    }
+
+    PeriodUsage {
+        inbound_bytes: table.get(KEY_PERIOD_INBOUND).ok().flatten().map(|v| v.value()).unwrap_or(0),
+        outbound_bytes: table.get(KEY_PERIOD_OUTBOUND).ok().flatten().map(|v| v.value()).unwrap_or(0),
+        period_start_ms: period_start,
     }
 }
 
@@ -582,6 +711,7 @@ pub fn perform_flush(
     relay_delta: u64,
     user_traffic_records: &HashMap<(String, String), u64>,
     global: &GlobalTraffic,
+    period: &PeriodUsage,
 ) -> Result<(), redb::Error> {
     let write_txn = db.begin_write()?;
     {
@@ -610,6 +740,10 @@ pub fn perform_flush(
         table.insert(KEY_TOTAL_INBOUND, &global.inbound_bytes)?;
         table.insert(KEY_TOTAL_OUTBOUND, &global.outbound_bytes)?;
         table.insert(KEY_TOTAL_RELAY, &global.relay_forwarded_bytes)?;
+        // 更新计费周期用量（用于服务器整体月度限额）
+        table.insert(KEY_PERIOD_INBOUND, &period.inbound_bytes)?;
+        table.insert(KEY_PERIOD_OUTBOUND, &period.outbound_bytes)?;
+        table.insert(KEY_PERIOD_START, &period.period_start_ms)?;
     }
     write_txn.commit()?;
     Ok(())
