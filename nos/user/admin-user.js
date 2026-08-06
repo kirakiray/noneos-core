@@ -222,4 +222,17 @@ export class AdminUser extends LocalUser {
     }
     return this.#adminCommand(url, "get_user_relay_quota", { user_id: userId });
   }
+
+  /**
+   * 获取服务器整体的月度转发流量额度与当前用量
+   * 统计口径为 inbound + outbound，按自然月（UTC）自动归零
+   * @param {string} url - 服务器 WebSocket 地址
+   * @returns {Promise<Object>} 响应的 quota 字段包含：
+   *   quotaBytes（限额，0 表示不限制）、usedBytes（本周期已用）、
+   *   inboundBytes、outboundBytes、periodStartAt（周期起始时间戳，毫秒）、
+   *   remainingBytes（剩余）、unlimited（是否不限制）、exceeded（是否已超限）
+   */
+  async getGlobalRelayQuota(url) {
+    return this.#adminCommand(url, "get_global_relay_quota");
+  }
 }

@@ -131,6 +131,99 @@
       color: var(--md-sys-color-on-surface-variant);
       font-size: 14px;
     }
+
+    /* ── 服务器月度总限额 ── */
+    .quota-card {
+      background-color: var(--md-sys-color-surface-container);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 8px;
+    }
+
+    .quota-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .quota-used {
+      font-size: 24px;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quota-total {
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quota-badge {
+      font-size: 12px;
+      font-weight: bold;
+      padding: 3px 10px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .quota-badge[level="ok"] {
+      background-color: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+
+    .quota-badge[level="warn"] {
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .quota-badge[level="exceeded"] {
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .quota-bar {
+      height: 8px;
+      border-radius: 4px;
+      background-color: var(--md-sys-color-surface-variant);
+      overflow: hidden;
+      margin: 12px 0 10px;
+    }
+
+    .quota-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+      background-color: var(--md-sys-color-primary);
+    }
+
+    .quota-bar-fill[level="warn"] {
+      background-color: var(--md-sys-color-tertiary);
+    }
+
+    .quota-bar-fill[level="exceeded"] {
+      background-color: var(--md-sys-color-error);
+    }
+
+    .quota-meta {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quota-note {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
   </style>
 
   <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
@@ -159,6 +252,51 @@
     </div>
 
     <div class="traffic-content">
+      <!-- 服务器月度总限额 -->
+      <o-if :value="quotaData">
+        <div class="section-title">服务器月度总限额</div>
+        <div class="quota-card">
+          <div class="quota-head">
+            <div>
+              <span class="quota-used">{{quotaUsedText}}</span>
+              <span class="quota-total">{{quotaTotalText}}</span>
+            </div>
+            <span class="quota-badge" attr:level="quotaLevel">{{quotaBadgeText}}</span>
+          </div>
+
+          <o-if :value="!quotaUnlimited">
+            <div class="quota-bar">
+              <div
+                class="quota-bar-fill"
+                attr:level="quotaLevel"
+                :style.width="quotaPercent + '%'"
+              ></div>
+            </div>
+            <div class="quota-meta">
+              <span>入站 {{quotaInboundText}}</span>
+              <span>出站 {{quotaOutboundText}}</span>
+              <span>剩余 {{quotaRemainingText}}</span>
+              <span>本周期始于 {{quotaPeriodStartText}}</span>
+            </div>
+          </o-if>
+          <o-else>
+            <div class="quota-meta" style="margin-top: 10px">
+              <span>入站 {{quotaInboundText}}</span>
+              <span>出站 {{quotaOutboundText}}</span>
+              <span>本周期始于 {{quotaPeriodStartText}}</span>
+            </div>
+          </o-else>
+
+          <o-if :value="quotaExceeded">
+            <div class="quota-note">
+              已达服务器月度限额：非管理员的中继已降级为仅放行小消息（≤ 配置的
+              relay_small_message_max_bytes）。WebRTC 信令与名片交换仍可通行，用户可继续建立
+              P2P 直连。下月初自动恢复。
+            </div>
+          </o-if>
+        </div>
+      </o-if>
+
       <!-- 全局流量 -->
       <o-if :value="trafficData">
         <div class="section-title">全局流量</div>
@@ -231,6 +369,7 @@
           adminUsername: "",
           adminUserId: "",
           trafficData: null,
+          quotaData: null,
           _adminUser: null,
         },
 
@@ -261,6 +400,68 @@
 
           get hasTrafficUsers() {
             return this.trafficData && this.trafficData.users && this.trafficData.users.length > 0;
+          },
+
+          // ── 服务器月度总限额 ──
+
+          get quotaUnlimited() {
+            return !this.quotaData || this.quotaData.unlimited || !this.quotaData.quotaBytes;
+          },
+
+          get quotaExceeded() {
+            return !!this.quotaData?.exceeded;
+          },
+
+          /** 已用占比（0-100，用于进度条宽度） */
+          get quotaPercent() {
+            if (this.quotaUnlimited) return 0;
+            const pct = (this.quotaData.usedBytes / this.quotaData.quotaBytes) * 100;
+            return Math.min(100, Math.max(0, Math.round(pct * 10) / 10));
+          },
+
+          /** 限额水位：ok / warn（≥80%）/ exceeded */
+          get quotaLevel() {
+            if (this.quotaUnlimited) return "ok";
+            if (this.quotaExceeded) return "exceeded";
+            return this.quotaPercent >= 80 ? "warn" : "ok";
+          },
+
+          get quotaBadgeText() {
+            if (this.quotaUnlimited) return "未设置限额";
+            if (this.quotaExceeded) return "已超限 · 中继降级";
+            return "已用 " + this.quotaPercent + "%";
+          },
+
+          get quotaUsedText() {
+            return this.formatBytes(this.quotaData?.usedBytes);
+          },
+
+          get quotaTotalText() {
+            if (this.quotaUnlimited) return "（本月已转发，未设置上限）";
+            return "/ " + this.formatBytes(this.quotaData.quotaBytes);
+          },
+
+          get quotaInboundText() {
+            return this.formatBytes(this.quotaData?.inboundBytes);
+          },
+
+          get quotaOutboundText() {
+            return this.formatBytes(this.quotaData?.outboundBytes);
+          },
+
+          get quotaRemainingText() {
+            return this.formatBytes(this.quotaData?.remainingBytes);
+          },
+
+          get quotaPeriodStartText() {
+            const ts = this.quotaData?.periodStartAt;
+            if (!ts) return "-";
+            const d = new Date(ts);
+            return d.getFullYear() + "-"
+              + String(d.getMonth() + 1).padStart(2, "0") + "-"
+              + String(d.getDate()).padStart(2, "0") + " "
+              + String(d.getHours()).padStart(2, "0") + ":"
+              + String(d.getMinutes()).padStart(2, "0");
           },
 
           get hasTrafficTimeDist() {
@@ -324,6 +525,14 @@
               }
             } catch (e) {
               console.error("refreshTraffic failed:", e);
+            }
+            try {
+              const quotaRes = await this._adminUser.getGlobalRelayQuota(WS_URL);
+              if (quotaRes.status === "ok") {
+                this.quotaData = quotaRes.quota;
+              }
+            } catch (e) {
+              console.error("refresh global quota failed:", e);
             }
           },
 
