@@ -29,11 +29,11 @@ const SYSTEM_STATS: TableDefinition<u64, (f64, f64)> = TableDefinition::new("sys
 const KEY_TOTAL_INBOUND: &str = "total_inbound";
 const KEY_TOTAL_OUTBOUND: &str = "total_outbound";
 const KEY_TOTAL_RELAY: &str = "total_relay";
-/// 当前计费周期（自然月）内的入站累计字节数
+/// 当前计费周期内的入站累计字节数
 const KEY_PERIOD_INBOUND: &str = "period_inbound";
-/// 当前计费周期（自然月）内的出站累计字节数
+/// 当前计费周期内的出站累计字节数
 const KEY_PERIOD_OUTBOUND: &str = "period_outbound";
-/// 当前计费周期的起始时间戳（毫秒），用于判断自然月是否已翻转
+/// 当前计费周期的起始时间戳（毫秒），用于判断是否已进入新周期
 const KEY_PERIOD_START: &str = "period_start";
 
 // ===== 数据结构 =====
@@ -138,7 +138,7 @@ pub struct GlobalTraffic {
     pub handshake_bytes: u64,
 }
 
-/// 当前计费周期（自然月）的服务器整体流量用量
+/// 当前计费周期的服务器整体流量用量
 /// 统计口径为 inbound + outbound，贴近服务器真实带宽账单
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct PeriodUsage {
@@ -169,7 +169,7 @@ pub struct AtomicPeriodUsage {
 pub struct TrafficStats {
     pub sessions: DashMap<String, SessionTraffic>,
     pub global: AtomicGlobalTraffic,
-    /// 当前计费周期（自然月）的服务器整体用量，用于 global_relay_quota_bytes 限额判定
+    /// 当前计费周期的服务器整体用量，用于 global_relay_quota_bytes 限额判定
     pub period: AtomicPeriodUsage,
 
     // ---- 以下字段用于 30s 周期 flush ----
@@ -880,7 +880,7 @@ mod tests {
     fn local_ymd_ms(y: i64, m: u32, d: u32) -> u64 {
         let local = days_from_civil(y, m, d) * 86_400_000;
         // 迭代一次以消除偏移带来的误差（时区偏移不超过 1 天）
-        let off = local_utc_offset_secs((local - 0).max(0) as u64) * 1000;
+        let off = local_utc_offset_secs(local.max(0) as u64) * 1000;
         let approx = local - off;
         let off2 = local_utc_offset_secs(approx.max(0) as u64) * 1000;
         (local - off2).max(0) as u64

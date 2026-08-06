@@ -27,7 +27,7 @@ server/rust/
     ├── handler.rs          # 核心：UserSession/AppState + 连接生命周期 + 消息分发 + 中继/配额/防滥用
     ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集
     ├── crypto.rs           # ECDSA P-256 验签（p256 crate，Base64 SPKI 公钥 + 64B raw 签名）
-    └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 月度周期用量 + 系统快照 + 用户持久化
+    └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 计费周期用量（含重置日历法计算与单元测试） + 系统快照 + 用户持久化
 ```
 
 ## 三、核心数据结构
@@ -60,7 +60,7 @@ server/rust/
 
 - `sessions: DashMap<String, SessionTraffic>` —— 每会话双向字节计数（AtomicU64）
 - `global` 全局 AtomicU64 + 区间 delta
-- `period: AtomicPeriodUsage` —— 当前自然月的服务器整体用量（inbound/outbound + `period_start_ms`），供 `global_relay_quota_bytes` 限额判定
+- `period: AtomicPeriodUsage` —— 当前计费周期的服务器整体用量（inbound/outbound + `period_start_ms`），供 `global_relay_quota_bytes` 限额判定
 - `user_traffic_map`、`minute_buckets` —— 聚合写入用
 - `perform_flush()` 每 30s 调用，写入 redb 三张表
 
@@ -130,7 +130,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 |----|-----|-------|------|
 | `USERS` | `&str`(userId) | bincode(`UserRecord`: user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes) | 用户持久化 |
 | `USER_TRAFFIC_DIST` | `(ts_30s, from, to)` | bytes | 用户间流量分布 |
-| `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"` / `"period_inbound"` / `"period_outbound"` / `"period_start"`（6 个独立字符串 key） | u64 | 全局累计流量 + 当前自然月周期用量 |
+| `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"` / `"period_inbound"` / `"period_outbound"` / `"period_start"`（6 个独立字符串 key） | u64 | 全局累计流量 + 当前计费周期用量 |
 | `GLOBAL_TRAFFIC_DIST` | `ts_30s` | (in, out, relay) | 全局流量时间分布（累加） |
 | `SYSTEM_STATS` | `ts_30s` | (cpu, mem) | 系统快照 |
 
@@ -157,7 +157,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 ### 5. 定时器（handle_flush_timer）
 
 - 每 `traffic_flush_interval_secs` 触发。
-- 先调用 `roll_period_if_needed` 检查自然月是否翻转（翻转则重置月度用量），再取出 delta/用户流量/全局与周期快照，然后采集 CPU/内存（sysinfo），最后在同一个 `spawn_blocking` 中**先 `perform_flush` 再 `write_system_stats`**。
+- 先调用 `roll_period_if_needed` 检查是否进入新计费周期（是则重置月度用量），再取出 delta/用户流量/全局与周期快照，然后采集 CPU/内存（sysinfo），最后在同一个 `spawn_blocking` 中**先 `perform_flush` 再 `write_system_stats`**。
 
 ## 六、客户端-服务端协议对应表
 

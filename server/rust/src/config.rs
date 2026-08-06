@@ -84,7 +84,7 @@ pub struct Config {
     #[serde(default = "default_relay_small_message_max_bytes")]
     pub relay_small_message_max_bytes: u64,
     /// 服务器整体的月度转发流量额度（字节，统计口径 = inbound + outbound）
-    /// 用于约束服务器自身的带宽账单：当自然月内累计进出流量达到该值后，
+    /// 用于约束服务器自身的带宽账单：当本计费周期内累计进出流量达到该值后，
     /// 所有非 admin 的中继降级为仅放行 <= relay_small_message_max_bytes 的小消息
     /// （WebRTC 信令与名片交换仍可通行，用户可继续建立 P2P 直连）
     /// 默认 0 表示不限制
