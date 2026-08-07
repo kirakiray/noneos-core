@@ -30,7 +30,10 @@
           const d1Has8081 = d1Servers.includes("ws://localhost:8081");
           const d1Has8082 = d1Servers.includes("ws://localhost:8082");
 
-          const d1AllOk = d1Has8081 && d1Has8082 && d1Servers.length === 2;
+          // 默认列表长度随运行端口而变（见 nos/user/server.js DEFAULT_SERVERS）：
+          // 端口 3002 只含 2 个本地地址，其他本地端口还会附带线上地址，
+          // 故此处只断言必须包含两个本地预设地址，不锁定总数
+          const d1AllOk = d1Has8081 && d1Has8082;
 
           return {
             assert: d1AllOk,
@@ -42,7 +45,6 @@
               checks: {
                 d1Has8081,
                 d1Has8082,
-                expectedCount: 2,
                 actualCount: d1Servers.length,
               },
             },
@@ -100,6 +102,8 @@
           await d3User.ready();
 
           const d3CustomUrl = "ws://localhost:9090";
+          // 先记录添加前的基线数量（默认列表长度随运行端口而变）
+          const d3Before = await d3User.server.getServers();
           await d3User.server.addServer(d3CustomUrl);
 
           const d3Servers = await d3User.server.getServers();
@@ -107,7 +111,8 @@
           const d3HasCustom = d3Servers.includes(d3CustomUrl);
           const d3HasDefault8081 = d3Servers.includes("ws://localhost:8081");
           const d3HasDefault8082 = d3Servers.includes("ws://localhost:8082");
-          const d3Count = d3Servers.length === 3;
+          // 添加一个新地址后总数应恰好 +1
+          const d3Count = d3Servers.length === d3Before.length + 1;
 
           const d3AllOk = d3HasCustom && d3HasDefault8081 && d3HasDefault8082 && d3Count;
 
@@ -124,6 +129,7 @@
                 d3HasDefault8081,
                 d3HasDefault8082,
                 d3Count,
+                countBefore: d3Before.length,
                 actualCount: d3Servers.length,
               },
             },
@@ -146,6 +152,8 @@
 
           // 先添加一个自定义服务器，再删除它
           const d4CustomUrl = "ws://localhost:9091";
+          // 记录添加前的基线数量（默认列表长度随运行端口而变）
+          const d4Before = await d4User.server.getServers();
           await d4User.server.addServer(d4CustomUrl);
 
           let d4Servers = await d4User.server.getServers();
@@ -157,7 +165,8 @@
           const d4NoCustom = !d4Servers.includes(d4CustomUrl);
           const d4HasDefault8081 = d4Servers.includes("ws://localhost:8081");
           const d4HasDefault8082 = d4Servers.includes("ws://localhost:8082");
-          const d4Count = d4Servers.length === 2;
+          // 删除后总数应回到添加前的基线
+          const d4Count = d4Servers.length === d4Before.length;
 
           const d4AllOk = d4HadCustom && d4NoCustom && d4HasDefault8081 && d4HasDefault8082 && d4Count;
 
@@ -175,6 +184,7 @@
                 d4HasDefault8081,
                 d4HasDefault8082,
                 d4Count,
+                countBefore: d4Before.length,
                 actualCount: d4Servers.length,
               },
             },

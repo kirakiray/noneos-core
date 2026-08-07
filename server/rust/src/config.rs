@@ -83,6 +83,20 @@ pub struct Config {
     /// 如果未指定，默认为 1KB
     #[serde(default = "default_relay_small_message_max_bytes")]
     pub relay_small_message_max_bytes: u64,
+    /// 服务器整体的月度转发流量额度（字节，统计口径 = inbound + outbound）
+    /// 用于约束服务器自身的带宽账单：当本计费周期内累计进出流量达到该值后，
+    /// 所有非 admin 的中继降级为仅放行 <= relay_small_message_max_bytes 的小消息
+    /// （WebRTC 信令与名片交换仍可通行，用户可继续建立 P2P 直连）
+    /// 默认 0 表示不限制
+    #[serde(default = "default_global_relay_quota_bytes")]
+    pub global_relay_quota_bytes: u64,
+    /// 月度用量的重置日（每月几号，1-31）
+    /// 例如 1 = 每月 1 号凌晨归零；15 = 每月 15 号凌晨归零
+    /// 归零时刻为服务器本地时区当天的 00:00
+    /// 若某月天数不足（如设为 31 但当月只有 30 天），自动取该月最后一天
+    /// 默认 1
+    #[serde(default = "default_quota_period_reset_day")]
+    pub quota_period_reset_day: u32,
 
     // ===== 数据持久化 =====
     /// redb 数据库文件路径，用于持久化流量统计数据
@@ -171,6 +185,16 @@ fn default_relay_small_message_max_bytes() -> u64 {
     1024
 }
 
+/// 服务器整体月度转发流量额度：0 表示不限制
+fn default_global_relay_quota_bytes() -> u64 {
+    0
+}
+
+/// 月度用量重置日：默认每月 1 号
+fn default_quota_period_reset_day() -> u32 {
+    1
+}
+
 /// 默认 redb 数据库路径
 fn default_redb_path() -> String {
     "./noneos-handshake.redb".to_string()
@@ -203,6 +227,8 @@ impl Default for Config {
             max_memory_usage_percent: default_max_memory_usage_percent(),
             default_relay_quota_bytes: default_default_relay_quota_bytes(),
             relay_small_message_max_bytes: default_relay_small_message_max_bytes(),
+            global_relay_quota_bytes: default_global_relay_quota_bytes(),
+            quota_period_reset_day: default_quota_period_reset_day(),
             redb_path: default_redb_path(),
             traffic_flush_interval_secs: default_traffic_flush_interval(),
             heartbeat_interval_secs: default_heartbeat_interval(),

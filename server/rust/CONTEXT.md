@@ -11,7 +11,7 @@ NoneOS Handshake Server 是一个基于 **Tokio + tokio-tungstenite** 的异步 
 
 1. **单文件全生命周期**：`handler.rs::handle_connection` 从 WebSocket 升级 → 挑战 → 验签 → 注册 → 消息循环 → 清理，串起整个连接生命期。
 2. **内存态会话 + 持久化统计**：在线会话全部驻留 `DashMap`，每 `traffic_flush_interval_secs`（默认 30s）将流量与系统快照刷入 redb。
-3. **配额与防滥用**：每用户默认 500MB 中继配额；超限后仅允许 ≤1KB 小消息；中继失败 10 次/60s 踢出；内存占用 ≥95% 拒绝非 admin 新连接。
+3. **配额与防滥用**：每用户默认 500MB 中继配额；另有服务器整体月度流量限额（`global_relay_quota_bytes`，默认 0 = 不限制）；任一超限后仅允许 ≤1KB 小消息；中继失败 10 次/60s 踢出；内存占用 ≥95% 拒绝非 admin 新连接。
 4. **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，与客户端约定，避免大 payload JSON 序列化。
 5. **心跳**：服务端每 15s 发 Ping；若 60s 内未收到任何客户端消息则断开（活动判定不限于 Pong，任意客户端消息均更新 `last_activity_at`）。
 
@@ -25,9 +25,9 @@ server/rust/
     ├── main.rs             # 入口：解析参数 → 加载配置 → 打开 redb → 启动 AppState → flush 定时器 → accept 循环 + 优雅关闭
     ├── config.rs           # Args(clap) + Config(TOML) + 各项默认值
     ├── handler.rs          # 核心：UserSession/AppState + 连接生命周期 + 消息分发 + 中继/配额/防滥用
-    ├── admin.rs            # AdminCommand/AdminResponse + 11 个管理动作 + 系统信息采集
+    ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集
     ├── crypto.rs           # ECDSA P-256 验签（p256 crate，Base64 SPKI 公钥 + 64B raw 签名）
-    └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 系统快照 + 用户持久化
+    └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 计费周期用量（含重置日历法计算与单元测试） + 系统快照 + 用户持久化
 ```
 
 ## 三、核心数据结构
@@ -60,6 +60,7 @@ server/rust/
 
 - `sessions: DashMap<String, SessionTraffic>` —— 每会话双向字节计数（AtomicU64）
 - `global` 全局 AtomicU64 + 区间 delta
+- `period: AtomicPeriodUsage` —— 当前计费周期的服务器整体用量（inbound/outbound + `period_start_ms`），供 `global_relay_quota_bytes` 限额判定
 - `user_traffic_map`、`minute_buckets` —— 聚合写入用
 - `perform_flush()` 每 30s 调用，写入 redb 三张表
 
@@ -85,7 +86,7 @@ server/rust/
 
 ### 中继流程（relay_deliver_and_finalize）
 
-1. `check_relay_quota`：admin 全放；未超额放；超限仅放 ≤ `relay_small_message_max_bytes`。
+1. `check_relay_quota`：admin 全放；服务器整体月度配额超限或用户配额超限时，仅放 ≤ `relay_small_message_max_bytes`；否则放行。
 2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递；`silent: bool` 参数控制成功是否返回 `relay_response`。
 3. **成功**才记录流量（`traffic.add_relay_forwarded` + `state.record_relay_usage`），并 `reset_relay_failure` 重置失败计数；**失败不记录流量**。
 4. 失败累加 `relay_fail_count`，达 `relay_fail_limit`/`relay_fail_window_secs` 踢出。
@@ -111,6 +112,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `get_traffic_history` | **已废弃**，仅返回空数组与提示信息（数据需从 redb 文件导出分析） |
 | `get_system_stats_history` | 历史 CPU/内存 |
 | `set_user_relay_quota` / `get_user_relay_quota` | 配额管理 |
+| `get_global_relay_quota` | 查询服务器整体月度配额：`quota.quotaBytes` / `usedBytes` / `inboundBytes` / `outboundBytes` / `periodStartAt` / `periodResetDay` / `remainingBytes` / `unlimited` / `exceeded` |
 
 `get_memory_usage_percent` 带 1s 缓存，供 95% 过载拒绝使用。
 
@@ -128,7 +130,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 |----|-----|-------|------|
 | `USERS` | `&str`(userId) | bincode(`UserRecord`: user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes) | 用户持久化 |
 | `USER_TRAFFIC_DIST` | `(ts_30s, from, to)` | bytes | 用户间流量分布 |
-| `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"`（3 个独立字符串 key） | u64 | 全局累计流量 |
+| `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"` / `"period_inbound"` / `"period_outbound"` / `"period_start"`（6 个独立字符串 key） | u64 | 全局累计流量 + 当前计费周期用量 |
 | `GLOBAL_TRAFFIC_DIST` | `ts_30s` | (in, out, relay) | 全局流量时间分布（累加） |
 | `SYSTEM_STATS` | `ts_30s` | (cpu, mem) | 系统快照 |
 
@@ -143,6 +145,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
 - **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝非 admin 新连接。
 - **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
+- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/名片交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc `localtime_r` 获取，含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 
 ### 4. 优雅关闭（main.rs）
@@ -154,7 +157,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 ### 5. 定时器（handle_flush_timer）
 
 - 每 `traffic_flush_interval_secs` 触发。
-- 先取出 delta/用户流量/全局快照，再采集 CPU/内存（sysinfo），最后在同一个 `spawn_blocking` 中**先 `perform_flush` 再 `write_system_stats`**。
+- 先调用 `roll_period_if_needed` 检查是否进入新计费周期（是则重置月度用量），再取出 delta/用户流量/全局与周期快照，然后采集 CPU/内存（sysinfo），最后在同一个 `spawn_blocking` 中**先 `perform_flush` 再 `write_system_stats`**。
 
 ## 六、客户端-服务端协议对应表
 
@@ -186,6 +189,8 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `relay_fail_window_secs` | 60 | 失败窗口 |
 | `max_memory_usage_percent` | 95.0 | 内存过载阈值 |
 | `default_relay_quota_bytes` | 500MB | 默认中继配额 |
+| `global_relay_quota_bytes` | 0（不限制） | 服务器整体月度流量限额（口径 = inbound + outbound） |
+| `quota_period_reset_day` | 1 | 每月几号重置流量额度（1-31）。归零发生在服务器本地时区当天 00:00；当月天数不足时取最后一天 |
 | `relay_small_message_max_bytes` | 1KB | 超额小消息豁免 |
 | `redb_path` | `./noneos-handshake.redb` | 数据库路径 |
 | `traffic_flush_interval_secs` | 30 | 流量刷盘间隔 |
@@ -212,6 +217,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `redb` | 嵌入式 KV 数据库 |
 | `bincode` | redb value 二进制序列化 |
 | `dashmap` | 并发 HashMap（用户会话表） |
+| `libc` | `localtime_r` 读取服务器本地时区偏移（流量额度重置日判定） |
 
 ## 九、构建与运行
 

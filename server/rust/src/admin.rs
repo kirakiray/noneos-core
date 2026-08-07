@@ -618,6 +618,33 @@ pub async fn handle_admin_command(
                 }
             }
         }
+        "get_global_relay_quota" => {
+            let period = state.traffic.compute_period();
+            let used = period.total_bytes();
+            let quota = state.config.global_relay_quota_bytes;
+            AdminResponse {
+                msg_type: "admin_response".to_string(),
+                action: "get_global_relay_quota".to_string(),
+                status: "ok".to_string(),
+                message: Some(if quota == 0 {
+                    "Global relay quota is unlimited".to_string()
+                } else {
+                    format!("Global relay quota: {} / {} bytes used", used, quota)
+                }),
+                quota: Some(serde_json::json!({
+                    "quotaBytes": quota,
+                    "usedBytes": used,
+                    "inboundBytes": period.inbound_bytes,
+                    "outboundBytes": period.outbound_bytes,
+                    "periodStartAt": period.period_start_ms,
+                    "periodResetDay": state.config.quota_period_reset_day,
+                    "remainingBytes": quota.saturating_sub(used),
+                    "unlimited": quota == 0,
+                    "exceeded": state.is_global_quota_exceeded(),
+                })),
+                ..Default::default()
+            }
+        }
         _ => {
             let action_name = admin_cmd.action.clone();
             AdminResponse {

@@ -157,19 +157,30 @@ skills/               # AI 代理技能定义
 
 运行浏览器端模块只需任意**静态文件服务器**。这里以 Node.js 作为便捷的开发服务器,你也可以使用 Python、nginx 或任何替代方案。
 
-### 1. 使用 Node.js 快速启动
+### 1. 本地调试(端口 3002)
 
 ```bash
 git clone https://github.com/kirakiray/noneos-core.git
 cd noneos-core
 npm install
 
-# 启动开发服务器(端口 3002)+ 构建 Service Worker
+# 启动开发服务器(端口 3002)+ 监听 Service Worker
 npm run dev
 # → 打开 http://localhost:3002
 ```
 
-### 2. 启动本地中继服务器(可选,用于多用户测试)
+**3002** 是调试端口:Service Worker 会直接从本地文件读取 `/nos/` 资源(不走 OPFS 缓存),且默认握手服务器只有本地的 `ws://localhost:8081`、`ws://localhost:8082`。
+
+### 2. 本地正式部署使用(端口 30028)
+
+```bash
+npm start
+# → 打开 http://localhost:30028
+```
+
+如果你是要在本地**正式使用** NoneOS Core(而非调试),请用 `npm start`。在 3002 以外的本地端口上,默认握手服务器列表会额外包含线上中继服务器(`wss://hand3-jp1.noneos.com:4331`、`wss://hand3-us1.noneos.com:4331`、`wss://hand3-hk1.noneos.com:4331`),因此无需自建中继服务器即可与远端用户互联。
+
+### 3. 启动本地中继服务器(可选,用于多用户测试)
 
 ```bash
 # 终端 1:启动两个 Rust 中继服务器(端口 8081、8082)
@@ -177,7 +188,7 @@ npm run ws
 ```
 编译需要 [Rust](https://www.rust-lang.org/)。
 
-### 3. 在你的应用中使用
+### 4. 在你的应用中使用
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
@@ -212,7 +223,8 @@ npm run ws
 
 | 脚本 | 说明 |
 |---|---|
-| `npm run dev` | 启动静态服务器(端口 3002)+ 监听 Service Worker |
+| `npm run dev` | 启动静态服务器(端口 3002)+ 监听 Service Worker——**本地调试用** |
+| `npm start` | 启动静态服务器(端口 30028)——**本地正式部署使用** |
 | `npm run build` | 完整构建:哈希 → nos.zip → Service Worker |
 | `npm run bump` | 跨所有文件升级版本号 |
 | `npm run ws` | 启动两个 Rust 中继服务器(测试模式,端口 8081 & 8082) |

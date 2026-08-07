@@ -157,19 +157,30 @@ skills/               # AI agent skill definitions
 
 Running the browser-side modules only requires any **static file server**. Node.js is used here as a convenient dev server; you can use Python, nginx, or any alternative.
 
-### 1. Quick Start with Node.js
+### 1. Local Debugging (port 3002)
 
 ```bash
 git clone https://github.com/kirakiray/noneos-core.git
 cd noneos-core
 npm install
 
-# Start the dev server (port 3002) + build service worker
+# Start the dev server (port 3002) + watch service worker
 npm run dev
 # → opens at http://localhost:3002
 ```
 
-### 2. Start a Local Relay Server (optional, for multi-user testing)
+Port **3002** is the debugging port: the Service Worker serves `/nos/` resources directly from local files (no OPFS cache), and the default handshake servers are local only (`ws://localhost:8081`, `ws://localhost:8082`).
+
+### 2. Local Production Use (port 30028)
+
+```bash
+npm start
+# → opens at http://localhost:30028
+```
+
+Use `npm start` when you want to actually *use* NoneOS Core locally rather than debug it. On any local port other than 3002, the default handshake server list also includes the online relay servers (`wss://hand3-jp1.noneos.com:4331`, `wss://hand3-us1.noneos.com:4331`, `wss://hand3-hk1.noneos.com:4331`), so you can connect with remote users without running your own relay server.
+
+### 3. Start a Local Relay Server (optional, for multi-user testing)
 
 ```bash
 # Terminal 1: start two Rust relay servers (port 8081, 8082)
@@ -177,7 +188,7 @@ npm run ws
 ```
 Requires [Rust](https://www.rust-lang.org/) to compile.
 
-### 3. Use in Your App
+### 4. Use in Your App
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
@@ -212,7 +223,8 @@ Key references:
 
 | Script | Description |
 |---|---|
-| `npm run dev` | Start static server (port 3002) + watch service worker |
+| `npm run dev` | Start static server (port 3002) + watch service worker — **for local debugging** |
+| `npm start` | Start static server (port 30028) — **for local production use** |
 | `npm run build` | Build all: hashes → nos.zip → service worker |
 | `npm run bump` | Increment version across all files |
 | `npm run ws` | Start two Rust relay servers (test mode, ports 8081 & 8082) |

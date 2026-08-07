@@ -1,13 +1,25 @@
 import { getServerList, saveServerList } from "./db.js";
 import { inferCategory, measureSize } from "./traffic.js";
 
+const ONLINE_SERVERS = [
+  "wss://hand3-jp1.noneos.com:4331",
+  "wss://hand3-us1.noneos.com:4331",
+  "wss://hand3-hk1.noneos.com:4331",
+];
+
 const DEFAULT_SERVERS = (() => {
   const hostname =
     typeof window !== "undefined" ? window.location.hostname : "";
+  const port = typeof window !== "undefined" ? window.location.port : "";
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return ["ws://localhost:8081", "ws://localhost:8082"];
+    // 3002 为本地开发主端口，只用本地握手服务器
+    if (port === "3002") {
+      return ["ws://localhost:8081", "ws://localhost:8082"];
+    }
+    // 其他本地端口：本地服务器优先，同时保留线上服务器作为备选
+    return ["ws://localhost:8081", "ws://localhost:8082", ...ONLINE_SERVERS];
   }
-  return ["wss://hand3-jp1.noneos.com:4331", "wss://hand3-us1.noneos.com:4331", "wss://hand3-hk1.noneos.com:4331"];
+  return [...ONLINE_SERVERS];
 })();
 
 const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期

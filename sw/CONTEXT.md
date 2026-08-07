@@ -13,7 +13,7 @@
    - `/nos/` 资源支持在线模式（直接 fetch）与本地模式（优先 OPFS 缓存，回退 fetch）。
    - `/gh/`、`/npm/`、`/ncomp/` 资源统一使用 SWR + 内存 TTL 策略（见 `cache-handlers.js`）。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
-3. **宿主项目离线缓存**：通过 `host-cache-handler.js`，使用 noneos-core 的项目可声明 manifest 文件列表，SW 在后台预缓存这些文件，fetch 时优先从 OPFS 返回。仅在宿主项目设置 `globalThis.HOST_CACHE_CONFIG` 时启用。
+3. **宿主项目离线缓存**：通过 `host-cache-handler.js`，使用 noneos-core 的项目可声明 manifest 文件列表，SW 在后台预缓存这些文件。fetch 时：开发环境（localhost）旁路 OPFS 直接走网络；生产环境采用 SWR（命中缓存立即返回 + 后台刷新，下次刷新生效）。仅在宿主项目设置 `globalThis.HOST_CACHE_CONFIG` 时启用。
 4. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络；`/ncomp/` 请求切换为"网络优先"，代理到 `localhost:3002`，失败时回退官方源和缓存。
 5. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos-config/system.json`，热更新 `systemConfig`。
 
@@ -90,7 +90,7 @@ sw/src/main.js
 | `/npm/` | `cache-handlers.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
 | `/\$mount-/` | `mount-handle.js` | 本地挂载目录文件代理；URL 形态 `/$mount-{id}>/{相对路径}`，id 通过正则 `/\$mount\-(.+)>.+/` 提取 |
 | `/\$/` | `file-handler.js` | 本地 OPFS 文件代理；命中时返回带正确 `Content-Type` 头的 Response |
-| (fallback) | `host-cache-handler.js` | 同域 GET 请求且路径在 manifest files 列表中时，从 OPFS 缓存返回；未命中回退网络并写入缓存（需 `HOST_CACHE_CONFIG`） |
+| (fallback) | `host-cache-handler.js` | 同域 GET 请求且路径在 manifest files 列表中时返回缓存（需 `HOST_CACHE_CONFIG`）。**开发环境（localhost / 127.0.0.1）旁路 OPFS 直接走网络**；生产环境采用 SWR：命中缓存立即返回，TTL 过期后台刷新覆盖 OPFS（下次刷新生效），未命中同步回退网络并写入缓存 |
 
 ### 通用工具
 
@@ -178,7 +178,9 @@ host-cache/
 **核心流程**：
 - **初始化**（`initHostCache`）：SW 加载时先从 OPFS 读取持久化 manifest 恢复内存状态，再从网络拉取最新 manifest。版本变化时触发 `updateHostCache`。
 - **预缓存**（`updateHostCache`）：删除不再需要的旧文件，然后逐个下载 manifest 中的所有文件写入 OPFS `host-cache/files/`。完成后持久化 manifest。通过 `postMessage` 向 client 广播进度（`host-cache-progress`）和完成事件（`host-cache-complete`）。
-- **fetch 拦截**：作为所有 noneos-core 路由之后的 fallback。同域 GET 请求且路径在 files 列表中时，优先返回 OPFS 缓存；缓存未命中时回退网络并写入缓存。
+- **fetch 拦截**：作为所有 noneos-core 路由之后的 fallback。同域 GET 请求且路径在 files 列表中时进入 host-cache 处理。
+  - **开发环境旁路**：`self.location.hostname` 为 `localhost` 或 `127.0.0.1` 时，`isHostCachedFile` 直接返回 false，旁路整个 OPFS 缓存层，请求走网络，确保宿主项目源码改动无需 bump version 即可立即生效。
+  - **生产环境 SWR**：命中 OPFS 缓存立即返回（保证响应速度），同时若距上次后台刷新超过 `SWR_TTL`（5 分钟），异步 `fetch(request, { cache: "no-store" })` 拉取最新内容覆盖 OPFS。后台刷新带 `navigator.onLine` 守卫与 `refreshing: Set` 去重。**下次刷新即可拿到新版本**——无需 bump version，生产环境也能在 5 分钟内自愈陈旧缓存。缓存未命中时同步回退网络并写入缓存。
 - **版本更新触发**：前端 fetch `/__host-cache` 获取当前缓存版本，与最新 manifest 版本对比，发现差异后通过 `postMessage({ type: "host-cache-update", manifest })` 通知 SW 执行更新。
 - **manifest 文件本身不走缓存**：始终从网络获取，确保前端能检测到版本变化。
 
