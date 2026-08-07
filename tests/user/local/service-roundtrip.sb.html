@@ -108,11 +108,17 @@
 
         // 阶段 2：注销后发送应失败（no_receiver 或 offline）
         t2_svc.unregister();
-        // 等待 __service_unavailable 推送到 A 端
-        await new Promise((r) => setTimeout(r, 400));
-        const t2_res2 = await t2_remoteB.sendToService("lifecycle-app", { phase: 2 });
+        // __service_unavailable 推送到 A 端有延迟，固定 sleep 在 WebKit 上不够；
+        // 改为轮询 sendToService，直到 A 端感知到服务下线（返回 no_receiver/offline）
+        let t2_res2;
+        let t2_phase2Status;
+        for (let i = 0; i < 50; i++) {
+          t2_res2 = await t2_remoteB.sendToService("lifecycle-app", { phase: 2 });
+          t2_phase2Status = t2_res2[0]?.status;
+          if (t2_phase2Status === "no_receiver" || t2_phase2Status === "offline") break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
         await new Promise((r) => setTimeout(r, 200));
-        const t2_phase2Status = t2_res2[0]?.status;
         const t2_phase2Failed = t2_phase2Status === "no_receiver" || t2_phase2Status === "offline";
         const t2_phase2NotReceived = t2_received.length === 1; // 仍然只有 phase 1 那一条
 
