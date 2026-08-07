@@ -47,7 +47,17 @@ SW 加载时会读取 manifest，将 `files` 列表中的文件逐个下载并�
 
 ### fetch 拦截
 
-当页面请求同域 GET 资源时，如果路径在 manifest 的 files 列表中，SW 优先从 OPFS 缓存返回。缓存未命中时回退到网络，并将响应写入缓存。
+当页面请求同域 GET 资源时，如果路径在 manifest 的 files 列表中，SW 会进入 host-cache 处理。行为按环境区分：
+
+**开发环境（localhost / 127.0.0.1）旁路**：`self.location.hostname` 为 `localhost` 或 `127.0.0.1` 时，host-cache 完全不拦截请求，所有请求直接走网络。开发者在本地修改宿主项目文件后无需 bump version，刷新页面即可看到改动生效。
+
+**生产环境 SWR（stale-while-revalidate）**：
+- 命中 OPFS 缓存时立即返回缓存内容（保证响应速度）。
+- 若距上次后台刷新超过 5 分钟（`SWR_TTL`），SW 会异步 `fetch` 最新文件覆盖 OPFS 缓存（带离线守卫 `navigator.onLine` 与并发去重 `refreshing: Set`）。
+- **下次刷新即可拿到新版本**——无需修改 `host-cache.json` 的 version 字段，生产环境也能在 5 分钟内自愈陈旧缓存。
+- 缓存未命中时同步回退网络，并将响应写入 OPFS 缓存。
+
+> version 触发的预缓存机制仍然保留，适用于需要立即全量更新的场景（如发版后强制刷新所有文件）。SWR 是对它的补充，解决"version 没同步 bump 时线上拿不到新文件"的问题。
 
 ### 版本更新检测
 
@@ -112,3 +122,5 @@ host-cache/
 - 文件路径不应以 `/nos/`、`/gh/`、`/npm/`、`/ncomp/`、`/nos-tool/`、`/$` 等 noneos-core 保留前缀开头，否则会被对应路由优先处理。
 - 预缓存是异步的，不阻塞 SW 的 install/activate。预缓存完成前，未缓存的文件会回退到网络。
 - 首次安装时所有文件都需要网络下载，请确保在网络环境下完成首次预缓存。
+- **开发环境（localhost / 127.0.0.1）下 host-cache 自动旁路**：修改宿主项目文件后无需 bump version，刷新即可生效。如需在本地测试离线缓存行为，请使用非 localhost 域名（如局域网 IP）访问。
+- **生产环境 SWR 的"第二次刷新"特性**：修改宿主项目文件并部署后，首个访问用户首次刷新会拿到旧缓存（同时触发后台刷新），第二次刷新才拿到新版本。如需所有用户立即生效，仍可 bump version 触发预缓存。

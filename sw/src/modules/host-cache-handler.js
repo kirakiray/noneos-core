@@ -26,7 +26,21 @@ let hostManifest = null; // { name, version, files: [] }
 let fileSet = null; // Set<string>，快速查找
 let precaching = false; // 是否正在预缓存
 
+// SWR 状态（host-cache 专用，与 cache-handlers.js 隔离）
+const SWR_TTL = 5 * 60 * 1000; // 5 分钟
+const lastRefreshAt = new Map(); // filePath -> 最近一次后台刷新时间
+const refreshing = new Set(); // 正在后台刷新的 filePath，用于去重
+
 // --- 配置 ---
+
+/**
+ * 是否为开发环境（localhost）。
+ * 开发环境下旁路 OPFS 缓存，确保宿主项目源码改动无需 bump version 即可立即生效。
+ */
+const isDevEnv = () => {
+  const hostname = self.location.hostname;
+  return hostname === "localhost" || hostname === "127.0.0.1";
+};
 
 const getManifestPath = () => {
   if (
@@ -220,6 +234,8 @@ export const initHostCache = async () => {
  */
 export const isHostCachedFile = (path) => {
   if (!fileSet) return false;
+  // 开发环境（localhost）旁路 OPFS 缓存，直接走网络
+  if (isDevEnv()) return false;
   const filePath = path.replace(/^\//, "");
   if (!fileSet.has(filePath)) return false;
   // manifest 文件本身不走缓存，始终从网络获取
@@ -228,8 +244,54 @@ export const isHostCachedFile = (path) => {
 };
 
 /**
+ * 检查是否需要后台刷新；顺带回收过期条目。
+ */
+const shouldRefresh = (filePath) => {
+  const t = lastRefreshAt.get(filePath);
+  if (!t) return true;
+  if (Date.now() - t >= SWR_TTL) {
+    lastRefreshAt.delete(filePath);
+    return true;
+  }
+  return false;
+};
+
+/**
+ * SWR 后台刷新：拉取最新文件覆盖 OPFS。
+ * 离线跳过，并发去重。完成后下次刷新即可拿到新版本。
+ */
+const refreshInBackground = (filePath, request) => {
+  if (!navigator.onLine) return;
+  if (refreshing.has(filePath)) return;
+  refreshing.add(filePath);
+
+  (async () => {
+    try {
+      const response = await fetch(request, { cache: "no-store" });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const opfsPath = `${HOST_CACHE_DIR}/${FILES_DIR}/${filePath}`;
+      const handle = await getFileHandle({ path: opfsPath, create: true });
+      const stream = await handle.createWritable();
+      await stream.write(blob);
+      await stream.close();
+      lastRefreshAt.set(filePath, Date.now());
+      console.log(`[host-cache] background refreshed: ${filePath}`);
+    } catch (err) {
+      console.warn(
+        `[host-cache] background refresh failed: ${filePath}`,
+        err.message || err,
+      );
+    } finally {
+      refreshing.delete(filePath);
+    }
+  })();
+};
+
+/**
  * 处理 host-cache 文件请求。
- * 优先返回 OPFS 缓存，未命中时回退网络并写入缓存。
+ * 生产环境采用 SWR：命中缓存立即返回，TTL 过期时后台刷新（下次刷新生效）；
+ * 缓存未命中时同步回退网络并写入缓存。
  */
 export const handleHostCacheRequest = async ({ path, request }) => {
   if (request.method !== "GET") return null;
@@ -244,6 +306,10 @@ export const handleHostCacheRequest = async ({ path, request }) => {
   if (handle) {
     const file = await handle.getFile();
     if (file.size) {
+      // SWR：立即返回缓存，TTL 过期时后台刷新
+      if (shouldRefresh(filePath)) {
+        refreshInBackground(filePath, request);
+      }
       return new Response(file, {
         headers: { "Content-Type": getContentType(path) },
       });
@@ -262,6 +328,7 @@ export const handleHostCacheRequest = async ({ path, request }) => {
       const stream = await cacheHandle.createWritable();
       await stream.write(blob);
       await stream.close();
+      lastRefreshAt.set(filePath, Date.now());
       return new Response(blob, {
         headers: { "Content-Type": getContentType(path) },
       });
