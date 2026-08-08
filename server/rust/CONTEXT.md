@@ -221,8 +221,33 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 
 ## 九、构建与运行
 
+### 本地构建
+
 ```bash
 cd server/rust
 cargo build --release
 ./target/release/noneos-handshake -c config.toml
 ```
+
+### Docker 部署
+
+镜像采用多阶段构建（`Dockerfile`），编译产物为 `noneos-handshake`，运行镜像基于 `debian:bookworm-slim`。容器默认配置见 `docker/config.toml`（监听 `0.0.0.0:8081`，redb 落盘到 `/app/data`）。`.dockerignore` 用于排除本地 `target/`、`test-space/`、`*.redb` 等，避免污染构建上下文。
+
+```bash
+cd server/rust
+
+# 构建（默认用本机架构；为 x86 服务器构建时加 --platform=linux/amd64）
+docker build -t noneos-handshake:3.1.0 .
+
+# 运行：映射端口 + 持久化数据库卷
+docker run -d \
+  -p 8081:8081 \
+  -v handshake-data:/app/data \
+  noneos-handshake:3.1.0
+
+# 覆盖默认配置（自定义 config 挂载到 /app/config.toml）
+docker run -d -p 8081:8081 -v handshake-data:/app/data \
+  -v $(pwd)/my.toml:/app/config.toml noneos-handshake:3.1.0
+```
+
+> 关键约定：容器内 `host` 必须为 `0.0.0.0`（或空串），写成 `localhost`/`127.0.0.1` 将导致端口映射后外部无法连接。
