@@ -1,12 +1,23 @@
-# syntax=docker/dockerfile:1
-
 # =============================================================================
 # 阶段 1：编译 release 二进制
 # 注意：如需在 Apple Silicon 上为 x86 服务器构建，请在 build 时指定
 #       --platform=linux/amd64（不要在此硬编码，以免拖慢原生构建）
+# 镜像源可通过 --build-arg 覆盖，用于走国内加速（如 docker.xuanyuan.me/library/...）
 # =============================================================================
-FROM rust:latest AS builder
+ARG RUST_IMAGE=docker.io/library/rust:latest
+ARG DEBIAN_IMAGE=docker.io/library/debian:bookworm-slim
+
+FROM ${RUST_IMAGE} AS builder
 WORKDIR /src
+
+# 配置国内 crates 镜像加速，避免 cargo build 下载依赖超时
+RUN mkdir -p "$CARGO_HOME" && \
+    printf '%s\n' \
+      '[source.crates-io]' \
+      'replace-with = "rsproxy-sparse"' \
+      '[source.rsproxy-sparse]' \
+      'registry = "sparse+https://rsproxy.cn/index/"' \
+    > "$CARGO_HOME/config.toml"
 
 # 先只拷依赖清单 + 占位 main.rs 编译依赖，利用层缓存加速重复构建
 COPY Cargo.toml Cargo.lock ./
@@ -21,7 +32,7 @@ RUN touch src/main.rs && cargo build --release
 # =============================================================================
 # 阶段 2：最小运行镜像
 # =============================================================================
-FROM debian:bookworm-slim
+FROM ${DEBIAN_IMAGE}
 WORKDIR /app
 
 # 运行所需最小依赖（ca-certificates 便于未来对接 TLS / 外部 HTTPS）

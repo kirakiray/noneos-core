@@ -238,7 +238,15 @@ cd server/rust
 
 # 构建（默认用本机架构；为 x86 服务器构建时加 --platform=linux/amd64）
 docker build -t noneos-handshake:3.1.0 .
+```
 
+> 国内网络拉取 Docker Hub 镜像超时时，可通过 `--build-arg` 指定国内加速源（`Dockerfile` 已用 `ARG` 暴露 `RUST_IMAGE`/`DEBIAN_IMAGE`，并内置 rsproxy crates 加速）：
+> ```bash
+> docker build \
+>   --build-arg RUST_IMAGE=docker.1ms.run/library/rust:latest \
+>   --build-arg DEBIAN_IMAGE=docker.1ms.run/library/debian:bookworm-slim \
+>   -t noneos-handshake:3.1.0 .
+> ```
 # 运行：映射端口 + 持久化数据库卷
 docker run -d \
   -p 8081:8081 \
