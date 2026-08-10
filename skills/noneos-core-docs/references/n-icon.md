@@ -17,7 +17,7 @@ NoneOS 的图标组件，支持通过 [Iconify](https://iconify.design/) 引用�
 - **按需加载**：仅在设置 `icon` 属性时从 Iconify API 异步获取 SVG。
 - **双重缓存机制**：
     - **内存缓存**：使用 Promise 缓存正在进行的请求，防止同一页面并发请求相同图标。
-    - **持久化缓存**：基于 [EverCache](https://raw.githubusercontent.com/kirakiray/ever-cache/refs/heads/main/skills/ever-cache/SKILL.md) (IndexedDB) 存储已下载的图标，实现跨页面、跨会话的瞬间加载，显著减少网络请求。
+    - **持久化缓存**：基于 `nos/storage`（IndexedDB）存储已下载的图标，实现跨页面、跨会话的瞬间加载，显著减少网络请求。缓存位于独立存储空间 `getStorage("n-icon")`。
 - **样式继承**：图标颜色默认继承自父元素的 `color`，大小可通过 `font-size` 或直接设置组件的宽高控制。
 
 ## 使用示例

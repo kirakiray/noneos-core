@@ -9,7 +9,10 @@
   </style>
   <div class="main"></div>
   <script>
-    import { get, set } from "./db.js";
+    import { getStorage } from "../storage/main.js";
+
+    // 图标持久化缓存（独立存储空间，避免键名冲突）
+    const iconStore = getStorage("n-icon");
 
     // 内存 Promise 缓存，防止并发请求相同图标
     const promiseCache = {};
@@ -32,7 +35,7 @@
           // 1. 优先从内存或持久化缓存获取
           let content = promiseCache[name]
             ? await promiseCache[name]
-            : await get(name);
+            : await iconStore.getItem(name);
 
           // 2. 缓存未命中则从网络获取
           if (!content) {
@@ -42,7 +45,7 @@
 
             try {
               content = await promiseCache[name];
-              await set(name, content); // 存入持久化缓存
+              await iconStore.setItem(name, content); // 存入持久化缓存
             } catch (error) {
               console.error(`Failed to load icon: ${name}`, error);
             } finally {
