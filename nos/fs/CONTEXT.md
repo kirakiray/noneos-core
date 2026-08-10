@@ -56,8 +56,8 @@ PublicBaseHandle (public/base.js)
 |------|------|
 | `get(path, options)` | 按路径获取句柄，自动路由到 mount/remote/system |
 | `init(name)` | 初始化 OPFS 根目录（`navigator.storage.getDirectory()`） |
-| `open(options?)` | 弹出系统目录选择器，返回 DirHandle；options：`{ mode?: "read"|"readwrite"（默认 readwrite）, id?: string, mount?: true }`；不支持 `showDirectoryPicker` 时抛错 |
-| `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>{encodeURI(name)}` 路径；若 handle 已挂载（`RESET_PATH` 已存在）则幂等直接返回 |
+| `open(options?)` | 弹出系统目录选择器，返回 DirHandle；options：`{ mode?: "read"|"readwrite"（默认 readwrite）, id?: string, mount?: true }`；不支持 `showDirectoryPicker` 时抛错。**返回的句柄会被打上 `PICKED` 标记**（见下文） |
+| `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>{encodeURI(name)}` 路径，并清除 `PICKED` 标记；若 handle 已挂载（`RESET_PATH` 已存在）则跳过持久化但仍清除标记 |
 | `unmount(idOrHandle)` | 从 IndexedDB 删除挂载记录 |
 | `getMounted()` | 返回所有已挂载目录列表 `[{id, name, path, handle}]` |
 
@@ -108,8 +108,20 @@ PublicBaseHandle (public/base.js)
 - 挂载目录通过 `RESET_PATH` Symbol 覆盖路径为 `$mount-{id}>{encodeURI(name)}`，使挂载句柄的路径与 OPFS 路径解耦。
 - 远端用户路径格式：`$user-{userId}:{rootName}/sub/path`，在 `main.js` 中解析后交给 `fs-remote/main.js`。
 
-### 2. 挂载机制（handle/mount/）
+#### PICKED 标记（public/base.js）
 
+`open()` 返回的句柄在 `mount()` 之前**无 parent 也无 `RESET_PATH`**，其 `path` 退化为光秃秃的目录名（如 `"MyFolder"`）。这类路径无法被 `get()` 正确还原 —— 会走 `systemHandleGet` 当作 OPFS 路径处理，要么抛「根目录不存在」，要么**静默命中同名的 OPFS 根目录**（返回完全不同的目录）。
+
+为此 `public/base.js` 导出 `PICKED` 符号标记来源：
+
+- `open()` 中置 `handle[PICKED] = true`
+- `mount()` 成功后 `delete handle[PICKED]`（路径已变为可还原的 `$mount-` 形式）
+
+`PICKED` 用 **`Symbol.for("nos-fs-picked")`** 注册为全局符号，使 `nos/storage` 等模块无需 `import` 本文件即可读取 —— 本文件顶层会创建 `BroadcastChannel`，为读一个常量而加载整个 fs 模块代价过高。
+
+消费方（如 `nos/storage` 的 `setItem`）据此拒绝持久化未挂载的句柄。**判定需同时检查 `handle[PICKED] || handle.root?.[PICKED]`** —— 子孙句柄自身无标记，但 `root` 指向最初 `open()` 的句柄。
+
+### 2. 挂载机制（handle/mount/）
 - `open()` 调用 `window.showDirectoryPicker()` 获取真实目录句柄。
 - `mount()` 通过 `saveHandle()` 将原生 `FileSystemHandle` 存入 IndexedDB（`handles-db` 数据库，`handles` store，keyPath 为 `id`）。
 - ID 生成：先生成候选 id `{kind}-{Date.now()}`，再遍历已有句柄用 `isSameEntry` 去重 —— 找到相同项则复用已有 id，没找到才使用候选 id；`saveHandle` 写入时会附带 `time: Date.now()` 字段。

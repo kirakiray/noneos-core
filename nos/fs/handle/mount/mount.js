@@ -1,5 +1,5 @@
 import { DirHandle } from "../dir.js";
-import { RESET_PATH } from "../../public/base.js";
+import { RESET_PATH, PICKED } from "../../public/base.js";
 import { saveHandle, loadHandle, deleteHandle, getAllHandles } from "./db.js";
 
 // 检查权限
@@ -35,6 +35,9 @@ export const open = async (options) => {
 
   const handle = new DirHandle(directoryHandle);
 
+  // 标记来源：未 mount 前 path 不可还原，不允许被持久化
+  handle[PICKED] = true;
+
   if (options?.mount) {
     await mount(handle);
   }
@@ -48,6 +51,10 @@ export const mount = async (handle) => {
 
     handle[RESET_PATH] = `$mount-${id}>${encodeURI(handle.name)}`;
   }
+
+  // 已挂载，path 变为可还原的 $mount- 形式，解除限制
+  delete handle[PICKED];
+
   return handle;
 };
 
