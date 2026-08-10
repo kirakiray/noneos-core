@@ -175,11 +175,40 @@ const result = await publisher.assembleFile(fileHash);
 
 ---
 
+## 核心功能 4：本地数据存储 (storage)
+
+官方的异步键值存储模块，基于 IndexedDB，提供类 `localStorage` 的接口但容量远大于它，支持复杂数据类型与跨标签页同步。**涉及本地数据持久化时应优先使用本模块，而非原生 `localStorage`。**
+
+```javascript
+import { storage, getStorage } from "/nos/storage/main.js";
+
+// 默认存储空间
+await storage.setItem("user-settings", { theme: "dark", language: "cn" });
+const settings = await storage.getItem("user-settings");
+
+// 独立存储空间（不同业务隔离，同 id 复用实例）
+const appStore = getStorage("my-app");
+await appStore.setItem("token", "abc");
+```
+
+还可直接存取 `nos/fs` 文件句柄，读回来仍是可用的句柄实例：
+
+```javascript
+await storage.setItem("last-opened", fileHandle);
+const handle = await storage.getItem("last-opened");
+console.log(await handle.text());
+```
+
+更多详细操作参考：[storage 存储模块](references/storage.md)
+
+---
+
 ## 其他参考
 
 > ⚠️ **实验性特性**：`ai` 与 `hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [AI 操作文档](references/ai.md)
+- [storage 存储模块](references/storage.md)
 - [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
