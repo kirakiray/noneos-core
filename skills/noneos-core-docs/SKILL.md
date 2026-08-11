@@ -116,6 +116,8 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
+> ⚠️ **可靠投递规范**：`sendToService` 只保证「尽力投递」，返回 `ok` 不代表对端 handler 已执行（RTC 通道切换、对端刷新、服务发现缓存过期等都会导致静默丢失）。**每个应用的发送操作都应做到：消息带唯一 msgId + 对方限时回 ACK + 超时重发 + 接收方按 msgId 去重 + 单条消息小于 256KB（服务端硬限制）+ 同一目标串行发送（收到 ACK 后才发下一条）**。完整实现见：[应用层可靠消息投递](references/reliable-messaging.md)
+
 ### 查看已连接的远程用户与状态事件
 
 LocalUser 会缓存已建立通信的远程用户，并通过 `user.remoteUsers` 暴露，同时提供 `isRemoteUserOnline()`、`getRemoteUsers()` 与 `remote_user_connected` / `remote_user_disconnected` 事件。详见：
@@ -167,6 +169,7 @@ const result = await publisher.assembleFile(fileHash);
 ### 通信详细操作
 
 - [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
+- [应用层可靠消息投递](references/reliable-messaging.md) — ACK 确认、超时重发、msgId 去重（应用通信必读规范）
 - [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 
 ### 流量统计

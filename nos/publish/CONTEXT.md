@@ -18,7 +18,8 @@
 5. **二进制高效传输**：chunk 数据在 server relay 走二进制帧（`relayToUserViaServer` 自动识别），在 RTC 走 `dc.send(ArrayBuffer)`；两条路径都零 base64 开销。
 6. **本地优先 + 远程兜底**：所有请求先查本地 IndexedDB，未命中才发起网络请求。
 7. **并发去重**：同一 `fileHash`/`chunkHash` 的并发请求自动合并为同一个 Promise。
-8. **sessionId 缓存与重试**：首次 `getSessionIds()` 后缓存；当前 session 断开自动失效缓存并重试一次。
+8. **并发上限**：`fetchFile` 通过 `asyncPool` 限制在途 chunk 请求数（`CHUNK_FETCH_CONCURRENCY = 8`）。单条 relay 受服务端 `binary_payload_max_size`(256KB) 限制，且无上限并发会灌满 RTC DataChannel 发送缓冲、更快触发服务端 relay 失败熔断。
+9. **sessionId 缓存与重试**：首次 `getSessionIds()` 后缓存；当前 session 断开自动失效缓存并重试一次。
 
 ## 二、模块地图
 
@@ -49,7 +50,7 @@ DataPublisher (data-publisher.js)       ← 依赖 LocalUser
 | `requestManifest(remoteUser, fileHash, sessionId?)` | DB 优先 -> 网络请求（10s 超时）；断开自动重试一次 |
 | `requestChunk(remoteUser, chunkHash, sessionId?)` | DB 优先 -> 网络请求（15s 超时）；收到二进制重算 SHA-256 匹配；断开自动重试一次 |
 | `assembleFile(fileHash)` | 从 DB 读 manifest + 所有 chunk -> Blob；缺失 chunk 抛错（带 `missing`/`fileHash` 字段） |
-| `fetchFile(remoteUser, fileHash, sessionId?)` | 本地 `assembleFile` 优先 -> 远程拉 manifest -> 并发拉所有缺失 chunk -> 再次组装 |
+| `fetchFile(remoteUser, fileHash, sessionId?)` | 本地 `assembleFile` 优先 -> 远程拉 manifest -> 按 `CHUNK_FETCH_CONCURRENCY`(8) 限制并发拉所有缺失 chunk -> 再次组装 |
 
 ### db.js 工具函数
 
@@ -152,6 +153,7 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 | `../user/remote-user.js` (RemoteUser) | `send(sid, data, true)` 请求发起 / RTC 响应回复、`bind("message")` 匹配二进制 chunk 响应、`getSessionIds()` |
 | `../crypto/crypto-verify.js` (`verifyData`) | manifest 验签 |
 | `../util/hash/get-hash.js` (`getHash`) | chunk/file 哈希 |
+| `../util/async-pool.js` (`asyncPool`) | `fetchFile` 拉取 chunk 的并发上限控制 |
 
 ## 八、与其他模块的联动
 
@@ -168,6 +170,7 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 | 项 | 值 | 说明 |
 |----|----|------|
 | CHUNK_SIZE | 128KB（`128 * 1024`） | data-publisher.js 中的 `CHUNK_SIZE` 常量（README 已对齐） |
+| CHUNK_FETCH_CONCURRENCY | 8 | `fetchFile` 拉取缺失 chunk 的最大并发数 |
 | 数据库名 | `nos_publish_data_${namespace}` | 按 namespace 隔离，每用户独立库（README 已对齐） |
 | DB_VERSION | 4 | 当前版本（README 中部分位置仍误写为 "版本 2"，待修正） |
 

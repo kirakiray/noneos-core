@@ -27,18 +27,59 @@
           const reg_1 = await navigator.serviceWorker.register(
             "/host-cache-test-sw.js"
           );
-          await navigator.serviceWorker.ready;
 
-          // 等待测试 SW 真正接管本页并完成 initHostCache。
-          // /__host-cache 路由仅在 HOST_CACHE_CONFIG 存在时注册（即仅测试 SW 有），
-          // 故能拿到合法 JSON 即证明接管成功；否则会拿到静态服务器返回的 HTML。
+          // 等待测试 SW 真正取得本页控制权。
+          // 注意：不能用 navigator.serviceWorker.ready —— 混跑时上一个测试注册的
+          // 正式 sw.js 仍在 active 且仍控制着其它 client（如顶层 test-all.html），
+          // 此时 ready 会立刻用「旧的 active 注册」resolve，而测试 SW 停在 waiting，
+          // 导致 /__host-cache 等虚拟路由穿透到静态服务器返回 404 HTML。
+          // 这里显式等待新 worker 走到 activated 并接管当前页面。
+          const waitForControl_1 = async () => {
+            const isTestSw_1 = () =>
+              navigator.serviceWorker.controller?.scriptURL?.includes(
+                "host-cache-test-sw.js"
+              );
+            if (isTestSw_1()) return true;
+
+            await new Promise((resolve_1) => {
+              let done_1 = false;
+              const finish_1 = () => {
+                if (done_1) return;
+                done_1 = true;
+                clearTimeout(timer_1);
+                navigator.serviceWorker.removeEventListener(
+                  "controllerchange",
+                  onChange_1
+                );
+                resolve_1();
+              };
+              const onChange_1 = () => {
+                if (isTestSw_1()) finish_1();
+              };
+              navigator.serviceWorker.addEventListener(
+                "controllerchange",
+                onChange_1
+              );
+
+              // waiting 中的 worker 自身 install 时会调用 skipWaiting，
+              // 这里跟踪其状态机，activated 后即可判定接管完成
+              const pending_1 = reg_1.installing || reg_1.waiting;
+              pending_1?.addEventListener("statechange", () => {
+                if (pending_1.state === "activated") onChange_1();
+              });
+
+              const timer_1 = setTimeout(finish_1, 20000);
+            });
+
+            return isTestSw_1();
+          };
+
+          const controlled_1 = await waitForControl_1();
+
+          // 接管后轮询等待 initHostCache 完成（precaching 结束）
           let status_1;
           for (let i_1 = 0; i_1 < 100; i_1++) {
             try {
-              // 若尚未接管，主动催促新 SW 上位
-              if (!navigator.serviceWorker.controller) {
-                await reg_1.update().catch(() => {});
-              }
               const response_1 = await fetch("/__host-cache", {
                 cache: "no-store",
               });
@@ -56,7 +97,7 @@
           }
 
           const checks_1 = {
-            swRegistered: !!navigator.serviceWorker.controller,
+            swRegistered: controlled_1,
             hasName: status_1?.name === "test-host-cache",
             hasVersion: status_1?.version === "1.0.0",
             hasFileCount: status_1?.fileCount === 1,
@@ -65,7 +106,11 @@
 
           return {
             assert: Object.values(checks_1).every(Boolean),
-            content: { status: status_1, checks: checks_1 },
+            content: {
+              status: status_1,
+              checks: checks_1,
+              controller: navigator.serviceWorker.controller?.scriptURL || null,
+            },
           };
         </script>
       </template>

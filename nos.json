@@ -1,7 +1,7 @@
 {
   "version": "4.3.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1786419463444,
+  "signTime": 1786451716011,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -140,18 +140,18 @@
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "5dd1a849cf17daaf57104c7af3f6b1fce98d7dafdd6289996a0e38ca9cf2c6ab",
-      "size": 11827
+      "hash": "53723ca969beef20e42fadbb41c343e6b9e2cb2293ad0f8155f55b59be2489d2",
+      "size": 12331
     },
     {
       "path": "publish/README.md",
-      "hash": "7aa1f86907500558ed813be8bd9e36c996926bcb18c37ce97f621187c3cf05f5",
-      "size": 12970
+      "hash": "ca5ba95785c3e7752ad6dfd344ea005ebee4de9f1c90456d02e0cd3ad0c6f6d6",
+      "size": 13534
     },
     {
       "path": "publish/data-publisher.js",
-      "hash": "d7ac79c7045f8d40b7cfc7f936a74eba61154b132f846bc9ee4b7cbc6e27310b",
-      "size": 25097
+      "hash": "e4a2a00c2b016232b1f21f00cb190876437b2766ca73fe4dbf4ca7eb2755af55",
+      "size": 25580
     },
     {
       "path": "publish/db.js",
@@ -165,8 +165,8 @@
     },
     {
       "path": "storage/CONTEXT.md",
-      "hash": "a1fb637b488d39272fe1b3e9f6f5f4c3846cef7121be5263e7c6db482ca1c46d",
-      "size": 15348
+      "hash": "4565694bfafdcbc81a7d4ae5a1034be741d689e6d2bf05fbab62e73eb74a43bd",
+      "size": 15098
     },
     {
       "path": "storage/README.md",
@@ -294,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "uhumorPuemmryYcbgNZoqzoE8liK/JYPXKvd4PsBctq0/ikspDZ9jm5KLTmBRyHwH4eYV5DIIS6xuhWcgqccww=="
+  "signature": "GmiRNo3BLrYmc1YB1hJKLok6wnDjYbHZI8R7/4A9QmkMebomgEFC6pdwFnlI9IJsNjw0+++XM6wL1u22iItKZA=="
 }
