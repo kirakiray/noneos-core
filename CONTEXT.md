@@ -22,17 +22,17 @@
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |
 | `server/client/` | 服务端管理前端（admin 页面） |
-| `nos-tool/` | 开发工具集（编辑器、studio、file-explore、安装/升级入口 `_install/`） |
+| `nos-tool/` | 内置工具集（studio、file-explore、system-info、locale-text-tool、rtc-tool，安装/升级入口 `_install/`）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
 | `skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |
+| `others/` | 归档/实验代码（如 `others/old/editor/` 旧 Monaco 编辑器），**不参与运行时** |
 
 ### 运行时虚拟路径（由 Service Worker 在运行时映射，**仓库内不存在**）
 
 | URL 前缀 | 实际映射目标 | 处理器（sw/src/modules/） |
 |----------|------------|---------------------------|
-| `/packages/...` | `nos/` 下的对应模块（如 `/packages/user/main.js` → `nos/user/main.js`） | nos-handle.js |
 | `/nos/...` | 按 `systemConfig.mode` 映射到线上 `core.noneos.com` 或本地 OPFS `nos-{version}/` | nos-handle.js |
 | `/gh/{path}` | `https://cdn.jsdelivr.net/gh/{path}` | cache-handlers.js |
 | `/npm/{path}` | `https://cdn.jsdelivr.net/npm/{path}` | cache-handlers.js |
@@ -111,5 +111,5 @@
 - `nos/crypto/`（5 个加密模块：AES/ECDH/ECDSA/RSA/verify）
 - `nos/hybrid-data/`（混合数据，远端 + 本地）
 - `nos/util/`（hash/zip/async-pool 等工具）
-- `nos-tool/`（开发工具集：编辑器、studio、file-explore）
+- `nos-tool/`（内置工具集：studio、file-explore、system-info、locale-text-tool、rtc-tool）
 - `server/client/`（服务端管理前端 admin 页面）

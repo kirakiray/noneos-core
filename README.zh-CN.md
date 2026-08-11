@@ -3,7 +3,7 @@
 > [English](README.md) | 中文
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.1.2-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](package.json)
 [![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
@@ -83,7 +83,7 @@ Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、
 |------|------|----------|
 | **微前端托管** | 应用基于内容寻址、可独立发布、按需加载——宿主与应用之间无构建期耦合。签名清单允许任意对端分发或提供应用服务。 | [`nos/publish/`](nos/publish/README.md)、[`nos-tool/studio/`](nos-tool/studio/) |
 | **容器隔离** | 每个应用运行在沙箱化运行时中:OPFS 支撑的虚拟文件系统负责隔离与持久化,去中心化身份与消息系统作为应用与外部世界交互的 I/O 接口。 | [`nos/fs/`](nos/fs/)、[`nos/user/`](nos/user/README.md) |
-| **资源虚拟化** | 容器化建立在 Service Worker 层之上,拦截每一次 fetch,将一组*虚拟 URL 前缀*(`/packages/`、`/nos/`、`/$/`、`/gh/`、`/npm/`、`/$mount-.../`)映射到不同后端——本地 OPFS、CDN、官方源或远端用户。浏览器只看到一个源,应用却感知到多个。 | [`sw/`](sw/) |
+| **资源虚拟化** | 容器化建立在 Service Worker 层之上,拦截每一次 fetch,将一组*虚拟 URL 前缀*(`/nos/`、`/nos-tool/`、`/ncomp/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`)映射到不同后端——本地 OPFS、CDN、官方源或远端用户。浏览器只看到一个源,应用却感知到多个。 | [`sw/`](sw/) |
 
 简而言之:**微前端托管**让应用彼此独立,**容器**为每个应用提供私有、持久、可互联的运行时,**资源虚拟化**则是让容器得以运作的 Service Worker 基石——这一切全部纯粹运行在浏览器中。
 
@@ -93,15 +93,22 @@ Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、
 
 ```
 nos/                  # 核心运行时模块(浏览器端)
-  fs/                 #   虚拟文件系统(基于 IndexedDB)
+  fs/                 #   虚拟文件系统(基于 OPFS)
   user/               #   去中心化用户身份与消息系统
   crypto/             #   ECDSA、E2EE、RSA、AES 加密
   publish/            #   P2P 文件发布与应用管理
+  storage/            #   异步键值存储(IndexedDB,类 localStorage 接口)
+  locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
+  n-icon/             #   图标组件
+  hybrid-data/        #   远端 + 本地混合数据(实验性)
   util/               #   哈希、zip、异步池等工具
-nos-tool/             # 桌面化 UI 工具
+ncomp/                # 基于 nos 的公共 UI 组件(<n-user-name> 等)
+nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可直接使用
   studio/             #   OFA Studio(应用开发环境)
-  editor/             #   基于 Monaco 的代码编辑器
-  file-explore/       #   文件浏览器
+  file-explore/       #   文件浏览器(浏览/导入/下载 OPFS 文件)
+  system-info/        #   系统信息与更新管理(版本、SW、安装)
+  locale-text-tool/   #   提取 <locale-text> 文案并生成 locale-text.json
+  rtc-tool/           #   管理 WebRTC 的 STUN/TURN 服务器列表
   _install/           #   Service Worker 注册与系统安装器
 sw/                   # Service Worker(请求拦截、路由、缓存)
 server/               # 后端实现
@@ -111,6 +118,7 @@ tests/                # 浏览器测试套件(.sb.html)
 scripts/              # 构建、签名、打包工具
 docs/                 # 多语言文档站点(OBook)
 skills/               # AI 代理技能定义
+others/               # 归档/实验代码(不参与运行时)
 ```
 
 ---
@@ -148,7 +156,38 @@ skills/               # AI 代理技能定义
 - 管理员命令:在线用户、系统信息、流量历史、配额管理
 
 ### P2P 发布(`nos/publish/`)
-- `DataPublisher`——分块式 P2P 文件分发
+- `DataPublisher`——分块式 P2P 文件分发(128KB 分块、签名清单、每块 SHA-256)
+
+### 键值存储(`nos/storage/`)
+- 基于 IndexedDB 的异步存储,提供类 `localStorage` 接口(`setItem` / `getItem` / `removeItem` / `clear`)
+- 可存储任意可结构化克隆的值(Object、Array、Date、Blob、Map、Set),也支持 `nos/fs` 句柄
+- 按 id 隔离存储空间,支持代理语法(`storage.key = value`),通过 BroadcastChannel 跨标签页同步
+- 本项目中的数据持久化**一律优先使用本模块**,而非原生 `localStorage`
+
+### Service Worker 层(`sw/`)
+- 虚拟 URL 前缀:`/nos/`、`/nos-tool/`、`/ncomp/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`
+- CDN 类前缀采用 SWR + 内存 TTL 缓存;本地系统文件优先读取 OPFS
+- **宿主项目离线缓存**——宿主项目可通过 `globalThis.HOST_CACHE_CONFIG` 声明自身文件清单,由 SW 预缓存并离线提供
+- 特殊路由:`/__config`、`/__host-cache`、`/__update-host-cache`
+
+### 公共 UI(`ncomp/`、`nos/locale-text/`、`nos/n-icon/`)
+- `ncomp/`——与 nos 能力强相关的可复用组件(`<n-user-name>`、`<n-user-status>`),通过 `/ncomp/{name}/{name}.html` 引用
+- `nos/locale-text/`——轻量国际化:`<locale-text>` 组件与脚本用的 `getLocaleText()`
+- `nos/n-icon/`——内置工具通用的图标组件
+
+### 内置便捷工具(`nos-tool/`)
+
+**凡是基于 NoneOS Core 的系统,都可以直接使用 `nos-tool/` 下的工具。** Service Worker 会把虚拟前缀 `/nos-tool/{path}` 映射到官方源(`https://core.noneos.com/nos-tool/{path}`,开发期优先 `localhost:3002`),因此这些工具无需安装、无需构建、也无需复制到你的项目中——在 NoneOS Core 页面中直接打开对应地址即可使用。
+
+| 工具 | 入口 | 说明 |
+|---|---|---|
+| **文件浏览器** | [`/nos-tool/file-explore/`](nos-tool/file-explore/) | 以面包屑导航浏览 OPFS 虚拟文件系统;支持新建目录、从本地磁盘导入文件/目录、下载与删除条目、复制当前路径,并可通过 `/$路径` 形式的 URL 直接打开文件。 |
+| **系统信息** | [`/nos-tool/system-info/`](nos-tool/system-info/) | 查看本地版本 / 线上版本 / SW 版本与更新状态,查看已注册的 Service Worker 及当前控制器;可检查更新、注册或卸载 SW、仅更新 SW,以及执行带进度反馈的完整系统更新(SW → `nos.zip` → 哈希校验 → 写入 OPFS)。 |
+| **OFA Studio** | [`/nos-tool/studio/`](nos-tool/studio/) | 应用开发环境:基于模板创建项目、管理项目文件、调整主题配色。 |
+| **Locale Text 工具** | [`/nos-tool/locale-text-tool/`](nos-tool/locale-text-tool/) | 扫描 HTML 中的 `<locale-text>` 文案,生成 `locale-text.json` 翻译索引。 |
+| **RTC 工具** | [`/nos-tool/rtc-tool/`](nos-tool/rtc-tool/) | 管理 WebRTC 的 STUN/TURN 服务器列表:测试连通性与延迟、调整顺序、临时启停。 |
+
+`nos-tool/_install/` 不是页面级工具,而是安装器入口(`registerSw()`、版本检查、完整安装),供 `<nos-version>` 组件与系统信息工具调用。该目录的当前定位见 [`nos-tool/README.md`](nos-tool/README.md)。
 
 ---
 
@@ -187,22 +226,37 @@ npm run ws
 ```
 编译需要 [Rust](https://www.rust-lang.org/)。
 
-### 4. 在你的应用中使用
+### 4. 在你自己的项目中使用
+
+在项目根目录创建 `sw.js`:
+
+```js
+importScripts("https://core.noneos.com/sw/dist.js");
+```
+
+在入口 HTML 中安装系统,随后即可使用运行时模块:
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
+<l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+<nos-version auto-install></nos-version>
+
 <script type="module">
-  import { getUser } from "/nos/user/main.js";
+  $("nos-version").on("installed", async () => {
+    const { getUser } = await import("/nos/user/main.js");
 
-  const user = await getUser("my-app");
-  console.log("My ID:", user.userId);
+    const user = await getUser("my-app");
+    console.log("My ID:", user.userId);
 
-  // 通过中继服务器向另一个用户发送消息
-  const remote = await user.connectUser(targetUserId);
-  const sessions = await remote.getSessionIds();
-  await remote.send(sessions[0], { hello: "world" });
+    // 通过中继服务器向另一个用户发送消息
+    const remote = await user.connectUser(targetUserId);
+    const sessions = await remote.getSessionIds();
+    await remote.send(sessions[0], { hello: "world" });
+  });
 </script>
 ```
+
+安装完成后,各虚拟前缀即刻生效:`/nos/...` 访问核心模块,`/ncomp/...` 访问公共组件,`/nos-tool/...` 访问内置工具,`/gh/...` 与 `/npm/...` 则是带缓存的 jsDelivr 简写。
 
 ---
 
@@ -212,9 +266,14 @@ npm run ws
 
 核心参考:
 - [用户系统 API](nos/user/README.md)——身份、消息、证书、服务注册表
-- [虚拟文件系统 API](nos/fs/)——文件操作、挂载、监听
+- [虚拟文件系统 API](nos/fs/README.md)——文件操作、挂载、监听
+- [键值存储](nos/storage/README.md)——异步的类 localStorage 存储
 - [P2P 发布](nos/publish/README.md)——DataPublisher
+- [公共组件](ncomp/README.md)——`<n-user-name>`、`<n-user-status>`
+- [多语言模块](nos/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
+- [宿主项目离线缓存](skills/noneos-core-docs/references/host-cache.md)——缓存宿主项目自身文件
 - [服务器配置](server/rust/README.md)——中继服务器搭建
+- [AI 代理知识库](skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
 
 ---
 
@@ -223,11 +282,19 @@ npm run ws
 | 脚本 | 说明 |
 |---|---|
 | `npm run dev` | 启动静态服务器(端口 3002)+ 监听 Service Worker——**本地调试用** |
-| `npm start` | 启动静态服务器(端口 30028)——**本地正式部署使用** |
-| `npm run build` | 完整构建:哈希 → nos.zip → Service Worker |
-| `npm run bump` | 跨所有文件升级版本号 |
+| `npm start` | 启动静态服务器(端口 30028)——**本地正式部署使用 / 自动化测试端口** |
+| `npm run static` | 仅启动静态服务器(端口 3002) |
+| `npm run watch:sw` | 监听 `sw/src/**` 变更并自动重建 Service Worker |
+| `npm run build` | 完整构建:哈希 → nos.zip → Service Worker → Skill 知识库 |
+| `npm run build:sw` | 通过 Rollup 构建 Service Worker(产出 `sw/dist.js` + `sw/dist.min.js`) |
+| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希(供 `nos.json` 消费) |
+| `npm run build:skill` | 构建 `skills/noneos-core-docs` 知识库(生成 `noneos-core-docs.zip`) |
+| `npm run bump` | 跨所有文件升级版本号,并重新安装依赖与构建 |
 | `npm run ws` | 启动两个 Rust 中继服务器(测试模式,端口 8081 & 8082) |
-| `npm run test` | 运行浏览器测试套件 |
+| `npm run ws1` / `npm run ws2` | 单独启动一个 Rust 中继服务器(端口 8081 / 8082) |
+| `npm run test` | 运行浏览器测试套件(`sb-test`) |
+
+> **重要**:修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`(或保持 `npm run watch:sw` 运行),否则部署的 Service Worker 不会生效。
 
 ---
 
