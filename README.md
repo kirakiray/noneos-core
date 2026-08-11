@@ -97,7 +97,6 @@ nos/                  # Core runtime modules (browser-side)
   user/               #   Decentralized user identity & messaging
   crypto/             #   ECDSA, E2EE, RSA, AES encryption
   publish/            #   P2P file publishing & app management
-  ai/                 #   AI chat utilities
   util/               #   Hash, zip, async pool utilities
 nos-tool/             # Desktop-like UI tools
   studio/             #   OFA Studio (app dev environment)

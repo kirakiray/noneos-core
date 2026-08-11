@@ -6,8 +6,6 @@
 
 `nos/storage` 是 NoneOS 官方的异步键值存储模块，提供类 localStorage 的 API，底层基于 **IndexedDB**，容量远大于 localStorage 且支持复杂数据类型。
 
-设计上对齐社区库 [EverCache](https://github.com/kirakiray/ever-cache)（项目此前依赖 `/gh/kirakiray/ever-cache/src/main.js`），并针对本项目场景做了增强。
-
 ### 核心设计
 
 1. **一个 id 一个数据库**：每个存储 id 对应独立的 IndexedDB 数据库 `nos-storage-${id}`，各自独立事务队列与连接，互不阻塞；`clear()` / `count()` 可直接用 store 原生能力，无需 range 过滤。
@@ -115,7 +113,7 @@ nos/storage/
 
 ### 1. 连接自愈（重要）
 
-**`db.onclose` 按规范只在异常终止时触发**（浏览器强制回收、存储被清理），显式 `db.close()` **不触发**。因此仅靠 `onclose` 重连是不可靠的 —— 这是 EverCache 的既有缺陷，显式关闭后 `this[IDB]` 会一直缓存已关闭的连接，下次 `transaction()` 抛 `InvalidStateError`。
+**`db.onclose` 按规范只在异常终止时触发**（浏览器强制回收、存储被清理），显式 `db.close()` **不触发**。因此仅靠 `onclose` 重连是不可靠的 —— 显式关闭后 `this[IDB]` 会一直缓存已关闭的连接，下次 `transaction()` 抛 `InvalidStateError`。
 
 本模块采用双保险：
 
@@ -181,7 +179,9 @@ nos/storage/
 | `instances: Map<id, NosStorage>` | `getStorage()` 的复用缓存，一个 id 只存一个 |
 | `liveInstances: Map<id, Set<NosStorage>>` | 登记该 id 下**所有**活跃实例（含直接 `new` 的） |
 
-`deleteStorage(id)` 必须关闭 `liveInstances` 中的全部实例，否则残留连接会导致 `deleteDatabase` 被阻塞（`onblocked`）。
+`deleteStorage(id)` 必须关闭 `liveInstances` 中的全部实例，否则残留连接会导致 `deleteDatabase` 迟迟无法完成。
+
+`deleteDatabase` 的 `onblocked` **只警告不 reject**。按规范 `blocked` 表示删除被延后而非失败 —— 待其余连接关闭后仍会走 `onsuccess`。WebKit 的 `db.close()` 在后端异步生效，紧随其后的 `deleteDatabase` 必然先触发一次 `blocked`（Chrome 关得快才不暴露）。**不要把它改回 reject**，那会让 Safari/WebKit 下的每次 `deleteStorage` 都失败。
 
 职责划分：`close()` 只管连接与通道，**不动缓存**；缓存增删归 `getStorage` / `deleteStorage`。
 
@@ -193,7 +193,7 @@ nos/storage/
 | `set` | **symbol 走 `Reflect`**；否则 `setItem` 并静默 catch |
 | `deleteProperty` | **symbol 走 `Reflect`**；否则 `removeItem` 并静默 catch |
 
-symbol 放行是必须的：重连时 `this[IDB] = this._openDB(id)` 若被当作 `setItem` 处理，重连将失效（EverCache 存在此问题）。
+symbol 放行是必须的：重连时 `this[IDB] = this._openDB(id)` 若被当作 `setItem` 处理，重连将失效。
 
 `"then"` 放行是为了避免实例被误当作 thenable 而在 `await` 时挂起。
 
@@ -222,6 +222,6 @@ symbol 放行是必须的：重连时 `this[IDB] = this._openDB(id)` 若被当�
 
 `PICKED` 用例通过 `new DirHandle(nativeHandle)` + 手动置 `[PICKED] = true` 模拟 `open()` 的返回（避免真实弹窗），并覆盖目录自身、子孙句柄、嵌套结构三种拒绝场景，以及真实 `mount()` 后可正常存储。**模拟时必须走真实 `mount()`**，不能只 `delete handle[PICKED]` —— 那样 `RESET_PATH` 未设置，`path` 仍不可还原，读取会失败。
 
-> ⚠️ 偶发失败：并发/连续跑多个用例时，`deleteStorage` 可能抛 `delete blocked`。`deleteDatabase` 要求所有连接都已关闭，而 `_withStore` 的自愈重试可能在 `close()` 之后又重开了连接。测试用例之间的 `deleteStorage` 属于清理操作，失败不影响被测逻辑本身。
+该用例的 mount 部分在 Safari/WebKit 下跳过（`isSafari` 判定）：`mount()` 依赖把 `FileSystemHandle` 存入 IndexedDB，Safari 会抛 `DataCloneError`。前三步拒绝校验与浏览器无关，照常执行。
 
-运行：`npx sb-test -f tests/storage/storage.sb.html --browsers chrome`（需先 `npm start`）。
+运行：`npx sb-test -f tests/storage/storage.sb.html --browsers chrome`（需先 `npm start`）。已在 chrome / firefox / webkit 三端验证 16/16 通过。

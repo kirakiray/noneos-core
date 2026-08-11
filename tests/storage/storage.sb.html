@@ -9,6 +9,13 @@
   <body>
     <h1>NosStorage Tests</h1>
 
+    <script>
+      // Safari 无法在 IndexedDB 中持久化 FileSystemHandle，mount() 必然抛错
+      const isSafari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent,
+      );
+    </script>
+
     <sb-test name="setItem / getItem - 基础读写">
       <template>
         <script>
@@ -705,15 +712,23 @@
 
             // 4) 真实 mount 后可正常存储：mount 会设置 RESET_PATH 并清除 PICKED，
             //    路径变为可还原的 $mount-xxx> 形式
-            await mount(picked);
-            const mountedPath = picked.path;
-            const stillPicked = picked[PICKED] === true;
+            //    Safari 无法持久化 FileSystemHandle，mount 不可用，跳过此步
+            let mountedPath = "$mount-skipped";
+            let stillPicked = false;
+            let afterMountKind = "file";
 
-            const mountedChild = await picked.get("child.txt");
-            await storage.setItem("after-mount", mountedChild);
-            const okBack = await storage.getItem("after-mount");
+            if (!isSafari) {
+              await mount(picked);
+              mountedPath = picked.path;
+              stillPicked = picked[PICKED] === true;
 
-            await unmount(picked);
+              const mountedChild = await picked.get("child.txt");
+              await storage.setItem("after-mount", mountedChild);
+              afterMountKind = (await storage.getItem("after-mount")).kind;
+
+              await unmount(picked);
+            }
+
             await caseDir.remove();
             await deleteStorage(id);
 
@@ -728,7 +743,7 @@
                 count === 0 &&
                 mountedPath.startsWith("$mount-") &&
                 stillPicked === false &&
-                okBack.kind === "file",
+                afterMountKind === "file",
               content: {
                 dirError,
                 childError,
@@ -736,7 +751,8 @@
                 countAfterRejects: count,
                 mountedPath,
                 pickedClearedAfterMount: !stillPicked,
-                afterMountKind: okBack.kind,
+                afterMountKind,
+                mountSkipped: isSafari,
               },
             };
           }

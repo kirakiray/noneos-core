@@ -17,7 +17,7 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util 等；另含 `hybrid-data` 与 `ai`，⚠️ 均为实验性特性，后续大概率迁移或淘汰） |
+| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util 等；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |
@@ -109,7 +109,6 @@
 修改这些模块时需逐文件阅读源码，建议在重大改动后补充 CONTEXT.md：
 
 - `nos/crypto/`（5 个加密模块：AES/ECDH/ECDSA/RSA/verify）
-- `nos/ai/`（AI 会话与并发控制）
 - `nos/hybrid-data/`（混合数据，远端 + 本地）
 - `nos/util/`（hash/zip/async-pool 等工具）
 - `nos-tool/`（开发工具集：编辑器、studio、file-explore）

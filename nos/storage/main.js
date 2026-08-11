@@ -662,10 +662,12 @@ export async function deleteStorage(id) {
     const req = indexedDB.deleteDatabase(`${DB_PREFIX}${id}`);
     req.onsuccess = () => resolve(true);
     req.onerror = (e) => reject(e.target.error || e);
-    req.onblocked = () =>
-      reject(
-        new Error(`nos-storage: delete blocked for "${id}", close other tabs`)
+    // 其他连接尚未关闭，删除被延后而非失败；连接关闭后仍会走 onsuccess
+    req.onblocked = () => {
+      console.warn(
+        `nos-storage: delete of "${id}" is blocked by an open connection, waiting`
       );
+    };
   });
 }
 
