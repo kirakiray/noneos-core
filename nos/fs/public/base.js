@@ -1,5 +1,12 @@
 export const RESET_PATH = Symbol("resetPath");
 
+// 标记句柄来自 open()（用户通过系统选择器挑选的本地目录）。
+// 这类句柄在 mount() 之前 path 只是光秃秃的目录名，无法通过 get() 还原，
+// 因此不可被持久化（如存入 nos/storage）。子孙句柄通过 root 继承该标记。
+// 用 Symbol.for 注册为全局符号，使 nos/storage 等模块无需 import 本文件即可读取，
+// 避免为了一个常量而牵连加载整个 fs 模块（本文件顶层会创建 BroadcastChannel）。
+export const PICKED = Symbol.for("nos-fs-picked");
+
 export class PublicBaseHandle {
   #parent;
   #root;

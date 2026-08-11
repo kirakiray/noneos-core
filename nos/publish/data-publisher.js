@@ -24,6 +24,7 @@ import {
 } from "./db.js";
 import { verifyData } from "../crypto/crypto-verify.js";
 import { getHash } from "../util/hash/get-hash.js";
+import { asyncPool } from "../util/async-pool.js";
 
 // 分块大小：128KB
 const CHUNK_SIZE = 128 * 1024;
@@ -31,6 +32,11 @@ const CHUNK_SIZE = 128 * 1024;
 // 请求超时时间
 const MANIFEST_TIMEOUT = 10000;
 const CHUNK_TIMEOUT = 15000;
+
+// fetchFile 拉取缺失 chunk 时的最大并发数。
+// 不可无上限并发：单条 relay 消息受服务端 binary_payload_max_size(256KB) 限制，
+// 且大量并发在途请求会灌满 RTC DataChannel 发送缓冲、更快触发服务端 relay 失败熔断。
+const CHUNK_FETCH_CONCURRENCY = 8;
 
 /**
  * 判断是否为二进制数据
@@ -717,7 +723,7 @@ export class DataPublisher {
    * 流程：
    * 1. 尝试本地 assembleFile，若成功直接返回
    * 2. 若本地缺失数据，向远程请求 manifest
-   * 3. 逐个请求缺失的 chunk
+   * 3. 按 CHUNK_FETCH_CONCURRENCY 限制并发拉取缺失的 chunk
    * 4. 再次 assembleFile 返回结果
    *
    * @param {import("../user/remote-user.js").RemoteUser} remoteUser - 远程用户实例
@@ -741,10 +747,11 @@ export class DataPublisher {
     if (!manifest) {
       throw new Error(`Manifest not found after remote fetch: ${fileHash}`);
     }
-    await Promise.all(
-      manifest.chunkHashes.map((chunkHash) =>
-        this.requestChunk(remoteUser, chunkHash, sessionId),
-      ),
+    // 限制并发：避免一次性发起全部 chunk 请求灌满通道
+    await asyncPool(
+      manifest.chunkHashes,
+      (chunkHash) => this.requestChunk(remoteUser, chunkHash, sessionId),
+      CHUNK_FETCH_CONCURRENCY,
     );
 
     // 再次组装（此时所有 chunk 应已在本地）

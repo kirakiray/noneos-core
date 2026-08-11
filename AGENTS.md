@@ -8,6 +8,9 @@
   - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 skills/noneos-core-docs/SKILL.md。
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
+- **本地存储 (Storage Layer)**：统一使用项目内置的 `nos/storage`。
+  - 涉及持久化数据（原本会用 `localStorage` 或手写 IndexedDB 的场景）时，一律改用 `nos/storage`，不要引入第三方存储库。
+  - 用法见 `nos/storage/README.md`，实现细节见 `nos/storage/CONTEXT.md`，Skill 文档见 `skills/noneos-core-docs/references/storage.md`。
 
 > 项目的技术栈细节、目录结构、运行时路径映射、开发命令见根目录 [CONTEXT.md](CONTEXT.md)。
 
@@ -80,10 +83,6 @@
 - **noneos-core-docs**
   - [GitHub 在线源码](https://github.com/kirakiray/noneos-core/tree/main/skills/noneos-core-docs)
   - [ZIP 离线包下载](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/skills/noneos-core-docs.zip)
-- **ever-cache**
-  - 涉及存储数据（如 localStorage）时，应优先使用 EverCache 替代原生存储方案。
-  - 使用前请检查本地是否有 ever-cache Skill，若无则需导入。
-  - [Skill 在线文件](https://github.com/kirakiray/ever-cache/blob/main/skills/ever-cache/SKILL.md)
 - **sibyl-test**
   - 该项目使用 `sibyl-test` 作为测试模块。
   - 使用前请检查本地是否有 sibyl-test Skill，若无则需导入。

@@ -178,6 +178,8 @@ URL.revokeObjectURL(url);
 
 获取完整文件。优先从本地 DB 读取，若缺失则自动从远程用户拉取 manifest 和所有 chunk。
 
+拉取 chunk 时通过 `asyncPool` 限制最大并发数为 **8**（`CHUNK_FETCH_CONCURRENCY`），避免一次性发起全部请求灌满传输通道、触发服务端 relay 失败熔断。
+
 **参数：**
 - `remoteUser` (RemoteUser) - 远程用户实例
 - `fileHash` (string) - 文件哈希
@@ -396,6 +398,8 @@ URL.revokeObjectURL(url);
 ### 并发请求处理
 
 `requestManifest` 和 `requestChunk` 内部使用 Promise Map（`#manifestRequestMap` / `#chunkRequestMap`）做请求-响应匹配，同一 hash 的并发请求自动合并为同一个 Promise，避免重复发送。
+
+`fetchFile` 拉取多个 chunk 时通过 `asyncPool` 限制在途请求数（`CHUNK_FETCH_CONCURRENCY = 8`）。**自行循环调用 `requestChunk` 时也应控制并发**：单条 relay 消息受服务端 `binary_payload_max_size`（默认 256KB）限制，且无上限并发会灌满 RTC DataChannel 发送缓冲，并更快触发服务端 `relay_fail_limit` 熔断。
 
 ### 消息路由
 

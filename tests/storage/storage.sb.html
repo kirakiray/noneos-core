@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NosStorage Test</title>
+    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+  </head>
+  <body>
+    <h1>NosStorage Tests</h1>
+
+    <script>
+      // Safari 无法在 IndexedDB 中持久化 FileSystemHandle，mount() 必然抛错
+      const isSafari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent,
+      );
+    </script>
+
+    <sb-test name="setItem / getItem - 基础读写">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-basic-" + Date.now();
+            const storage = getStorage(id);
+
+            await storage.setItem("str", "hello");
+            await storage.setItem("num", 123);
+            await storage.setItem("obj", { a: 1, b: [2, 3] });
+
+            const str = await storage.getItem("str");
+            const num = await storage.getItem("num");
+            const obj = await storage.getItem("obj");
+            const missing = await storage.getItem("not-exist");
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                str === "hello" &&
+                num === 123 &&
+                obj.a === 1 &&
+                obj.b[1] === 3 &&
+                missing === null,
+              content: { str, num, obj, missing },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Proxy 语法 - 属性读写与删除">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-proxy-" + Date.now();
+            const storage = getStorage(id);
+
+            storage.myKey = { name: "John" };
+            // Proxy 写入是静默异步的，等待其落库
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            const readBack = await storage.myKey;
+
+            delete storage.myKey;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            const afterDelete = await storage.myKey;
+
+            await deleteStorage(id);
+
+            return {
+              assert: readBack?.name === "John" && afterDelete === null,
+              content: { readBack, afterDelete },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="has - 区分键不存在与值为 null">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-has-" + Date.now();
+            const storage = getStorage(id);
+
+            await storage.setItem("null-value", null);
+
+            const hasNullValue = await storage.has("null-value");
+            const hasMissing = await storage.has("not-exist");
+            // getItem 无法区分这两种情况，都返回 null
+            const getNullValue = await storage.getItem("null-value");
+            const getMissing = await storage.getItem("not-exist");
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                hasNullValue === true &&
+                hasMissing === false &&
+                getNullValue === null &&
+                getMissing === null,
+              content: { hasNullValue, hasMissing, getNullValue, getMissing },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="removeItem / clear / length">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-remove-" + Date.now();
+            const storage = getStorage(id);
+
+            await storage.setItem("a", 1);
+            await storage.setItem("b", 2);
+            await storage.setItem("c", 3);
+            const lenAfterSet = await storage.length;
+
+            await storage.removeItem("b");
+            const lenAfterRemove = await storage.length;
+            const removedValue = await storage.getItem("b");
+
+            await storage.clear();
+            const lenAfterClear = await storage.length;
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                lenAfterSet === 3 &&
+                lenAfterRemove === 2 &&
+                removedValue === null &&
+                lenAfterClear === 0,
+              content: {
+                lenAfterSet,
+                lenAfterRemove,
+                removedValue,
+                lenAfterClear,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="key - 按索引获取键名">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-key-" + Date.now();
+            const storage = getStorage(id);
+
+            // IndexedDB 主键按字典序排列
+            await storage.setItem("k1", 1);
+            await storage.setItem("k2", 2);
+            await storage.setItem("k3", 3);
+
+            const key0 = await storage.key(0);
+            const key2 = await storage.key(2);
+            const keyOut = await storage.key(99);
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                key0 === "k1" && key2 === "k3" && keyOut === undefined,
+              content: { key0, key2, keyOut },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="entries / keys / values - 跨批次遍历 120 条">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-iterate-" + Date.now();
+            const storage = getStorage(id);
+
+            const total = 120; // 超过单批 50 条，覆盖分页游标逻辑
+            for (let i = 0; i < total; i++) {
+              // 补零保证字典序与数值序一致
+              await storage.setItem(`item-${String(i).padStart(3, "0")}`, i);
+            }
+
+            const entries = [];
+            for await (const entry of storage.entries()) {
+              entries.push(entry);
+            }
+
+            const keys = [];
+            for await (const key of storage.keys()) {
+              keys.push(key);
+            }
+
+            const values = [];
+            for await (const value of storage.values()) {
+              values.push(value);
+            }
+
+            const valuesOrdered = values.every((v, i) => v === i);
+            const noDuplicate = new Set(keys).size === total;
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                entries.length === total &&
+                keys.length === total &&
+                values.length === total &&
+                valuesOrdered &&
+                noDuplicate,
+              content: {
+                entriesCount: entries.length,
+                keysCount: keys.length,
+                valuesCount: values.length,
+                valuesOrdered,
+                noDuplicate,
+                firstEntry: entries[0],
+                lastEntry: entries[total - 1],
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="getStorage - 同 id 复用实例，不同 id 相互隔离">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const idA = "test-iso-a-" + Date.now();
+            const idB = "test-iso-b-" + Date.now();
+
+            const a1 = getStorage(idA);
+            const a2 = getStorage(idA);
+            const b = getStorage(idB);
+
+            await a1.setItem("shared-key", "from-a");
+            await b.setItem("shared-key", "from-b");
+
+            const readFromA2 = await a2.getItem("shared-key");
+            const readFromB = await b.getItem("shared-key");
+
+            await deleteStorage(idA);
+            await deleteStorage(idB);
+
+            return {
+              assert:
+                a1 === a2 &&
+                a1 !== b &&
+                readFromA2 === "from-a" &&
+                readFromB === "from-b",
+              content: {
+                sameInstance: a1 === a2,
+                readFromA2,
+                readFromB,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="变更事件 - setItem / removeItem / clear">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-event-" + Date.now();
+            const storage = getStorage(id);
+
+            const events = [];
+            const onChange = (e) => {
+              if (e.detail.storageId === id) {
+                events.push(e.detail);
+              }
+            };
+            window.addEventListener("nos-storage-change", onChange);
+
+            await storage.setItem("k", "v1");
+            await storage.setItem("k", "v2");
+            await storage.removeItem("k");
+            await storage.clear();
+
+            window.removeEventListener("nos-storage-change", onChange);
+            await deleteStorage(id);
+
+            const [created, updated, removed, cleared] = events;
+
+            return {
+              assert:
+                events.length === 4 &&
+                created.oldValue === null &&
+                created.newValue === "v1" &&
+                updated.oldValue === "v1" &&
+                updated.newValue === "v2" &&
+                removed.key === "k" &&
+                removed.oldValue === "v2" &&
+                removed.newValue === null &&
+                cleared.key === null,
+              content: { count: events.length, events },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="连接被关闭后自动重连">
+      <template>
+        <script>
+          import { NosStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-reconnect-" + Date.now();
+            // 直接 new，避免 close() 后实例缓存被清理影响断言
+            const storage = new NosStorage(id);
+
+            await storage.setItem("before", "ok");
+
+            // 显式关闭底层连接（不触发 onclose），验证下次操作能就地重开
+            await storage.close();
+
+            await storage.setItem("after", "ok");
+            const before = await storage.getItem("before");
+            const after = await storage.getItem("after");
+
+            // 遍历同样应在重连后正常工作
+            const keys = [];
+            for await (const key of storage.keys()) {
+              keys.push(key);
+            }
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                before === "ok" && after === "ok" && keys.length === 2,
+              content: { before, after, keys },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="支持复杂数据类型">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-types-" + Date.now();
+            const storage = getStorage(id);
+
+            const date = new Date("2024-01-01T00:00:00Z");
+            const bytes = new Uint8Array([1, 2, 3]);
+            const blob = new Blob(["hello"], { type: "text/plain" });
+            const map = new Map([["k", "v"]]);
+            const set = new Set([1, 2]);
+
+            await storage.setItem("date", date);
+            await storage.setItem("bytes", bytes);
+            await storage.setItem("blob", blob);
+            await storage.setItem("map", map);
+            await storage.setItem("set", set);
+
+            const readDate = await storage.getItem("date");
+            const readBytes = await storage.getItem("bytes");
+            const readBlob = await storage.getItem("blob");
+            const readMap = await storage.getItem("map");
+            const readSet = await storage.getItem("set");
+            const blobText = await readBlob.text();
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                readDate.getTime() === date.getTime() &&
+                readBytes[2] === 3 &&
+                blobText === "hello" &&
+                readMap.get("k") === "v" &&
+                readSet.has(2),
+              content: {
+                readDate: readDate.toISOString(),
+                readBytes: Array.from(readBytes),
+                blobText,
+                mapValue: readMap.get("k"),
+                setHas2: readSet.has(2),
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="deleteStorage - 删除后数据不残留">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          {
+            const id = "test-delete-" + Date.now();
+
+            const storage = getStorage(id);
+            await storage.setItem("k", "v");
+            const beforeDelete = await storage.getItem("k");
+
+            await deleteStorage(id);
+
+            // 同 id 重新获取应是全新实例与空数据库
+            const fresh = getStorage(id);
+            const afterDelete = await fresh.getItem("k");
+            const freshLength = await fresh.length;
+
+            await deleteStorage(id);
+
+            return {
+              assert:
+                beforeDelete === "v" &&
+                fresh !== storage &&
+                afterDelete === null &&
+                freshLength === 0,
+              content: {
+                beforeDelete,
+                newInstance: fresh !== storage,
+                afterDelete,
+                freshLength,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+    <sb-test name="存储 nos/fs 句柄 - 文件与目录">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          import { init, get } from "/nos/fs/main.js";
+          {
+            const id = "test-fs-handle-" + Date.now();
+            const storage = getStorage(id);
+
+            // 各句柄用例共用同一测试根目录，各自在其下建子目录避免相互干扰
+            const root = await init("storage-test");
+            const caseDir = await root.get("handle-basic", { create: "dir" });
+
+            const file = await caseDir.get("note.txt", { create: "file" });
+            await file.write("handle content");
+            const dir = await caseDir.get("sub", { create: "dir" });
+
+            await storage.setItem("file-handle", file);
+            await storage.setItem("dir-handle", dir);
+
+            const readFile = await storage.getItem("file-handle");
+            const readDir = await storage.getItem("dir-handle");
+
+            // 还原后应是可用的句柄实例，而非丢失原型的空对象
+            const text = await readFile.text();
+            const sameFile = await readFile.isSame(file);
+
+            await caseDir.remove();
+            await deleteStorage(id);
+
+            return {
+              assert:
+                readFile.kind === "file" &&
+                readFile.path === file.path &&
+                typeof readFile.text === "function" &&
+                text === "handle content" &&
+                sameFile === true &&
+                readDir.kind === "dir" &&
+                readDir.path === dir.path &&
+                typeof readDir.get === "function",
+              content: {
+                filePath: readFile.path,
+                fileKind: readFile.kind,
+                text,
+                sameFile,
+                dirPath: readDir.path,
+                dirKind: readDir.kind,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="存储 nos/fs 句柄 - 嵌套结构与数组">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          import { init } from "/nos/fs/main.js";
+          {
+            const id = "test-fs-nested-" + Date.now();
+            const storage = getStorage(id);
+
+            const root = await init("storage-test");
+            const caseDir = await root.get("handle-nested", { create: "dir" });
+
+            const f1 = await caseDir.get("a.txt", { create: "file" });
+            await f1.write("aaa");
+            const f2 = await caseDir.get("b.txt", { create: "file" });
+            await f2.write("bbb");
+
+            // 句柄混在普通对象、数组与其他类型中
+            await storage.setItem("project", {
+              title: "demo",
+              createdAt: new Date("2024-01-01T00:00:00Z"),
+              entry: f1,
+              files: [f1, f2],
+              meta: { nested: { handle: f2 } },
+            });
+
+            const readBack = await storage.getItem("project");
+            const entryText = await readBack.entry.text();
+            const listTexts = [];
+            for (const h of readBack.files) {
+              listTexts.push(await h.text());
+            }
+            const nestedText = await readBack.meta.nested.handle.text();
+
+            await caseDir.remove();
+            await deleteStorage(id);
+
+            return {
+              assert:
+                readBack.title === "demo" &&
+                readBack.createdAt instanceof Date &&
+                entryText === "aaa" &&
+                listTexts.join(",") === "aaa,bbb" &&
+                nestedText === "bbb" &&
+                readBack.files.length === 2,
+              content: {
+                title: readBack.title,
+                createdAt: readBack.createdAt.toISOString(),
+                entryText,
+                listTexts,
+                nestedText,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="存储 nos/fs 句柄 - 遍历与文件已删除的情况">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          import { init } from "/nos/fs/main.js";
+          {
+            const id = "test-fs-missing-" + Date.now();
+            const storage = getStorage(id);
+
+            const root = await init("storage-test");
+            const caseDir = await root.get("handle-missing", { create: "dir" });
+
+            const keep = await caseDir.get("keep.txt", { create: "file" });
+            await keep.write("keep");
+            const gone = await caseDir.get("gone.txt", { create: "file" });
+            await gone.write("gone");
+
+            await storage.setItem("keep", keep);
+            await storage.setItem("gone", gone);
+
+            // entries 遍历时句柄应被还原
+            const kinds = [];
+            for await (const [, value] of storage.entries()) {
+              kinds.push(value?.kind);
+            }
+
+            // keys 不读取值，即使句柄失效也应正常列出
+            await gone.remove();
+            const keys = [];
+            for await (const key of storage.keys()) {
+              keys.push(key);
+            }
+
+            // 目标文件已删除时，getItem 应抛出明确错误而非返回空对象
+            let missingError = null;
+            try {
+              await storage.getItem("gone");
+            } catch (err) {
+              missingError = err.message;
+            }
+
+            await caseDir.remove();
+            await deleteStorage(id);
+
+            return {
+              assert:
+                kinds.length === 2 &&
+                kinds.every((k) => k === "file") &&
+                keys.sort().join(",") === "gone,keep" &&
+                !!missingError &&
+                missingError.includes("no longer exists"),
+              content: { kinds, keys, missingError },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+    <sb-test name="已知限制 - Map/Set/类实例内的句柄不会被转换">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          import { init } from "/nos/fs/main.js";
+          {
+            const id = "test-fs-limit-" + Date.now();
+            const storage = getStorage(id);
+
+            const root = await init("storage-test");
+            const caseDir = await root.get("handle-limit", { create: "dir" });
+            const f = await caseDir.get("t.txt", { create: "file" });
+            await f.write("xxx");
+
+            // toStorable 只递归普通对象与数组，不进入 Map/Set/类实例，
+            // 因此其中的句柄会以类实例形态进入结构化克隆，静默丢失原型
+            await storage.setItem("in-map", new Map([["h", f]]));
+            const fromMap = (await storage.getItem("in-map")).get("h");
+
+            await storage.setItem("in-set", new Set([f]));
+            const fromSet = [...(await storage.getItem("in-set"))][0];
+
+            // 对照：普通对象内的句柄可正常还原
+            await storage.setItem("in-obj", { h: f });
+            const fromObj = (await storage.getItem("in-obj")).h;
+
+            await caseDir.remove();
+            await deleteStorage(id);
+
+            return {
+              assert:
+                // Map/Set 容器本身保留，但内部句柄退化为空对象
+                fromMap !== undefined &&
+                fromMap.kind === undefined &&
+                typeof fromMap.text !== "function" &&
+                fromSet !== undefined &&
+                fromSet.kind === undefined &&
+                // 普通对象内的句柄正常
+                fromObj.kind === "file" &&
+                typeof fromObj.text === "function",
+              content: {
+                message: "Map/Set/类实例内的句柄为已知限制，会静默失效",
+                fromMapKind: fromMap?.kind ?? null,
+                fromMapCtor: fromMap?.constructor?.name ?? null,
+                fromSetKind: fromSet?.kind ?? null,
+                fromObjKind: fromObj?.kind ?? null,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+    <sb-test name="拒绝存储未 mount 的 open() 句柄（含子孙句柄）">
+      <template>
+        <script>
+          import { getStorage, deleteStorage } from "/nos/storage/main.js";
+          import { init, mount, unmount } from "/nos/fs/main.js";
+          import { DirHandle } from "/nos/fs/handle/dir.js";
+          import { PICKED } from "/nos/fs/public/base.js";
+          {
+            const id = "test-fs-picked-" + Date.now();
+            const storage = getStorage(id);
+
+            const root = await init("storage-test");
+            const caseDir = await root.get("handle-picked", { create: "dir" });
+
+            // 模拟 open() 的返回：包装原生句柄并打上 PICKED 标记
+            const nativeDir = await caseDir._handle.getDirectoryHandle(
+              "picked",
+              { create: true }
+            );
+            const picked = new DirHandle(nativeDir);
+            picked[PICKED] = true;
+
+            // 1) 直接存被选中的目录句柄 → 拒绝
+            let dirError = null;
+            try {
+              await storage.setItem("dir", picked);
+            } catch (err) {
+              dirError = err.message;
+            }
+
+            // 2) 存其子孙句柄 → 同样拒绝（子孙无标记，但 root 指向 picked）
+            const child = await picked.get("child.txt", { create: "file" });
+            let childError = null;
+            try {
+              await storage.setItem("child", child);
+            } catch (err) {
+              childError = err.message;
+            }
+
+            // 3) 嵌在对象里也应被拦住
+            let nestedError = null;
+            try {
+              await storage.setItem("nested", { list: [{ h: child }] });
+            } catch (err) {
+              nestedError = err.message;
+            }
+
+            // 拒绝后不应留下任何键
+            const count = await storage.length;
+
+            // 4) 真实 mount 后可正常存储：mount 会设置 RESET_PATH 并清除 PICKED，
+            //    路径变为可还原的 $mount-xxx> 形式
+            //    Safari 无法持久化 FileSystemHandle，mount 不可用，跳过此步
+            let mountedPath = "$mount-skipped";
+            let stillPicked = false;
+            let afterMountKind = "file";
+
+            if (!isSafari) {
+              await mount(picked);
+              mountedPath = picked.path;
+              stillPicked = picked[PICKED] === true;
+
+              const mountedChild = await picked.get("child.txt");
+              await storage.setItem("after-mount", mountedChild);
+              afterMountKind = (await storage.getItem("after-mount")).kind;
+
+              await unmount(picked);
+            }
+
+            await caseDir.remove();
+            await deleteStorage(id);
+
+            return {
+              assert:
+                !!dirError &&
+                dirError.includes("open()") &&
+                dirError.includes("mount") &&
+                !!childError &&
+                childError.includes("open()") &&
+                !!nestedError &&
+                count === 0 &&
+                mountedPath.startsWith("$mount-") &&
+                stillPicked === false &&
+                afterMountKind === "file",
+              content: {
+                dirError,
+                childError,
+                nestedError,
+                countAfterRejects: count,
+                mountedPath,
+                pickedClearedAfterMount: !stillPicked,
+                afterMountKind,
+                mountSkipped: isSafari,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

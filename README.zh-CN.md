@@ -97,7 +97,6 @@ nos/                  # 核心运行时模块(浏览器端)
   user/               #   去中心化用户身份与消息系统
   crypto/             #   ECDSA、E2EE、RSA、AES 加密
   publish/            #   P2P 文件发布与应用管理
-  ai/                 #   AI 对话工具
   util/               #   哈希、zip、异步池等工具
 nos-tool/             # 桌面化 UI 工具
   studio/             #   OFA Studio(应用开发环境)

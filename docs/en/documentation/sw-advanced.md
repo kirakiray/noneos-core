@@ -25,7 +25,6 @@ When referencing dist.js, add the `?v=` parameter and update the version number 
 
 Using `nos-tool` directorytools,caneasilymanage NoneOS system.
 
-- **ai** - AI model management, including chat, configuration, and key management
 - **editor** - Monaco editor integration, supporting code highlighting, formatting, and AI completion
 - **file-explore** - File explorer
 - **file-list** - File list view and handle management

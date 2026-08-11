@@ -22,17 +22,46 @@
           await Promise.all(regs_1.map((r) => r.unregister()));
 
           // 注册测试 SW（启用 HOST_CACHE_CONFIG）
-          await navigator.serviceWorker.register("/host-cache-test-sw.js");
-          await navigator.serviceWorker.ready;
+          const reg_1 = await navigator.serviceWorker.register(
+            "/host-cache-test-sw.js"
+          );
 
-          // 等待 SW 接管页面并完成 initHostCache
+          // 等待测试 SW 真正取得本页控制权。
+          // 不能用 navigator.serviceWorker.ready：若旧 SW 仍 active 且控制着其它
+          // client，ready 会立刻用旧注册 resolve，测试 SW 停在 waiting，
+          // 导致 /__host-cache 穿透到静态服务器返回 404 HTML。
+          const isTestSw_1 = () =>
+            navigator.serviceWorker.controller?.scriptURL?.includes(
+              "host-cache-test-sw.js"
+            );
+          if (!isTestSw_1()) {
+            await new Promise((resolve_1) => {
+              const timer_1 = setTimeout(resolve_1, 20000);
+              const check_1 = () => {
+                if (!isTestSw_1()) return;
+                clearTimeout(timer_1);
+                resolve_1();
+              };
+              navigator.serviceWorker.addEventListener(
+                "controllerchange",
+                check_1
+              );
+              const pending_1 = reg_1.installing || reg_1.waiting;
+              pending_1?.addEventListener("statechange", check_1);
+            });
+          }
+
+          // 等待 initHostCache 完成
           let status_1;
           for (let i_1 = 0; i_1 < 50; i_1++) {
             try {
               const response_1 = await fetch("/__host-cache", {
                 cache: "no-store",
               });
-              if (response_1.ok) {
+              if (
+                response_1.ok &&
+                response_1.headers.get("content-type")?.includes("json")
+              ) {
                 status_1 = await response_1.json();
                 if (!status_1.precaching) break;
               }
@@ -41,7 +70,7 @@
           }
 
           const checks_1 = {
-            swRegistered: !!navigator.serviceWorker.controller,
+            swRegistered: isTestSw_1(),
             hasName: status_1?.name === "test-host-cache",
             hasVersion: status_1?.version === "1.0.0",
             hasFileCount: status_1?.fileCount === 1,

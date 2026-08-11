@@ -173,6 +173,21 @@ userB.bind("unhandled_service_message", (event) => {
 
 可用于调试、兜底路由或应用启动窗口的补偿处理。
 
+### 可靠投递（ACK + 重发 + 去重 + 限流）
+
+`status: "ok"` 只代表数据已交给传输通道，**不代表对端 handler 已执行**。RTC 通道切换、对端标签页刷新、`serviceSessionCache` 未及时失效等情况都会造成静默丢失。
+
+因此每个应用的发送操作都应遵循：
+
+1. 消息携带唯一 `msgId`
+2. 接收方限时回 ACK
+3. 发送方超时重发（复用同一 `msgId`）
+4. 接收方按 `msgId` 去重
+5. 单条消息小于 **256KB**（服务端 `text_message_max_size` / `binary_payload_max_size` 硬限制，建议控制在 128KB 内）
+6. 同一目标**串行发送**，上一条收到 ACK 后才发下一条
+
+完整实现与注意事项见：[应用层可靠消息投递](reliable-messaging.md)
+
 ### 服务注册状态事件
 
 本地 `registerService` / `unregister` 成功时会触发事件：

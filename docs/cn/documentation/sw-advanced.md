@@ -25,7 +25,6 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 
 使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
 
-- **ai** - AI 模型管理，包括聊天、配置、密钥管理
 - **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
 - **file-explore** - 文件浏览器
 - **file-list** - 文件列表视图和句柄管理

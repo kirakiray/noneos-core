@@ -1,0 +1,17 @@
+# 构建产物（镜像内会自行编译，避免本地 target 污染上下文）
+target/
+
+# 测试空间与本地数据库文件
+test-space/
+*.redb
+
+# 版本控制与 IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# 文档与本说明文件（无需进入镜像）
+*.md
+Dockerfile
+.dockerignore

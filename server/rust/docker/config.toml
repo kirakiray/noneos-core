@@ -1,0 +1,15 @@
+# NoneOS Handshake Server - 容器默认配置
+#
+# 仅显式设置与容器环境相关的三项，其余参数全部走程序内置默认值
+# （见 server/rust/CONTEXT.md 第七节「配置默认值」）。
+# 如需管理员、流量额度等，请挂载自定义 config 覆盖本文件：
+#   docker run -v /path/to/my.toml:/app/config.toml noneos-handshake
+
+# 监听所有接口（容器内必须用 0.0.0.0，否则端口映射进不来）
+host = "0.0.0.0"
+
+# 监听端口
+port = 8081
+
+# 数据库持久化到挂载卷（Dockerfile 中 VOLUME /app/data）
+redb_path = "/app/data/noneos-handshake.redb"

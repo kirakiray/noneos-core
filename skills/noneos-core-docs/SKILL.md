@@ -116,6 +116,8 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
+> ⚠️ **可靠投递规范**：`sendToService` 只保证「尽力投递」，返回 `ok` 不代表对端 handler 已执行（RTC 通道切换、对端刷新、服务发现缓存过期等都会导致静默丢失）。**每个应用的发送操作都应做到：消息带唯一 msgId + 对方限时回 ACK + 超时重发 + 接收方按 msgId 去重 + 单条消息小于 256KB（服务端硬限制）+ 同一目标串行发送（收到 ACK 后才发下一条）**。完整实现见：[应用层可靠消息投递](references/reliable-messaging.md)
+
 ### 查看已连接的远程用户与状态事件
 
 LocalUser 会缓存已建立通信的远程用户，并通过 `user.remoteUsers` 暴露，同时提供 `isRemoteUserOnline()`、`getRemoteUsers()` 与 `remote_user_connected` / `remote_user_disconnected` 事件。详见：
@@ -167,6 +169,7 @@ const result = await publisher.assembleFile(fileHash);
 ### 通信详细操作
 
 - [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
+- [应用层可靠消息投递](references/reliable-messaging.md) — ACK 确认、超时重发、msgId 去重（应用通信必读规范）
 - [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 
 ### 流量统计
@@ -175,11 +178,39 @@ const result = await publisher.assembleFile(fileHash);
 
 ---
 
+## 核心功能 4：本地数据存储 (storage)
+
+官方的异步键值存储模块，基于 IndexedDB，提供类 `localStorage` 的接口但容量远大于它，支持复杂数据类型与跨标签页同步。**涉及本地数据持久化时应优先使用本模块，而非原生 `localStorage`。**
+
+```javascript
+import { storage, getStorage } from "/nos/storage/main.js";
+
+// 默认存储空间
+await storage.setItem("user-settings", { theme: "dark", language: "cn" });
+const settings = await storage.getItem("user-settings");
+
+// 独立存储空间（不同业务隔离，同 id 复用实例）
+const appStore = getStorage("my-app");
+await appStore.setItem("token", "abc");
+```
+
+还可直接存取 `nos/fs` 文件句柄，读回来仍是可用的句柄实例：
+
+```javascript
+await storage.setItem("last-opened", fileHandle);
+const handle = await storage.getItem("last-opened");
+console.log(await handle.text());
+```
+
+更多详细操作参考：[storage 存储模块](references/storage.md)
+
+---
+
 ## 其他参考
 
-> ⚠️ **实验性特性**：`ai` 与 `hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
+> ⚠️ **实验性特性**：`hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
-- [AI 操作文档](references/ai.md)
+- [storage 存储模块](references/storage.md)
 - [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)

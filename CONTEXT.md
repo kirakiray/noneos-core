@@ -17,7 +17,7 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/crypto/util 等；另含 `hybrid-data` 与 `ai`，⚠️ 均为实验性特性，后续大概率迁移或淘汰） |
+| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util 等；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |
@@ -100,6 +100,7 @@
 - [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
 - [server/rust/CONTEXT.md](server/rust/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
 - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
+- [nos/storage/CONTEXT.md](nos/storage/CONTEXT.md) - 官方键值存储（IndexedDB、类 localStorage、跨标签页同步、句柄序列化）
 - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）
 - [ncomp/CONTEXT.md](ncomp/CONTEXT.md) - ncomp 公共组件目录（可复用的 nos 相关 UI 组件）
 
@@ -108,7 +109,6 @@
 修改这些模块时需逐文件阅读源码，建议在重大改动后补充 CONTEXT.md：
 
 - `nos/crypto/`（5 个加密模块：AES/ECDH/ECDSA/RSA/verify）
-- `nos/ai/`（AI 会话与并发控制）
 - `nos/hybrid-data/`（混合数据，远端 + 本地）
 - `nos/util/`（hash/zip/async-pool 等工具）
 - `nos-tool/`（开发工具集：编辑器、studio、file-explore）

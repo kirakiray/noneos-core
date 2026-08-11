@@ -18,9 +18,3 @@
       url: ./file-observation.md
     - name: sw.js設定のヒント
       url: ./sw-advanced.md
-- name: AI操作
-  content:
-    - name: モデルの追加
-      url: ./ai-add.md
-    - name: モデルの呼び出し
-      url: ./ai-call.md
