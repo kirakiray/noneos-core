@@ -23,10 +23,12 @@ function getDb(namespace) {
     if (cached) {
       clearTimeout(cached.timer);
       cached.timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
+      console.log(`[nos-debug] getDb cache-hit: ${dbName}`);
       resolve(cached.db);
       return;
     }
 
+    console.log(`[nos-debug] getDb open: ${dbName}`);
     const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => {
@@ -37,6 +39,7 @@ function getDb(namespace) {
       const db = event.target.result;
       const timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
       dbCache.set(dbName, { db, timer });
+      console.log(`[nos-debug] getDb opened: ${dbName} (fresh)`);
       resolve(db);
     };
 
@@ -111,6 +114,7 @@ export const TRAFFIC_STORES = {
 function closeDbCache(dbName) {
   const cached = dbCache.get(dbName);
   if (cached) {
+    console.log(`[nos-debug] closeDbCache: ${dbName}`);
     cached.db.close();
     dbCache.delete(dbName);
   }

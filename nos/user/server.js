@@ -190,8 +190,12 @@ export class ServerManager {
           );
         }
         try {
-          return await this.#connectOnce(url);
+          console.log(`[nos-debug] connectOnce start: ${url} (attempt ${i + 1})`);
+          const result = await this.#connectOnce(url);
+          console.log(`[nos-debug] connectOnce success: ${url}`);
+          return result;
         } catch (err) {
+          console.log(`[nos-debug] connectOnce failed: ${url} (${err.message})`);
           lastError = err;
         }
       }

@@ -613,6 +613,8 @@ export class LocalUser extends BaseUser {
       return this;
     }
 
+    console.log(`[nos-debug] ready start: ${this.#namespace}`);
+
     // 检查是否已有该 namespace 的初始化 Promise
     let initPromise = initPromises.get(this.#namespace);
 
@@ -627,6 +629,9 @@ export class LocalUser extends BaseUser {
           await saveUserKeys(this.#namespace, keys);
           isNewUser = true;
         }
+        console.log(
+          `[nos-debug] ready keys done: ${this.#namespace} (isNewUser=${isNewUser})`,
+        );
         return { keys, isNewUser };
       })();
 
@@ -643,20 +648,24 @@ export class LocalUser extends BaseUser {
 
     // 调用父类的 init 以完成其余的初始化逻辑（如计算哈希、生成签名/验证函数等）
     await super.init(keys);
+    console.log(`[nos-debug] ready super.init done: ${this.#namespace}`);
 
     // 如果是新用户，生成默认用户名并保存
     if (isNewUser) {
       const defaultUsername =
         "user-" + Math.random().toString(36).substring(2, 10);
       await this.updateInfo({ username: defaultUsername });
+      console.log(`[nos-debug] ready default info saved: ${this.#namespace}`);
     }
 
     // 启动名片监听
     this.#card.start();
 
     // 自动连接默认服务器列表，不阻塞 ready()
+    console.log(`[nos-debug] ready connectAll start (background): ${this.#namespace}`);
     this.#server.connectAll().catch(() => {});
 
+    console.log(`[nos-debug] ready done: ${this.#namespace}`);
     return this;
   }
 

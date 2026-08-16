@@ -244,6 +244,9 @@ export class TrafficLogger {
 
   async #writeBatch(batch) {
     const db = await getSharedDb(this.#namespace);
+    console.log(
+      `[nos-debug] traffic writeBatch start: ${this.#namespace} (n=${batch.length})`,
+    );
     return new Promise((resolve, reject) => {
       const tx = db.transaction([ENTRIES, AGG_MINUTE], "readwrite");
       const entriesStore = tx.objectStore(ENTRIES);
@@ -287,7 +290,10 @@ export class TrafficLogger {
       // 对每个 bucket 做 get→merge→put
       let pending = aggMap.size;
       if (pending === 0) {
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = () => {
+          console.log(`[nos-debug] traffic writeBatch done (empty): ${this.#namespace}`);
+          resolve();
+        };
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
         return;
@@ -316,7 +322,10 @@ export class TrafficLogger {
         };
       }
 
-      tx.oncomplete = () => resolve();
+      tx.oncomplete = () => {
+        console.log(`[nos-debug] traffic writeBatch done: ${this.#namespace}`);
+        resolve();
+      };
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
