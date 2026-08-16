@@ -33,6 +33,13 @@ const SHARED_STORAGE_READ_OPS = [
   "entries",
 ];
 
+// 共享存储回传大小上限（字节）。中继服务器对单条文本消息硬限制 256KB
+// （server/rust/src/config.rs 的 text_message_max_size），超限响应会被服务器
+// 直接拒绝且无法送达——对端已执行操作却收不到回包，只能干等超时。
+// 因此回传前先测量完整 resp 的字节数，超限改回 too_large 错误，让请求端
+// 立刻得到明确失败而不是超时。
+const SHARED_STORAGE_RESP_MAX_BYTES = 256 * 1024;
+
 /**
  * 本地用户类，继承自 BaseUser
  * 根据传入的命名空间在 IndexedDB 中管理公钥和私钥
@@ -516,7 +523,7 @@ export class LocalUser extends BaseUser {
    * 3. op 必须在只读白名单内（写操作一律拒绝）
    *
    * resp 格式：{ type: "__storage_resp", reqId, ok, value? , error?: { code, message } }
-   * 错误码：invalid_name / not_shared / read_only / internal
+   * 错误码：invalid_name / not_shared / read_only / too_large / internal
    *
    * @param {string} fromUserId
    * @param {string} fromSessionId
@@ -527,12 +534,26 @@ export class LocalUser extends BaseUser {
 
     const respond = async (ok, payload) => {
       try {
+        let resp = { type: "__storage_resp", reqId, ok, ...payload };
+        // 大小防线：测量实际要序列化发送的字节数，超限改回 too_large
+        if (resp.ok) {
+          const size = new TextEncoder().encode(
+            JSON.stringify(resp),
+          ).length;
+          if (size > SHARED_STORAGE_RESP_MAX_BYTES) {
+            resp = {
+              type: "__storage_resp",
+              reqId,
+              ok: false,
+              error: {
+                code: "too_large",
+                message: `storage response too large (${size} bytes, max ${SHARED_STORAGE_RESP_MAX_BYTES})`,
+              },
+            };
+          }
+        }
         const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
-        await remoteUser.send(
-          fromSessionId,
-          { type: "__storage_resp", reqId, ok, ...payload },
-          true, // raw=true 跳过 E2EE，与内部协议一致
-        );
+        await remoteUser.send(fromSessionId, resp, true);
       } catch {
         // 对端离线等回传失败，静默丢弃
       }

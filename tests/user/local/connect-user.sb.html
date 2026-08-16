@@ -423,6 +423,75 @@
     </template>
   </sb-test>
 
+  <sb-test name="Card Request Auto Retry Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsK = "card-user-k";
+        const nsL = "card-user-l";
+        const serverUrl5 = "ws://localhost:8081";
+
+        const userK = new LocalUser(nsK);
+        const userL = new LocalUser(nsL);
+
+        await Promise.all([userK.ready(), userL.ready()]);
+
+        await Promise.all([
+          userK.server.connect(serverUrl5),
+          userL.server.connect(serverUrl5),
+        ]);
+
+        // 清空残留名片，强制走网络请求
+        if (await userK.card.getByDB(userL.userId)) {
+          await userK.card.delete(userL.userId);
+        }
+
+        // 劫持 K 侧发送：吞掉第一条 card request（模拟请求在通道切换时丢失），
+        // 之后放行——重发机制应靠第二次请求拿到名片
+        let swallowed = false;
+        let sendAttempts = 0;
+        userK.bind("remote_user_connected", (event) => {
+          const ru = event.detail.remoteUser;
+          const origSend = ru.send.bind(ru);
+          ru.send = async (sid, data, raw) => {
+            if (
+              data?.type === "card" &&
+              data?.action === "request"
+            ) {
+              sendAttempts++;
+              if (!swallowed) {
+                swallowed = true;
+                return { status: "ok", via: "test" }; // 假装发出，实际丢弃
+              }
+            }
+            return origSend(sid, data, raw);
+          };
+        });
+
+        const card = await userK.card.requestCard(userL.userId);
+        const retryWorked = !!card && card.userId === userL.userId;
+
+        userK.server.disconnectAll();
+        userL.server.disconnectAll();
+        await userK.card.delete(userL.userId);
+
+        return {
+          assert: retryWorked && swallowed && sendAttempts === 2,
+          content: {
+            message: retryWorked
+              ? "名片请求丢失后自动重发成功"
+              : "名片请求自动重发失败",
+            firstRequestSwallowed: swallowed,
+            sendAttempts,
+            cardUserId: card?.userId,
+            expectedUserId: userL.userId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
   <sb-test name="E2EE Encrypted Message Test">
     <template>
       <script type="module">

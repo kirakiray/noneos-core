@@ -277,6 +277,16 @@ const fromDb = await userA.card.getByDB(userB.userId); // 直接从 DB 读取
 await userA.card.delete(userB.userId);
 ```
 
+### 强制刷新名片
+
+`requestCard` 总是发起网络请求（不读缓存），适合需要最新名片的场景（如强制刷新用户名显示）：
+
+```javascript
+const fresh = await userA.card.requestCard(userB.userId);
+```
+
+可靠性：名片请求是幂等 RPC——接收端按 `signTime` 保留更新的名片，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 1 次。失败时旧缓存不受影响，可放心保留兜底显示。
+
 ### 名片事件
 
 当收到对方的名片时，会触发 `card_received` 事件：

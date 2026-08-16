@@ -73,9 +73,9 @@
               } catch {
                 // 对方不在线
               }
-              // 清除缓存后重新获取（连接成功则拿到最新名片）
-              await user.card.delete(uid);
-              const card = await user.card.get(uid);
+              // 直接发起网络请求刷新名片（不先删缓存）：
+              // 失败时保留旧名片显示，成功时按 signTime 保留更新的
+              const card = await user.card.requestCard(uid);
               if (card && card.username) {
                 this.displayName = card.username;
               }

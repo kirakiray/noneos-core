@@ -102,12 +102,13 @@ export class RemoteUser extends BaseUser {
    *
    * 同一 `(userId, name)` 的代理实例会被缓存复用。
    * 请求失败抛出的 Error 带有 `code` 属性：
-   * `offline`（对端离线）/ `timeout`（超时）/
-   * `invalid_name` / `not_shared` / `read_only` / `internal`（对端回传）。
+   * `offline`（对端离线，不重试）/ `timeout`（超时，含自动重发后仍失败）/
+   * `invalid_name` / `not_shared` / `read_only` / `too_large` / `internal`（对端回传，不重试）。
    *
    * @param {string} name - 存储空间名，必须以 "share:" 开头
    * @param {Object} [options]
-   * @param {number} [options.timeout=10000] 单次请求超时（毫秒）
+   * @param {number} [options.timeout=10000] 单次尝试超时（毫秒）
+   * @param {number} [options.retries=1] 超时/发送失败的自动重发次数（只读幂等操作，重发安全）
    * @returns {Promise<Object>} 只读代理对象
    */
   async getStorage(name, options = {}) {
@@ -122,7 +123,12 @@ export class RemoteUser extends BaseUser {
       typeof options?.timeout === "number" && options.timeout > 0
         ? options.timeout
         : this.#STORAGE_REQ_TIMEOUT;
-    const request = (op, key) => this.#requestStorage(name, op, key, timeout);
+    const retries =
+      typeof options?.retries === "number" && options.retries >= 0
+        ? Math.floor(options.retries)
+        : 1;
+    const request = (op, key) =>
+      this.#requestStorage(name, op, key, timeout, retries);
 
     const proxy = {
       userId: this.#userId,
@@ -151,19 +157,48 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * 发送一次 __storage_req 并等待对应的 __storage_resp。
-   * 对端离线时立即抛错（code: offline）；超时抛错（code: timeout）。
+   * 发送 __storage_req 并等待对应的 __storage_resp，带自动重发。
+   *
+   * 重发策略：只读操作幂等，重发安全。仅对**瞬时失败**重发——
+   * 超时（timeout）与通道发送失败（无 code 的异常）；
+   * 对端明确回传的错误（not_shared / read_only / too_large 等）是确定性
+   * 失败，重发只会浪费时间，立即抛出。
+   * 对端离线（offline）同样是确定状态，直接抛出不重试。
+   * 每次尝试使用新的 reqId，配对互不干扰。
    */
-  async #requestStorage(name, op, key, timeout) {
-    const sessionIds = await this.getSessionIds();
-    if (sessionIds.length === 0) {
-      const err = new Error(
-        `storage request failed: user ${this.#userId} is offline`,
-      );
-      err.code = "offline";
-      throw err;
-    }
+  async #requestStorage(name, op, key, timeout, retries) {
+    const maxAttempts = 1 + Math.max(0, retries);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // 每次尝试前重查在线状态：会话可能在中途恢复或消失
+      const sessionIds = await this.getSessionIds();
+      if (sessionIds.length === 0) {
+        const err = new Error(
+          `storage request failed: user ${this.#userId} is offline`,
+        );
+        err.code = "offline";
+        throw err;
+      }
 
+      try {
+        return await this.#sendStorageRequest(
+          sessionIds[0],
+          name,
+          op,
+          key,
+          timeout,
+        );
+      } catch (err) {
+        const transient = err.code === "timeout" || !err.code;
+        if (!transient || attempt >= maxAttempts) {
+          throw err;
+        }
+        // 瞬时失败且还有重试额度：立即重发
+      }
+    }
+  }
+
+  /** 单次尝试：发一条 __storage_req，按 reqId 挂起等待响应 */
+  #sendStorageRequest(sessionId, name, op, key, timeout) {
     const reqId = `sr_${++this.#storageReqSeq}_${Date.now()}`;
 
     return new Promise((resolve, reject) => {
@@ -178,7 +213,7 @@ export class RemoteUser extends BaseUser {
 
       this.#pendingStorageReqs.set(reqId, { resolve, reject, timeoutId });
 
-      this.#sendRaw(sessionIds[0], { type: "__storage_req", reqId, name, op, key })
+      this.#sendRaw(sessionId, { type: "__storage_req", reqId, name, op, key })
         .catch((err) => {
           clearTimeout(timeoutId);
           this.#pendingStorageReqs.delete(reqId);

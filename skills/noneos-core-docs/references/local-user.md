@@ -109,8 +109,8 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 - 返回的 revoke 函数可随时关闭共享，多次调用安全
 - 共享登记持久化在用户库 `shared-storages` 键中，删除用户时随之清除
 - 放行的只读操作：`getItem / has / key / length / keys / entries`（`keys`/`entries` 以数组形式返回）
-- `RemoteUser.getStorage(name, { timeout })`：同一 `(userId, name)` 代理实例缓存复用；单次请求默认超时 10s
-- 请求端失败抛出的 Error 带 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / internal`（对端回传）
+- `RemoteUser.getStorage(name, { timeout, retries })`：同一 `(userId, name)` 代理实例缓存复用；单次尝试默认超时 10s，瞬时失败（超时/发送失败）自动重发 1 次（只读幂等，重发安全；对端明确回传的错误不重试）
+- 请求端失败抛出的 Error 带 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / too_large / internal`（对端回传）
 
 ### 底层协议（__storage_req / __storage_resp）
 
@@ -127,7 +127,9 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 | 2. 显式开启 | `name` 已 `shareStorage()` 登记 | `not_shared` |
 | 3. 只读白名单 | `op` 在只读集合内 | `read_only` |
 
-其他错误码：`internal`（登记表读取失败、操作执行异常等）。所有已连接用户均可发起请求，安全边界完全由三道防线构成。
+其他错误码：`internal`（登记表读取失败、操作执行异常等）、`too_large`（响应超过中继单条消息 256KB 硬限制无法送达，接收端回传前测量字节数、超限即回此错误，请求端立即失败而非干等超时）。所有已连接用户均可发起请求，安全边界完全由三道防线构成。
+
+可靠性：请求端对瞬时失败（超时、发送失败）自动重发 1 次（`retries` 选项可调，只读幂等所以安全）；对端明确回传的错误与离线是确定性失败，不重试。
 
 ## 获取本用户所有 Session ID
 

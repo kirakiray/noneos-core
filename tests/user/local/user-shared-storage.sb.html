@@ -675,7 +675,10 @@
         });
 
         const t10_remoteB = await t10_userA.connectUser(t10_userB.userId);
-        const t10_st = await t10_remoteB.getStorage("share:settings", { timeout: 400 });
+        const t10_st = await t10_remoteB.getStorage("share:settings", {
+          timeout: 400,
+          retries: 0,
+        });
 
         let t10_timeoutCode = "";
         let t10_timeoutMsg = "";
@@ -804,6 +807,144 @@
             ownerFromC: t11_ownerC,
             bSecretCode: t11_bSecretCode,
             cSecretCode: t11_cSecretCode,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+  <sb-test name="瞬时失败自动重发后成功">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t12_nsA = "user_shared_retry_1_a";
+        const t12_nsB = "user_shared_retry_1_b";
+        const t12_url = "ws://localhost:8081";
+
+        try { await deleteUser(t12_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t12_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t12_userA = new LocalUser(t12_nsA);
+        const t12_userB = new LocalUser(t12_nsB);
+        await Promise.all([t12_userA.ready(), t12_userB.ready()]);
+        await Promise.all([
+          t12_userA.server.connect(t12_url),
+          t12_userB.server.connect(t12_url),
+        ]);
+
+        const t12_stB = await t12_userB.getStorage("share:settings");
+        await t12_stB.setItem("theme", "dark");
+        await t12_userB.shareStorage("share:settings");
+
+        // 劫持 B 侧回传：吞掉第一条 __storage_resp（模拟响应丢失），
+        // 之后放行——请求端应靠自动重发拿到第二条响应
+        let t12_swallowed = false;
+        t12_userB.bind("remote_user_connected", (event) => {
+          const t12_ru = event.detail.remoteUser;
+          const t12_orig = t12_ru.send.bind(t12_ru);
+          t12_ru.send = async (sid, data, raw) => {
+            if (data?.type === "__storage_resp" && !t12_swallowed) {
+              t12_swallowed = true;
+              return { status: "ok", via: "test" };
+            }
+            return t12_orig(sid, data, raw);
+          };
+        });
+
+        const t12_remoteB = await t12_userA.connectUser(t12_userB.userId);
+        const t12_st = await t12_remoteB.getStorage("share:settings", {
+          timeout: 300,
+          retries: 1,
+        });
+        const t12_theme = await t12_st.getItem("theme");
+
+        t12_userA.server.disconnectAll();
+        t12_userB.server.disconnectAll();
+        try { await deleteUser(t12_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t12_nsB, { skipConfirm: true }); } catch (e) {}
+
+        return {
+          assert: t12_theme === "dark" && t12_swallowed,
+          content: {
+            message: "第一条响应被吞后自动重发成功取回数据",
+            theme: t12_theme,
+            firstRespSwallowed: t12_swallowed,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="超限响应回传 too_large 而非超时">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t13_nsA = "user_shared_big_1_a";
+        const t13_nsB = "user_shared_big_1_b";
+        const t13_url = "ws://localhost:8081";
+
+        try { await deleteUser(t13_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t13_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t13_userA = new LocalUser(t13_nsA);
+        const t13_userB = new LocalUser(t13_nsB);
+        await Promise.all([t13_userA.ready(), t13_userB.ready()]);
+        await Promise.all([
+          t13_userA.server.connect(t13_url),
+          t13_userB.server.connect(t13_url),
+        ]);
+
+        // 300KB 值：超过中继 256KB 单条消息硬限制，响应无法送达
+        const t13_stB = await t13_userB.getStorage("share:big");
+        const t13_big = "x".repeat(300 * 1024);
+        await t13_stB.setItem("big", t13_big);
+        await t13_stB.setItem("ok", "fine");
+        await t13_userB.shareStorage("share:big");
+
+        const t13_remoteB = await t13_userA.connectUser(t13_userB.userId);
+        const t13_st = await t13_remoteB.getStorage("share:big", {
+          timeout: 5000,
+        });
+
+        // 超限值：应立刻收到明确的 too_large（而不是干等超时）
+        const t13_t0 = Date.now();
+        let t13_bigCode = "";
+        let t13_bigMsg = "";
+        try {
+          await t13_st.getItem("big");
+        } catch (e) {
+          t13_bigCode = e.code;
+          t13_bigMsg = e.message;
+        }
+        const t13_elapsed = Date.now() - t13_t0;
+
+        // 未超限的小值不受影响
+        const t13_small = await t13_st.getItem("ok");
+
+        // B 本地读写不受限制
+        const t13_localBig = await t13_stB.getItem("big");
+
+        t13_userA.server.disconnectAll();
+        t13_userB.server.disconnectAll();
+        try { await deleteUser(t13_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t13_nsB, { skipConfirm: true }); } catch (e) {}
+
+        return {
+          assert:
+            t13_bigCode === "too_large" &&
+            t13_elapsed < 4000 &&
+            t13_small === "fine" &&
+            t13_localBig === t13_big,
+          content: {
+            message: "300KB 响应回传 too_large；小值与本地读取不受影响",
+            bigCode: t13_bigCode,
+            bigMsg: t13_bigMsg,
+            elapsedMs: t13_elapsed,
+            small: t13_small,
+            localBigOk: t13_localBig === t13_big,
           },
         };
       </script>

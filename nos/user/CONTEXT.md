@@ -90,7 +90,7 @@ EventTarget
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
-| `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（默认 10s 超时，`options.timeout` 可调），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码） |
+| `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
 | `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
 | `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
 
@@ -112,7 +112,7 @@ EventTarget
 | 管理器 | 关键方法 |
 |--------|---------|
 | `CertManager` (cert.js) | `issue`/`import`/`query`/`has`/`delete`/`count`/`values`；`query(query)` 返回数组；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
-| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
+| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求，超时/发送失败自动重发 1 次（幂等，按 signTime 去重） |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
@@ -183,9 +183,12 @@ A.get(B.userId)
         ├── connectUser(B.userId)   # 确保对端在线
         ├── findSessionId            # 选一个会话
         ├── 发送 {type:"card", action:"request"}  ──→ B
+        │     （超时/发送失败 300ms 后自动重发 1 次，CARD_REQ_RETRIES）
         └── B 回 {type:"card", action:"response", card} ──→ A
               └── 校验 publicKey→userId + 签名 → 存 DB
 ```
+
+可靠性：名片请求是幂等 RPC——接收端按 `signTime` 保留更新的名片（`saveCardToDb`），重复请求与迟到响应均安全，因此超时（`CARD_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 userId 合并并发请求，重试耗尽才 reject。
 
 ### 7. 服务注册与发现（service-registry.js + remote-user.js）
 
@@ -244,11 +247,11 @@ A.get(B.userId)
 | 2. 显式开启 | `name` 必须在 `shared-storages` 登记表（已 `shareStorage()`） | `not_shared` |
 | 3. 只读白名单 | `op` 仅允许 `getItem / has / key / length / keys / entries` | `read_only` |
 
-**错误码**：`invalid_name`（非 share: 前缀）/ `not_shared`（未显式开启或已 revoke）/ `read_only`（含 setItem/removeItem/clear 等写操作与未知 op）/ `internal`（登记表读取失败、操作执行异常等）。
+**错误码**：`invalid_name`（非 share: 前缀）/ `not_shared`（未显式开启或已 revoke）/ `read_only`（含 setItem/removeItem/clear 等写操作与未知 op）/ `too_large`（响应超过中继单条消息 256KB 硬限制，无法送达；接收端在回传前用 `TextEncoder` 测量完整 resp 的 `JSON.stringify` 字节数，超限（`SHARED_STORAGE_RESP_MAX_BYTES = 256 * 1024`）即改回此错误，避免请求端干等超时）/ `internal`（登记表读取失败、操作执行异常等）。
 
 **执行细节**：`length` 是 getter（`await storage.length`）；`keys / entries` 是异步生成器，收集为数组后回传；`getItem` 对不存在的 key 返回 `ok:true, value:null`；所有已连接用户均可发起请求（无白名单），安全边界完全由上述三道防线构成。
 
-**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）；`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
+**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
 
 ## 六、客户端-服务端联动协议对应表
 

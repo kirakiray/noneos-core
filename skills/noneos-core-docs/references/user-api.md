@@ -148,7 +148,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `ping(sessionId, timeout?)` | 测 RTT |
 | `getRTT(sessionId?)` | 读缓存的 RTT |
 | `sendToService(appId, data, options?)` | 应用间通信（服务发现精准投递） |
-| `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，默认 10s 超时，`options.timeout` 可调），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/internal`） |
+| `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，单次尝试默认 10s 超时 `options.timeout` 可调；瞬时失败自动重发，默认 `options.retries=1`），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/too_large/internal`） |
 
 ### CertManager 类 (user.cert)
 

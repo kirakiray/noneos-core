@@ -185,10 +185,10 @@ const keys = await rSt.keys(); // ["theme"]
 ```
 
 - `name` 必须以 `share:` 开头，否则创建代理时抛错
-- 可选 `{ timeout }` 调整单次请求超时（默认 10s）
+- 可选 `{ timeout, retries }` 调整单次尝试超时（默认 10s）与自动重发次数（默认 1，仅对超时/发送失败重发）
 - 读操作均返回 Promise；`keys()/entries()` 返回数组（远端一次性回传）
 - `setItem/removeItem/clear` 调用即抛错（只读）
-- 失败抛出的 Error 带 `code`：`offline / timeout / not_shared / read_only / invalid_name / internal`
+- 失败抛出的 Error 带 `code`：`offline / timeout / not_shared / read_only / too_large / invalid_name / internal`
 - 详见[共享存储（只读）](#共享存储只读share-storage)章节
 
 ### 发送消息
@@ -308,12 +308,12 @@ rSt.setItem("k", "v"); // ❌ throws
 - 重复开启同一空间是幂等的，不会重复登记
 - 返回的 revoke 函数可随时关闭共享，多次调用安全
 - 共享登记持久化在用户库中，删除用户时随之清除
-- `RemoteUser.getStorage(name, { timeout })`：同一 `(userId, name)` 的代理实例缓存复用；单次请求默认超时 10s
-- 请求端抛出的 Error 带有 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / internal`（对端回传）
+- `RemoteUser.getStorage(name, { timeout, retries })`：同一 `(userId, name)` 的代理实例缓存复用；单次尝试默认超时 10s，超时/发送失败自动重发 1 次（只读幂等，重发安全；对端明确回传的错误不重试）
+- 请求端抛出的 Error 带有 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / too_large / internal`（对端回传）
 
 ### 协议（__storage_req / __storage_resp）
 
-远端发来 `{ type: "__storage_req", reqId, name, op, key }` 时，接收端依次校验：`share:` 前缀 → 已显式开启 → 只读白名单，通过后本地执行并回传 `__storage_resp`（`{ reqId, ok, value }` 成功；`{ reqId, ok: false, error: { code, message } }` 失败，错误码 `invalid_name / not_shared / read_only / internal`）。协议细节见 [CONTEXT.md](./CONTEXT.md)。
+远端发来 `{ type: "__storage_req", reqId, name, op, key }` 时，接收端依次校验：`share:` 前缀 → 已显式开启 → 只读白名单，通过后本地执行并回传 `__storage_resp`（`{ reqId, ok, value }` 成功；`{ reqId, ok: false, error: { code, message } }` 失败，错误码 `invalid_name / not_shared / read_only / too_large / internal`）。回传前测量完整响应字节数，超过中继单条消息 256KB 硬限制时改回 `too_large`，让请求端立即得到明确失败而非干等超时。协议细节见 [CONTEXT.md](./CONTEXT.md)。
 
 ---
 

@@ -240,10 +240,10 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 
 - 仅 `share:` 开头的空间可被共享；其余存储远端无法访问
 - **只读**：远端只能读取（`getItem/has/key/length/keys/entries`），写操作调用即抛错
-- `shareStorage(name)` / `RemoteUser.getStorage(name, { timeout })` 均为 async；请求端同一 `(userId, name)` 代理缓存复用，默认 10s 超时
+- `shareStorage(name)` / `RemoteUser.getStorage(name, { timeout, retries })` 均为 async；请求端同一 `(userId, name)` 代理缓存复用，单次尝试默认 10s 超时，瞬时失败（超时/发送失败）自动重发 1 次
 - 请求端失败 Error 带 `code`：`offline`（对端离线）/ `timeout`（超时）/ `not_shared` 等对端回传错误码
 - 重复开启幂等；共享登记持久化，删除用户时随之清除
-- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / internal`）
+- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / too_large / internal`；响应超过中继 256KB 单条消息硬限制时回 `too_large`，不会白等超时）
 
 更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 
