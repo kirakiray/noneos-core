@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser Shared Storage (shareStorage) Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser Shared Storage Tests</h1>
+
+  <sb-test name="shareStorage 拒绝非 share: 前缀">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const ns = "user_shared_prefix_1";
+
+        // 前置清理
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+
+        // 非 share: 前缀应抛错
+        let threwPlain = false;
+        let threwEmpty = false;
+        let errMsg = "";
+        try {
+          await user.shareStorage("settings");
+        } catch (e) {
+          threwPlain = true;
+          errMsg = e.message;
+        }
+        try {
+          await user.shareStorage("");
+        } catch (e) {
+          threwEmpty = true;
+        }
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert: threwPlain && threwEmpty && /share:/.test(errMsg),
+          content: {
+            message: "仅允许 share: 前缀的子空间参与共享",
+            threwPlain,
+            threwEmpty,
+            errMsg,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="shareStorage 登记成功且幂等">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+        import { getSharedStorages } from "/nos/user/db.js";
+
+        const ns = "user_shared_register_1";
+
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+
+        // 首次开启
+        const revoke1 = await user.shareStorage("share:settings");
+        // 重复开启同一空间（幂等，不应重复登记）
+        const revoke2 = await user.shareStorage("share:settings");
+        // 开启另一个空间
+        const revoke3 = await user.shareStorage("share:profile");
+
+        const list = await getSharedStorages(ns);
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert:
+            typeof revoke1 === "function" &&
+            typeof revoke2 === "function" &&
+            typeof revoke3 === "function" &&
+            list.includes("share:settings") &&
+            list.includes("share:profile") &&
+            list.filter((n) => n === "share:settings").length === 1,
+          content: {
+            message: "shareStorage 登记成功且重复开启幂等",
+            sharedList: list,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="revoke 后登记移除">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+        import { getSharedStorages } from "/nos/user/db.js";
+
+        const ns = "user_shared_revoke_1";
+
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+
+        const revoke = await user.shareStorage("share:settings");
+        const before = await getSharedStorages(ns);
+        const hasBefore = before.includes("share:settings");
+
+        // revoke 关闭共享
+        await revoke();
+
+        const after = await getSharedStorages(ns);
+        const hasAfter = after.includes("share:settings");
+
+        // revoke 幂等：再次调用不报错
+        let revokeTwiceOk = true;
+        try {
+          await revoke();
+        } catch (e) {
+          revokeTwiceOk = false;
+        }
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert: hasBefore && !hasAfter && revokeTwiceOk,
+          content: {
+            message: "revoke 后共享登记被移除",
+            sharedBefore: before,
+            sharedAfter: after,
+            revokeTwiceOk,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

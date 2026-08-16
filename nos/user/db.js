@@ -670,3 +670,84 @@ export async function getUserStorageIds(namespace) {
     request.onerror = () => reject(request.error);
   });
 }
+
+// 共享存储登记键：data store 中的键名。
+// 记录该用户通过 LocalUser.shareStorage() 显式开放共享的存储空间名，
+// 供入站 __storage_req 做第二道校验（须已显式开启才可被远端访问）。
+const SHARED_STORAGES_KEY = "shared-storages";
+
+/**
+ * 登记一个显式共享的存储空间名（幂等）
+ * @param {string} namespace
+ * @param {string} name - 存储空间名（须以 "share:" 开头，由调用方校验）
+ * @returns {Promise<void>}
+ */
+export async function addSharedStorage(namespace, name) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!name) throw new Error("name is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(SHARED_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      if (list.includes(name)) {
+        resolve();
+        return;
+      }
+      list.push(name);
+      const putRequest = store.put(list, SHARED_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 移除一个共享登记（revoke）
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
+export async function removeSharedStorage(namespace, name) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!name) throw new Error("name is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(SHARED_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      const index = list.indexOf(name);
+      if (index === -1) {
+        resolve();
+        return;
+      }
+      list.splice(index, 1);
+      const putRequest = store.put(list, SHARED_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 读取全部已显式共享的存储空间名
+ * @param {string} namespace
+ * @returns {Promise<string[]>}
+ */
+export async function getSharedStorages(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(SHARED_STORAGES_KEY);
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}

@@ -72,6 +72,28 @@ const theme = await settings.getItem("theme"); // "dark"
 - 支持 `nos/storage` 的全部能力：复杂类型、nos/fs 句柄、遍历、代理语法等
 - 调用 `deleteUser(namespace)` 时会联动删除该用户通过 `getStorage()` 创建的全部专属存储
 
+## 共享存储（只读）
+
+若要让**远端用户**只读访问某个专属存储空间，先以 `share:` 前缀创建空间，再用 `shareStorage()` 显式开放。只有以 `share:` 开头的空间可被共享，其余存储远端无法访问。
+
+```javascript
+const user = await getUser("my-app");
+
+// 显式开放共享（只读）
+const revoke = await user.shareStorage("share:settings");
+
+// 随时关闭共享
+await revoke();
+```
+
+注意：
+
+- `shareStorage(name)` 是 **async** 方法；`name` 必须以 `share:` 开头，否则抛错
+- **只读**：远端用户只能读取该空间，无法写入
+- 重复开启同一空间幂等，不会重复登记
+- 返回的 revoke 函数可随时关闭共享，多次调用安全
+- 共享登记持久化在用户库 `shared-storages` 键中，删除用户时随之清除
+
 ## 获取本用户所有 Session ID
 
 同一个 `namespace` 可以在多个标签页中创建 LocalUser，`getSessionIds()` 可发现所有在线 session：

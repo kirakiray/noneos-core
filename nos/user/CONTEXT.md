@@ -79,6 +79,7 @@ EventTarget
 | `#dispatchToRemote()` | 分发优先级：`__service_query` → `__service_available/unavailable` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存；未注册的 `__app` 消息触发 `unhandled_service_message` 事件 |
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
 | `getStorage(name)` | 获取该用户专属的独立存储空间（async，默认 name=`"default"`）。存储 id = `user:<namespace>:<userId>:<name>`，复用 `nos/storage` 的 `getStorage`，不同用户/身份互不可见；创建时经 `addUserStorageId` 登记到用户库，供 `deleteUser` 联动清理 |
+| `shareStorage(name)` | 显式开启一个存储空间的共享（**只读**，async）。`name` 必须以 `share:` 开头，否则抛错；经 `addSharedStorage` 登记到用户库 `shared-storages` 键（幂等），返回 revoke 函数（调用 `removeSharedStorage` 关闭共享）。远端用户只能读取已开启的共享空间，无法写入 |
 | `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
@@ -203,7 +204,7 @@ A.get(B.userId)
 
 - 数据库名：`nos_user_${namespace}`，`DB_VERSION = 7`
 - 五仓库：
-  - `data`：用户信息、密钥、服务器列表等键值。**含 `user-storages` 键**：字符串数组，登记该用户通过 `LocalUser.getStorage()` 创建的全部存储 id（`addUserStorageId` 去重追加 / `getUserStorageIds` 读取），供 `deleteUser` 联动清理
+  - `data`：用户信息、密钥、服务器列表等键值。**含 `user-storages` 键**：字符串数组，登记该用户通过 `LocalUser.getStorage()` 创建的全部存储 id（`addUserStorageId` 去重追加 / `getUserStorageIds` 读取），供 `deleteUser` 联动清理。**含 `shared-storages` 键**：字符串数组，登记该用户通过 `LocalUser.shareStorage()` 显式开放的共享空间名（`addSharedStorage` / `removeSharedStorage` / `getSharedStorages`），供入站共享请求做「已显式开启」校验
   - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
   - `cards`：keyPath `"userId"`
   - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`

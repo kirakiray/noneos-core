@@ -250,6 +250,28 @@ const theme = await settings.getItem("theme"); // "dark"
 
 ---
 
+## 共享存储（只读，Share Storage）
+
+`LocalUser` 可以把某个**以 `share:` 开头**的专属存储空间显式开放给远端用户读取。这是"与远端用户共享 storage"的基础能力（远端访问代理见后续章节/测试）。
+
+```javascript
+const user = await getUser("my-app");
+
+// 显式开放共享（只读）：只有以 "share:" 开头的子空间才能被共享
+const revoke = await user.shareStorage("share:settings");
+
+// 随时关闭共享
+await revoke();
+```
+
+- `shareStorage(name)` 是 async 方法；`name` 必须以 `share:` 开头，否则抛错
+- **只读**：远端用户只能读取该空间，无法写入
+- 重复开启同一空间是幂等的，不会重复登记
+- 返回的 revoke 函数可随时关闭共享，多次调用安全
+- 共享登记持久化在用户库中，删除用户时随之清除
+
+---
+
 ## 用户导出/导入/删除
 
 用户模块提供完整生命周期管理函数。
@@ -584,6 +606,20 @@ await user.ready();
 - 存储 id 为 `user:<namespace>:<userId>:<name>`，不同用户/身份互不可见
 - 自动登记到用户库，`deleteUser` 时联动清理
 
+#### `shareStorage(name)`
+
+显式开启一个存储空间的共享（只读），供远端用户读取（async）。
+
+**参数：**
+- `name` (string) - 存储空间名，**必须以 `share:` 开头**
+
+**返回值：** Promise\<Function\> - revoke 函数，调用后关闭该空间的共享
+
+**特性：**
+- 仅允许 `share:` 开头的子空间参与共享，其余存储不会被远端访问
+- 只共享读取能力，远端无法写入
+- 重复开启幂等；共享登记持久化，删除用户时随之清除
+
 ---
 
 ## CertManager 类
@@ -704,6 +740,7 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
 - [用户专属存储测试](../../tests/user/local/user-storage.sb.html)
+- [共享存储测试](../../tests/user/local/user-shared-storage.sb.html)
 - [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
 
 ---

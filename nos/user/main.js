@@ -204,12 +204,13 @@ export const deleteUser = async (namespace, options = {}) => {
   // 关闭缓存中的数据库连接
   closeDbByNamespace(namespace);
 
-  // 删除数据库
-  return new Promise((resolve, reject) => {
-    const dbName = `nos_user_${namespace}`;
+  // 删除数据库（onblocked 时重试，等待连接/事务完全释放）
+  const dbName = `nos_user_${namespace}`;
+  const maxBlockedRetries = 5;
 
+  return new Promise((resolve, reject) => {
     // Safari 需要延迟确保事务完全结束
-    const doDelete = () => {
+    const doDelete = (attempt = 0) => {
       const request = indexedDB.deleteDatabase(dbName);
 
       request.onsuccess = () => {
@@ -223,14 +224,25 @@ export const deleteUser = async (namespace, options = {}) => {
       };
 
       request.onblocked = () => {
-        reject(
-          new Error(
-            `Database deletion blocked for user "${namespace}". Please close all connections and try again.`,
-          ),
-        );
+        if (attempt >= maxBlockedRetries) {
+          reject(
+            new Error(
+              `Database deletion blocked for user "${namespace}". Please close all connections and try again.`,
+            ),
+          );
+          return;
+        }
+        // 连接可能尚未完全释放（如首次建库的 upgrade 事务收尾尚未结束），
+        // 再次关闭缓存连接并短暂延迟后重试删除。
+        try {
+          closeDbByNamespace(namespace);
+        } catch {
+          // 忽略清理错误
+        }
+        setTimeout(() => doDelete(attempt + 1), 200);
       };
     };
 
-    setTimeout(doDelete, 100);
+    setTimeout(() => doDelete(), 100);
   });
 };

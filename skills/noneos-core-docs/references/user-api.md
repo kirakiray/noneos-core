@@ -123,6 +123,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `getRemoteUsers({ onlineOnly })` | 获取已缓存的 `RemoteUser[]`，`onlineOnly: true` 时过滤在线用户 |
 | `getSessionIds(timeout?)` | 获取同一 namespace 下所有标签页的 sessionId |
 | `getStorage(name)` | 获取该用户专属的独立存储空间（async），复用 `nos/storage`，存储 id = `user:<namespace>:<userId>:<name>`，不同用户/身份互不可见；`deleteUser` 时联动清理 |
+| `shareStorage(name)` | 显式开启一个存储空间的共享（**只读**，async）。`name` 必须以 `share:` 开头，否则抛错；返回 revoke 函数可随时关闭共享；重复开启幂等 |
 | `traffic` | 流量记录器（`TrafficLogger`），详见 [客户端流量统计](traffic.md) |
 
 #### LocalUser 事件

@@ -5,6 +5,8 @@ import {
   saveUserInfo,
   getUserInfo,
   addUserStorageId,
+  addSharedStorage,
+  removeSharedStorage,
 } from "./db.js";
 import { getStorage as getGlobalStorage } from "../storage/main.js";
 import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
@@ -674,6 +676,29 @@ export class LocalUser extends BaseUser {
     const id = `user:${this.#namespace}:${this.userId}:${name}`;
     await addUserStorageId(this.#namespace, id);
     return getGlobalStorage(id);
+  }
+
+  /**
+   * 显式开启一个存储空间的共享（只读），供远端用户读取。
+   *
+   * 仅允许以 `share:` 开头的子空间名参与共享，其余存储不会被远端访问；
+   * 开启后所有已连接用户都能读取该空间，返回的 revoke 函数可随时关闭共享。
+   *
+   * 注意：共享的是「读取」能力，远端无法写入；本方法不创建存储，
+   * 数据仍由本地 getStorage("share:xxx") 维护。
+   *
+   * @param {string} name - 存储空间名，必须以 "share:" 开头
+   * @returns {Promise<() => Promise<void>>} revoke 函数：调用后关闭该空间的共享
+   */
+  async shareStorage(name) {
+    await this.ready();
+    if (!name || !name.startsWith("share:")) {
+      throw new Error('shareStorage name must start with "share:"');
+    }
+    await addSharedStorage(this.#namespace, name);
+    return async () => {
+      await removeSharedStorage(this.#namespace, name);
+    };
   }
 
   /**

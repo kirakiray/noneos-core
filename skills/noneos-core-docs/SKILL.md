@@ -221,6 +221,22 @@ await settings.setItem("theme", "dark");
 - 调用 `deleteUser(namespace)` 删除用户时，会联动清理该用户通过 `getStorage()` 创建的全部专属存储
 - 支持 `nos/storage` 全部能力：复杂类型、nos/fs 句柄、遍历、代理语法、跨标签页同步（仅同用户同名子空间内生效）
 
+#### 与远端用户共享（只读）
+
+若要让**远端用户**只读访问某个专属存储空间，用 `shareStorage()` 显式开放，且空间名必须以 `share:` 开头：
+
+```javascript
+// 本地用户开放共享（只读，仅 share: 前缀空间可被共享）
+const revoke = await user.shareStorage("share:settings");
+// 随时关闭共享
+await revoke();
+```
+
+- 仅 `share:` 开头的空间可被共享；其余存储远端无法访问
+- **只读**：远端只能读取，不能写入
+- `shareStorage(name)` 为 async，`name` 必须以 `share:` 开头，否则抛错
+- 重复开启幂等；共享登记持久化，删除用户时随之清除
+
 更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 
 ---
