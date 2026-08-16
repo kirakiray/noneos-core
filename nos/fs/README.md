@@ -51,7 +51,6 @@ const dir = await init("my-app");
 
 - 普通路径：`"my-app/path/to/file.txt"` — 访问 OPFS 存储空间
 - 挂载路径：`"$mount-{id}>name/path"` — 访问已挂载的本地目录
-- 远端路径：`"$user-{userId}:rootName/path"` — 访问远端用户目录
 
 ```js
 import { get } from "/nos/fs/main.js";

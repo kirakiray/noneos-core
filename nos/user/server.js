@@ -124,7 +124,7 @@ export class ServerManager {
       await this.#loadServers();
     }
     const promises = this.#servers.map((url) =>
-      this.connect(url).catch((err) => {
+      this.connect(url, { auto: true }).catch((err) => {
         console.warn(
           `[ServerManager] Auto-connect to ${url} failed:`,
           err.message,
@@ -139,6 +139,8 @@ export class ServerManager {
    * @param {string} url - 握手服务器的 WebSocket 地址
    * @param {Object|number} [optionsOrRetries={ retries: 3 }] - 连接选项，或仅指定重试次数（向后兼容）
    * @param {number} [optionsOrRetries.retries=3] - 握手阶段的重试次数
+   * @param {boolean} [optionsOrRetries.auto=false] - 是否为自动连接（connectAll 调用）；
+   *        自动连接不清除主动断开标记，保证 disconnectAll 后不会被后台任务复活
    * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
   async connect(url, optionsOrRetries = { retries: 3 }) {
@@ -149,8 +151,12 @@ export class ServerManager {
       options = { retries: 3, ...optionsOrRetries };
     }
 
-    // 用户主动连接某 URL 时，视为恢复自动重连的意图
-    this.#intentionalDisconnects.delete(url);
+    // 用户主动连接某 URL 时，视为恢复自动重连的意图（auto 连接不恢复，
+    // 避免 deleteUser 的 disconnectAll 之后被后台 connectAll 复活，
+    // 在删除过程中重新打开用户库连接，阻塞 indexedDB.deleteDatabase）
+    if (!options.auto) {
+      this.#intentionalDisconnects.delete(url);
+    }
     this.#clearReconnectTask(url);
 
     // 检查是否已有可用连接
@@ -183,8 +189,16 @@ export class ServerManager {
     const connectWithRetry = async () => {
       let lastError;
       for (let i = 0; i <= options.retries; i++) {
+        // 每轮尝试前检查：已被主动断开（如 deleteUser 的 disconnectAll）则中止，
+        // 避免在删除用户的过程中重新打开用户库连接
+        if (this.#intentionalDisconnects.has(url)) {
+          throw new Error(`Connection to ${url} aborted`);
+        }
         if (i > 0) {
           await new Promise((r) => setTimeout(r, 200));
+          if (this.#intentionalDisconnects.has(url)) {
+            throw new Error(`Connection to ${url} aborted`);
+          }
           console.warn(
             `[ServerManager] Retrying connection to ${url} (attempt ${i + 1}/${options.retries})`,
           );
@@ -212,6 +226,10 @@ export class ServerManager {
    * @returns {Promise<{success: boolean, version: string|null}>}
    */
   async #connectOnce(url) {
+    // 已被主动断开则不再发起（含 getInfo 读取用户库）
+    if (this.#intentionalDisconnects.has(url)) {
+      throw new Error(`Connection to ${url} aborted`);
+    }
     const userInfo = await this.#user.getInfo();
     if (!userInfo) {
       throw new Error("User info not found");
@@ -267,6 +285,15 @@ export class ServerManager {
 
             // 2. 处理最终的握手结果
             if (data.type === "handshake" && data.status === "success") {
+              // 握手期间被主动断开（如 deleteUser 的 disconnectAll）：
+              // 立即关闭连接，不放入 wsMap，避免删除流程结束后留下活跃连接
+              if (this.#intentionalDisconnects.has(url)) {
+                clearTimeout(timeout);
+                isHandshaked = true;
+                ws.close();
+                reject(new Error(`Connection to ${url} aborted`));
+                return;
+              }
               clearTimeout(timeout);
               isHandshaked = true;
               const version = data.version || null;

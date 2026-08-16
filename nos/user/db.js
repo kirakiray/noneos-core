@@ -6,8 +6,21 @@ const TRAFFIC_AGG_MINUTE_STORE = "traffic_agg_minute";
 const DB_VERSION = 7;
 
 // 数据库连接缓存池
-const dbCache = new Map();
+// 缓存的是 Promise 而非连接本身：并发的 getDb 复用同一次 indexedDB.open，
+// 避免产生脱离缓存的"孤儿连接"（dbCache.set 被后者覆盖后无法被
+// closeDbByNamespace 关闭，会让 indexedDB.deleteDatabase 一直被 block）。
+const dbCache = new Map(); // dbName -> Promise<IDBDatabase>
+const dbTimers = new Map(); // dbName -> 自动关闭 timer
 const CACHE_TIMEOUT = 5000; // 5秒
+
+/**
+ * 刷新连接的自动关闭计时
+ * @param {string} dbName
+ */
+function refreshDbTimer(dbName) {
+  clearTimeout(dbTimers.get(dbName));
+  dbTimers.set(dbName, setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT));
+}
 
 /**
  * 获取数据库实例（带缓存池）
@@ -15,28 +28,44 @@ const CACHE_TIMEOUT = 5000; // 5秒
  * @returns {Promise<IDBDatabase>}
  */
 function getDb(namespace) {
-  return new Promise((resolve, reject) => {
-    const dbName = `nos_user_${namespace}`;
+  const dbName = `nos_user_${namespace}`;
 
-    // 检查缓存
-    const cached = dbCache.get(dbName);
-    if (cached) {
-      clearTimeout(cached.timer);
-      cached.timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
-      resolve(cached.db);
-      return;
-    }
+  // 检查缓存（含打开中的 Promise，并发调用复用同一次 open）
+  const cached = dbCache.get(dbName);
+  if (cached) {
+    return cached.then((db) => {
+      // 连接仍在使用，刷新自动关闭计时
+      if (dbCache.has(dbName)) {
+        refreshDbTimer(dbName);
+      }
+      return db;
+    });
+  }
 
+  const promise = new Promise((resolve, reject) => {
     const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => {
+      // 打开失败：清理缓存，允许后续重试
+      if (dbCache.get(dbName) === promise) {
+        dbCache.delete(dbName);
+      }
       reject(request.error);
     };
 
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
-      dbCache.set(dbName, { db, timer });
+    request.onsuccess = () => {
+      const db = request.result;
+      if (dbCache.get(dbName) !== promise) {
+        // 打开期间缓存已被 closeDbByNamespace 清除（deleteUser 清理流程），
+        // 立即关闭这个新连接，避免阻塞随后发起的 deleteDatabase
+        db.close();
+        reject(new Error(`Database "${dbName}" was closed during open`));
+        return;
+      }
+      // 收到版本变更请求（如 deleteDatabase）时自动关闭连接，
+      // 避免删除操作被 onblocked 长时间阻塞
+      db.onversionchange = () => closeDbCache(dbName);
+      refreshDbTimer(dbName);
       resolve(db);
     };
 
@@ -87,6 +116,9 @@ function getDb(namespace) {
       }
     };
   });
+
+  dbCache.set(dbName, promise);
+  return promise;
 }
 
 /**
@@ -106,14 +138,27 @@ export const TRAFFIC_STORES = {
 
 /**
  * 关闭并清理缓存中的数据库连接
+ * 支持清理打开中的 Promise：缓存项被移除后，在途的 open 完成时会自行关闭连接
  * @param {string} dbName
  */
 function closeDbCache(dbName) {
   const cached = dbCache.get(dbName);
-  if (cached) {
-    cached.db.close();
-    dbCache.delete(dbName);
-  }
+  if (!cached) return;
+  dbCache.delete(dbName);
+  clearTimeout(dbTimers.get(dbName));
+  dbTimers.delete(dbName);
+  cached.then(
+    (db) => {
+      try {
+        db.close();
+      } catch {
+        // 连接可能已关闭
+      }
+    },
+    () => {
+      // 打开失败或在途期间被清除，无需处理
+    },
+  );
 }
 
 /**
@@ -616,6 +661,138 @@ export async function countCards(namespace) {
     const store = transaction.objectStore(CARD_STORE_NAME);
     const request = store.count();
     request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// 用户存储登记键：data store 中的键名。
+// 记录该用户通过 LocalUser.getStorage() 创建的全部存储空间 id，
+// 供 deleteUser 联动清理，避免删除用户后残留 nos-storage-* 数据库。
+const USER_STORAGES_KEY = "user-storages";
+
+/**
+ * 登记用户创建的存储空间 id，供 deleteUser 联动清理
+ * @param {string} namespace
+ * @param {string} storageId
+ * @returns {Promise<void>}
+ */
+export async function addUserStorageId(namespace, storageId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!storageId) throw new Error("storageId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(USER_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      if (list.includes(storageId)) {
+        resolve();
+        return;
+      }
+      list.push(storageId);
+      const putRequest = store.put(list, USER_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 读取用户登记的全部存储空间 id
+ * @param {string} namespace
+ * @returns {Promise<string[]>}
+ */
+export async function getUserStorageIds(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(USER_STORAGES_KEY);
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// 共享存储登记键：data store 中的键名。
+// 记录该用户通过 LocalUser.shareStorage() 显式开放共享的存储空间名，
+// 供入站 __storage_req 做第二道校验（须已显式开启才可被远端访问）。
+const SHARED_STORAGES_KEY = "shared-storages";
+
+/**
+ * 登记一个显式共享的存储空间名（幂等）
+ * @param {string} namespace
+ * @param {string} name - 存储空间名（须以 "share:" 开头，由调用方校验）
+ * @returns {Promise<void>}
+ */
+export async function addSharedStorage(namespace, name) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!name) throw new Error("name is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(SHARED_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      if (list.includes(name)) {
+        resolve();
+        return;
+      }
+      list.push(name);
+      const putRequest = store.put(list, SHARED_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 移除一个共享登记（revoke）
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
+export async function removeSharedStorage(namespace, name) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!name) throw new Error("name is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(SHARED_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      const index = list.indexOf(name);
+      if (index === -1) {
+        resolve();
+        return;
+      }
+      list.splice(index, 1);
+      const putRequest = store.put(list, SHARED_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 读取全部已显式共享的存储空间名
+ * @param {string} namespace
+ * @returns {Promise<string[]>}
+ */
+export async function getSharedStorages(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(SHARED_STORAGES_KEY);
+    request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
 }

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalUser User Storage Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>LocalUser User Storage Tests</h1>
+
+  <sb-test name="基本读写与默认子空间">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const ns = "user_storage_basic_1";
+
+        // 前置清理
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {
+          // 用户不存在时忽略
+        }
+
+        const user = await getUser(ns);
+        const userId = user.userId;
+
+        // 不传 name，落到默认 "default" 子空间
+        const store = await user.getStorage();
+        await store.setItem("k", { a: 1, list: [1, 2] });
+        const val = await store.getItem("k");
+        const id = store.id;
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert:
+            val &&
+            val.a === 1 &&
+            Array.isArray(val.list) &&
+            id === `user:${ns}:${userId}:default`,
+          content: {
+            message: "默认子空间读写成功",
+            storageId: id,
+            value: val,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="不同用户数据隔离">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const nsA = "user_storage_iso_a_1";
+        const nsB = "user_storage_iso_b_1";
+
+        try {
+          await deleteUser(nsA, { skipConfirm: true });
+        } catch (e) {}
+        try {
+          await deleteUser(nsB, { skipConfirm: true });
+        } catch (e) {}
+
+        const userA = await getUser(nsA);
+        const userB = await getUser(nsB);
+
+        const storeA = await userA.getStorage("settings");
+        const storeB = await userB.getStorage("settings");
+
+        await storeA.setItem("theme", "dark");
+        await storeB.setItem("theme", "light");
+
+        const themeA = await storeA.getItem("theme");
+        const themeB = await storeB.getItem("theme");
+
+        // 两个用户的存储 id 不同，数据互不可见
+        const isolated =
+          themeA === "dark" && themeB === "light" && storeA.id !== storeB.id;
+
+        await deleteUser(nsA, { skipConfirm: true });
+        await deleteUser(nsB, { skipConfirm: true });
+
+        return {
+          assert: isolated,
+          content: {
+            message: "不同用户存储互不可见",
+            storageIdA: storeA.id,
+            storageIdB: storeB.id,
+            themeA,
+            themeB,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="同一用户不同子空间隔离">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const ns = "user_storage_sub_1";
+
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+
+        const storeA = await user.getStorage("a");
+        const storeB = await user.getStorage("b");
+
+        await storeA.setItem("k", "from-a");
+        await storeB.setItem("k", "from-b");
+
+        const a = await storeA.getItem("k");
+        const b = await storeB.getItem("k");
+
+        const isolated = a === "from-a" && b === "from-b" && storeA.id !== storeB.id;
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert: isolated,
+          content: {
+            message: "同一用户不同子空间互不影响",
+            storageIdA: storeA.id,
+            storageIdB: storeB.id,
+            a,
+            b,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="同名子空间复用实例">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const ns = "user_storage_reuse_1";
+
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+
+        const s1 = await user.getStorage("x");
+        const s2 = await user.getStorage("x");
+        const s3 = await user.getStorage("x");
+
+        const reused = s1 === s2 && s2 === s3;
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        return {
+          assert: reused,
+          content: {
+            message: "同名子空间复用同一实例",
+            storageId: s1.id,
+            sameInstance: s1 === s2 && s2 === s3,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="deleteUser 联动清理专属存储">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+        import { getStorage, deleteStorage } from "/nos/storage/main.js";
+
+        const ns = "user_storage_del_1";
+
+        try {
+          await deleteUser(ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const user = await getUser(ns);
+        const userId = user.userId;
+
+        const store = await user.getStorage("settings");
+        await store.setItem("secret", "value-1");
+        const storageId = `user:${ns}:${userId}:settings`;
+        const dbName = `nos-storage-${storageId}`;
+
+        await deleteUser(ns, { skipConfirm: true });
+
+        // 方式一：若浏览器支持 indexedDB.databases()，确认数据库已被删除
+        let dbGone = true;
+        if (typeof indexedDB.databases === "function") {
+          const dbs = await indexedDB.databases();
+          dbGone = !dbs.some((d) => d.name === dbName);
+        }
+
+        // 方式二：重新打开同一存储 id，数据应为空（数据库已删除重建）
+        const reopened = getStorage(storageId);
+        const val = await reopened.getItem("secret");
+        const emptied = val === null;
+
+        // 清理重建的空数据库
+        await deleteStorage(storageId);
+
+        return {
+          assert: dbGone && emptied,
+          content: {
+            message: "删除用户联动清理其专属存储",
+            dbName,
+            dbGone,
+            emptied,
+            valueAfterDelete: val,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

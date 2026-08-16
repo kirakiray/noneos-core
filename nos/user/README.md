@@ -172,6 +172,25 @@ console.log(remoteUser.userId); // 目标用户的 userId
 const sessionIds = await remoteUser.getSessionIds();
 ```
 
+### 读取对方共享的存储（只读）
+
+```javascript
+// 仅可访问对方 shareStorage("share:xxx") 显式开启的空间
+const rSt = await remoteUser.getStorage("share:settings");
+
+const theme = await rSt.getItem("theme"); // "dark"（对方本地维护）
+const exists = await rSt.has("theme"); // true
+const len = await rSt.length; // 1
+const keys = await rSt.keys(); // ["theme"]
+```
+
+- `name` 必须以 `share:` 开头，否则创建代理时抛错
+- 可选 `{ timeout, retries }` 调整单次尝试超时（默认 10s）与自动重发次数（默认 1，仅对超时/发送失败重发）
+- 读操作均返回 Promise；`keys()/entries()` 返回数组（远端一次性回传）
+- `setItem/removeItem/clear` 调用即抛错（只读）
+- 失败抛出的 Error 带 `code`：`offline / timeout / not_shared / read_only / too_large / invalid_name / internal`
+- 详见[共享存储（只读）](#共享存储只读share-storage)章节
+
 ### 发送消息
 
 ```javascript
@@ -230,6 +249,74 @@ user.bind("rtt_update", (event) => {
 
 ---
 
+## 用户专属存储（User Storage）
+
+每个 `LocalUser` 都拥有自己的独立存储空间，通过 `user.getStorage(name)` 获取。底层复用 [nos/storage](../storage/README.md)，存储 id 为 `user:<namespace>:<userId>:<name>`，对应独立的 IndexedDB 数据库，因此**不同用户、同一用户不同身份之间互不可见**。
+
+```javascript
+const user = await getUser("my-app");
+
+// 获取该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+
+await settings.setItem("theme", "dark");
+const theme = await settings.getItem("theme"); // "dark"
+```
+
+- `getStorage(name)` 是 async 方法，调用时会自动登记到用户库，供 `deleteUser` 联动清理
+- 同名子空间复用同一实例；跨标签页同步只在该用户同名的子空间内生效
+- 支持 `nos/storage` 的全部能力：复杂类型、nos/fs 句柄、遍历、代理语法等
+
+---
+
+## 共享存储（只读，Share Storage）
+
+`LocalUser` 可以把某个**以 `share:` 开头**的专属存储空间显式开放给远端用户读取；远端通过 `RemoteUser.getStorage()` 以只读代理访问。
+
+```javascript
+// ===== 接收端（数据所有者）=====
+const user = await getUser("my-app");
+
+// 本地维护数据（与普通专属存储一致）
+const st = await user.getStorage("share:settings");
+await st.setItem("theme", "dark");
+
+// 显式开放共享（只读）：只有以 "share:" 开头的子空间才能被共享
+const revoke = await user.shareStorage("share:settings");
+
+// 随时关闭共享
+await revoke();
+```
+
+```javascript
+// ===== 请求端（远端访问者）=====
+const remoteUser = await localUser.connectUser(targetUserId);
+
+// 获取只读代理（name 必须以 "share:" 开头，否则抛错）
+const rSt = await remoteUser.getStorage("share:settings");
+
+const theme = await rSt.getItem("theme"); // "dark"
+const len = await rSt.length;
+const keys = await rSt.keys(); // string[]（一次性回传，非本地版异步生成器）
+
+// 写操作调用即抛错（远端共享只读）
+rSt.setItem("k", "v"); // ❌ throws
+```
+
+- `shareStorage(name)` 是 async 方法；`name` 必须以 `share:` 开头，否则抛错
+- **只读**：远端用户只能读取该空间，无法写入；放行的操作为 `getItem / has / key / length / keys / entries`
+- 重复开启同一空间是幂等的，不会重复登记
+- 返回的 revoke 函数可随时关闭共享，多次调用安全
+- 共享登记持久化在用户库中，删除用户时随之清除
+- `RemoteUser.getStorage(name, { timeout, retries })`：同一 `(userId, name)` 的代理实例缓存复用；单次尝试默认超时 10s，超时/发送失败自动重发 1 次（只读幂等，重发安全；对端明确回传的错误不重试）
+- 请求端抛出的 Error 带有 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / too_large / internal`（对端回传）
+
+### 协议（__storage_req / __storage_resp）
+
+远端发来 `{ type: "__storage_req", reqId, name, op, key }` 时，接收端依次校验：`share:` 前缀 → 已显式开启 → 只读白名单，通过后本地执行并回传 `__storage_resp`（`{ reqId, ok, value }` 成功；`{ reqId, ok: false, error: { code, message } }` 失败，错误码 `invalid_name / not_shared / read_only / too_large / internal`）。回传前测量完整响应字节数，超过中继单条消息 256KB 硬限制时改回 `too_large`，让请求端立即得到明确失败而非干等超时。协议细节见 [CONTEXT.md](./CONTEXT.md)。
+
+---
+
 ## 用户导出/导入/删除
 
 用户模块提供完整生命周期管理函数。
@@ -264,7 +351,7 @@ await deleteUser("my-namespace");
 await deleteUser("my-namespace", { skipConfirm: true });
 ```
 
-删除会永久清除该 namespace 对应的 IndexedDB 数据库、内存缓存和所有本地数据。
+删除会永久清除该 namespace 对应的 IndexedDB 数据库、内存缓存和所有本地数据，**同时联动删除该用户通过 `getStorage()` 创建的全部专属存储**。
 
 ---
 
@@ -551,6 +638,33 @@ await user.ready();
 
 **返回值：** Promise\<Object \| null\> - 已签名的用户信息，如果不存在则返回 null
 
+#### `getStorage(name)`
+
+获取该用户专属的独立存储空间（async）。
+
+**参数：**
+- `name` (string, 可选) - 业务子空间名，默认 `"default"`
+
+**返回值：** Promise\<NosStorage\> - `nos/storage` 实例，隔离于其他用户
+
+**特性：**
+- 存储 id 为 `user:<namespace>:<userId>:<name>`，不同用户/身份互不可见
+- 自动登记到用户库，`deleteUser` 时联动清理
+
+#### `shareStorage(name)`
+
+显式开启一个存储空间的共享（只读），供远端用户读取（async）。
+
+**参数：**
+- `name` (string) - 存储空间名，**必须以 `share:` 开头**
+
+**返回值：** Promise\<Function\> - revoke 函数，调用后关闭该空间的共享
+
+**特性：**
+- 仅允许 `share:` 开头的子空间参与共享，其余存储不会被远端访问
+- 只共享读取能力，远端无法写入
+- 重复开启幂等；共享登记持久化，删除用户时随之清除
+
 ---
 
 ## CertManager 类
@@ -670,6 +784,8 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [服务器连接测试](../../tests/user/local/connect-server.sb.html)
 - [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
+- [用户专属存储测试](../../tests/user/local/user-storage.sb.html)
+- [共享存储测试](../../tests/user/local/user-shared-storage.sb.html)（含 shareStorage 登记、__storage_req 协议与远端只读代理用例）
 - [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
 
 ---

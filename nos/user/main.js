@@ -5,11 +5,13 @@ import {
   saveUserKeys,
   saveUserInfo,
   closeDbByNamespace,
+  getUserStorageIds,
 } from "./db.js";
 import {
   encryptWithPassword,
   decryptWithPassword,
 } from "../crypto/crypto-aes.js";
+import { deleteStorage } from "../storage/main.js";
 
 const users = new Map();
 
@@ -184,36 +186,76 @@ export const deleteUser = async (namespace, options = {}) => {
     users.delete(namespace);
   }
 
+  // 联动清理该用户通过 getStorage() 创建的全部存储空间（登记表存于用户库）
+  let userStorageIds = [];
+  try {
+    userStorageIds = await getUserStorageIds(namespace);
+  } catch {
+    // 读取失败不阻塞删除用户，登记表缺失时存储由 deleteStorage 各自兜底
+  }
+  for (const id of userStorageIds) {
+    try {
+      await deleteStorage(id);
+    } catch (error) {
+      console.warn(`deleteUser: failed to delete storage "${id}"`, error);
+    }
+  }
+
   // 关闭缓存中的数据库连接
   closeDbByNamespace(namespace);
 
-  // 删除数据库
-  return new Promise((resolve, reject) => {
-    const dbName = `nos_user_${namespace}`;
+  // 删除数据库（onblocked 时重试，等待连接/事务完全释放）
+  const dbName = `nos_user_${namespace}`;
+  const maxBlockedRetries = 5;
+  // 看门狗超时：delete 请求可能静默排队（排在其他 delete 请求之后，不触发
+  // onblocked），超时仍未完成则主动重试，保证流程不会永挂
+  const attemptTimeout = 1500;
 
+  return new Promise((resolve, reject) => {
     // Safari 需要延迟确保事务完全结束
-    const doDelete = () => {
+    const doDelete = (attempt = 0) => {
       const request = indexedDB.deleteDatabase(dbName);
+      let advanced = false;
+
+      const advance = () => {
+        if (advanced) return;
+        advanced = true;
+        clearTimeout(watchdog);
+        if (attempt >= maxBlockedRetries) {
+          reject(
+            new Error(
+              `Database deletion blocked for user "${namespace}". Please close all connections and try again.`,
+            ),
+          );
+          return;
+        }
+        // 连接可能尚未完全释放（如首次建库的 upgrade 事务收尾尚未结束），
+        // 再次关闭缓存连接并短暂延迟后重试删除。
+        try {
+          closeDbByNamespace(namespace);
+        } catch {
+          // 忽略清理错误
+        }
+        setTimeout(() => doDelete(attempt + 1), 200);
+      };
+
+      const watchdog = setTimeout(advance, attemptTimeout);
 
       request.onsuccess = () => {
+        clearTimeout(watchdog);
         // 从内存缓存中移除
         users.delete(namespace);
         resolve(true);
       };
 
       request.onerror = () => {
+        clearTimeout(watchdog);
         reject(new Error(`Failed to delete database for user "${namespace}"`));
       };
 
-      request.onblocked = () => {
-        reject(
-          new Error(
-            `Database deletion blocked for user "${namespace}". Please close all connections and try again.`,
-          ),
-        );
-      };
+      request.onblocked = advance;
     };
 
-    setTimeout(doDelete, 100);
+    setTimeout(() => doDelete(), 100);
   });
 };

@@ -11,7 +11,6 @@ NoneOS Core 文件系统是一个基于浏览器的虚拟文件系统，底层�
 1. **分层设计**：`public/` 提供与后端无关的公共方法（通过 `extend*` 混入），`handle/` 提供 OPFS 具体实现，`handle/mount/` 提供本地目录挂载能力。
 2. **路径路由**：入口 `main.js` 的 `get` 根据路径前缀分发到不同后端：
    - `$mount-xxx` → 本地挂载目录（`handle/mount/mount.js`）
-   - `$user-xxx:rootName/...` → 远端用户目录（通过 RTC，动态导入 `./fs-remote/main.js`）
    - 其他 → 系统 OPFS 目录（`handle/main.js`）
 3. **跨标签页同步**：通过 `BroadcastChannel("nonefs-system-handle-change")` 广播文件变更，配合 `observers` Set 实现观察者通知。
 
@@ -106,7 +105,6 @@ PublicBaseHandle (public/base.js)
 
 - `PublicBaseHandle.path` 默认递归拼接 `parent.path + "/" + name`。
 - 挂载目录通过 `RESET_PATH` Symbol 覆盖路径为 `$mount-{id}>{encodeURI(name)}`，使挂载句柄的路径与 OPFS 路径解耦。
-- 远端用户路径格式：`$user-{userId}:{rootName}/sub/path`，在 `main.js` 中解析后交给 `fs-remote/main.js`。
 
 #### PICKED 标记（public/base.js）
 
@@ -160,8 +158,6 @@ PublicBaseHandle (public/base.js)
 
 - `../util/zip.js` — 目录下载打包
 - `../util/hash/get-hash.js` — `id()` 的路径哈希降级方案
-- `/packages/user/main.js` — **运行时 URL**（由 Service Worker 映射到本仓库 `nos/user/main.js`），动态导入用于远端用户目录
-- `./fs-remote/main.js` — **运行时动态加载的远端 FS 模块，本仓库内未提供源码**，需通过 Service Worker 或外部包解析；期望导出 `createGet({remoteUser})`，返回 `remoteGet(path, options)` 句柄获取函数
 - 浏览器 API：`Worker`（Safari 写入降级）、`BroadcastChannel`（跨标签页同步）、`IndexedDB`（挂载句柄持久化）、`showDirectoryPicker`、实验性 `FileSystemObserver`
 
 ## 七、浏览器兼容性

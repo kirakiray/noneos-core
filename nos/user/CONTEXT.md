@@ -61,7 +61,7 @@ EventTarget
 | `getUser(namespace)` | 获取/创建 LocalUser 实例（Map 缓存，`initPromises` 防并发初始化） |
 | `exportUser(namespace, password)` | 用密码加密导出完整用户数据（namespace + keys + info + exportTime），返回加密 base64 字符串 |
 | `importUser(namespace, encryptedData, password)` | 解密 `exportUser` 产出的加密数据并恢复用户；若 namespace 已存在则抛错 |
-| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked` |
+| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked`。**删除前会读取用户库中的 `user-storages` 登记表，对登记的全部存储 id 逐个 `deleteStorage()`，联动清理该用户 `getStorage()` 创建的专属存储** |
 
 ### LocalUser（user.js）
 
@@ -78,6 +78,8 @@ EventTarget
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
 | `#dispatchToRemote()` | 分发优先级：`__service_query` → `__service_available/unavailable` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存；未注册的 `__app` 消息触发 `unhandled_service_message` 事件 |
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
+| `getStorage(name)` | 获取该用户专属的独立存储空间（async，默认 name=`"default"`）。存储 id = `user:<namespace>:<userId>:<name>`，复用 `nos/storage` 的 `getStorage`，不同用户/身份互不可见；创建时经 `addUserStorageId` 登记到用户库，供 `deleteUser` 联动清理 |
+| `shareStorage(name)` | 显式开启一个存储空间的共享（**只读**，async）。`name` 必须以 `share:` 开头，否则抛错；经 `addSharedStorage` 登记到用户库 `shared-storages` 键（幂等），返回 revoke 函数（调用 `removeSharedStorage` 关闭共享）。远端用户只能读取已开启的共享空间，无法写入 |
 | `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
@@ -88,6 +90,8 @@ EventTarget
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
+| `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
+| `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
 | `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
 
 ### ServerManager（server.js）
@@ -108,7 +112,7 @@ EventTarget
 | 管理器 | 关键方法 |
 |--------|---------|
 | `CertManager` (cert.js) | `issue`/`import`/`query`/`has`/`delete`/`count`/`values`；`query(query)` 返回数组；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
-| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求 |
+| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求，超时/发送失败自动重发 1 次（幂等，按 signTime 去重） |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
@@ -179,9 +183,12 @@ A.get(B.userId)
         ├── connectUser(B.userId)   # 确保对端在线
         ├── findSessionId            # 选一个会话
         ├── 发送 {type:"card", action:"request"}  ──→ B
+        │     （超时/发送失败 300ms 后自动重发 1 次，CARD_REQ_RETRIES）
         └── B 回 {type:"card", action:"response", card} ──→ A
               └── 校验 publicKey→userId + 签名 → 存 DB
 ```
+
+可靠性：名片请求是幂等 RPC——接收端按 `signTime` 保留更新的名片（`saveCardToDb`），重复请求与迟到响应均安全，因此超时（`CARD_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 userId 合并并发请求，重试耗尽才 reject。
 
 ### 7. 服务注册与发现（service-registry.js + remote-user.js）
 
@@ -202,7 +209,7 @@ A.get(B.userId)
 
 - 数据库名：`nos_user_${namespace}`，`DB_VERSION = 7`
 - 五仓库：
-  - `data`：用户信息、密钥、服务器列表等键值
+  - `data`：用户信息、密钥、服务器列表等键值。**含 `user-storages` 键**：字符串数组，登记该用户通过 `LocalUser.getStorage()` 创建的全部存储 id（`addUserStorageId` 去重追加 / `getUserStorageIds` 读取），供 `deleteUser` 联动清理。**含 `shared-storages` 键**：字符串数组，登记该用户通过 `LocalUser.shareStorage()` 显式开放的共享空间名（`addSharedStorage` / `removeSharedStorage` / `getSharedStorages`），供入站共享请求做「已显式开启」校验
   - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
   - `cards`：keyPath `"userId"`
   - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`
@@ -222,6 +229,30 @@ A.get(B.userId)
 - **主要 API**：`record / flush / query / summary / getPeerTotals / getServerTotals / getTimeline / getTotalStats / count / getStorageInfo / deleteBefore / delete / clearAll / setEnabled / configure`。
 - **数据保留**：默认永久保留，通过 `deleteBefore(ts)` / `delete(filter)` / `clearAll()` 由上层清理应用管理。
 
+### 10. 远端共享存储协议（__storage_req / __storage_resp）
+
+接收端在 `#dispatchToRemote` 中拦截 `type === "__storage_req"` 的入站消息（user.js `#handleStorageRequest`），按三道防线校验后以只读方式本地执行，结果经 `__storage_resp` 回传（`raw=true` 跳过 E2EE，与 `__service_response` 一致）：
+
+```
+远端 ──→ { type:"__storage_req", reqId, name, op, key }
+本地 ──→ { type:"__storage_resp", reqId, ok:true, value }          # 成功
+      └→ { type:"__storage_resp", reqId, ok:false, error:{code, message} }  # 失败
+```
+
+**三道防线**（依次校验，任一失败即回传错误）：
+
+| 防线 | 校验 | 失败错误码 |
+|------|------|-----------|
+| 1. 约定前缀 | `name` 必须以 `"share:"` 开头 | `invalid_name` |
+| 2. 显式开启 | `name` 必须在 `shared-storages` 登记表（已 `shareStorage()`） | `not_shared` |
+| 3. 只读白名单 | `op` 仅允许 `getItem / has / key / length / keys / entries` | `read_only` |
+
+**错误码**：`invalid_name`（非 share: 前缀）/ `not_shared`（未显式开启或已 revoke）/ `read_only`（含 setItem/removeItem/clear 等写操作与未知 op）/ `too_large`（响应超过中继单条消息 256KB 硬限制，无法送达；接收端在回传前用 `TextEncoder` 测量完整 resp 的 `JSON.stringify` 字节数，超限（`SHARED_STORAGE_RESP_MAX_BYTES = 256 * 1024`）即改回此错误，避免请求端干等超时）/ `internal`（登记表读取失败、操作执行异常等）。
+
+**执行细节**：`length` 是 getter（`await storage.length`）；`keys / entries` 是异步生成器，收集为数组后回传；`getItem` 对不存在的 key 返回 `ok:true, value:null`；所有已连接用户均可发起请求（无白名单），安全边界完全由上述三道防线构成。
+
+**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
+
 ## 六、客户端-服务端联动协议对应表
 
 | 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/rust/CONTEXT.md） |
@@ -231,6 +262,7 @@ A.get(B.userId)
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
 | 名片交换 | 中继 | `card` (request/response) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
+| 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
@@ -244,7 +276,7 @@ A.get(B.userId)
 - `../crypto/crypto-e2ee.js` —— E2EE 加解密（remote-user.js；user.js 动态导入）
 - `../crypto/crypto-aes.js` —— AES 加解密（main.js，用于 export/import 加密）
 - `../crypto/crypto-verify.js` —— 通用验签（card.js）
-- `../fs/main.js` —— 远端用户文件系统（动态导入 `./fs-remote/main.js`）
+- `../storage/main.js` —— `LocalUser.getStorage()` 用户专属存储（user.js / main.js 静态导入；storage 无静态依赖，不成环）
 - 浏览器 API：WebSocket、WebRTC（RTCPeerConnection/DataChannel）、IndexedDB、BroadcastChannel、Crypto.subtle（ECDSA/ECDH/AES-GCM）
 
 ## 八、事件清单

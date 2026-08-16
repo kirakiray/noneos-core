@@ -8,6 +8,12 @@ import {
 import { verifyData } from "../crypto/crypto-verify.js";
 import { getHash } from "../util/hash/get-hash.js";
 
+// 单次名片请求的等待超时（毫秒）与瞬时失败重发次数。
+// 名片请求是幂等 RPC：接收端按 signTime 保留更新的名片，
+// 重复请求与迟到响应均安全，故超时/发送失败可直接重发。
+const CARD_REQ_TIMEOUT = 10000;
+const CARD_REQ_RETRIES = 1;
+
 /**
  * 名片管理器
  *
@@ -225,6 +231,9 @@ export class CardManager {
   /**
    * 向远程用户请求名片（总是发起网络请求）
    *
+   * 超时或发送阶段异常视为瞬时失败，自动重发一次
+   * （CARD_REQ_RETRIES，300ms 间隔）；响应到达且签名验证通过才 resolve。
+   *
    * @param {string} userId - 目标用户的 userId
    * @returns {Promise<Object>} 名片数据
    */
@@ -243,28 +252,63 @@ export class CardManager {
       reject = rej;
     });
 
-    const timer = setTimeout(() => {
-      this.#requestMap.delete(userId);
-      reject(new Error(`Card request timed out for user ${userId}`));
-    }, 10000);
+    this.#requestMap.set(userId, {
+      resolve,
+      reject,
+      timer: null,
+      promise,
+      attempts: 0,
+    });
 
-    this.#requestMap.set(userId, { resolve, reject, timer, promise });
-
-    try {
-      const remoteUser = await this.#user.connectUser(userId);
-      const sessionId = await this.#findSessionId(userId);
-      await remoteUser.send(
-        sessionId,
-        { type: "card", action: "request" },
-        true,
-      );
-    } catch (err) {
-      clearTimeout(timer);
-      this.#requestMap.delete(userId);
-      reject(err);
-    }
+    this.#attemptCardRequest(userId);
 
     return promise;
+  }
+
+  /**
+   * 执行一次名片请求的发送与等待，带瞬时失败重发。
+   *
+   * 单次尝试：connectUser → findSessionId → 发送 card request，
+   * 并在 CARD_REQ_TIMEOUT 内等待响应（由 #handleCardResponse 结算）。
+   * 超时或发送异常时，若还有重试额度则 300ms 后重发，
+   * 重试耗尽才 reject；响应按 userId 配对，重复请求与迟到响应均安全。
+   */
+  #attemptCardRequest(userId) {
+    const entry = this.#requestMap.get(userId);
+    if (!entry) return;
+
+    entry.attempts++;
+    const maxAttempts = 1 + CARD_REQ_RETRIES;
+
+    const fail = (err) => {
+      if (entry.attempts >= maxAttempts) {
+        clearTimeout(entry.timer);
+        this.#requestMap.delete(userId);
+        entry.reject(err);
+        return;
+      }
+      // 瞬时失败且还有重试额度：短暂延迟后重发
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => this.#attemptCardRequest(userId), 300);
+    };
+
+    entry.timer = setTimeout(() => {
+      fail(new Error(`Card request timed out for user ${userId}`));
+    }, CARD_REQ_TIMEOUT);
+
+    (async () => {
+      try {
+        const remoteUser = await this.#user.connectUser(userId);
+        const sessionId = await this.#findSessionId(userId);
+        await remoteUser.send(
+          sessionId,
+          { type: "card", action: "request" },
+          true,
+        );
+      } catch (err) {
+        fail(err);
+      }
+    })();
   }
 
   #resolveRequest(userId, cardData) {

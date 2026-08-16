@@ -1,5 +1,15 @@
 import { BaseUser } from "./base-user.js";
-import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "./db.js";
+import {
+  getUserKeys,
+  saveUserKeys,
+  saveUserInfo,
+  getUserInfo,
+  addUserStorageId,
+  addSharedStorage,
+  removeSharedStorage,
+  getSharedStorages,
+} from "./db.js";
+import { getStorage as getGlobalStorage } from "../storage/main.js";
 import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
 import { CardManager } from "./card.js";
@@ -11,6 +21,24 @@ import { TrafficLogger, inferCategory, measureSize } from "./traffic.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
+
+// 远端共享存储一期放行的只读操作子集（入站 __storage_req 的 op 白名单）。
+// 写操作（setItem/removeItem/clear 等）一律拒绝，保证共享出去的空间只读。
+const SHARED_STORAGE_READ_OPS = [
+  "getItem",
+  "has",
+  "key",
+  "length",
+  "keys",
+  "entries",
+];
+
+// 共享存储回传大小上限（字节）。中继服务器对单条文本消息硬限制 256KB
+// （server/rust/src/config.rs 的 text_message_max_size），超限响应会被服务器
+// 直接拒绝且无法送达——对端已执行操作却收不到回包，只能干等超时。
+// 因此回传前先测量完整 resp 的字节数，超限改回 too_large 错误，让请求端
+// 立刻得到明确失败而不是超时。
+const SHARED_STORAGE_RESP_MAX_BYTES = 256 * 1024;
 
 /**
  * 本地用户类，继承自 BaseUser
@@ -404,6 +432,16 @@ export class LocalUser extends BaseUser {
       return;
     }
 
+    // 1.5 拦截远端共享存储只读请求（__storage_req）：本地校验并执行，回传结果
+    if (
+      messageData &&
+      typeof messageData === "object" &&
+      messageData.type === "__storage_req"
+    ) {
+      this.#handleStorageRequest(fromUserId, fromSessionId, messageData);
+      return;
+    }
+
     // 2. 检查是否为 __service_available / __service_unavailable 主动广播
     if (
       messageData &&
@@ -473,6 +511,126 @@ export class LocalUser extends BaseUser {
       }, true); // raw=true 跳过 E2EE
     } catch {
       // 失败静默
+    }
+  }
+
+  /**
+   * 处理入站 __storage_req：三道防线校验后以只读方式执行，回传 __storage_resp
+   *
+   * 防线依次为：
+   * 1. name 必须以 "share:" 开头（约定前缀，其余空间一律不可见）
+   * 2. name 必须已通过 shareStorage() 显式开启（登记表校验）
+   * 3. op 必须在只读白名单内（写操作一律拒绝）
+   *
+   * resp 格式：{ type: "__storage_resp", reqId, ok, value? , error?: { code, message } }
+   * 错误码：invalid_name / not_shared / read_only / too_large / internal
+   *
+   * @param {string} fromUserId
+   * @param {string} fromSessionId
+   * @param {Object} req - { reqId, name, op, key }
+   */
+  async #handleStorageRequest(fromUserId, fromSessionId, req) {
+    const { reqId, name, op, key } = req;
+
+    const respond = async (ok, payload) => {
+      try {
+        let resp = { type: "__storage_resp", reqId, ok, ...payload };
+        // 大小防线：测量实际要序列化发送的字节数，超限改回 too_large
+        if (resp.ok) {
+          const size = new TextEncoder().encode(
+            JSON.stringify(resp),
+          ).length;
+          if (size > SHARED_STORAGE_RESP_MAX_BYTES) {
+            resp = {
+              type: "__storage_resp",
+              reqId,
+              ok: false,
+              error: {
+                code: "too_large",
+                message: `storage response too large (${size} bytes, max ${SHARED_STORAGE_RESP_MAX_BYTES})`,
+              },
+            };
+          }
+        }
+        const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+        await remoteUser.send(fromSessionId, resp, true);
+      } catch {
+        // 对端离线等回传失败，静默丢弃
+      }
+    };
+
+    // 第一道防线：约定前缀
+    if (typeof name !== "string" || !name.startsWith("share:")) {
+      await respond(false, {
+        error: {
+          code: "invalid_name",
+          message: 'shared storage name must start with "share:"',
+        },
+      });
+      return;
+    }
+
+    // 第二道防线：必须已显式开启
+    let sharedList;
+    try {
+      sharedList = await getSharedStorages(this.#namespace);
+    } catch {
+      await respond(false, {
+        error: {
+          code: "internal",
+          message: "failed to read shared storage registry",
+        },
+      });
+      return;
+    }
+    if (!sharedList.includes(name)) {
+      await respond(false, {
+        error: {
+          code: "not_shared",
+          message: `storage "${name}" is not shared`,
+        },
+      });
+      return;
+    }
+
+    // 第三道防线：只读白名单
+    if (
+      typeof op !== "string" ||
+      !SHARED_STORAGE_READ_OPS.includes(op)
+    ) {
+      await respond(false, {
+        error: {
+          code: "read_only",
+          message: `operation "${op}" is not allowed (shared storage is read-only)`,
+        },
+      });
+      return;
+    }
+
+    // 只读执行并回传
+    try {
+      const storage = await this.getStorage(name);
+      let value;
+      if (op === "length") {
+        value = await storage.length;
+      } else if (op === "keys" || op === "entries") {
+        // 异步生成器，收集为数组后回传
+        const out = [];
+        for await (const item of storage[op]()) {
+          out.push(item);
+        }
+        value = out;
+      } else {
+        value = await storage[op](key);
+      }
+      await respond(true, { value });
+    } catch (err) {
+      await respond(false, {
+        error: {
+          code: "internal",
+          message: String(err?.message || err),
+        },
+      });
     }
   }
 
@@ -649,6 +807,47 @@ export class LocalUser extends BaseUser {
     this.#server.connectAll().catch(() => {});
 
     return this;
+  }
+
+  /**
+   * 获取该用户专属的存储空间
+   *
+   * 底层复用 nos/storage，存储 id 为 `user:<namespace>:<userId>:<name>`，
+   * 每个「本地用户 + 身份 + 子空间」对应独立的 IndexedDB 数据库，天然隔离：
+   * 不同用户、同一用户不同身份之间互不可见。
+   *
+   * 创建时会自动登记到用户库，deleteUser 时联动清理。
+   * @param {string} [name] - 业务子空间名，默认 "default"
+   * @returns {Promise<NosStorage>}
+   */
+  async getStorage(name = "default") {
+    await this.ready();
+    const id = `user:${this.#namespace}:${this.userId}:${name}`;
+    await addUserStorageId(this.#namespace, id);
+    return getGlobalStorage(id);
+  }
+
+  /**
+   * 显式开启一个存储空间的共享（只读），供远端用户读取。
+   *
+   * 仅允许以 `share:` 开头的子空间名参与共享，其余存储不会被远端访问；
+   * 开启后所有已连接用户都能读取该空间，返回的 revoke 函数可随时关闭共享。
+   *
+   * 注意：共享的是「读取」能力，远端无法写入；本方法不创建存储，
+   * 数据仍由本地 getStorage("share:xxx") 维护。
+   *
+   * @param {string} name - 存储空间名，必须以 "share:" 开头
+   * @returns {Promise<() => Promise<void>>} revoke 函数：调用后关闭该空间的共享
+   */
+  async shareStorage(name) {
+    await this.ready();
+    if (!name || !name.startsWith("share:")) {
+      throw new Error('shareStorage name must start with "share:"');
+    }
+    await addSharedStorage(this.#namespace, name);
+    return async () => {
+      await removeSharedStorage(this.#namespace, name);
+    };
   }
 
   /**

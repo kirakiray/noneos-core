@@ -202,7 +202,50 @@ const handle = await storage.getItem("last-opened");
 console.log(await handle.text());
 ```
 
-更多详细操作参考：[storage 存储模块](references/storage.md)
+### 用户专属存储（按用户隔离）
+
+`getStorage(id)` 按**业务**隔离存储空间；若需要按**用户**隔离（每个本地用户拥有独立数据，其他用户不可见），请使用 `LocalUser.getStorage(name)`，而不是通过全局 storage 自行拼接键名：
+
+```javascript
+import { getUser } from "/nos/user/main.js";
+
+const user = await getUser("my-app");
+
+// 该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+await settings.setItem("theme", "dark");
+```
+
+- 存储 id 为 `user:<namespace>:<userId>:<name>`，每个「本地用户 + 身份 + 子空间」对应独立 IndexedDB 数据库，天然隔离
+- `getStorage(name)` 是 **async** 方法（内部先 `await ready()` 并登记到用户库）
+- 调用 `deleteUser(namespace)` 删除用户时，会联动清理该用户通过 `getStorage()` 创建的全部专属存储
+- 支持 `nos/storage` 全部能力：复杂类型、nos/fs 句柄、遍历、代理语法、跨标签页同步（仅同用户同名子空间内生效）
+
+#### 与远端用户共享（只读）
+
+**接收端**用 `shareStorage()` 显式开放（空间名必须以 `share:` 开头）；**请求端**用 `RemoteUser.getStorage()` 获取只读代理：
+
+```javascript
+// 接收端：开放共享（只读，仅 share: 前缀空间可被共享）
+const revoke = await user.shareStorage("share:settings");
+await revoke(); // 随时关闭
+
+// 请求端：读取对方共享的空间（name 必须 share: 开头）
+const remoteUser = await localUser.connectUser(targetUserId);
+const rSt = await remoteUser.getStorage("share:settings");
+const theme = await rSt.getItem("theme"); // 只读
+await rSt.length; // getter
+rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
+```
+
+- 仅 `share:` 开头的空间可被共享；其余存储远端无法访问
+- **只读**：远端只能读取（`getItem/has/key/length/keys/entries`），写操作调用即抛错
+- `shareStorage(name)` / `RemoteUser.getStorage(name, { timeout, retries })` 均为 async；请求端同一 `(userId, name)` 代理缓存复用，单次尝试默认 10s 超时，瞬时失败（超时/发送失败）自动重发 1 次
+- 请求端失败 Error 带 `code`：`offline`（对端离线）/ `timeout`（超时）/ `not_shared` 等对端回传错误码
+- 重复开启幂等；共享登记持久化，删除用户时随之清除
+- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / too_large / internal`；响应超过中继 256KB 单条消息硬限制时回 `too_large`，不会白等超时）
+
+更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 
 ---
 

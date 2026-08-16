@@ -51,6 +51,86 @@ const invalid = await user.verify(tampered);
 console.log(invalid); // false
 ```
 
+## 用户专属存储（User Storage）
+
+每个 `LocalUser` 都拥有独立的存储空间，通过 `user.getStorage(name)` 获取，底层复用 [nos/storage](storage.md)。存储 id 为 `user:<namespace>:<userId>:<name>`，对应独立的 IndexedDB 数据库，因此**不同用户、同一用户不同身份之间互不可见**。
+
+```javascript
+const user = await getUser("my-app");
+
+// 获取该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+
+await settings.setItem("theme", "dark");
+const theme = await settings.getItem("theme"); // "dark"
+```
+
+注意：
+
+- `getStorage(name)` 是 **async** 方法（内部先 `await ready()` 并登记到用户库，供 `deleteUser` 联动清理）
+- 同名子空间复用同一实例；跨标签页同步只在该用户同名的子空间内生效
+- 支持 `nos/storage` 的全部能力：复杂类型、nos/fs 句柄、遍历、代理语法等
+- 调用 `deleteUser(namespace)` 时会联动删除该用户通过 `getStorage()` 创建的全部专属存储
+
+## 共享存储（只读）
+
+共享分两端：**接收端**（数据所有者）先以 `share:` 前缀维护空间，再用 `shareStorage()` 显式开放；**请求端**通过 `RemoteUser.getStorage()` 获取只读代理。只有以 `share:` 开头的空间可被共享，其余存储远端无法访问。
+
+```javascript
+// ===== 接收端（数据所有者）=====
+const user = await getUser("my-app");
+
+// 本地维护数据（与普通专属存储一致）
+const st = await user.getStorage("share:settings");
+await st.setItem("theme", "dark");
+
+// 显式开放共享（只读）
+const revoke = await user.shareStorage("share:settings");
+await revoke(); // 随时关闭
+```
+
+```javascript
+// ===== 请求端（远端访问者）=====
+const remoteUser = await localUser.connectUser(targetUserId);
+const rSt = await remoteUser.getStorage("share:settings"); // name 必须 share: 开头
+
+const theme = await rSt.getItem("theme"); // "dark"
+const len = await rSt.length; // getter
+const keys = await rSt.keys(); // string[]（一次性回传，非本地版异步生成器）
+
+rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
+```
+
+注意：
+
+- `shareStorage(name)` 是 **async** 方法；`name` 必须以 `share:` 开头，否则抛错
+- **只读**：远端用户只能读取该空间，无法写入
+- 重复开启同一空间幂等，不会重复登记
+- 返回的 revoke 函数可随时关闭共享，多次调用安全
+- 共享登记持久化在用户库 `shared-storages` 键中，删除用户时随之清除
+- 放行的只读操作：`getItem / has / key / length / keys / entries`（`keys`/`entries` 以数组形式返回）
+- `RemoteUser.getStorage(name, { timeout, retries })`：同一 `(userId, name)` 代理实例缓存复用；单次尝试默认超时 10s，瞬时失败（超时/发送失败）自动重发 1 次（只读幂等，重发安全；对端明确回传的错误不重试）
+- 请求端失败抛出的 Error 带 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / too_large / internal`（对端回传）
+
+### 底层协议（__storage_req / __storage_resp）
+
+远端请求 `{ type: "__storage_req", reqId, name, op, key }`，接收端依次过三道防线校验后本地执行并回传：
+
+```text
+{ type: "__storage_resp", reqId, ok: true, value }                       # 成功
+{ type: "__storage_resp", reqId, ok: false, error: { code, message } }   # 失败
+```
+
+| 防线 | 校验 | 失败错误码 |
+|------|------|-----------|
+| 1. 约定前缀 | `name` 以 `share:` 开头 | `invalid_name` |
+| 2. 显式开启 | `name` 已 `shareStorage()` 登记 | `not_shared` |
+| 3. 只读白名单 | `op` 在只读集合内 | `read_only` |
+
+其他错误码：`internal`（登记表读取失败、操作执行异常等）、`too_large`（响应超过中继单条消息 256KB 硬限制无法送达，接收端回传前测量字节数、超限即回此错误，请求端立即失败而非干等超时）。所有已连接用户均可发起请求，安全边界完全由三道防线构成。
+
+可靠性：请求端对瞬时失败（超时、发送失败）自动重发 1 次（`retries` 选项可调，只读幂等所以安全）；对端明确回传的错误与离线是确定性失败，不重试。
+
 ## 获取本用户所有 Session ID
 
 同一个 `namespace` 可以在多个标签页中创建 LocalUser，`getSessionIds()` 可发现所有在线 session：
