@@ -428,64 +428,65 @@
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
 
-        const nsK = "card-user-k";
-        const nsL = "card-user-l";
-        const serverUrl5 = "ws://localhost:8081";
+        const ru6_nsK = "card-user-k";
+        const ru6_nsL = "card-user-l";
+        const ru6_serverUrl = "ws://localhost:8081";
 
-        const userK = new LocalUser(nsK);
-        const userL = new LocalUser(nsL);
+        const ru6_userK = new LocalUser(ru6_nsK);
+        const ru6_userL = new LocalUser(ru6_nsL);
 
-        await Promise.all([userK.ready(), userL.ready()]);
+        await Promise.all([ru6_userK.ready(), ru6_userL.ready()]);
 
         await Promise.all([
-          userK.server.connect(serverUrl5),
-          userL.server.connect(serverUrl5),
+          ru6_userK.server.connect(ru6_serverUrl),
+          ru6_userL.server.connect(ru6_serverUrl),
         ]);
 
         // 清空残留名片，强制走网络请求
-        if (await userK.card.getByDB(userL.userId)) {
-          await userK.card.delete(userL.userId);
+        if (await ru6_userK.card.getByDB(ru6_userL.userId)) {
+          await ru6_userK.card.delete(ru6_userL.userId);
         }
 
         // 劫持 K 侧发送：吞掉第一条 card request（模拟请求在通道切换时丢失），
         // 之后放行——重发机制应靠第二次请求拿到名片
-        let swallowed = false;
-        let sendAttempts = 0;
-        userK.bind("remote_user_connected", (event) => {
-          const ru = event.detail.remoteUser;
-          const origSend = ru.send.bind(ru);
-          ru.send = async (sid, data, raw) => {
+        let ru6_swallowed = false;
+        let ru6_sendAttempts = 0;
+        ru6_userK.bind("remote_user_connected", (event) => {
+          const ru6_ru = event.detail.remoteUser;
+          const ru6_origSend = ru6_ru.send.bind(ru6_ru);
+          ru6_ru.send = async (sid, data, raw) => {
             if (
               data?.type === "card" &&
               data?.action === "request"
             ) {
-              sendAttempts++;
-              if (!swallowed) {
-                swallowed = true;
+              ru6_sendAttempts++;
+              if (!ru6_swallowed) {
+                ru6_swallowed = true;
                 return { status: "ok", via: "test" }; // 假装发出，实际丢弃
               }
             }
-            return origSend(sid, data, raw);
+            return ru6_origSend(sid, data, raw);
           };
         });
 
-        const card = await userK.card.requestCard(userL.userId);
-        const retryWorked = !!card && card.userId === userL.userId;
+        const ru6_card = await ru6_userK.card.requestCard(ru6_userL.userId);
+        const ru6_retryWorked =
+          !!ru6_card && ru6_card.userId === ru6_userL.userId;
 
-        userK.server.disconnectAll();
-        userL.server.disconnectAll();
-        await userK.card.delete(userL.userId);
+        ru6_userK.server.disconnectAll();
+        ru6_userL.server.disconnectAll();
+        await ru6_userK.card.delete(ru6_userL.userId);
 
         return {
-          assert: retryWorked && swallowed && sendAttempts === 2,
+          assert: ru6_retryWorked && ru6_swallowed && ru6_sendAttempts === 2,
           content: {
-            message: retryWorked
+            message: ru6_retryWorked
               ? "名片请求丢失后自动重发成功"
               : "名片请求自动重发失败",
-            firstRequestSwallowed: swallowed,
-            sendAttempts,
-            cardUserId: card?.userId,
-            expectedUserId: userL.userId,
+            firstRequestSwallowed: ru6_swallowed,
+            sendAttempts: ru6_sendAttempts,
+            cardUserId: ru6_card?.userId,
+            expectedUserId: ru6_userL.userId,
           },
         };
       </script>
