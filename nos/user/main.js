@@ -16,21 +16,15 @@ import { deleteStorage } from "../storage/main.js";
 const users = new Map();
 
 export const getUser = async (namespace = "default") => {
-  console.log(`[nos-debug] getUser: ${namespace}`);
   let user = null;
   if (users.has(namespace)) {
     user = users.get(namespace);
-    console.log(`[nos-debug] getUser cache-hit: ${namespace}`);
   } else {
     user = new LocalUser(namespace);
     users.set(namespace, user);
   }
 
-  const t0 = performance.now();
   await user.ready();
-  console.log(
-    `[nos-debug] getUser ready done: ${namespace} (${Math.round(performance.now() - t0)}ms)`,
-  );
 
   return user;
 };
@@ -126,16 +120,8 @@ export const deleteUser = async (namespace, options = {}) => {
     throw new Error("namespace is required");
   }
 
-  const t0 = performance.now();
-  const step = (label) =>
-    console.log(
-      `[nos-debug] deleteUser ${label}: ${namespace} (+${Math.round(performance.now() - t0)}ms)`,
-    );
-  step("start");
-
   // 检查用户是否存在
   const keys = await getUserKeys(namespace);
-  step("keys-checked");
   if (!keys) {
     throw new Error(`User "${namespace}" not found`);
   }
@@ -199,7 +185,6 @@ export const deleteUser = async (namespace, options = {}) => {
     }
     users.delete(namespace);
   }
-  step("pre-clean-done");
 
   // 联动清理该用户通过 getStorage() 创建的全部存储空间（登记表存于用户库）
   let userStorageIds = [];
@@ -215,36 +200,27 @@ export const deleteUser = async (namespace, options = {}) => {
       console.warn(`deleteUser: failed to delete storage "${id}"`, error);
     }
   }
-  step(`storages-cleaned (n=${userStorageIds.length})`);
 
   // 关闭缓存中的数据库连接
   closeDbByNamespace(namespace);
-  step("db-cache-closed");
 
   // 删除数据库（onblocked 时重试，等待连接/事务完全释放）
   const dbName = `nos_user_${namespace}`;
   const maxBlockedRetries = 5;
+  // 看门狗超时：delete 请求可能静默排队（排在其他 delete 请求之后，不触发
+  // onblocked），超时仍未完成则主动重试，保证流程不会永挂
+  const attemptTimeout = 1500;
 
   return new Promise((resolve, reject) => {
     // Safari 需要延迟确保事务完全结束
     const doDelete = (attempt = 0) => {
-      step(`deleteDatabase attempt=${attempt}`);
       const request = indexedDB.deleteDatabase(dbName);
+      let advanced = false;
 
-      request.onsuccess = () => {
-        step("deleteDatabase success");
-        // 从内存缓存中移除
-        users.delete(namespace);
-        resolve(true);
-      };
-
-      request.onerror = () => {
-        step("deleteDatabase error");
-        reject(new Error(`Failed to delete database for user "${namespace}"`));
-      };
-
-      request.onblocked = () => {
-        step(`deleteDatabase onblocked (attempt=${attempt})`);
+      const advance = () => {
+        if (advanced) return;
+        advanced = true;
+        clearTimeout(watchdog);
         if (attempt >= maxBlockedRetries) {
           reject(
             new Error(
@@ -262,6 +238,22 @@ export const deleteUser = async (namespace, options = {}) => {
         }
         setTimeout(() => doDelete(attempt + 1), 200);
       };
+
+      const watchdog = setTimeout(advance, attemptTimeout);
+
+      request.onsuccess = () => {
+        clearTimeout(watchdog);
+        // 从内存缓存中移除
+        users.delete(namespace);
+        resolve(true);
+      };
+
+      request.onerror = () => {
+        clearTimeout(watchdog);
+        reject(new Error(`Failed to delete database for user "${namespace}"`));
+      };
+
+      request.onblocked = advance;
     };
 
     setTimeout(() => doDelete(), 100);

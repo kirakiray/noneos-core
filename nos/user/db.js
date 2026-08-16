@@ -6,8 +6,21 @@ const TRAFFIC_AGG_MINUTE_STORE = "traffic_agg_minute";
 const DB_VERSION = 7;
 
 // 数据库连接缓存池
-const dbCache = new Map();
+// 缓存的是 Promise 而非连接本身：并发的 getDb 复用同一次 indexedDB.open，
+// 避免产生脱离缓存的"孤儿连接"（dbCache.set 被后者覆盖后无法被
+// closeDbByNamespace 关闭，会让 indexedDB.deleteDatabase 一直被 block）。
+const dbCache = new Map(); // dbName -> Promise<IDBDatabase>
+const dbTimers = new Map(); // dbName -> 自动关闭 timer
 const CACHE_TIMEOUT = 5000; // 5秒
+
+/**
+ * 刷新连接的自动关闭计时
+ * @param {string} dbName
+ */
+function refreshDbTimer(dbName) {
+  clearTimeout(dbTimers.get(dbName));
+  dbTimers.set(dbName, setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT));
+}
 
 /**
  * 获取数据库实例（带缓存池）
@@ -15,31 +28,44 @@ const CACHE_TIMEOUT = 5000; // 5秒
  * @returns {Promise<IDBDatabase>}
  */
 function getDb(namespace) {
-  return new Promise((resolve, reject) => {
-    const dbName = `nos_user_${namespace}`;
+  const dbName = `nos_user_${namespace}`;
 
-    // 检查缓存
-    const cached = dbCache.get(dbName);
-    if (cached) {
-      clearTimeout(cached.timer);
-      cached.timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
-      console.log(`[nos-debug] getDb cache-hit: ${dbName}`);
-      resolve(cached.db);
-      return;
-    }
+  // 检查缓存（含打开中的 Promise，并发调用复用同一次 open）
+  const cached = dbCache.get(dbName);
+  if (cached) {
+    return cached.then((db) => {
+      // 连接仍在使用，刷新自动关闭计时
+      if (dbCache.has(dbName)) {
+        refreshDbTimer(dbName);
+      }
+      return db;
+    });
+  }
 
-    console.log(`[nos-debug] getDb open: ${dbName}`);
+  const promise = new Promise((resolve, reject) => {
     const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onerror = () => {
+      // 打开失败：清理缓存，允许后续重试
+      if (dbCache.get(dbName) === promise) {
+        dbCache.delete(dbName);
+      }
       reject(request.error);
     };
 
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const timer = setTimeout(() => closeDbCache(dbName), CACHE_TIMEOUT);
-      dbCache.set(dbName, { db, timer });
-      console.log(`[nos-debug] getDb opened: ${dbName} (fresh)`);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (dbCache.get(dbName) !== promise) {
+        // 打开期间缓存已被 closeDbByNamespace 清除（deleteUser 清理流程），
+        // 立即关闭这个新连接，避免阻塞随后发起的 deleteDatabase
+        db.close();
+        reject(new Error(`Database "${dbName}" was closed during open`));
+        return;
+      }
+      // 收到版本变更请求（如 deleteDatabase）时自动关闭连接，
+      // 避免删除操作被 onblocked 长时间阻塞
+      db.onversionchange = () => closeDbCache(dbName);
+      refreshDbTimer(dbName);
       resolve(db);
     };
 
@@ -90,6 +116,9 @@ function getDb(namespace) {
       }
     };
   });
+
+  dbCache.set(dbName, promise);
+  return promise;
 }
 
 /**
@@ -109,15 +138,27 @@ export const TRAFFIC_STORES = {
 
 /**
  * 关闭并清理缓存中的数据库连接
+ * 支持清理打开中的 Promise：缓存项被移除后，在途的 open 完成时会自行关闭连接
  * @param {string} dbName
  */
 function closeDbCache(dbName) {
   const cached = dbCache.get(dbName);
-  if (cached) {
-    console.log(`[nos-debug] closeDbCache: ${dbName}`);
-    cached.db.close();
-    dbCache.delete(dbName);
-  }
+  if (!cached) return;
+  dbCache.delete(dbName);
+  clearTimeout(dbTimers.get(dbName));
+  dbTimers.delete(dbName);
+  cached.then(
+    (db) => {
+      try {
+        db.close();
+      } catch {
+        // 连接可能已关闭
+      }
+    },
+    () => {
+      // 打开失败或在途期间被清除，无需处理
+    },
+  );
 }
 
 /**
