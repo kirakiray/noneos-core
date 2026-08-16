@@ -90,6 +90,8 @@ EventTarget
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
+| `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（默认 10s 超时，`options.timeout` 可调），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码） |
+| `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
 | `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
 
 ### ServerManager（server.js）
@@ -245,6 +247,8 @@ A.get(B.userId)
 **错误码**：`invalid_name`（非 share: 前缀）/ `not_shared`（未显式开启或已 revoke）/ `read_only`（含 setItem/removeItem/clear 等写操作与未知 op）/ `internal`（登记表读取失败、操作执行异常等）。
 
 **执行细节**：`length` 是 getter（`await storage.length`）；`keys / entries` 是异步生成器，收集为数组后回传；`getItem` 对不存在的 key 返回 `ok:true, value:null`；所有已连接用户均可发起请求（无白名单），安全边界完全由上述三道防线构成。
+
+**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）；`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
 
 ## 六、客户端-服务端联动协议对应表
 

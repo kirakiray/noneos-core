@@ -30,6 +30,14 @@ export class RemoteUser extends BaseUser {
   #SERVICE_CACHE_TTL = 30000;
   // appId -> Set<{ resolve, remainingUntil }> 等待服务上线的挂起 promise
   #serviceWaiters = new Map();
+  // 共享存储只读代理缓存：name -> proxy。
+  // userId 维度由 RemoteUser 实例本身隔离，Map 内只需按 name 区分。
+  #storageProxies = new Map();
+  // reqId -> { resolve, reject, timeoutId } 等待 __storage_resp 的挂起请求
+  #pendingStorageReqs = new Map();
+  #storageReqSeq = 0;
+  // 单次共享存储请求的默认超时（毫秒）
+  #STORAGE_REQ_TIMEOUT = 10000;
 
   /**
    * @param {string} userId - 目标用户的 userId
@@ -76,6 +84,129 @@ export class RemoteUser extends BaseUser {
     }
 
     return [...allSessions];
+  }
+
+  // ───── 远端共享存储（只读） ─────
+
+  /**
+   * 获取远端用户已共享存储空间的只读代理。
+   *
+   * 仅可访问对端通过 `shareStorage("share:xxx")` 显式开启的空间；
+   * name 必须以 `share:` 开头，否则直接抛错（请求端预校验）。
+   *
+   * 代理可用操作（均返回 Promise）：
+   * - `getItem(key)` / `has(key)` / `key(index)`
+   * - `length`（getter，`await proxy.length`）
+   * - `keys()` / `entries()`（返回数组；与本地异步生成器不同，远端一次性回传）
+   * - `setItem` / `removeItem` / `clear` 调用即抛错（远端共享只读）
+   *
+   * 同一 `(userId, name)` 的代理实例会被缓存复用。
+   * 请求失败抛出的 Error 带有 `code` 属性：
+   * `offline`（对端离线）/ `timeout`（超时）/
+   * `invalid_name` / `not_shared` / `read_only` / `internal`（对端回传）。
+   *
+   * @param {string} name - 存储空间名，必须以 "share:" 开头
+   * @param {Object} [options]
+   * @param {number} [options.timeout=10000] 单次请求超时（毫秒）
+   * @returns {Promise<Object>} 只读代理对象
+   */
+  async getStorage(name, options = {}) {
+    if (typeof name !== "string" || !name.startsWith("share:")) {
+      throw new Error('shared storage name must start with "share:"');
+    }
+    if (this.#storageProxies.has(name)) {
+      return this.#storageProxies.get(name);
+    }
+
+    const timeout =
+      typeof options?.timeout === "number" && options.timeout > 0
+        ? options.timeout
+        : this.#STORAGE_REQ_TIMEOUT;
+    const request = (op, key) => this.#requestStorage(name, op, key, timeout);
+
+    const proxy = {
+      userId: this.#userId,
+      name,
+      getItem: (key) => request("getItem", key),
+      has: (key) => request("has", key),
+      key: (index) => request("key", index),
+      get length() {
+        return request("length");
+      },
+      keys: () => request("keys"),
+      entries: () => request("entries"),
+      setItem() {
+        throw new Error("shared storage is read-only: setItem is not allowed");
+      },
+      removeItem() {
+        throw new Error("shared storage is read-only: removeItem is not allowed");
+      },
+      clear() {
+        throw new Error("shared storage is read-only: clear is not allowed");
+      },
+    };
+
+    this.#storageProxies.set(name, proxy);
+    return proxy;
+  }
+
+  /**
+   * 发送一次 __storage_req 并等待对应的 __storage_resp。
+   * 对端离线时立即抛错（code: offline）；超时抛错（code: timeout）。
+   */
+  async #requestStorage(name, op, key, timeout) {
+    const sessionIds = await this.getSessionIds();
+    if (sessionIds.length === 0) {
+      const err = new Error(
+        `storage request failed: user ${this.#userId} is offline`,
+      );
+      err.code = "offline";
+      throw err;
+    }
+
+    const reqId = `sr_${++this.#storageReqSeq}_${Date.now()}`;
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.#pendingStorageReqs.delete(reqId);
+        const err = new Error(
+          `storage request timeout: ${op} "${name}" (${timeout}ms)`,
+        );
+        err.code = "timeout";
+        reject(err);
+      }, timeout);
+
+      this.#pendingStorageReqs.set(reqId, { resolve, reject, timeoutId });
+
+      this.#sendRaw(sessionIds[0], { type: "__storage_req", reqId, name, op, key })
+        .catch((err) => {
+          clearTimeout(timeoutId);
+          this.#pendingStorageReqs.delete(reqId);
+          reject(err);
+        });
+    });
+  }
+
+  /**
+   * 收到 __storage_resp：按 reqId 结算挂起请求。
+   * ok 时 resolve(value)；失败时 reject（Error 带 code 属性）。
+   */
+  #handleStorageResponse(parsed) {
+    const pending = this.#pendingStorageReqs.get(parsed.reqId);
+    if (!pending) return;
+    clearTimeout(pending.timeoutId);
+    this.#pendingStorageReqs.delete(parsed.reqId);
+
+    if (parsed.ok) {
+      pending.resolve(parsed.value);
+    } else {
+      const code = parsed.error?.code || "unknown";
+      const err = new Error(
+        parsed.error?.message || `storage request failed (${code})`,
+      );
+      err.code = code;
+      pending.reject(err);
+    }
   }
 
   /**
@@ -169,6 +300,8 @@ export class RemoteUser extends BaseUser {
         this.#handlePing(parsed, event.detail.fromSessionId);
       } else if (parsed.type === "__pong__") {
         this.#handlePong(parsed);
+      } else if (parsed.type === "__storage_resp") {
+        this.#handleStorageResponse(parsed);
       }
     });
   }
@@ -369,6 +502,12 @@ export class RemoteUser extends BaseUser {
     this.#rtcCooldownUntil.clear();
     this.#serviceSessionCache.clear();
     this.#serviceWaiters.clear();
+    // 清理挂起的共享存储请求定时器与代理缓存
+    for (const { timeoutId } of this.#pendingStorageReqs.values()) {
+      clearTimeout(timeoutId);
+    }
+    this.#pendingStorageReqs.clear();
+    this.#storageProxies.clear();
     this.#pingSeq = 0;
   }
 

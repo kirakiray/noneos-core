@@ -223,20 +223,27 @@ await settings.setItem("theme", "dark");
 
 #### 与远端用户共享（只读）
 
-若要让**远端用户**只读访问某个专属存储空间，用 `shareStorage()` 显式开放，且空间名必须以 `share:` 开头：
+**接收端**用 `shareStorage()` 显式开放（空间名必须以 `share:` 开头）；**请求端**用 `RemoteUser.getStorage()` 获取只读代理：
 
 ```javascript
-// 本地用户开放共享（只读，仅 share: 前缀空间可被共享）
+// 接收端：开放共享（只读，仅 share: 前缀空间可被共享）
 const revoke = await user.shareStorage("share:settings");
-// 随时关闭共享
-await revoke();
+await revoke(); // 随时关闭
+
+// 请求端：读取对方共享的空间（name 必须 share: 开头）
+const remoteUser = await localUser.connectUser(targetUserId);
+const rSt = await remoteUser.getStorage("share:settings");
+const theme = await rSt.getItem("theme"); // 只读
+await rSt.length; // getter
+rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 ```
 
 - 仅 `share:` 开头的空间可被共享；其余存储远端无法访问
-- **只读**：远端只能读取，不能写入
-- `shareStorage(name)` 为 async，`name` 必须以 `share:` 开头，否则抛错
+- **只读**：远端只能读取（`getItem/has/key/length/keys/entries`），写操作调用即抛错
+- `shareStorage(name)` / `RemoteUser.getStorage(name, { timeout })` 均为 async；请求端同一 `(userId, name)` 代理缓存复用，默认 10s 超时
+- 请求端失败 Error 带 `code`：`offline`（对端离线）/ `timeout`（超时）/ `not_shared` 等对端回传错误码
 - 重复开启幂等；共享登记持久化，删除用户时随之清除
-- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单 `getItem/has/key/length/keys/entries`）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / internal`）
+- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / internal`）
 
 更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 

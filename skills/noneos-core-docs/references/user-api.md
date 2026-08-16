@@ -136,6 +136,20 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `rtt_update` | RTT 延迟更新 |
 | `card_received` | 收到名片 |
 
+### RemoteUser 类
+
+`localUser.connectUser(userId)` 返回的远端用户实例。
+
+| 方法 | 说明 |
+|------|------|
+| `userId` | 只读 getter，目标用户 ID |
+| `getSessionIds()` | 查询对方当前所有 sessionId |
+| `send(sessionId, data, raw?)` | 发送消息（RTC 优先/服务端中继，对象默认 E2EE） |
+| `ping(sessionId, timeout?)` | 测 RTT |
+| `getRTT(sessionId?)` | 读缓存的 RTT |
+| `sendToService(appId, data, options?)` | 应用间通信（服务发现精准投递） |
+| `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，默认 10s 超时，`options.timeout` 可调），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/internal`） |
+
 ### CertManager 类 (user.cert)
 
 | 方法 | 说明 |

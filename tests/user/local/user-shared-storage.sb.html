@@ -485,6 +485,330 @@
       </script>
     </template>
   </sb-test>
+
+  <sb-test name="远端只读代理 roundtrip 读取成功">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t8_nsA = "user_shared_e2e_1_a";
+        const t8_nsB = "user_shared_e2e_1_b";
+        const t8_url = "ws://localhost:8081";
+
+        try { await deleteUser(t8_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t8_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t8_userA = new LocalUser(t8_nsA);
+        const t8_userB = new LocalUser(t8_nsB);
+        await Promise.all([t8_userA.ready(), t8_userB.ready()]);
+        await Promise.all([
+          t8_userA.server.connect(t8_url),
+          t8_userB.server.connect(t8_url),
+        ]);
+
+        // B 本地写入数据并显式开启共享
+        const t8_stB = await t8_userB.getStorage("share:settings");
+        await t8_stB.setItem("theme", "dark");
+        await t8_stB.setItem("lang", "zh");
+        await t8_userB.shareStorage("share:settings");
+
+        // A 连接 B 并获取只读代理
+        const t8_remoteB = await t8_userA.connectUser(t8_userB.userId);
+        const t8_rst = await t8_remoteB.getStorage("share:settings");
+        const t8_cached = await t8_remoteB.getStorage("share:settings");
+
+        const t8_theme = await t8_rst.getItem("theme");
+        const t8_langHas = await t8_rst.has("lang");
+        const t8_missing = await t8_rst.getItem("nope");
+        const t8_len = await t8_rst.length;
+        const t8_key0 = await t8_rst.key(0);
+        const t8_keys = [...(await t8_rst.keys())].sort();
+        const t8_entries = [...(await t8_rst.entries())].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+
+        t8_userA.server.disconnectAll();
+        t8_userB.server.disconnectAll();
+        try { await deleteUser(t8_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t8_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t8_assert =
+          t8_theme === "dark" &&
+          t8_langHas === true &&
+          t8_missing === null &&
+          t8_len === 2 &&
+          typeof t8_key0 === "string" &&
+          t8_keys.join(",") === "lang,theme" &&
+          t8_entries.length === 2 &&
+          t8_entries.every(
+            ([k, v]) => (k === "theme" && v === "dark") || (k === "lang" && v === "zh"),
+          ) &&
+          t8_cached === t8_rst; // 同 (userId, name) 代理实例缓存复用
+
+        return {
+          assert: t8_assert,
+          content: {
+            message: "远端 getStorage 六种只读操作全部读取成功",
+            theme: t8_theme,
+            langHas: t8_langHas,
+            missing: t8_missing,
+            length: t8_len,
+            key0: t8_key0,
+            keys: t8_keys,
+            entries: t8_entries,
+            proxyCached: t8_cached === t8_rst,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="远端写操作与非法访问被拒绝">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t9_nsA = "user_shared_write_1_a";
+        const t9_nsB = "user_shared_write_1_b";
+        const t9_url = "ws://localhost:8081";
+
+        try { await deleteUser(t9_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t9_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t9_userA = new LocalUser(t9_nsA);
+        const t9_userB = new LocalUser(t9_nsB);
+        await Promise.all([t9_userA.ready(), t9_userB.ready()]);
+        await Promise.all([
+          t9_userA.server.connect(t9_url),
+          t9_userB.server.connect(t9_url),
+        ]);
+
+        const t9_stB = await t9_userB.getStorage("share:settings");
+        await t9_stB.setItem("theme", "dark");
+        await t9_userB.shareStorage("share:settings");
+
+        const t9_remoteB = await t9_userA.connectUser(t9_userB.userId);
+
+        // 非 share: 前缀：代理创建即抛错
+        let t9_badNameThrew = false;
+        try {
+          await t9_remoteB.getStorage("settings");
+        } catch (e) {
+          t9_badNameThrew = /share:/.test(e.message);
+        }
+
+        // 未共享的 share: 空间：读取时对端回传 not_shared
+        const t9_secret = await t9_remoteB.getStorage("share:secret");
+        let t9_notSharedCode = "";
+        try {
+          await t9_secret.getItem("x");
+        } catch (e) {
+          t9_notSharedCode = e.code;
+        }
+
+        // 写操作：调用即抛错
+        const t9_rst = await t9_remoteB.getStorage("share:settings");
+        let t9_setThrew = false;
+        let t9_removeThrew = false;
+        let t9_clearThrew = false;
+        try { t9_rst.setItem("theme", "light"); } catch (e) { t9_setThrew = true; }
+        try { t9_rst.removeItem("theme"); } catch (e) { t9_removeThrew = true; }
+        try { t9_rst.clear(); } catch (e) { t9_clearThrew = true; }
+
+        // B 本地数据不受任何影响
+        const t9_localTheme = await t9_stB.getItem("theme");
+        const t9_localLen = await t9_stB.length;
+
+        t9_userA.server.disconnectAll();
+        t9_userB.server.disconnectAll();
+        try { await deleteUser(t9_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t9_nsB, { skipConfirm: true }); } catch (e) {}
+
+        return {
+          assert:
+            t9_badNameThrew &&
+            t9_notSharedCode === "not_shared" &&
+            t9_setThrew &&
+            t9_removeThrew &&
+            t9_clearThrew &&
+            t9_localTheme === "dark" &&
+            t9_localLen === 1,
+          content: {
+            message: "非 share: 拒绝 / 未共享 not_shared / 写操作抛错且本地数据不变",
+            badNameThrew: t9_badNameThrew,
+            notSharedCode: t9_notSharedCode,
+            setThrew: t9_setThrew,
+            removeThrew: t9_removeThrew,
+            clearThrew: t9_clearThrew,
+            localTheme: t9_localTheme,
+            localLen: t9_localLen,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="超时与离线错误">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t10_nsA = "user_shared_err_1_a";
+        const t10_nsB = "user_shared_err_1_b";
+        const t10_url = "ws://localhost:8081";
+
+        try { await deleteUser(t10_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t10_nsB, { skipConfirm: true }); } catch (e) {}
+
+        const t10_userA = new LocalUser(t10_nsA);
+        const t10_userB = new LocalUser(t10_nsB);
+        await Promise.all([t10_userA.ready(), t10_userB.ready()]);
+        await Promise.all([
+          t10_userA.server.connect(t10_url),
+          t10_userB.server.connect(t10_url),
+        ]);
+
+        // 劫持 B 侧回传：收到 __storage_req 后不回 __storage_resp → A 超时
+        t10_userB.bind("remote_user_connected", (event) => {
+          event.detail.remoteUser.send = async () => ({ status: "ok", via: "test" });
+        });
+
+        const t10_remoteB = await t10_userA.connectUser(t10_userB.userId);
+        const t10_st = await t10_remoteB.getStorage("share:settings", { timeout: 400 });
+
+        let t10_timeoutCode = "";
+        let t10_timeoutMsg = "";
+        try {
+          await t10_st.getItem("theme");
+        } catch (e) {
+          t10_timeoutCode = e.code;
+          t10_timeoutMsg = e.message;
+        }
+
+        // B 断开服务器 → A 侧查询不到 session → offline 错误
+        t10_userB.server.disconnectAll();
+        let t10_offlineReady = false;
+        for (let i = 0; i < 50; i++) {
+          const sids = await t10_remoteB.getSessionIds();
+          if (sids.length === 0) {
+            t10_offlineReady = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        let t10_offlineCode = "";
+        if (t10_offlineReady) {
+          try {
+            await t10_st.getItem("theme");
+          } catch (e) {
+            t10_offlineCode = e.code;
+          }
+        }
+
+        t10_userA.server.disconnectAll();
+        try { await deleteUser(t10_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t10_nsB, { skipConfirm: true }); } catch (e) {}
+
+        return {
+          assert:
+            t10_timeoutCode === "timeout" &&
+            (!t10_offlineReady || t10_offlineCode === "offline"),
+          content: {
+            message: "无响应 400ms 后抛 timeout；对端离线后抛 offline",
+            timeoutCode: t10_timeoutCode,
+            timeoutMsg: t10_timeoutMsg,
+            offlineReady: t10_offlineReady,
+            offlineCode: t10_offlineCode,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="数据隔离：不同用户 / 不同共享空间互不可见">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { deleteUser } from "/nos/user/main.js";
+
+        const t11_nsA = "user_shared_iso_1_a";
+        const t11_nsB = "user_shared_iso_1_b";
+        const t11_nsC = "user_shared_iso_1_c";
+        const t11_url = "ws://localhost:8081";
+
+        try { await deleteUser(t11_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t11_nsB, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t11_nsC, { skipConfirm: true }); } catch (e) {}
+
+        const t11_userA = new LocalUser(t11_nsA);
+        const t11_userB = new LocalUser(t11_nsB);
+        const t11_userC = new LocalUser(t11_nsC);
+        await Promise.all([
+          t11_userA.ready(),
+          t11_userB.ready(),
+          t11_userC.ready(),
+        ]);
+        await Promise.all([
+          t11_userA.server.connect(t11_url),
+          t11_userB.server.connect(t11_url),
+          t11_userC.server.connect(t11_url),
+        ]);
+
+        // B 与 C 各自共享同名空间，数据不同；各自的 share:secret 均不共享
+        const t11_stB = await t11_userB.getStorage("share:settings");
+        await t11_stB.setItem("owner", "B");
+        await t11_userB.shareStorage("share:settings");
+
+        const t11_stC = await t11_userC.getStorage("share:settings");
+        await t11_stC.setItem("owner", "C");
+        await t11_userC.shareStorage("share:settings");
+
+        const t11_stCSecret = await t11_userC.getStorage("share:secret");
+        await t11_stCSecret.setItem("secret", "x");
+
+        const t11_remoteB = await t11_userA.connectUser(t11_userB.userId);
+        const t11_remoteC = await t11_userA.connectUser(t11_userC.userId);
+
+        // 同名空间：按用户隔离，各读各的
+        const t11_rstB = await t11_remoteB.getStorage("share:settings");
+        const t11_rstC = await t11_remoteC.getStorage("share:settings");
+        const t11_ownerB = await t11_rstB.getItem("owner");
+        const t11_ownerC = await t11_rstC.getItem("owner");
+
+        // 未共享空间：B、C 的 share:secret 均被拒
+        const t11_rstBSecret = await t11_remoteB.getStorage("share:secret");
+        const t11_rstCSecret = await t11_remoteC.getStorage("share:secret");
+        let t11_bSecretCode = "";
+        let t11_cSecretCode = "";
+        try { await t11_rstBSecret.getItem("secret"); } catch (e) { t11_bSecretCode = e.code; }
+        try { await t11_rstCSecret.getItem("secret"); } catch (e) { t11_cSecretCode = e.code; }
+
+        t11_userA.server.disconnectAll();
+        t11_userB.server.disconnectAll();
+        t11_userC.server.disconnectAll();
+        try { await deleteUser(t11_nsA, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t11_nsB, { skipConfirm: true }); } catch (e) {}
+        try { await deleteUser(t11_nsC, { skipConfirm: true }); } catch (e) {}
+
+        return {
+          assert:
+            t11_ownerB === "B" &&
+            t11_ownerC === "C" &&
+            t11_bSecretCode === "not_shared" &&
+            t11_cSecretCode === "not_shared",
+          content: {
+            message: "同名空间按用户隔离；未共享空间不可见",
+            ownerFromB: t11_ownerB,
+            ownerFromC: t11_ownerC,
+            bSecretCode: t11_bSecretCode,
+            cSecretCode: t11_cSecretCode,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

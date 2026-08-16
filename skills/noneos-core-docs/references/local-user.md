@@ -74,16 +74,31 @@ const theme = await settings.getItem("theme"); // "dark"
 
 ## 共享存储（只读）
 
-若要让**远端用户**只读访问某个专属存储空间，先以 `share:` 前缀创建空间，再用 `shareStorage()` 显式开放。只有以 `share:` 开头的空间可被共享，其余存储远端无法访问。
+共享分两端：**接收端**（数据所有者）先以 `share:` 前缀维护空间，再用 `shareStorage()` 显式开放；**请求端**通过 `RemoteUser.getStorage()` 获取只读代理。只有以 `share:` 开头的空间可被共享，其余存储远端无法访问。
 
 ```javascript
+// ===== 接收端（数据所有者）=====
 const user = await getUser("my-app");
+
+// 本地维护数据（与普通专属存储一致）
+const st = await user.getStorage("share:settings");
+await st.setItem("theme", "dark");
 
 // 显式开放共享（只读）
 const revoke = await user.shareStorage("share:settings");
+await revoke(); // 随时关闭
+```
 
-// 随时关闭共享
-await revoke();
+```javascript
+// ===== 请求端（远端访问者）=====
+const remoteUser = await localUser.connectUser(targetUserId);
+const rSt = await remoteUser.getStorage("share:settings"); // name 必须 share: 开头
+
+const theme = await rSt.getItem("theme"); // "dark"
+const len = await rSt.length; // getter
+const keys = await rSt.keys(); // string[]（一次性回传，非本地版异步生成器）
+
+rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 ```
 
 注意：
@@ -94,6 +109,8 @@ await revoke();
 - 返回的 revoke 函数可随时关闭共享，多次调用安全
 - 共享登记持久化在用户库 `shared-storages` 键中，删除用户时随之清除
 - 放行的只读操作：`getItem / has / key / length / keys / entries`（`keys`/`entries` 以数组形式返回）
+- `RemoteUser.getStorage(name, { timeout })`：同一 `(userId, name)` 代理实例缓存复用；单次请求默认超时 10s
+- 请求端失败抛出的 Error 带 `code` 属性：`offline`（对端离线）/ `timeout`（超时）/ `invalid_name / not_shared / read_only / internal`（对端回传）
 
 ### 底层协议（__storage_req / __storage_resp）
 
