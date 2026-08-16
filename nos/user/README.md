@@ -230,6 +230,26 @@ user.bind("rtt_update", (event) => {
 
 ---
 
+## 用户专属存储（User Storage）
+
+每个 `LocalUser` 都拥有自己的独立存储空间，通过 `user.getStorage(name)` 获取。底层复用 [nos/storage](../storage/README.md)，存储 id 为 `user:<namespace>:<userId>:<name>`，对应独立的 IndexedDB 数据库，因此**不同用户、同一用户不同身份之间互不可见**。
+
+```javascript
+const user = await getUser("my-app");
+
+// 获取该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+
+await settings.setItem("theme", "dark");
+const theme = await settings.getItem("theme"); // "dark"
+```
+
+- `getStorage(name)` 是 async 方法，调用时会自动登记到用户库，供 `deleteUser` 联动清理
+- 同名子空间复用同一实例；跨标签页同步只在该用户同名的子空间内生效
+- 支持 `nos/storage` 的全部能力：复杂类型、nos/fs 句柄、遍历、代理语法等
+
+---
+
 ## 用户导出/导入/删除
 
 用户模块提供完整生命周期管理函数。
@@ -264,7 +284,7 @@ await deleteUser("my-namespace");
 await deleteUser("my-namespace", { skipConfirm: true });
 ```
 
-删除会永久清除该 namespace 对应的 IndexedDB 数据库、内存缓存和所有本地数据。
+删除会永久清除该 namespace 对应的 IndexedDB 数据库、内存缓存和所有本地数据，**同时联动删除该用户通过 `getStorage()` 创建的全部专属存储**。
 
 ---
 
@@ -551,6 +571,19 @@ await user.ready();
 
 **返回值：** Promise\<Object \| null\> - 已签名的用户信息，如果不存在则返回 null
 
+#### `getStorage(name)`
+
+获取该用户专属的独立存储空间（async）。
+
+**参数：**
+- `name` (string, 可选) - 业务子空间名，默认 `"default"`
+
+**返回值：** Promise\<NosStorage\> - `nos/storage` 实例，隔离于其他用户
+
+**特性：**
+- 存储 id 为 `user:<namespace>:<userId>:<name>`，不同用户/身份互不可见
+- 自动登记到用户库，`deleteUser` 时联动清理
+
 ---
 
 ## CertManager 类
@@ -670,6 +703,7 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [服务器连接测试](../../tests/user/local/connect-server.sb.html)
 - [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
+- [用户专属存储测试](../../tests/user/local/user-storage.sb.html)
 - [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
 
 ---

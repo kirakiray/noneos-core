@@ -51,6 +51,27 @@ const invalid = await user.verify(tampered);
 console.log(invalid); // false
 ```
 
+## 用户专属存储（User Storage）
+
+每个 `LocalUser` 都拥有独立的存储空间，通过 `user.getStorage(name)` 获取，底层复用 [nos/storage](storage.md)。存储 id 为 `user:<namespace>:<userId>:<name>`，对应独立的 IndexedDB 数据库，因此**不同用户、同一用户不同身份之间互不可见**。
+
+```javascript
+const user = await getUser("my-app");
+
+// 获取该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+
+await settings.setItem("theme", "dark");
+const theme = await settings.getItem("theme"); // "dark"
+```
+
+注意：
+
+- `getStorage(name)` 是 **async** 方法（内部先 `await ready()` 并登记到用户库，供 `deleteUser` 联动清理）
+- 同名子空间复用同一实例；跨标签页同步只在该用户同名的子空间内生效
+- 支持 `nos/storage` 的全部能力：复杂类型、nos/fs 句柄、遍历、代理语法等
+- 调用 `deleteUser(namespace)` 时会联动删除该用户通过 `getStorage()` 创建的全部专属存储
+
 ## 获取本用户所有 Session ID
 
 同一个 `namespace` 可以在多个标签页中创建 LocalUser，`getSessionIds()` 可发现所有在线 session：

@@ -619,3 +619,54 @@ export async function countCards(namespace) {
     request.onerror = () => reject(request.error);
   });
 }
+
+// 用户存储登记键：data store 中的键名。
+// 记录该用户通过 LocalUser.getStorage() 创建的全部存储空间 id，
+// 供 deleteUser 联动清理，避免删除用户后残留 nos-storage-* 数据库。
+const USER_STORAGES_KEY = "user-storages";
+
+/**
+ * 登记用户创建的存储空间 id，供 deleteUser 联动清理
+ * @param {string} namespace
+ * @param {string} storageId
+ * @returns {Promise<void>}
+ */
+export async function addUserStorageId(namespace, storageId) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!storageId) throw new Error("storageId is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(USER_STORAGES_KEY);
+    getRequest.onsuccess = () => {
+      const list = getRequest.result || [];
+      if (list.includes(storageId)) {
+        resolve();
+        return;
+      }
+      list.push(storageId);
+      const putRequest = store.put(list, USER_STORAGES_KEY);
+      putRequest.onsuccess = () => resolve();
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/**
+ * 读取用户登记的全部存储空间 id
+ * @param {string} namespace
+ * @returns {Promise<string[]>}
+ */
+export async function getUserStorageIds(namespace) {
+  if (!namespace) throw new Error("namespace is required");
+  const db = await getDb(namespace);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(USER_STORAGES_KEY);
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}

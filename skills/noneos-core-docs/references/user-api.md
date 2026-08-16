@@ -122,6 +122,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `isRemoteUserOnline(userId)` | 查询指定 userId 当前是否在线 |
 | `getRemoteUsers({ onlineOnly })` | 获取已缓存的 `RemoteUser[]`，`onlineOnly: true` 时过滤在线用户 |
 | `getSessionIds(timeout?)` | 获取同一 namespace 下所有标签页的 sessionId |
+| `getStorage(name)` | 获取该用户专属的独立存储空间（async），复用 `nos/storage`，存储 id = `user:<namespace>:<userId>:<name>`，不同用户/身份互不可见；`deleteUser` 时联动清理 |
 | `traffic` | 流量记录器（`TrafficLogger`），详见 [客户端流量统计](traffic.md) |
 
 #### LocalUser 事件

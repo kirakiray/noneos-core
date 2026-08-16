@@ -5,11 +5,13 @@ import {
   saveUserKeys,
   saveUserInfo,
   closeDbByNamespace,
+  getUserStorageIds,
 } from "./db.js";
 import {
   encryptWithPassword,
   decryptWithPassword,
 } from "../crypto/crypto-aes.js";
+import { deleteStorage } from "../storage/main.js";
 
 const users = new Map();
 
@@ -182,6 +184,21 @@ export const deleteUser = async (namespace, options = {}) => {
       // 忽略清理错误
     }
     users.delete(namespace);
+  }
+
+  // 联动清理该用户通过 getStorage() 创建的全部存储空间（登记表存于用户库）
+  let userStorageIds = [];
+  try {
+    userStorageIds = await getUserStorageIds(namespace);
+  } catch {
+    // 读取失败不阻塞删除用户，登记表缺失时存储由 deleteStorage 各自兜底
+  }
+  for (const id of userStorageIds) {
+    try {
+      await deleteStorage(id);
+    } catch (error) {
+      console.warn(`deleteUser: failed to delete storage "${id}"`, error);
+    }
   }
 
   // 关闭缓存中的数据库连接

@@ -1,5 +1,12 @@
 import { BaseUser } from "./base-user.js";
-import { getUserKeys, saveUserKeys, saveUserInfo, getUserInfo } from "./db.js";
+import {
+  getUserKeys,
+  saveUserKeys,
+  saveUserInfo,
+  getUserInfo,
+  addUserStorageId,
+} from "./db.js";
+import { getStorage as getGlobalStorage } from "../storage/main.js";
 import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
 import { CertManager } from "./cert.js";
 import { CardManager } from "./card.js";
@@ -649,6 +656,24 @@ export class LocalUser extends BaseUser {
     this.#server.connectAll().catch(() => {});
 
     return this;
+  }
+
+  /**
+   * 获取该用户专属的存储空间
+   *
+   * 底层复用 nos/storage，存储 id 为 `user:<namespace>:<userId>:<name>`，
+   * 每个「本地用户 + 身份 + 子空间」对应独立的 IndexedDB 数据库，天然隔离：
+   * 不同用户、同一用户不同身份之间互不可见。
+   *
+   * 创建时会自动登记到用户库，deleteUser 时联动清理。
+   * @param {string} [name] - 业务子空间名，默认 "default"
+   * @returns {Promise<NosStorage>}
+   */
+  async getStorage(name = "default") {
+    await this.ready();
+    const id = `user:${this.#namespace}:${this.userId}:${name}`;
+    await addUserStorageId(this.#namespace, id);
+    return getGlobalStorage(id);
   }
 
   /**

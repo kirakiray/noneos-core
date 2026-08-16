@@ -61,7 +61,7 @@ EventTarget
 | `getUser(namespace)` | 获取/创建 LocalUser 实例（Map 缓存，`initPromises` 防并发初始化） |
 | `exportUser(namespace, password)` | 用密码加密导出完整用户数据（namespace + keys + info + exportTime），返回加密 base64 字符串 |
 | `importUser(namespace, encryptedData, password)` | 解密 `exportUser` 产出的加密数据并恢复用户；若 namespace 已存在则抛错 |
-| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked` |
+| `deleteUser(namespace)` | 删除用户（i18n 确认 zh/ja/en，删除 IndexedDB `nos_user_${namespace}`）；若内存已有 LocalUser 实例，会先 `traffic.setEnabled(false)` + `server.disconnectAll()` + `traffic.flush()` 再关闭 db 缓存，避免后台埋点重开数据库触发 `onblocked`。**删除前会读取用户库中的 `user-storages` 登记表，对登记的全部存储 id 逐个 `deleteStorage()`，联动清理该用户 `getStorage()` 创建的专属存储** |
 
 ### LocalUser（user.js）
 
@@ -78,6 +78,7 @@ EventTarget
 | `#setupRTCDispatch()` | 处理 RTC DataChannel 消息，E2EE 解密后分发 |
 | `#dispatchToRemote()` | 分发优先级：`__service_query` → `__service_available/unavailable` → `__app` 消息 → RemoteUser 缓存；被动消息自动创建缓存；未注册的 `__app` 消息触发 `unhandled_service_message` 事件 |
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
+| `getStorage(name)` | 获取该用户专属的独立存储空间（async，默认 name=`"default"`）。存储 id = `user:<namespace>:<userId>:<name>`，复用 `nos/storage` 的 `getStorage`，不同用户/身份互不可见；创建时经 `addUserStorageId` 登记到用户库，供 `deleteUser` 联动清理 |
 | `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
@@ -202,7 +203,7 @@ A.get(B.userId)
 
 - 数据库名：`nos_user_${namespace}`，`DB_VERSION = 7`
 - 五仓库：
-  - `data`：用户信息、密钥、服务器列表等键值
+  - `data`：用户信息、密钥、服务器列表等键值。**含 `user-storages` 键**：字符串数组，登记该用户通过 `LocalUser.getStorage()` 创建的全部存储 id（`addUserStorageId` 去重追加 / `getUserStorageIds` 读取），供 `deleteUser` 联动清理
   - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
   - `cards`：keyPath `"userId"`
   - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`
@@ -245,6 +246,7 @@ A.get(B.userId)
 - `../crypto/crypto-aes.js` —— AES 加解密（main.js，用于 export/import 加密）
 - `../crypto/crypto-verify.js` —— 通用验签（card.js）
 - `../fs/main.js` —— 远端用户文件系统（动态导入 `./fs-remote/main.js`）
+- `../storage/main.js` —— `LocalUser.getStorage()` 用户专属存储（user.js / main.js 静态导入；storage 无静态依赖，不成环）
 - 浏览器 API：WebSocket、WebRTC（RTCPeerConnection/DataChannel）、IndexedDB、BroadcastChannel、Crypto.subtle（ECDSA/ECDH/AES-GCM）
 
 ## 八、事件清单
