@@ -202,7 +202,26 @@ const handle = await storage.getItem("last-opened");
 console.log(await handle.text());
 ```
 
-更多详细操作参考：[storage 存储模块](references/storage.md)
+### 用户专属存储（按用户隔离）
+
+`getStorage(id)` 按**业务**隔离存储空间；若需要按**用户**隔离（每个本地用户拥有独立数据，其他用户不可见），请使用 `LocalUser.getStorage(name)`，而不是通过全局 storage 自行拼接键名：
+
+```javascript
+import { getUser } from "/nos/user/main.js";
+
+const user = await getUser("my-app");
+
+// 该用户专属的存储空间（name 可选，默认 "default"）
+const settings = await user.getStorage("settings");
+await settings.setItem("theme", "dark");
+```
+
+- 存储 id 为 `user:<namespace>:<userId>:<name>`，每个「本地用户 + 身份 + 子空间」对应独立 IndexedDB 数据库，天然隔离
+- `getStorage(name)` 是 **async** 方法（内部先 `await ready()` 并登记到用户库）
+- 调用 `deleteUser(namespace)` 删除用户时，会联动清理该用户通过 `getStorage()` 创建的全部专属存储
+- 支持 `nos/storage` 全部能力：复杂类型、nos/fs 句柄、遍历、代理语法、跨标签页同步（仅同用户同名子空间内生效）
+
+更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 
 ---
 
