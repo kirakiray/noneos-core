@@ -51,7 +51,6 @@
 9. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
 10. **AI 常见误判清单**（基于历史踩坑总结，遇到这些情况请额外警惕）：
     - ❌ 把运行时虚拟 URL（`/packages/...`、`/nos/...`、`/gh/...`、`/npm/...`）当作仓库源码路径去查找 → ✅ 应对照 [CONTEXT.md 第二节](CONTEXT.md#二项目结构与运行时路径映射)，把它们映射回真实源码路径
-    - ❌ 在 `nos/fs/` 目录下找 `fs-remote/main.js` → ✅ 这是运行时通过 SW 加载的远端 FS 模块，本仓库不提供源码
     - ❌ 以为 `index.html` 注册了 Service Worker → ✅ 实际是 `nos-tool/_install/main.js`（生产）或 `nos-tool/_install/register.js`（测试）通过 `registerSw("sw.js")` 注册
     - ❌ 以为线上加载的是 `sw/dist.min.js` → ✅ 实际加载的是 `sw/dist.js`（`/sw.js` 内执行 `importScripts("/sw/dist.js")`）
     - ❌ 修改 `sw/src/` 后忘记重建 → ✅ 必须运行 `npm run build:sw` 或开发期使用 `npm run watch:sw`

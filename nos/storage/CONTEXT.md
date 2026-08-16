@@ -153,7 +153,7 @@ nos/storage/
 2. **`PICKED` 用 `Symbol.for("nos-fs-picked")` 注册为全局符号**。这样 `nos/storage` 只需 `Symbol.for()` 取同一个符号，**无需 import `nos/fs`** —— 否则为读一个常量就会牵连加载整个 fs 模块（`public/base.js` 顶层会创建 `BroadcastChannel`），破坏 storage 的按需加载设计。
 3. **校验是同步的**，`setItem` 无需为此变成 async；只在值中含句柄时才有开销（先 `collectHandles` 扫描）。
 
-> 早期曾尝试用 `fs.get(path)` + `isSame()` 验证路径可还原性，已废弃：需要额外 IO，且对 `$mount-` / `$user-` 路径会触发挂载授权弹窗或远端连接。也验证过 `queryPermission` 与 `path` 形态均无法区分句柄来源（OPFS 句柄同样具备 `queryPermission`，根目录 `path` 也是单段名）。
+> 早期曾尝试用 `fs.get(path)` + `isSame()` 验证路径可还原性，已废弃：需要额外 IO，且对 `$mount-` 路径会触发挂载授权弹窗。也验证过 `queryPermission` 与 `path` 形态均无法区分句柄来源（OPFS 句柄同样具备 `queryPermission`，根目录 `path` 也是单段名）。
 
 **已知行为**：目标文件/目录已被删除时，`getItem` 抛 `nos-storage: fs handle "<path>" no longer exists`，而非返回空对象。路径引用方案的固有特性 —— 明确报错优于静默拿到坏对象。
 

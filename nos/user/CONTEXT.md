@@ -245,7 +245,6 @@ A.get(B.userId)
 - `../crypto/crypto-e2ee.js` —— E2EE 加解密（remote-user.js；user.js 动态导入）
 - `../crypto/crypto-aes.js` —— AES 加解密（main.js，用于 export/import 加密）
 - `../crypto/crypto-verify.js` —— 通用验签（card.js）
-- `../fs/main.js` —— 远端用户文件系统（动态导入 `./fs-remote/main.js`）
 - `../storage/main.js` —— `LocalUser.getStorage()` 用户专属存储（user.js / main.js 静态导入；storage 无静态依赖，不成环）
 - 浏览器 API：WebSocket、WebRTC（RTCPeerConnection/DataChannel）、IndexedDB、BroadcastChannel、Crypto.subtle（ECDSA/ECDH/AES-GCM）
 
