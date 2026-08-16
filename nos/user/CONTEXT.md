@@ -224,6 +224,28 @@ A.get(B.userId)
 - **主要 API**：`record / flush / query / summary / getPeerTotals / getServerTotals / getTimeline / getTotalStats / count / getStorageInfo / deleteBefore / delete / clearAll / setEnabled / configure`。
 - **数据保留**：默认永久保留，通过 `deleteBefore(ts)` / `delete(filter)` / `clearAll()` 由上层清理应用管理。
 
+### 10. 远端共享存储协议（__storage_req / __storage_resp）
+
+接收端在 `#dispatchToRemote` 中拦截 `type === "__storage_req"` 的入站消息（user.js `#handleStorageRequest`），按三道防线校验后以只读方式本地执行，结果经 `__storage_resp` 回传（`raw=true` 跳过 E2EE，与 `__service_response` 一致）：
+
+```
+远端 ──→ { type:"__storage_req", reqId, name, op, key }
+本地 ──→ { type:"__storage_resp", reqId, ok:true, value }          # 成功
+      └→ { type:"__storage_resp", reqId, ok:false, error:{code, message} }  # 失败
+```
+
+**三道防线**（依次校验，任一失败即回传错误）：
+
+| 防线 | 校验 | 失败错误码 |
+|------|------|-----------|
+| 1. 约定前缀 | `name` 必须以 `"share:"` 开头 | `invalid_name` |
+| 2. 显式开启 | `name` 必须在 `shared-storages` 登记表（已 `shareStorage()`） | `not_shared` |
+| 3. 只读白名单 | `op` 仅允许 `getItem / has / key / length / keys / entries` | `read_only` |
+
+**错误码**：`invalid_name`（非 share: 前缀）/ `not_shared`（未显式开启或已 revoke）/ `read_only`（含 setItem/removeItem/clear 等写操作与未知 op）/ `internal`（登记表读取失败、操作执行异常等）。
+
+**执行细节**：`length` 是 getter（`await storage.length`）；`keys / entries` 是异步生成器，收集为数组后回传；`getItem` 对不存在的 key 返回 `ok:true, value:null`；所有已连接用户均可发起请求（无白名单），安全边界完全由上述三道防线构成。
+
 ## 六、客户端-服务端联动协议对应表
 
 | 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/rust/CONTEXT.md） |
@@ -233,6 +255,7 @@ A.get(B.userId)
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
 | 名片交换 | 中继 | `card` (request/response) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
+| 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |

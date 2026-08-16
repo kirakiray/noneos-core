@@ -265,10 +265,14 @@ await revoke();
 ```
 
 - `shareStorage(name)` 是 async 方法；`name` 必须以 `share:` 开头，否则抛错
-- **只读**：远端用户只能读取该空间，无法写入
+- **只读**：远端用户只能读取该空间，无法写入；放行的操作为 `getItem / has / key / length / keys / entries`
 - 重复开启同一空间是幂等的，不会重复登记
 - 返回的 revoke 函数可随时关闭共享，多次调用安全
 - 共享登记持久化在用户库中，删除用户时随之清除
+
+### 接收端协议（__storage_req / __storage_resp）
+
+远端发来 `{ type: "__storage_req", reqId, name, op, key }` 时，接收端依次校验：`share:` 前缀 → 已显式开启 → 只读白名单，通过后本地执行并回传 `__storage_resp`（`{ reqId, ok, value }` 成功；`{ reqId, ok: false, error: { code, message } }` 失败，错误码 `invalid_name / not_shared / read_only / internal`）。协议细节见 [CONTEXT.md](./CONTEXT.md)。
 
 ---
 
@@ -740,7 +744,7 @@ await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [远程用户与消息收发测试](../../tests/user/local/connect-user.sb.html)
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
 - [用户专属存储测试](../../tests/user/local/user-storage.sb.html)
-- [共享存储测试](../../tests/user/local/user-shared-storage.sb.html)
+- [共享存储测试](../../tests/user/local/user-shared-storage.sb.html)（含 shareStorage 登记与 __storage_req 入站协议用例）
 - [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
 
 ---

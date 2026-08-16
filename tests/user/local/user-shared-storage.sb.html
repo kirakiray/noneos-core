@@ -16,40 +16,40 @@
       <script type="module">
         import { getUser, deleteUser } from "/nos/user/main.js";
 
-        const ns = "user_shared_prefix_1";
+        const t1_ns = "user_shared_prefix_1";
 
         // 前置清理
         try {
-          await deleteUser(ns, { skipConfirm: true });
+          await deleteUser(t1_ns, { skipConfirm: true });
         } catch (e) {}
 
-        const user = await getUser(ns);
+        const t1_user = await getUser(t1_ns);
 
         // 非 share: 前缀应抛错
-        let threwPlain = false;
-        let threwEmpty = false;
-        let errMsg = "";
+        let t1_threwPlain = false;
+        let t1_threwEmpty = false;
+        let t1_errMsg = "";
         try {
-          await user.shareStorage("settings");
+          await t1_user.shareStorage("settings");
         } catch (e) {
-          threwPlain = true;
-          errMsg = e.message;
+          t1_threwPlain = true;
+          t1_errMsg = e.message;
         }
         try {
-          await user.shareStorage("");
+          await t1_user.shareStorage("");
         } catch (e) {
-          threwEmpty = true;
+          t1_threwEmpty = true;
         }
 
-        await deleteUser(ns, { skipConfirm: true });
+        await deleteUser(t1_ns, { skipConfirm: true });
 
         return {
-          assert: threwPlain && threwEmpty && /share:/.test(errMsg),
+          assert: t1_threwPlain && t1_threwEmpty && /share:/.test(t1_errMsg),
           content: {
             message: "仅允许 share: 前缀的子空间参与共享",
-            threwPlain,
-            threwEmpty,
-            errMsg,
+            threwPlain: t1_threwPlain,
+            threwEmpty: t1_threwEmpty,
+            errMsg: t1_errMsg,
           },
         };
       </script>
@@ -62,36 +62,36 @@
         import { getUser, deleteUser } from "/nos/user/main.js";
         import { getSharedStorages } from "/nos/user/db.js";
 
-        const ns = "user_shared_register_1";
+        const t2_ns = "user_shared_register_1";
 
         try {
-          await deleteUser(ns, { skipConfirm: true });
+          await deleteUser(t2_ns, { skipConfirm: true });
         } catch (e) {}
 
-        const user = await getUser(ns);
+        const t2_user = await getUser(t2_ns);
 
         // 首次开启
-        const revoke1 = await user.shareStorage("share:settings");
+        const t2_revoke1 = await t2_user.shareStorage("share:settings");
         // 重复开启同一空间（幂等，不应重复登记）
-        const revoke2 = await user.shareStorage("share:settings");
+        const t2_revoke2 = await t2_user.shareStorage("share:settings");
         // 开启另一个空间
-        const revoke3 = await user.shareStorage("share:profile");
+        const t2_revoke3 = await t2_user.shareStorage("share:profile");
 
-        const list = await getSharedStorages(ns);
+        const t2_list = await getSharedStorages(t2_ns);
 
-        await deleteUser(ns, { skipConfirm: true });
+        await deleteUser(t2_ns, { skipConfirm: true });
 
         return {
           assert:
-            typeof revoke1 === "function" &&
-            typeof revoke2 === "function" &&
-            typeof revoke3 === "function" &&
-            list.includes("share:settings") &&
-            list.includes("share:profile") &&
-            list.filter((n) => n === "share:settings").length === 1,
+            typeof t2_revoke1 === "function" &&
+            typeof t2_revoke2 === "function" &&
+            typeof t2_revoke3 === "function" &&
+            t2_list.includes("share:settings") &&
+            t2_list.includes("share:profile") &&
+            t2_list.filter((n) => n === "share:settings").length === 1,
           content: {
             message: "shareStorage 登记成功且重复开启幂等",
-            sharedList: list,
+            sharedList: t2_list,
           },
         };
       </script>
@@ -104,41 +104,382 @@
         import { getUser, deleteUser } from "/nos/user/main.js";
         import { getSharedStorages } from "/nos/user/db.js";
 
-        const ns = "user_shared_revoke_1";
+        const t3_ns = "user_shared_revoke_1";
 
         try {
-          await deleteUser(ns, { skipConfirm: true });
+          await deleteUser(t3_ns, { skipConfirm: true });
         } catch (e) {}
 
-        const user = await getUser(ns);
+        const t3_user = await getUser(t3_ns);
 
-        const revoke = await user.shareStorage("share:settings");
-        const before = await getSharedStorages(ns);
-        const hasBefore = before.includes("share:settings");
+        const t3_revoke = await t3_user.shareStorage("share:settings");
+        const t3_before = await getSharedStorages(t3_ns);
+        const t3_hasBefore = t3_before.includes("share:settings");
 
         // revoke 关闭共享
-        await revoke();
+        await t3_revoke();
 
-        const after = await getSharedStorages(ns);
-        const hasAfter = after.includes("share:settings");
+        const t3_after = await getSharedStorages(t3_ns);
+        const t3_hasAfter = t3_after.includes("share:settings");
 
         // revoke 幂等：再次调用不报错
-        let revokeTwiceOk = true;
+        let t3_revokeTwiceOk = true;
         try {
-          await revoke();
+          await t3_revoke();
         } catch (e) {
-          revokeTwiceOk = false;
+          t3_revokeTwiceOk = false;
         }
 
-        await deleteUser(ns, { skipConfirm: true });
+        await deleteUser(t3_ns, { skipConfirm: true });
 
         return {
-          assert: hasBefore && !hasAfter && revokeTwiceOk,
+          assert: t3_hasBefore && !t3_hasAfter && t3_revokeTwiceOk,
           content: {
             message: "revoke 后共享登记被移除",
-            sharedBefore: before,
-            sharedAfter: after,
-            revokeTwiceOk,
+            sharedBefore: t3_before,
+            sharedAfter: t3_after,
+            revokeTwiceOk: t3_revokeTwiceOk,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="__storage_req 拒绝非 share: 前缀">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const t4_ns = "user_shared_proto_1";
+
+        // 构造入站 relay 文本消息，触发接收端 __storage_req 处理；
+        // 劫持分发时创建的 RemoteUser.send，捕获回传的 __storage_resp
+        const t4_responses = [];
+        let t4_seq = 0;
+        const t4_makeRequest = (user) => async (payload, timeout = 2000) => {
+          const reqId = `req_${++t4_seq}_${Date.now()}`;
+          user._trigger("message", {
+            url: "ws://test-server",
+            data: JSON.stringify({
+              type: "relay",
+              from_user_id: "remote_peer_user",
+              from_session_id: "remote_peer_session",
+              data: { type: "__storage_req", reqId, ...payload },
+            }),
+          });
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            const hit = t4_responses.find((r) => r && r.reqId === reqId);
+            if (hit) return hit;
+            await new Promise((r) => setTimeout(r, 20));
+          }
+          throw new Error(`timeout waiting for __storage_resp (reqId=${reqId})`);
+        };
+
+        try {
+          await deleteUser(t4_ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const t4_user = await getUser(t4_ns);
+        t4_user.bind("remote_user_connected", (event) => {
+          event.detail.remoteUser.send = async (sessionId, data) => {
+            t4_responses.push(data);
+            return { status: "ok", via: "test" };
+          };
+        });
+        const t4_request = t4_makeRequest(t4_user);
+
+        const t4_respPlain = await t4_request({ name: "settings", op: "getItem", key: "theme" });
+        const t4_respEmpty = await t4_request({ name: "", op: "getItem", key: "theme" });
+        const t4_respMissing = await t4_request({ op: "getItem", key: "theme" });
+        const t4_respNull = await t4_request({ name: null, op: "getItem", key: "theme" });
+
+        await deleteUser(t4_ns, { skipConfirm: true });
+
+        const t4_allRejected = [t4_respPlain, t4_respEmpty, t4_respMissing, t4_respNull].every(
+          (r) => r && r.ok === false && r.error && r.error.code === "invalid_name",
+        );
+
+        return {
+          assert: t4_allRejected,
+          content: {
+            message: "非 share: 前缀一律返回 invalid_name",
+            respPlain: t4_respPlain,
+            respEmpty: t4_respEmpty,
+            respMissing: t4_respMissing,
+            respNull: t4_respNull,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="未开启拒绝 / 开启放行 / revoke 后拒绝">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const t5_ns = "user_shared_proto_2";
+        const t5_responses = [];
+        let t5_seq = 0;
+
+        const t5_makeRequest = (user) => async (payload, timeout = 2000) => {
+          const reqId = `req_${++t5_seq}_${Date.now()}`;
+          user._trigger("message", {
+            url: "ws://test-server",
+            data: JSON.stringify({
+              type: "relay",
+              from_user_id: "remote_peer_user",
+              from_session_id: "remote_peer_session",
+              data: { type: "__storage_req", reqId, ...payload },
+            }),
+          });
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            const hit = t5_responses.find((r) => r && r.reqId === reqId);
+            if (hit) return hit;
+            await new Promise((r) => setTimeout(r, 20));
+          }
+          throw new Error(`timeout waiting for __storage_resp (reqId=${reqId})`);
+        };
+
+        try {
+          await deleteUser(t5_ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const t5_user = await getUser(t5_ns);
+        t5_user.bind("remote_user_connected", (event) => {
+          event.detail.remoteUser.send = async (sessionId, data) => {
+            t5_responses.push(data);
+            return { status: "ok", via: "test" };
+          };
+        });
+        const t5_request = t5_makeRequest(t5_user);
+
+        // 本地写入共享空间数据（远端只读，数据由本地维护）
+        const t5_st = await t5_user.getStorage("share:settings");
+        await t5_st.setItem("theme", "dark");
+        await t5_st.setItem("lang", "zh");
+
+        // 1) 未显式开启：拒绝
+        const t5_beforeShare = await t5_request({ name: "share:settings", op: "getItem", key: "theme" });
+
+        // 2) 显式开启后：放行，各只读操作可用
+        const t5_revoke = await t5_user.shareStorage("share:settings");
+        const t5_getItem = await t5_request({ name: "share:settings", op: "getItem", key: "theme" });
+        const t5_getMissing = await t5_request({ name: "share:settings", op: "getItem", key: "nope" });
+        const t5_has = await t5_request({ name: "share:settings", op: "has", key: "lang" });
+        const t5_key0 = await t5_request({ name: "share:settings", op: "key", key: 0 });
+        const t5_length = await t5_request({ name: "share:settings", op: "length" });
+        const t5_keys = await t5_request({ name: "share:settings", op: "keys" });
+        const t5_entries = await t5_request({ name: "share:settings", op: "entries" });
+
+        // 3) revoke 后：再次拒绝
+        await t5_revoke();
+        const t5_afterRevoke = await t5_request({ name: "share:settings", op: "getItem", key: "theme" });
+
+        await deleteUser(t5_ns, { skipConfirm: true });
+
+        const t5_sortedKeys = [...(t5_keys.value || [])].sort();
+        const t5_sortedEntries = [...(t5_entries.value || [])].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+
+        const t5_assert =
+          t5_beforeShare.ok === false &&
+          t5_beforeShare.error.code === "not_shared" &&
+          t5_getItem.ok === true &&
+          t5_getItem.value === "dark" &&
+          t5_getMissing.ok === true &&
+          t5_getMissing.value === null &&
+          t5_has.ok === true &&
+          t5_has.value === true &&
+          t5_key0.ok === true &&
+          typeof t5_key0.value === "string" &&
+          t5_length.ok === true &&
+          t5_length.value === 2 &&
+          t5_keys.ok === true &&
+          t5_sortedKeys.join(",") === "lang,theme" &&
+          t5_entries.ok === true &&
+          t5_sortedEntries.length === 2 &&
+          t5_sortedEntries.every(
+            ([k, v]) => (k === "theme" && v === "dark") || (k === "lang" && v === "zh"),
+          ) &&
+          t5_afterRevoke.ok === false &&
+          t5_afterRevoke.error.code === "not_shared";
+
+        return {
+          assert: t5_assert,
+          content: {
+            message: "开启前 not_shared → 开启后只读放行 → revoke 后 not_shared",
+            beforeShare: t5_beforeShare,
+            getItem: t5_getItem,
+            getMissing: t5_getMissing,
+            has: t5_has,
+            key0: t5_key0,
+            length: t5_length,
+            keys: t5_keys,
+            entries: t5_entries,
+            afterRevoke: t5_afterRevoke,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="只读：写操作被拒绝且数据不受影响">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const t6_ns = "user_shared_proto_3";
+        const t6_responses = [];
+        let t6_seq = 0;
+
+        const t6_makeRequest = (user) => async (payload, timeout = 2000) => {
+          const reqId = `req_${++t6_seq}_${Date.now()}`;
+          user._trigger("message", {
+            url: "ws://test-server",
+            data: JSON.stringify({
+              type: "relay",
+              from_user_id: "remote_peer_user",
+              from_session_id: "remote_peer_session",
+              data: { type: "__storage_req", reqId, ...payload },
+            }),
+          });
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            const hit = t6_responses.find((r) => r && r.reqId === reqId);
+            if (hit) return hit;
+            await new Promise((r) => setTimeout(r, 20));
+          }
+          throw new Error(`timeout waiting for __storage_resp (reqId=${reqId})`);
+        };
+
+        try {
+          await deleteUser(t6_ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const t6_user = await getUser(t6_ns);
+        t6_user.bind("remote_user_connected", (event) => {
+          event.detail.remoteUser.send = async (sessionId, data) => {
+            t6_responses.push(data);
+            return { status: "ok", via: "test" };
+          };
+        });
+        const t6_request = t6_makeRequest(t6_user);
+
+        const t6_st = await t6_user.getStorage("share:settings");
+        await t6_st.setItem("theme", "dark");
+        await t6_user.shareStorage("share:settings");
+
+        const t6_setItem = await t6_request({ name: "share:settings", op: "setItem", key: "theme", value: "light" });
+        const t6_removeItem = await t6_request({ name: "share:settings", op: "removeItem", key: "theme" });
+        const t6_clear = await t6_request({ name: "share:settings", op: "clear" });
+        const t6_bogusOp = await t6_request({ name: "share:settings", op: "getObjectStore", key: "x" });
+
+        // 写操作被拒后，本地数据应原样保留
+        const t6_localTheme = await t6_st.getItem("theme");
+        const t6_localLen = await t6_st.length;
+
+        await deleteUser(t6_ns, { skipConfirm: true });
+
+        const t6_allReadOnly = [t6_setItem, t6_removeItem, t6_clear, t6_bogusOp].every(
+          (r) => r && r.ok === false && r.error && r.error.code === "read_only",
+        );
+
+        return {
+          assert: t6_allReadOnly && t6_localTheme === "dark" && t6_localLen === 1,
+          content: {
+            message: "setItem/removeItem/clear/未知 op 均返回 read_only，本地数据不变",
+            setItem: t6_setItem,
+            removeItem: t6_removeItem,
+            clear: t6_clear,
+            bogusOp: t6_bogusOp,
+            localTheme: t6_localTheme,
+            localLen: t6_localLen,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="错误回传内容正确（含 internal）">
+    <template>
+      <script type="module">
+        import { getUser, deleteUser } from "/nos/user/main.js";
+
+        const t7_ns = "user_shared_proto_4";
+        const t7_responses = [];
+        let t7_seq = 0;
+
+        const t7_makeRequest = (user) => async (payload, timeout = 2000) => {
+          const reqId = `req_${++t7_seq}_${Date.now()}`;
+          user._trigger("message", {
+            url: "ws://test-server",
+            data: JSON.stringify({
+              type: "relay",
+              from_user_id: "remote_peer_user",
+              from_session_id: "remote_peer_session",
+              data: { type: "__storage_req", reqId, ...payload },
+            }),
+          });
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            const hit = t7_responses.find((r) => r && r.reqId === reqId);
+            if (hit) return hit;
+            await new Promise((r) => setTimeout(r, 20));
+          }
+          throw new Error(`timeout waiting for __storage_resp (reqId=${reqId})`);
+        };
+
+        try {
+          await deleteUser(t7_ns, { skipConfirm: true });
+        } catch (e) {}
+
+        const t7_user = await getUser(t7_ns);
+        t7_user.bind("remote_user_connected", (event) => {
+          event.detail.remoteUser.send = async (sessionId, data) => {
+            t7_responses.push(data);
+            return { status: "ok", via: "test" };
+          };
+        });
+        const t7_request = t7_makeRequest(t7_user);
+
+        await t7_user.getStorage("share:settings");
+        await t7_user.shareStorage("share:settings");
+
+        // 各失败原因的错误结构与 reqId 关联
+        const t7_invalidName = await t7_request({ name: "settings", op: "getItem", key: "a" });
+        const t7_notShared = await t7_request({ name: "share:secret", op: "getItem", key: "a" });
+        const t7_readOnly = await t7_request({ name: "share:settings", op: "clear" });
+        // getItem 不带 key → store.get(undefined) 同步抛 DataError → internal
+        const t7_internal = await t7_request({ name: "share:settings", op: "getItem" });
+
+        await deleteUser(t7_ns, { skipConfirm: true });
+
+        const t7_shapeOk = [t7_invalidName, t7_notShared, t7_readOnly, t7_internal].every(
+          (r) =>
+            r &&
+            r.type === "__storage_resp" &&
+            typeof r.reqId === "string" &&
+            r.ok === false &&
+            r.error &&
+            typeof r.error.code === "string" &&
+            typeof r.error.message === "string",
+        );
+
+        return {
+          assert:
+            t7_shapeOk &&
+            t7_invalidName.error.code === "invalid_name" &&
+            t7_notShared.error.code === "not_shared" &&
+            t7_readOnly.error.code === "read_only" &&
+            t7_internal.error.code === "internal",
+          content: {
+            message: "invalid_name / not_shared / read_only / internal 结构与错误码正确",
+            invalidName: t7_invalidName,
+            notShared: t7_notShared,
+            readOnly: t7_readOnly,
+            internal: t7_internal,
           },
         };
       </script>

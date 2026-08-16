@@ -7,6 +7,7 @@ import {
   addUserStorageId,
   addSharedStorage,
   removeSharedStorage,
+  getSharedStorages,
 } from "./db.js";
 import { getStorage as getGlobalStorage } from "../storage/main.js";
 import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
@@ -20,6 +21,17 @@ import { TrafficLogger, inferCategory, measureSize } from "./traffic.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
+
+// 远端共享存储一期放行的只读操作子集（入站 __storage_req 的 op 白名单）。
+// 写操作（setItem/removeItem/clear 等）一律拒绝，保证共享出去的空间只读。
+const SHARED_STORAGE_READ_OPS = [
+  "getItem",
+  "has",
+  "key",
+  "length",
+  "keys",
+  "entries",
+];
 
 /**
  * 本地用户类，继承自 BaseUser
@@ -413,6 +425,16 @@ export class LocalUser extends BaseUser {
       return;
     }
 
+    // 1.5 拦截远端共享存储只读请求（__storage_req）：本地校验并执行，回传结果
+    if (
+      messageData &&
+      typeof messageData === "object" &&
+      messageData.type === "__storage_req"
+    ) {
+      this.#handleStorageRequest(fromUserId, fromSessionId, messageData);
+      return;
+    }
+
     // 2. 检查是否为 __service_available / __service_unavailable 主动广播
     if (
       messageData &&
@@ -482,6 +504,112 @@ export class LocalUser extends BaseUser {
       }, true); // raw=true 跳过 E2EE
     } catch {
       // 失败静默
+    }
+  }
+
+  /**
+   * 处理入站 __storage_req：三道防线校验后以只读方式执行，回传 __storage_resp
+   *
+   * 防线依次为：
+   * 1. name 必须以 "share:" 开头（约定前缀，其余空间一律不可见）
+   * 2. name 必须已通过 shareStorage() 显式开启（登记表校验）
+   * 3. op 必须在只读白名单内（写操作一律拒绝）
+   *
+   * resp 格式：{ type: "__storage_resp", reqId, ok, value? , error?: { code, message } }
+   * 错误码：invalid_name / not_shared / read_only / internal
+   *
+   * @param {string} fromUserId
+   * @param {string} fromSessionId
+   * @param {Object} req - { reqId, name, op, key }
+   */
+  async #handleStorageRequest(fromUserId, fromSessionId, req) {
+    const { reqId, name, op, key } = req;
+
+    const respond = async (ok, payload) => {
+      try {
+        const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+        await remoteUser.send(
+          fromSessionId,
+          { type: "__storage_resp", reqId, ok, ...payload },
+          true, // raw=true 跳过 E2EE，与内部协议一致
+        );
+      } catch {
+        // 对端离线等回传失败，静默丢弃
+      }
+    };
+
+    // 第一道防线：约定前缀
+    if (typeof name !== "string" || !name.startsWith("share:")) {
+      await respond(false, {
+        error: {
+          code: "invalid_name",
+          message: 'shared storage name must start with "share:"',
+        },
+      });
+      return;
+    }
+
+    // 第二道防线：必须已显式开启
+    let sharedList;
+    try {
+      sharedList = await getSharedStorages(this.#namespace);
+    } catch {
+      await respond(false, {
+        error: {
+          code: "internal",
+          message: "failed to read shared storage registry",
+        },
+      });
+      return;
+    }
+    if (!sharedList.includes(name)) {
+      await respond(false, {
+        error: {
+          code: "not_shared",
+          message: `storage "${name}" is not shared`,
+        },
+      });
+      return;
+    }
+
+    // 第三道防线：只读白名单
+    if (
+      typeof op !== "string" ||
+      !SHARED_STORAGE_READ_OPS.includes(op)
+    ) {
+      await respond(false, {
+        error: {
+          code: "read_only",
+          message: `operation "${op}" is not allowed (shared storage is read-only)`,
+        },
+      });
+      return;
+    }
+
+    // 只读执行并回传
+    try {
+      const storage = await this.getStorage(name);
+      let value;
+      if (op === "length") {
+        value = await storage.length;
+      } else if (op === "keys" || op === "entries") {
+        // 异步生成器，收集为数组后回传
+        const out = [];
+        for await (const item of storage[op]()) {
+          out.push(item);
+        }
+        value = out;
+      } else {
+        value = await storage[op](key);
+      }
+      await respond(true, { value });
+    } catch (err) {
+      await respond(false, {
+        error: {
+          code: "internal",
+          message: String(err?.message || err),
+        },
+      });
     }
   }
 

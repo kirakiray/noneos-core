@@ -236,6 +236,7 @@ await revoke();
 - **只读**：远端只能读取，不能写入
 - `shareStorage(name)` 为 async，`name` 必须以 `share:` 开头，否则抛错
 - 重复开启幂等；共享登记持久化，删除用户时随之清除
+- 底层协议：远端发 `__storage_req`（`{reqId, name, op, key}`），接收端经三道防线校验（`share:` 前缀 → 已显式开启 → 只读白名单 `getItem/has/key/length/keys/entries`）后本地执行，回传 `__storage_resp`（`{reqId, ok, value}` 或 `{reqId, ok:false, error:{code, message}}`，错误码 `invalid_name / not_shared / read_only / internal`）
 
 更多详细操作参考：[storage 存储模块](references/storage.md) | [LocalUser 基础](references/local-user.md)
 

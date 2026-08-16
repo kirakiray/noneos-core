@@ -93,6 +93,24 @@ await revoke();
 - 重复开启同一空间幂等，不会重复登记
 - 返回的 revoke 函数可随时关闭共享，多次调用安全
 - 共享登记持久化在用户库 `shared-storages` 键中，删除用户时随之清除
+- 放行的只读操作：`getItem / has / key / length / keys / entries`（`keys`/`entries` 以数组形式返回）
+
+### 底层协议（__storage_req / __storage_resp）
+
+远端请求 `{ type: "__storage_req", reqId, name, op, key }`，接收端依次过三道防线校验后本地执行并回传：
+
+```text
+{ type: "__storage_resp", reqId, ok: true, value }                       # 成功
+{ type: "__storage_resp", reqId, ok: false, error: { code, message } }   # 失败
+```
+
+| 防线 | 校验 | 失败错误码 |
+|------|------|-----------|
+| 1. 约定前缀 | `name` 以 `share:` 开头 | `invalid_name` |
+| 2. 显式开启 | `name` 已 `shareStorage()` 登记 | `not_shared` |
+| 3. 只读白名单 | `op` 在只读集合内 | `read_only` |
+
+其他错误码：`internal`（登记表读取失败、操作执行异常等）。所有已连接用户均可发起请求，安全边界完全由三道防线构成。
 
 ## 获取本用户所有 Session ID
 
