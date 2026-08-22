@@ -1,9 +1,8 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/switch/switch.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/input/input.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/switch/switch.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
@@ -224,32 +223,25 @@
       </div>
       <div class="form-card">
         <div class="form-row">
-          <p-select class="type-select" sync:value="formType" variant="filled" size="s">
-            <span slot="label">类型</span>
-            <p-option value="stun">STUN</p-option>
-            <p-option value="turn">TURN</p-option>
-          </p-select>
-          <p-input sync:value="formUrls" variant="filled" size="s" placeholder="stun:host:port 或 turn:host:port?transport=udp">
-            <span slot="label">服务器 URL</span>
-          </p-input>
+          <st-select class="type-select" sync:value="formType" variant="filled" default-value="stun" style="font-size: 13px;">
+            <option value="stun">STUN</option>
+            <option value="turn">TURN</option>
+          </st-select>
+          <st-input sync:value="formUrls" variant="filled" style="font-size: 13px;" placeholder="stun:host:port 或 turn:host:port?transport=udp"></st-input>
           <div class="action-btns">
-            <p-button variant="filled" color="primary" size="s" on:click="handleSubmit" attr:disabled="!formUrls.trim()">
+            <st-button variant="filled" style="font-size: 13px;" on:click="handleSubmit" attr:disabled="!formUrls.trim()">
               <n-icon icon="material-symbols:check" slot="prefix"></n-icon>
               {{ editingId ? '保存' : '添加' }}
-            </p-button>
+            </st-button>
             <o-if :value="editingId">
-              <p-button variant="text" size="s" on:click="cancelEdit">取消</p-button>
+              <st-button variant="text" style="font-size: 13px;" on:click="cancelEdit">取消</st-button>
             </o-if>
           </div>
         </div>
         <o-if :value="formType === 'turn'">
           <div class="turn-fields">
-            <p-input sync:value="formUsername" variant="filled" size="s" placeholder="TURN 用户名">
-              <span slot="label">用户名</span>
-            </p-input>
-            <p-input sync:value="formCredential" variant="filled" size="s" placeholder="TURN 凭证" type="password">
-              <span slot="label">凭证</span>
-            </p-input>
+            <st-input sync:value="formUsername" variant="filled" style="font-size: 13px;" placeholder="TURN 用户名"></st-input>
+            <st-input sync:value="formCredential" variant="filled" style="font-size: 13px;" placeholder="TURN 凭证" type="password"></st-input>
           </div>
         </o-if>
       </div>
@@ -264,14 +256,14 @@
           <span style="font-size:12px; opacity:0.55;">（{{ enabledCount }}/{{ servers.length }} 启用）</span>
         </div>
         <div class="list-actions">
-          <p-button variant="outlined" size="s" on:click="testAll" attr:disabled="servers.length === 0">
+          <st-button variant="outlined" style="font-size: 13px;" on:click="testAll" attr:disabled="servers.length === 0">
             <n-icon icon="material-symbols:speed" slot="prefix"></n-icon>
             全部测试
-          </p-button>
-          <p-button variant="text" size="s" on:click="resetDefaults">
+          </st-button>
+          <st-button variant="text" style="font-size: 13px;" on:click="resetDefaults">
             <n-icon icon="material-symbols:restart-alt" slot="prefix"></n-icon>
             恢复默认
-          </p-button>
+          </st-button>
         </div>
       </div>
 
@@ -295,28 +287,28 @@
             <o-if :value="$data.testStatus === 'ok'">{{$data.testLatency}}ms · {{$data.testType}}</o-if>
             <o-if :value="$data.testStatus === 'fail'">失败</o-if>
           </span>
-          <p-switch
-            :value="$data.enabled ? 'on' : 'off'"
+          <st-switch
+            attr:checked="$data.enabled"
             on:change="$host.toggleEnabled($index)"
-            size="s"
-          ></p-switch>
+            style="font-size: 11px;"
+          ></st-switch>
           <div class="row-actions">
-            <p-button variant="text" size="s" on:click="$host.moveUp($index)" attr:disabled="$index === 0" title="上移">
+            <st-button variant="text" style="font-size: 13px;" on:click="$host.moveUp($index)" attr:disabled="$index === 0" title="上移">
               <n-icon icon="material-symbols:arrow-upward"></n-icon>
-            </p-button>
-            <p-button variant="text" size="s" on:click="$host.moveDown($index)" attr:disabled="$index === $host.servers.length - 1" title="下移">
+            </st-button>
+            <st-button variant="text" style="font-size: 13px;" on:click="$host.moveDown($index)" attr:disabled="$index === $host.servers.length - 1" title="下移">
               <n-icon icon="material-symbols:arrow-downward"></n-icon>
-            </p-button>
-            <p-button variant="outlined" size="s" on:click="$host.testOne($index)" attr:disabled="$data.testStatus === 'testing'">
+            </st-button>
+            <st-button variant="outlined" style="font-size: 13px;" on:click="$host.testOne($index)" attr:disabled="$data.testStatus === 'testing'">
               <n-icon icon="material-symbols:network-check" slot="prefix"></n-icon>
               测试
-            </p-button>
-            <p-button variant="text" size="s" on:click="$host.editServer($index)" title="编辑">
+            </st-button>
+            <st-button variant="text" style="font-size: 13px;" on:click="$host.editServer($index)" title="编辑">
               <n-icon icon="material-symbols:edit"></n-icon>
-            </p-button>
-            <p-button variant="text" size="s" color="error" on:click="$host.deleteServer($index)" title="删除">
+            </st-button>
+            <st-button variant="text" color="error" style="font-size: 13px;" on:click="$host.deleteServer($index)" title="删除">
               <n-icon icon="material-symbols:delete-outline"></n-icon>
-            </p-button>
+            </st-button>
           </div>
         </div>
       </o-fill>
