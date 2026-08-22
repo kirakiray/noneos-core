@@ -17,6 +17,7 @@
 ## UI 与视觉规范
 
 - **组件库**：项目统一使用 `senti-ui` 组件库（`st-*` 组件，基于 ofa.js + Material Design 3，CDN 引入即用）。
+- **版本策略**：senti-ui 引用**始终使用 `@latest`，不锁定版本**——页面/组件模块用 `/gh/ofajs/senti-ui@latest/packages/...`（本地前缀，SW 拦截）；SW 就绪前就要渲染的静态入口页（根 `index.html`、`404.html`）用完整 URL `https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/...`。禁止出现 `@1.0.x` 等锁版本写法。
 - **视觉系统**：严格遵循 `senti-ui` 的颜色方案与设计语言，颜色一律消费 `--md-sys-color-*` M3 角色变量，不写死色值。
 - **开发参考**：在实现 UI 相关功能前，请查阅 `senti-ui` 的 Skill 知识库以保持风格一致性。
 
