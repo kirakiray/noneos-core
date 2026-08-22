@@ -23,26 +23,47 @@
           // 调试信息：最近一次加载失败的步骤与原始错误（load:step:message），
           // 供测试与排查使用，不影响正常渲染
           lastLoadError: "",
+          lastLoadErrors: [],
         },
         watch: {
           userId(val) {
             this.displayName = val || "";
-            if (val) this._load();
+            if (val) this._loadWithRetry();
           },
           force() {
-            if (this.userId) this._load();
+            if (this.userId) this._loadWithRetry();
           },
         },
         proto: {
           _recordError(step, err) {
             this.lastLoadError =
               `${step}: ${err?.message ?? err} | ${err?.stack ?? ""}`;
+            this.lastLoadErrors.push(this.lastLoadError);
           },
-          _load() {
-            if (this.attr("force") !== null) {
-              return this._forceLoadUserName();
+          // 加载失败后的自动重试：底层 requestCard 有超时重试但可能超过
+          // 调用方等待窗口（如连接尚未就绪），这里再兜底几轮，间隔递增
+          async _loadWithRetry(retries = 3) {
+            const uid = this.userId;
+            const loader =
+              this.attr("force") !== null
+                ? () => this._forceLoadUserName()
+                : () => this._loadUserName();
+            for (let attempt = 1; attempt <= retries; attempt++) {
+              // userId 已被改成别人，放弃本轮加载（新一轮 watch 会接手）
+              if (this.userId !== uid) return;
+              try {
+                await loader();
+              } catch (err) {
+                this._recordError("loadRetry", err);
+              }
+              // 显示已从 userId 变为用户名视为成功
+              if (this.displayName && this.displayName !== uid) {
+                return;
+              }
+              if (attempt < retries) {
+                await new Promise((r) => setTimeout(r, attempt * 1000));
+              }
             }
-            return this._loadUserName();
           },
           async _loadUserName() {
             const uid = this.userId;
@@ -52,12 +73,12 @@
               const user = await getUser(this.namespace);
               if (user.userId === uid) {
                 const info = await user.getInfo();
-                this.displayName = info.username;
+                if (this.userId === uid) this.displayName = info.username;
                 return;
               }
               const card = await user.card.get(uid);
               if (card && card.username) {
-                this.displayName = card.username;
+                if (this.userId === uid) this.displayName = card.username;
               } else {
                 this._recordError("getCard", new Error(
                   card ? "card has no username" : "card not found",
@@ -75,7 +96,7 @@
               const user = await getUser(this.namespace);
               if (user.userId === uid) {
                 const info = await user.getInfo();
-                this.displayName = info.username;
+                if (this.userId === uid) this.displayName = info.username;
                 return;
               }
               // 尝试连接用户触发名片交换
@@ -88,7 +109,7 @@
               // 失败时保留旧名片显示，成功时按 signTime 保留更新的
               const card = await user.card.requestCard(uid);
               if (card && card.username) {
-                this.displayName = card.username;
+                if (this.userId === uid) this.displayName = card.username;
               } else {
                 this._recordError("requestCard", new Error(
                   card ? "card has no username" : "card is null",
@@ -102,7 +123,7 @@
         async attached() {
           if (!this.displayName && this.userId) {
             this.displayName = this.userId;
-            this._load();
+            this._loadWithRetry();
           }
 
           if (this.attr("namespace")) {

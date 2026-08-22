@@ -1,5 +1,8 @@
 <template page>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@latest/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@latest/packages/button/icon-button.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@latest/packages/list/list.html"></l-m>
   <style>
     :host {
       display: block;
@@ -15,89 +18,98 @@
       max-width: 1200px;
       margin: 0 auto;
       color: var(--md-sys-color-on-surface);
+      background-color: var(--md-sys-color-surface);
     }
 
     .header {
       padding: 16px 24px;
-      border-bottom: 1px solid var(--md-sys-color-surface);
-      background-color: var(--md-sys-color-surface);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      background-color: var(--md-sys-color-surface-container-low);
+    }
+
+    .header-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .breadcrumb {
-      margin-bottom: 8px;
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
       font-size: 14px;
+      font-family: "Courier New", monospace;
     }
 
     .breadcrumb-item {
       color: var(--md-sys-color-primary);
       cursor: pointer;
       padding: 4px 8px;
-      border-radius: 4px;
+      border-radius: 8px;
+      transition: background-color 0.15s ease;
+      white-space: nowrap;
     }
 
     .breadcrumb-item:hover {
       background-color: var(--md-sys-color-primary-container);
-      text-decoration: underline;
+      color: var(--md-sys-color-on-primary-container);
     }
 
     .breadcrumb-separator {
-      color: var(--md-sys-color-on-surface);
+      color: var(--md-sys-color-on-surface-variant);
       opacity: 0.6;
-      margin: 0 4px;
     }
 
-    .current-path {
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--md-sys-color-on-surface);
-      word-break: break-all;
-      padding: 8px 12px;
-      background-color: var(--md-sys-color-surface);
-      border-radius: 4px;
-      font-family: "Courier New", monospace;
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
     }
 
     .list {
-      display: flex;
-      flex-direction: column;
-      padding: 0;
       flex: 1;
       overflow-y: auto;
       min-height: 0;
+      padding: 12px 16px;
     }
 
-    .item {
+    .list st-list {
+      max-width: 100%;
+    }
+
+    .item-size {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      padding: 0 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .item-actions {
+      /* st-list-item 的内部 .native 按钮（z-index:2）整行覆盖，
+         suffix 里的操作按钮必须叠在它上面才能收到点击 */
+      position: relative;
+      z-index: 3;
       display: flex;
       align-items: center;
-      cursor: pointer;
-      padding: 12px 24px;
-      border-bottom: 1px solid var(--md-sys-color-on-normal);
-      transition: background-color 0.2s ease;
+      gap: 2px;
     }
 
-    .item:hover {
-      background-color: var(--md-sys-color-normal-container);
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 64px 0;
+      color: var(--md-sys-color-on-surface-variant);
     }
-
-    .item-icon {
-      margin-right: 12px;
-      font-size: 18px;
-      min-width: 18px;
-    }
-
-    .directory .item-icon {
-      color: #ffd666;
-    }
-
-    .file .item-icon {
-      color: #bfbfbf;
-    }
-
-    .item-name {
-      flex: 1;
-      font-size: 14px;
-      color: var(--md-sys-color-on-surface);
-      word-break: break-word;
+    .empty n-icon {
+      font-size: 48px;
+      opacity: 0.5;
     }
 
     /* 响应式设计 */
@@ -106,26 +118,16 @@
         padding: 12px 16px;
       }
 
+      .header-main {
+        flex-wrap: wrap;
+      }
+
       .breadcrumb {
         font-size: 12px;
       }
 
-      .current-path {
-        font-size: 14px;
-        padding: 6px 10px;
-      }
-
-      .item {
-        padding: 10px 16px;
-      }
-
-      .item-icon {
-        margin-right: 10px;
-        font-size: 16px;
-      }
-
-      .item-name {
-        font-size: 13px;
+      .list {
+        padding: 8px;
       }
     }
 
@@ -145,71 +147,49 @@
       .breadcrumb-item {
         padding: 3px 6px;
       }
-
-      .current-path {
-        font-size: 13px;
-        padding: 5px 8px;
-      }
-
-      .item {
-        padding: 8px 12px;
-      }
-
-      .item-icon {
-        margin-right: 8px;
-        font-size: 14px;
-      }
-
-      .item-name {
-        font-size: 12px;
-      }
-    }
-
-    .item-size {
-      font-size: 12px;
-      color: #999;
-      padding: 0 8px;
     }
   </style>
   <div class="container">
     <div class="header">
-      <div class="breadcrumb">
-        <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')">
-          Root
-        </span>
-        <o-if :value="path !== '/' && breadcrumbItems.length > 0">
-          <span class="breadcrumb-separator">/</span>
-          <o-fill :value="breadcrumbItems">
-            <div style="display: inline-block">
-              <span
-                class="breadcrumb-item"
-                on:click="$host.handleBreadcrumbClick($data.path)"
-                >{{$data.name}}</span
-              >
-              <o-if :value="$index < $host.breadcrumbItems.length - 1">
+      <div class="header-main">
+        <div class="breadcrumb">
+          <span class="breadcrumb-item" on:click="handleBreadcrumbClick('/')">
+            Root
+          </span>
+          <o-if :value="path !== '/' && breadcrumbItems.length > 0">
+            <o-fill :value="breadcrumbItems">
+              <div style="display: inline-flex; align-items: center">
                 <span class="breadcrumb-separator">/</span>
-              </o-if>
-            </div>
-          </o-fill>
-        </o-if>
-        <button
-          on:click="handleCopyPath($event)"
-          id="copy-path-button"
-          style="float: right"
-        >
-          Copy
-        </button>
+                <span
+                  class="breadcrumb-item"
+                  on:click="$host.handleBreadcrumbClick($data.path)"
+                  >{{$data.name}}</span
+                >
+              </div>
+            </o-fill>
+          </o-if>
+          <st-icon-button
+            style="font-size: 13px; margin-left: auto"
+            title="复制当前路径"
+            on:click="handleCopyPath($event)"
+          >
+            <n-icon icon="mdi:content-copy"></n-icon>
+          </st-icon-button>
+        </div>
       </div>
-      <div style="text-align: right">
-        <button on:click="handleCreateDirectory($event)">
-          Create Directory
-        </button>
-        <button on:click="shadow.$('#import-file').ele.click()">
-          Import File
-        </button>
-        <button on:click="shadow.$('#import-directory').ele.click()">
-          Import Directory
-        </button>
+      <div class="header-actions">
+        <st-button variant="outlined" style="font-size: 13px" on:click="handleCreateDirectory($event)">
+          <n-icon icon="mdi:folder-plus-outline" slot="prefix"></n-icon>
+          新建目录
+        </st-button>
+        <st-button variant="outlined" style="font-size: 13px" on:click="shadow.$('#import-file').ele.click()">
+          <n-icon icon="mdi:file-upload-outline" slot="prefix"></n-icon>
+          导入文件
+        </st-button>
+        <st-button variant="outlined" style="font-size: 13px" on:click="shadow.$('#import-directory').ele.click()">
+          <n-icon icon="mdi:folder-upload-outline" slot="prefix"></n-icon>
+          导入目录
+        </st-button>
         <input
           type="file"
           id="import-file"
@@ -228,38 +208,42 @@
     </div>
     <div class="list">
       <o-if :value="list.length === 0">
-        <div style="text-align: center; padding: 40px 0; color: #999">
-          <div class="item-icon">
-            <n-icon icon="mdi:folder"></n-icon>
-          </div>
-          <div class="item-name">Empty</div>
+        <div class="empty">
+          <n-icon icon="mdi:folder-open-outline"></n-icon>
+          <div>此目录为空</div>
         </div>
       </o-if>
-      <o-fill :value="list" fill-key="name">
-        <div
-          class="item"
-          class:directory="$data.type === 'directory'"
-          class:file="$data.type === 'file'"
-          on:click="$host.handleClick($data)"
-        >
-          <div class="item-icon">
-            <o-if :value="$data.type === 'directory'">
-              <n-icon icon="mdi:folder"></n-icon>
-            </o-if>
-            <o-else>
-              <n-icon icon="mdi:file"></n-icon>
-            </o-else>
-          </div>
-          <div class="item-name">{{$data.name}}</div>
-          <o-if :value="$data.type === 'file'">
-            <div class="item-size">{{$data.size}}</div>
-          </o-if>
-          <button on:click="$host.handleDelete($data,$event)">Delete</button>
-          <button on:click="$host.handleDownload($data,$event)">
-            Download
-          </button>
-        </div>
-      </o-fill>
+      <st-list>
+        <o-fill :value="list" fill-key="name">
+          <st-list-item button on:click="$host.handleClick($data)">
+            <n-icon slot="prefix" :icon="$data.type === 'directory' ? 'mdi:folder' : 'mdi:file-outline'"></n-icon>
+            <span
+              :style.color="$data.type === 'directory' ? 'var(--md-sys-color-primary)' : ''"
+              >{{$data.name}}</span
+            >
+            <div slot="suffix" class="item-actions">
+              <o-if :value="$data.type === 'file'">
+                <span class="item-size">{{$data.size}}</span>
+              </o-if>
+              <st-icon-button
+                style="font-size: 13px"
+                title="下载"
+                on:click="$host.handleDownload($data, $event)"
+              >
+                <n-icon icon="mdi:download-outline"></n-icon>
+              </st-icon-button>
+              <st-icon-button
+                color="error"
+                style="font-size: 13px"
+                title="删除"
+                on:click="$host.handleDelete($data, $event)"
+              >
+                <n-icon icon="mdi:delete-outline"></n-icon>
+              </st-icon-button>
+            </div>
+          </st-list-item>
+        </o-fill>
+      </st-list>
     </div>
   </div>
   <script>
@@ -267,6 +251,15 @@
       const currentPath = query.path || "/";
       const { get } = await load("/nos/fs/main.js");
       const { download } = await load("/nos/fs/download.js");
+      const { default: prompt } = await load(
+        "/gh/ofajs/senti-ui@latest/packages/dialog/prompt.js",
+      );
+      const { default: confirm } = await load(
+        "/gh/ofajs/senti-ui@latest/packages/dialog/confirm.js",
+      );
+      const { default: toast } = await load(
+        "/gh/ofajs/senti-ui@latest/packages/snackbar/toast.js",
+      );
 
       return {
         data: {
@@ -280,12 +273,13 @@
             const handle = await get(item.path);
             await download(handle);
           },
-          handleCopyPath(event) {
-            navigator.clipboard.writeText(this.path);
-            this.shadow.$("#copy-path-button").text = "Copied";
-            setTimeout(() => {
-              this.shadow.$("#copy-path-button").text = "Copy";
-            }, 1000);
+          async handleCopyPath() {
+            try {
+              await navigator.clipboard.writeText(this.path);
+              toast({ message: "路径已复制", color: "success" });
+            } catch (err) {
+              toast({ message: "复制失败：" + (err.message || err), color: "error" });
+            }
           },
           getSize(size) {
             if (size < 1024) {
@@ -300,15 +294,29 @@
           },
           async handleCreateDirectory() {
             const currentHandle = await this.getCurrentHandle();
-            const directoryName = prompt("Enter directory name:");
+
+            const directoryName = await prompt({
+              title: "新建目录",
+              message: `在 ${currentPath === "/" ? "根目录" : currentPath} 下创建：`,
+              placeholder: "目录名",
+            });
 
             if (!directoryName) {
               return;
             }
 
-            await currentHandle.getDirectoryHandle(directoryName, {
-              create: true,
-            });
+            try {
+              await currentHandle.getDirectoryHandle(directoryName, {
+                create: true,
+              });
+              toast({ message: `已创建目录 ${directoryName}`, color: "success" });
+            } catch (err) {
+              toast({
+                message: "创建失败：" + (err.message || err),
+                color: "error",
+              });
+              return;
+            }
 
             this.loadFile();
           },
@@ -332,6 +340,8 @@
               await writer.close();
             }
 
+            toast({ message: `已导入 ${files.length} 个文件`, color: "success" });
+            event.target.value = "";
             this.loadFile();
           },
 
@@ -386,6 +396,8 @@
               await writer.close();
             }
 
+            toast({ message: `已导入 ${files.length} 个文件`, color: "success" });
+            event.target.value = "";
             this.loadFile();
           },
 
@@ -406,9 +418,13 @@
             const currentHandle = await this.getCurrentHandle();
 
             if (data.type === "directory") {
-              const result = confirm(
-                "Are you sure you want to delete this directory and all its contents?",
-              );
+              const result = await confirm({
+                title: "删除目录",
+                message: `确定删除目录「${data.name}」及其全部内容吗？此操作不可恢复。`,
+                yes: "删除",
+                cancel: "取消",
+                color: "error",
+              });
 
               if (!result) {
                 return;
@@ -418,9 +434,22 @@
                 recursive: true,
               });
             } else {
+              const result = await confirm({
+                title: "删除文件",
+                message: `确定删除文件「${data.name}」吗？`,
+                yes: "删除",
+                cancel: "取消",
+                color: "error",
+              });
+
+              if (!result) {
+                return;
+              }
+
               await currentHandle.removeEntry(data.name);
             }
 
+            toast({ message: `已删除 ${data.name}`, color: "success" });
             this.loadFile();
           },
           async handleBreadcrumbClick(path) {

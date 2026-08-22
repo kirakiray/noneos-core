@@ -94,11 +94,32 @@
             // 先设置一个初始名称
             await testUser.updateInfo({ username: newUserName });
 
-            // 等待测试用户完成服务器连接，确保 default 用户 connectUser 能找到对方并交换名片
-            // （WebKit 上 getUser 后的自动连接较慢，不等待会导致 force 模式 connectUser 失败、显示 userId）
-            for (let i = 0; i < 50; i++) {
-              if (testUser.server.connectedUrls.length > 0) break;
-              await new Promise((r) => setTimeout(r, 100));
+            // 等待测试用户与 default 用户（请求方）都完成服务器连接，
+            // （WebKit 上 getUser 后的自动连接较慢，不等待会导致 force 模式
+            //   connectUser / findSessionId 找不到对方、显示 userId）
+            const defaultUser0 = await getUser("default");
+            // 双方各连上至少一个服务器后，还要等目标在 default 已连接的
+            // 服务器上真实可见（双方连接完成顺序可能不同，只看 connectedUrls
+            // 会留下 findSessionId 查不到目标的竞态窗口）
+            let targetVisible = false;
+            for (let i = 0; i < 100 && !targetVisible; i++) {
+              if (
+                testUser.server.connectedUrls.length > 0 &&
+                defaultUser0.server.connectedUrls.length > 0
+              ) {
+                for (const url of defaultUser0.server.connectedUrls) {
+                  try {
+                    const r = await defaultUser0.server.queryUserOnline(url, targetUserId);
+                    if (r.online && (r.sessions || []).length > 0) {
+                      targetVisible = true;
+                      break;
+                    }
+                  } catch (_) {}
+                }
+              }
+              if (!targetVisible) {
+                await new Promise((r) => setTimeout(r, 100));
+              }
             }
 
             const container = $("#force-target");
@@ -111,7 +132,9 @@
             let matched = false;
             let lastErrorSeen = "";
             let displayHistory = [];
-            for (let i = 0; i < 50; i++) {
+            // 轮询需覆盖组件 3 轮重试（1s + 2s 退避 + 每轮 ~1s 查询），
+            // 上限 100 次防止在第 3 轮成功前提前判死
+            for (let i = 0; i < 100; i++) {
               try {
                 afterForce = el.shadow.$("span").text;
                 if (displayHistory[displayHistory.length - 1] !== afterForce) {
@@ -129,6 +152,19 @@
             }
             lastErrorSeen = el.lastLoadError || lastErrorSeen;
 
+            // 请求方（default 用户）视角：连接了哪些服务器、
+            // 目标在这些服务器上是否可见
+            const defaultUser = await getUser("default");
+            const targetVisibleOn = [];
+            for (const url of defaultUser.server.connectedUrls) {
+              try {
+                const r = await defaultUser.server.queryUserOnline(url, targetUserId);
+                targetVisibleOn.push(`${url}: online=${r.online} sessions=${(r.sessions || []).length}`);
+              } catch (e) {
+                targetVisibleOn.push(`${url}: query failed: ${e.message}`);
+              }
+            }
+
             return {
               assert: matched,
               content: {
@@ -136,8 +172,11 @@
                 newUserName,
                 afterForce,
                 lastLoadError: lastErrorSeen,
+                lastLoadErrors: Array.from(el.lastLoadErrors || []).map(String),
                 displayHistory,
                 connectedUrls: testUser.server.connectedUrls,
+                defaultConnectedUrls: defaultUser.server.connectedUrls,
+                targetVisibleOn,
               },
             };
           }
@@ -156,6 +195,16 @@
             const userB = await getUser("test-user-b");
             await userA.updateInfo({ username: "用户A" });
             await userB.updateInfo({ username: "用户B" });
+
+            // 等待两个测试用户完成服务器连接（WebKit 上自动连接较慢），
+            // 确保 default 用户后续能连到对方并交换名片
+            for (let i = 0; i < 50; i++) {
+              if (
+                userA.server.connectedUrls.length > 0 &&
+                userB.server.connectedUrls.length > 0
+              ) break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
 
             const el = $("#change-userid");
             el.attr("user-id", userA.userId);
@@ -194,7 +243,13 @@
 
             return {
               assert: firstMatched && secondMatched,
-              content: { firstText, secondText },
+              content: {
+                firstText,
+                secondText,
+                lastLoadError: el.lastLoadError,
+                aConnected: userA.server.connectedUrls,
+                bConnected: userB.server.connectedUrls,
+              },
             };
           }
         </script>

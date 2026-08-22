@@ -238,9 +238,9 @@
     }
   </style>
 
-  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
-  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
-  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/select/select.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -383,7 +383,7 @@
     export default async ({ query, load }) => {
       const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
       const WS_URL = getCurrentServerUrl();
-      const { default: toast } = await import("https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/snackbar/toast.js");
+      const { default: toast } = await import("https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/snackbar/toast.js");
 
       return {
         parent: "./layout.html",
