@@ -1,4 +1,4 @@
-import toast from "https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/snackbar/toast.js";
+import toast from "https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/snackbar/toast.js";
 
 let _adminUser = null;
 let _adminInfo = null;
