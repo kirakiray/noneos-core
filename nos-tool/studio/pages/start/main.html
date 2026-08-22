@@ -1,6 +1,6 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/list/list.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <style>
@@ -26,7 +26,7 @@
       font-size: 26px;
       font-weight: normal;
       margin: 0 0 20px;
-      color: var(--md-sys-color-neutral);
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     .welcome-page h3 {
@@ -49,20 +49,18 @@
       gap: 10px;
     }
 
-    p-button {
+    st-button {
       min-width: 120px;
     }
 
     .empty-recent {
-      color: var(--md-sys-color-neutral);
+      color: var(--md-sys-color-on-surface-variant);
       font-style: italic;
       padding: 4px 8px;
     }
 
-    p-list-item {
-      --pui-space-y: 6px;
+    st-list-item {
       margin: 2px;
-      border-radius: 12px;
     }
   </style>
   <main-content>
@@ -116,7 +114,7 @@
               </locale-text>
             </h3>
             <div class="button-container">
-              <p-button variant="text" on:click="openFolderPicker">
+              <st-button variant="text" on:click="openFolderPicker">
                 <n-icon
                   icon="material-symbols:folder-open"
                   slot="prefix"
@@ -125,21 +123,21 @@
                   <span lang="cn">打开文件夹</span>
                   <span lang="en">Open Folder</span>
                 </locale-text>
-              </p-button>
-              <p-button variant="text" on:click="goto('./create.html')">
+              </st-button>
+              <st-button variant="text" on:click="goto('./create.html')">
                 <n-icon icon="material-symbols:add" slot="prefix"></n-icon>
                 <locale-text>
                   <span lang="cn">创建新项目</span>
                   <span lang="en">Create New Project</span>
                 </locale-text>
-              </p-button>
-              <!-- <p-button variant="text">
+              </st-button>
+              <!-- <st-button variant="text">
                 <n-icon icon="material-symbols:download" slot="prefix"></n-icon>
                 <locale-text>
                   <span lang="cn">从 GitHub 仓库下载副本</span>
                   <span lang="en">Download Project from GitHub</span>
                 </locale-text>
-              </p-button> -->
+              </st-button> -->
             </div>
           </section>
 
@@ -151,28 +149,28 @@
               </locale-text>
             </h3>
             <o-if :value="projects.length">
-              <p-list>
+              <st-list>
                 <o-fill :value="projects">
-                  <p-list-item button on:click="$host.gotoProject($data.path)">
+                  <st-list-item button on:click="$host.gotoProject($data.path)">
                     <n-icon
                       icon="material-symbols:folder"
                       slot="prefix"
                       style="margin-right: 4px"
                     ></n-icon>
                     {{ $host.getName($data.path) }}
-                  </p-list-item>
+                  </st-list-item>
                 </o-fill>
-              </p-list>
+              </st-list>
             </o-if>
             <o-else>
-              <p-list>
-                <p-list-item>
+              <st-list>
+                <st-list-item>
                   <locale-text>
                     <span lang="cn">暂无最近打开项目</span>
                     <span lang="en">No Recent Projects</span>
                   </locale-text>
-                </p-list-item>
-              </p-list>
+                </st-list-item>
+              </st-list>
             </o-else>
           </section>
         </div>
@@ -184,30 +182,30 @@
                 <span lang="en">Learning</span>
               </locale-text>
             </h3>
-            <p-list>
-              <p-list-item button disabled>
+            <st-list>
+              <st-list-item button disabled>
                 <locale-text>
                   <span lang="cn">了解基础知识</span>
                   <span lang="en">Basic Knowledge</span>
                 </locale-text>
-              </p-list-item>
-              <p-list-item button disabled>
+              </st-list-item>
+              <st-list-item button disabled>
                 <locale-text>
                   <span lang="cn">视频教程</span>
                   <span lang="en">Video Tutorials</span>
                 </locale-text>
-              </p-list-item>
-              <!-- <p-list-item button>
+              </st-list-item>
+              <!-- <st-list-item button>
                 <locale-text>
                   <span lang="cn">社区支持</span>
                   <span lang="en">Community Support</span>
                 </locale-text>
-              </p-list-item> -->
-            </p-list>
+              </st-list-item> -->
+            </st-list>
             <!-- <div class="button-container">
-              <p-button variant="text">了解基础知识</p-button>
-              <p-button variant="text">视频教程</p-button>
-              <p-button variant="text">社区支持</p-button>
+              <st-button variant="text">了解基础知识</st-button>
+              <st-button variant="text">视频教程</st-button>
+              <st-button variant="text">社区支持</st-button>
             </div> -->
           </section>
         </div>
@@ -225,7 +223,7 @@
       const { getLocaleText } = await load(
         "/nos/locale-text/get-locale-text.js",
       );
-      const { confirm } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
+      const { default: confirm } = await load("https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/dialog/confirm.js");
 
       return {
         data: {

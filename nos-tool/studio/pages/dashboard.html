@@ -1,9 +1,7 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/group.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/switch/switch.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/button/button-group.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
 
   <style>
@@ -87,15 +85,15 @@
       </locale-text>
     </h3>
     <div style="padding-bottom: 16px; display: flex; align-items: center">
-      <p-button variant="outlined" on:click="previewInNewWindow">
+      <st-button variant="outlined" on:click="previewInNewWindow">
         <n-icon icon="material-symbols:preview" slot="prefix"></n-icon>
         <locale-text>
           <span lang="cn">新窗口预览应用</span>
           <span lang="en">Preview Application in New Window</span>
         </locale-text>
-      </p-button>
-      <p-button-group size="s" style="margin-left: 8px">
-        <p-button
+      </st-button>
+      <st-button-group style="margin-left: 8px; font-size: 13px;">
+        <st-button
           on:click="device = 'mobile'"
           attr:variant="device === 'mobile' ? 'filled' : 'outlined'"
         >
@@ -104,8 +102,8 @@
             <span lang="cn">手机</span>
             <span lang="en">Mobile</span>
           </locale-text>
-        </p-button>
-        <p-button
+        </st-button>
+        <st-button
           on:click="device = 'pad'"
           attr:variant="device === 'pad' ? 'filled' : 'outlined'"
         >
@@ -114,18 +112,16 @@
             <span lang="cn">平板</span>
             <span lang="en">Pad</span>
           </locale-text>
-        </p-button>
-        <p-button
+        </st-button>
+        <st-button
           on:click="device = 'pc'"
           attr:variant="device === 'pc' ? 'filled' : 'outlined'"
         >
           <n-icon icon="ic:round-laptop" slot="prefix"></n-icon>
           PC
-        </p-button>
-      </p-button-group>
-      <p-button
-        icon
-        size="s"
+        </st-button>
+      </st-button-group>
+      <st-icon-button
         variant="outlined"
         attr:disabled="device === 'pc'"
         on:click="isHorizontal = !isHorizontal"
@@ -136,19 +132,13 @@
           class:is-horizontal-icon="isHorizontal"
           icon="material-symbols:mobile-rotate-sharp"
         ></n-icon>
-      </p-button>
-      <p-select sync:value="scale" size="s" style="margin-left: 8px">
-        <label>
-          <locale-text>
-            <span lang="cn">缩放比例</span>
-            <span lang="en">Scale Ratio</span>
-          </locale-text>
-        </label>
-        <p-option value="0.5">0.5</p-option>
-        <p-option value="0.75">0.75</p-option>
-        <p-option value="1.0">1.0</p-option>
-        <p-option value="1.25">1.25</p-option>
-      </p-select>
+      </st-icon-button>
+      <st-select sync:value="scale" default-value="1.0" style="margin-left: 8px; font-size: 13px;">
+        <option value="0.5">0.5</option>
+        <option value="0.75">0.75</option>
+        <option value="1.0">1.0</option>
+        <option value="1.25">1.25</option>
+      </st-select>
     </div>
 
     <div

@@ -1,0 +1,23 @@
+- generic [ref=f5e5]:
+  - heading "RTC ICE 服务器管理" [level=1] [ref=f5e6]
+  - paragraph [ref=f5e7]: 配置 WebRTC 的 STUN/TURN 服务器列表，支持测试连通性、延迟、调整顺序与临时启停。配置保存后，RTCManager 在下次构建连接时自动读取生效。
+  - generic [ref=f5e8]: 添加服务器
+  - generic [ref=f5e11]:
+    - generic [ref=f5e13]:
+      - generic [ref=f5e14]: 服务器列表
+      - generic [ref=f5e15]: （3/3 启用）
+    - generic [ref=f5e16]:
+      - generic:
+        - generic [ref=f5e17]:
+          - generic [ref=f5e18]: "1"
+          - generic [ref=f5e19]: stun
+          - generic [ref=f5e20]: stun:stun.l.google.com:19302
+        - generic [ref=f5e23]:
+          - generic [ref=f5e24]: "2"
+          - generic [ref=f5e25]: stun
+          - generic [ref=f5e26]: stun:stun1.l.google.com:19302
+        - generic [ref=f5e29]:
+          - generic [ref=f5e30]: "3"
+          - generic [ref=f5e31]: stun
+          - generic [ref=f5e32]: stun:stun.cloudflare.com:3478
+  - generic [ref=f5e35]: 配置说明： · 顺序即优先级，排在越前的服务器在 ICE 候选收集中优先级越高。 · 点击"启用/禁用"开关可临时停用某台服务器而不删除它；停用的服务器不会参与 RTC 建链。 · 配置自动保存到 localStorage，RTCManager 构造时会读取并生效。 · STUN 测试成功表示可获取公网反射地址（srflx）；TURN 测试成功表示可分配中继地址（relay）。
