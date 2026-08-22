@@ -98,12 +98,28 @@
             // （WebKit 上 getUser 后的自动连接较慢，不等待会导致 force 模式
             //   connectUser / findSessionId 找不到对方、显示 userId）
             const defaultUser0 = await getUser("default");
-            for (let i = 0; i < 50; i++) {
+            // 双方各连上至少一个服务器后，还要等目标在 default 已连接的
+            // 服务器上真实可见（双方连接完成顺序可能不同，只看 connectedUrls
+            // 会留下 findSessionId 查不到目标的竞态窗口）
+            let targetVisible = false;
+            for (let i = 0; i < 100 && !targetVisible; i++) {
               if (
                 testUser.server.connectedUrls.length > 0 &&
                 defaultUser0.server.connectedUrls.length > 0
-              ) break;
-              await new Promise((r) => setTimeout(r, 100));
+              ) {
+                for (const url of defaultUser0.server.connectedUrls) {
+                  try {
+                    const r = await defaultUser0.server.queryUserOnline(url, targetUserId);
+                    if (r.online && (r.sessions || []).length > 0) {
+                      targetVisible = true;
+                      break;
+                    }
+                  } catch (_) {}
+                }
+              }
+              if (!targetVisible) {
+                await new Promise((r) => setTimeout(r, 100));
+              }
             }
 
             const container = $("#force-target");
@@ -116,7 +132,9 @@
             let matched = false;
             let lastErrorSeen = "";
             let displayHistory = [];
-            for (let i = 0; i < 50; i++) {
+            // 轮询需覆盖组件 3 轮重试（1s + 2s 退避 + 每轮 ~1s 查询），
+            // 上限 100 次防止在第 3 轮成功前提前判死
+            for (let i = 0; i < 100; i++) {
               try {
                 afterForce = el.shadow.$("span").text;
                 if (displayHistory[displayHistory.length - 1] !== afterForce) {
