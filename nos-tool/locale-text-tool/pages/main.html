@@ -1,6 +1,5 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/button/button.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
@@ -237,20 +236,20 @@
 
     <o-if :value="activeView === 'main'">
       <div class="actions">
-        <p-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
+        <st-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
           <n-icon icon="material-symbols:folder-open" slot="prefix"></n-icon>
           <locale-text>
             <span lang="cn">选择项目目录</span>
             <span lang="en">Select Project Folder</span>
           </locale-text>
-        </p-button>
-        <p-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
+        </st-button>
+        <st-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
           <n-icon icon="material-symbols:build" slot="prefix"></n-icon>
           <locale-text>
             <span lang="cn">生成 locale-text.json</span>
             <span lang="en">Generate locale-text.json</span>
           </locale-text>
-        </p-button>
+        </st-button>
       </div>
 
       <div class="breadcrumb">{{ rootPath }}</div>
@@ -341,13 +340,13 @@
     <o-if :value="activeView !== 'main'">
       <div class="list-view">
         <div class="list-header">
-          <p-button variant="text" on:click="backToMain">
+          <st-button variant="text" on:click="backToMain">
             <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
             <locale-text>
               <span lang="cn">返回</span>
               <span lang="en">Back</span>
             </locale-text>
-          </p-button>
+          </st-button>
           <h2>{{ listTitle }}</h2>
         </div>
         <div class="list-count">{{ listCount }}</div>
@@ -392,13 +391,13 @@
           </o-fill>
           <o-if :value="activeView === 'orphaned' && entryList.length > 0">
             <div class="clean-actions">
-              <p-button variant="outlined" on:click="cleanOrphaned" style="width:100%;">
+              <st-button variant="outlined" on:click="cleanOrphaned" style="width:100%;">
                 <n-icon icon="material-symbols:delete-sweep" slot="prefix"></n-icon>
                 <locale-text>
                   <span lang="cn">清理所有冗余条目</span>
                   <span lang="en">Clean all orphaned entries</span>
                 </locale-text>
-              </p-button>
+              </st-button>
             </div>
           </o-if>
         </o-if>
@@ -573,7 +572,7 @@
       const { open } = await load("/nos/fs/main.js");
       const { getHash } = await load("/nos/util/hash/get-hash.js");
       const { getLocaleText } = await load("/nos/locale-text/get-locale-text.js");
-      const { confirm } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
+      const { default: confirm } = await load("https://cdn.jsdelivr.net/gh/ofajs/senti-ui@main/packages/dialog/confirm.js");
 
       return {
         data: {
