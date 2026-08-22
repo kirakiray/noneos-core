@@ -692,7 +692,9 @@
         // B 断开服务器 → A 侧查询不到 session → offline 错误
         t10_userB.server.disconnectAll();
         let t10_offlineReady = false;
+        let t10_offlinePolls = 0;
         for (let i = 0; i < 50; i++) {
+          t10_offlinePolls = i + 1;
           const sids = await t10_remoteB.getSessionIds();
           if (sids.length === 0) {
             t10_offlineReady = true;
@@ -702,11 +704,16 @@
         }
 
         let t10_offlineCode = "";
+        let t10_offlineMsg = "";
+        let t10_offlineStack = "";
         if (t10_offlineReady) {
           try {
-            await t10_st.getItem("theme");
+            const t10_value = await t10_st.getItem("theme");
+            t10_offlineMsg = `unexpected success, value=${JSON.stringify(t10_value)}`;
           } catch (e) {
-            t10_offlineCode = e.code;
+            t10_offlineCode = e.code ?? "(no code)";
+            t10_offlineMsg = e.message ?? "(no message)";
+            t10_offlineStack = e.stack ?? "";
           }
         }
 
@@ -723,7 +730,13 @@
             timeoutCode: t10_timeoutCode,
             timeoutMsg: t10_timeoutMsg,
             offlineReady: t10_offlineReady,
+            offlinePolls: t10_offlinePolls,
             offlineCode: t10_offlineCode,
+            offlineMsg: t10_offlineMsg,
+            offlineStack: t10_offlineStack,
+            offlineSidsAfterDisconnect: await t10_remoteB
+              .getSessionIds()
+              .catch((e) => `getSessionIds failed: ${e.message}`),
           },
         };
       </script>

@@ -816,9 +816,11 @@ export class ServerManager {
     // 使用共享算法获取按综合延迟排序的服务器候选
     const candidates = await this.#getSortedServerCandidates(targetUserId);
     if (candidates.length === 0) {
-      throw new Error(
+      const err = new Error(
         `Target user ${targetUserId} is not online on any connected server`,
       );
+      err.code = "offline";
+      throw err;
     }
 
     // 找第一个包含目标 session 的服务器（按综合延迟从低到高）
@@ -835,7 +837,10 @@ export class ServerManager {
           if (result.status === "ok") {
             return { result, url: candidate.url };
           }
+          // 服务器确认无法投递（目标 session 不在线）是确定性失败，
+          // 标记 code 供上层（如共享存储请求）与瞬时错误区分
           lastError = new Error(result.message || "Relay failed");
+          lastError.code = "offline";
         } catch (err) {
           lastError = err;
         }

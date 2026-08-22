@@ -251,7 +251,7 @@ A.get(B.userId)
 
 **执行细节**：`length` 是 getter（`await storage.length`）；`keys / entries` 是异步生成器，收集为数组后回传；`getItem` 对不存在的 key 返回 `ok:true, value:null`；所有已连接用户均可发起请求（无白名单），安全边界完全由上述三道防线构成。
 
-**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
+**请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`sendToUser` 投递失败（候选 session 过期、服务器确认目标不在线）抛出的 Error 也带 `code:"offline"`，不会被当作瞬时错误重试；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
 
 ## 六、客户端-服务端联动协议对应表
 
