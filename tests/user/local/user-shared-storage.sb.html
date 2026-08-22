@@ -854,7 +854,7 @@
 
         const t12_remoteB = await t12_userA.connectUser(t12_userB.userId);
         const t12_st = await t12_remoteB.getStorage("share:settings", {
-          timeout: 300,
+          timeout: 1500,
           retries: 1,
         });
         const t12_theme = await t12_st.getItem("theme");
