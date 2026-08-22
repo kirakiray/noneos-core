@@ -157,6 +157,16 @@
             await userA.updateInfo({ username: "用户A" });
             await userB.updateInfo({ username: "用户B" });
 
+            // 等待两个测试用户完成服务器连接（WebKit 上自动连接较慢），
+            // 确保 default 用户后续能连到对方并交换名片
+            for (let i = 0; i < 50; i++) {
+              if (
+                userA.server.connectedUrls.length > 0 &&
+                userB.server.connectedUrls.length > 0
+              ) break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
+
             const el = $("#change-userid");
             el.attr("user-id", userA.userId);
             // 轮询等待用户 A 名称生效
@@ -194,7 +204,13 @@
 
             return {
               assert: firstMatched && secondMatched,
-              content: { firstText, secondText },
+              content: {
+                firstText,
+                secondText,
+                lastLoadError: el.lastLoadError,
+                aConnected: userA.server.connectedUrls,
+                bConnected: userB.server.connectedUrls,
+              },
             };
           }
         </script>
