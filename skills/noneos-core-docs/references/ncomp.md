@@ -84,7 +84,7 @@
 
 #### 功能说明
 
-- 默认未查询或查询出错时显示灰色（Punch-UI `neutral` 语义色）。
+- 默认未查询或查询出错时显示灰色（`neutral` 语义色）。
 - 通过服务器查询到对方在线但尚未建立 RTC 直连时，显示 `primary` 色。
 - 任意 session 的 RTC DataChannel 已处于 `open` 状态时，显示 `success` 色。
 - 所有已连接服务器均查找不到对方时，显示 `error` 色。
@@ -100,7 +100,7 @@
 #### 注意事项
 
 - 组件需要在已初始化 NoneOS Core 用户系统的页面中使用。
-- 颜色依赖 Punch-UI 的语义化 CSS 变量（`--md-sys-color-*`），宿主页面需要引入 Punch-UI 全局样式以保证主题一致性。
+- 颜色依赖 senti-ui 的语义化 CSS 变量（`--md-sys-color-*`），宿主页面需要引入 senti-ui 颜色体系（`st-boot` 或任一 `st-*` 组件）以保证主题一致性。
 
 ## 资源加载与缓存
 

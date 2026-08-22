@@ -1,7 +1,7 @@
 {
-  "version": "4.4.1",
+  "version": "4.4.2",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1786882918624,
+  "signTime": 1787389944195,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -180,13 +180,13 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "f394b8b7e00b1245cd6659728034d6a7f746906a327256a98e83838e6534464a",
-      "size": 25696
+      "hash": "caad668dc02501749eb3650734cc8478b81003c9884cf5e8a1ab7b00be63f4d7",
+      "size": 26875
     },
     {
       "path": "user/README.md",
-      "hash": "79f93a9914acfe0e31225de1339c11a27be066f781f7a3835f9af6f42e999a79",
-      "size": 28752
+      "hash": "f10417f9331b461c8a4dfa610c368080fcfe610ac92e37459e6aa2e675bcc631",
+      "size": 29147
     },
     {
       "path": "user/admin-user.js",
@@ -200,8 +200,8 @@
     },
     {
       "path": "user/card.js",
-      "hash": "85b92b7ce93d47c3ac18782199df5fb891142f9da42b97e06fd9d65ba338eb20",
-      "size": 7770
+      "hash": "5d46dbefa2c95c558edc7fed00a00e3ff8cf19390fd16c2883913239256f72ce",
+      "size": 9273
     },
     {
       "path": "user/cert.js",
@@ -220,8 +220,8 @@
     },
     {
       "path": "user/remote-user.js",
-      "hash": "75ead69be569a9939f9634fee0b1ce0c8035bd2e6b940c193321b2c326197478",
-      "size": 32042
+      "hash": "0ab4552cd15806fce73bb0bbaa73703e24cfd547d3d6d45cd60ac0598070c906",
+      "size": 33521
     },
     {
       "path": "user/rtc.js",
@@ -245,8 +245,8 @@
     },
     {
       "path": "user/user.js",
-      "hash": "7da5f9f6f385e46574fb91bbe6e50e77e0003f37cbaad7e2fcee7ec8dd32ded0",
-      "size": 33598
+      "hash": "d96dde2d4405a740e53fb12bdd29a4f6ae4608e68b7a4de01473a8d0865a776f",
+      "size": 34633
     },
     {
       "path": "util/async-pool.js",
@@ -294,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "UslzAD76Ht+bGNNibRZnkFcuqDRpp0usA8Xy1WGxZuuNBBo1V9dA3deykAdOi296fSH4yo6ZkH/+ZiVT1eICsQ=="
+  "signature": "EIS48pGHisZ1BqfI4+6ilrkdzG1QvoWkU87JEw0MbRyHTVcfc9yjm/wObONWFT3cQoBTn4+D3ZJoqnUnr8TfJQ=="
 }

@@ -1,6 +1,5 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <style>
     :host {
@@ -37,7 +36,7 @@
       margin-bottom: 16px;
       padding: 12px 16px;
       border-radius: 8px;
-      background: var(--md-sys-color-surface-variant);
+      background: var(--md-sys-color-surface-container);
       font-size: 14px;
       white-space: pre-wrap;
       min-height: 20px;
@@ -51,12 +50,12 @@
     .stat-card {
       padding: 16px;
       border-radius: 8px;
-      background: var(--md-sys-color-surface-variant);
+      background: var(--md-sys-color-surface-container);
       cursor: pointer;
       transition: background-color 0.15s ease, transform 0.1s ease;
     }
     .stat-card:hover {
-      background: var(--md-sys-color-neutral-container);
+      background: var(--md-sys-color-surface-container-high);
     }
     .stat-card:active {
       transform: scale(0.98);
@@ -81,16 +80,16 @@
       font-size: 12px;
       padding: 12px;
       border-radius: 8px;
-      border: 1px solid var(--md-sys-color-on-surface-variant);
-      background: var(--md-sys-color-surface-variant);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface);
       resize: vertical;
     }
     .unsupported {
       padding: 16px;
       border-radius: 8px;
-      background: rgba(176, 0, 32, 0.08);
-      color: #b00020;
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
       margin-bottom: 24px;
       font-size: 14px;
       line-height: 1.6;
@@ -128,7 +127,7 @@
       gap: 10px;
       padding: 10px 14px;
       border-radius: 6px;
-      background: var(--md-sys-color-surface-variant);
+      background: var(--md-sys-color-surface-container);
       margin-bottom: 6px;
       font-size: 13px;
     }
@@ -150,7 +149,7 @@
       white-space: nowrap;
       padding: 2px 8px;
       border-radius: 10px;
-      background: var(--md-sys-color-neutral-container);
+      background: var(--md-sys-color-surface-container-high);
     }
     .entry-row {
       display: flex;
@@ -158,7 +157,7 @@
       gap: 10px;
       padding: 10px 14px;
       border-radius: 6px;
-      background: var(--md-sys-color-surface-variant);
+      background: var(--md-sys-color-surface-container);
       margin-bottom: 6px;
       font-size: 13px;
     }
@@ -176,20 +175,20 @@
       flex-shrink: 0;
     }
     .entry-row .status-added {
-      background: rgba(46, 125, 50, 0.18);
-      color: #2e7d32;
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
     }
     .entry-row .status-updated {
-      background: rgba(183, 117, 0, 0.18);
-      color: #b77500;
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
     }
     .entry-row .status-kept {
-      background: rgba(96, 96, 96, 0.18);
-      color: #777;
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
     }
     .entry-row .status-orphaned {
-      background: rgba(176, 0, 32, 0.18);
-      color: #b00020;
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
     }
     .clean-actions {
       margin-top: 16px;
@@ -237,20 +236,20 @@
 
     <o-if :value="activeView === 'main'">
       <div class="actions">
-        <p-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
+        <st-button variant="filled" on:click="handlePick" attr:disabled="busy || !canUse">
           <n-icon icon="material-symbols:folder-open" slot="prefix"></n-icon>
           <locale-text>
             <span lang="cn">选择项目目录</span>
             <span lang="en">Select Project Folder</span>
           </locale-text>
-        </p-button>
-        <p-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
+        </st-button>
+        <st-button variant="outlined" on:click="handleGenerate" attr:disabled="busy || !hasRoot">
           <n-icon icon="material-symbols:build" slot="prefix"></n-icon>
           <locale-text>
             <span lang="cn">生成 locale-text.json</span>
             <span lang="en">Generate locale-text.json</span>
           </locale-text>
-        </p-button>
+        </st-button>
       </div>
 
       <div class="breadcrumb">{{ rootPath }}</div>
@@ -341,13 +340,13 @@
     <o-if :value="activeView !== 'main'">
       <div class="list-view">
         <div class="list-header">
-          <p-button variant="text" on:click="backToMain">
+          <st-button variant="text" on:click="backToMain">
             <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
             <locale-text>
               <span lang="cn">返回</span>
               <span lang="en">Back</span>
             </locale-text>
-          </p-button>
+          </st-button>
           <h2>{{ listTitle }}</h2>
         </div>
         <div class="list-count">{{ listCount }}</div>
@@ -392,13 +391,13 @@
           </o-fill>
           <o-if :value="activeView === 'orphaned' && entryList.length > 0">
             <div class="clean-actions">
-              <p-button variant="outlined" on:click="cleanOrphaned" style="width:100%;">
+              <st-button variant="outlined" on:click="cleanOrphaned" style="width:100%;">
                 <n-icon icon="material-symbols:delete-sweep" slot="prefix"></n-icon>
                 <locale-text>
                   <span lang="cn">清理所有冗余条目</span>
                   <span lang="en">Clean all orphaned entries</span>
                 </locale-text>
-              </p-button>
+              </st-button>
             </div>
           </o-if>
         </o-if>
@@ -573,7 +572,7 @@
       const { open } = await load("/nos/fs/main.js");
       const { getHash } = await load("/nos/util/hash/get-hash.js");
       const { getLocaleText } = await load("/nos/locale-text/get-locale-text.js");
-      const { confirm } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
+      const { default: confirm } = await load("/gh/ofajs/senti-ui@1.0.6/packages/dialog/confirm.js");
 
       return {
         data: {

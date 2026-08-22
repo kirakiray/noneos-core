@@ -85,6 +85,7 @@ try {
   await user.server.sendToUser("offline-user", "session-id", { data: true });
 } catch (error) {
   // 错误：目标不在线
+  // error.code === "offline"（确定状态，调用方无需重试）
 }
 ```
 

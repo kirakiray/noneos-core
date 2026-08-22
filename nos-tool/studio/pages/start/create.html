@@ -1,7 +1,7 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/n-icon/n-icon.html"></l-m>
   <l-m src="../../comps/main-content.html"></l-m>
   <l-m src="../../comps/path-view.html"></l-m>
@@ -20,7 +20,7 @@
       margin: 32px 0 16px;
       font-size: 20px;
       font-weight: 500;
-      color: var(--md-sys-color-neutral);
+      color: var(--md-sys-color-on-surface-variant);
     }
     .container {
       display: flex;
@@ -39,11 +39,11 @@
       transition: all 0.1s ease;
       cursor: pointer;
       text-align: center;
-      border: 1px solid var(--md-sys-color-on-surface-variant);
+      border: 1px solid var(--md-sys-color-outline-variant);
     }
     .card:hover {
       transform: translateY(-2px);
-      background-color: var(--md-sys-color-surface-variant);
+      background-color: var(--md-sys-color-surface-container-high);
     }
     .card .main-icon {
       font-size: 32px;
@@ -53,14 +53,14 @@
     .card-text {
       font-size: 14px;
       line-height: 1.4em;
-      color: var(--md-sys-color-neutral);
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     .card.active {
-      background-color: var(--md-sys-color-on-primary);
-      border: 1px solid var(--md-sys-color-on-primary);
+      background-color: var(--md-sys-color-primary-container);
+      border: 1px solid var(--md-sys-color-primary-container);
       .card-text {
-        color: var(--md-sys-color-primary);
+        color: var(--md-sys-color-on-primary-container);
       }
     }
 
@@ -97,13 +97,13 @@
   </style>
   <main-content>
     <div class="header" slot="header">
-      <p-button variant="text" on:click="back">
+      <st-button variant="text" on:click="back">
         <n-icon icon="material-symbols:arrow-back" slot="prefix"></n-icon>
         <locale-text>
           <span lang="cn">返回</span>
           <span lang="en">Back</span>
         </locale-text>
-      </p-button>
+      </st-button>
     </div>
     <h3>
       <locale-text>
@@ -142,14 +142,7 @@
       </locale-text>
     </h3>
 
-    <p-input variant="filled" sync:value="projectName">
-      <label>
-        <locale-text>
-          <span lang="cn">项目名称</span>
-          <span lang="en">Project Name</span>
-        </locale-text>
-      </label>
-    </p-input>
+    <st-input variant="filled" sync:value="projectName" placeholder="Project Name / 项目名称"></st-input>
     <div
       style="
         margin-top: 16px;
@@ -159,7 +152,7 @@
         white-space: nowrap;
       "
     >
-      <span style="font-weight: 500; color: var(--md-sys-color-neutral)">
+      <span style="font-weight: 500; color: var(--md-sys-color-on-surface-variant)">
         <locale-text>
           <span lang="cn">目录地址：</span>
           <span lang="en">Directory Path:</span>
@@ -176,7 +169,7 @@
           "
         ></n-icon>
       </o-if>
-      <p-button
+      <st-button
         variant="outlined"
         on:click="selectDir"
         style="margin-left: 24px"
@@ -185,7 +178,7 @@
           <span lang="cn">选择目录</span>
           <span lang="en">Select Directory</span>
         </locale-text>
-      </p-button>
+      </st-button>
       <p
         style="
           color: var(--md-sys-color-primary);
@@ -208,7 +201,7 @@
       </p>
     </div>
     <div style="margin-top: 16px">
-      <p-button
+      <st-button
         style="width: 100px"
         on:click="confirm"
         attr:disabled="!projectName || !dirPath"
@@ -217,12 +210,12 @@
           <span lang="cn">确认创建</span>
           <span lang="en">Confirm Create</span>
         </locale-text>
-      </p-button>
+      </st-button>
     </div>
   </main-content>
 
-  <p-dialog :open="showCoverDialog">
-    <div slot="title">
+  <st-dialog sync:open="showCoverDialog">
+    <div slot="headline">
       <locale-text>
         <span lang="cn">项目已存在</span>
         <span lang="en">Project Exists</span>
@@ -237,33 +230,32 @@
         >
       </locale-text>
     </p>
-    <p-button slot="bottom" on:click="openProject" color="success">
-      <locale-text>
-        <span lang="cn">直接打开项目</span>
-        <span lang="en">Open Project</span>
-      </locale-text>
-    </p-button>
-    <p-button slot="bottom" on:click="showCoverDialog = false">
-      <locale-text>
-        <span lang="cn">确认覆盖</span>
-        <span lang="en">Confirm Overwrite</span>
-      </locale-text>
-    </p-button>
-    <p-button slot="bottom" variant="outlined" on:click="clickCoverCancel">
-      <locale-text>
-        <span lang="cn">取消</span>
-        <span lang="en">Cancel</span>
-      </locale-text>
-    </p-button>
-  </p-dialog>
+    <div slot="actions">
+      <st-button variant="text" on:click="clickCoverCancel">
+        <locale-text>
+          <span lang="cn">取消</span>
+          <span lang="en">Cancel</span>
+        </locale-text>
+      </st-button>
+      <st-button variant="outlined" on:click="showCoverDialog = false">
+        <locale-text>
+          <span lang="cn">确认覆盖</span>
+          <span lang="en">Confirm Overwrite</span>
+        </locale-text>
+      </st-button>
+      <st-button color="success" on:click="openProject">
+        <locale-text>
+          <span lang="cn">直接打开项目</span>
+          <span lang="en">Open Project</span>
+        </locale-text>
+      </st-button>
+    </div>
+  </st-dialog>
   <script>
     export const parent = "../layout.html";
 
     export default async ({ load, url, query }) => {
       const { open, mount } = await load("/nos/fs/handle/mount/mount.js");
-      const { confirm, prompt, toast } = await load(
-        "https://punch-ui-v2.pages.dev/packages/util.js"
-      );
 
       return {
         data: {

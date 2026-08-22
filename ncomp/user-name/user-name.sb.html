@@ -109,9 +109,14 @@
             // 轮询等待 force 刷新后的用户名生效
             let afterForce;
             let matched = false;
+            let lastErrorSeen = "";
+            let displayHistory = [];
             for (let i = 0; i < 50; i++) {
               try {
                 afterForce = el.shadow.$("span").text;
+                if (displayHistory[displayHistory.length - 1] !== afterForce) {
+                  displayHistory.push(afterForce);
+                }
                 if (afterForce === newUserName) {
                   matched = true;
                   break;
@@ -119,12 +124,21 @@
               } catch (_) {
                 // shadow 尚未就绪，忽略并等待下一轮
               }
+              lastErrorSeen = el.lastLoadError || lastErrorSeen;
               await new Promise((r) => setTimeout(r, 100));
             }
+            lastErrorSeen = el.lastLoadError || lastErrorSeen;
 
             return {
               assert: matched,
-              content: { targetUserId, newUserName, afterForce },
+              content: {
+                targetUserId,
+                newUserName,
+                afterForce,
+                lastLoadError: lastErrorSeen,
+                displayHistory,
+                connectedUrls: testUser.server.connectedUrls,
+              },
             };
           }
         </script>

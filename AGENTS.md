@@ -16,9 +16,9 @@
 
 ## UI 与视觉规范
 
-- **组件库**：项目深度集成 `punch-ui` 组件库。
-- **视觉系统**：严格遵循 `punch-ui` 的颜色方案与设计语言。
-- **开发参考**：在实现 UI 相关功能前，请查阅 `punch-ui` 知识库以保持风格一致性。
+- **组件库**：项目统一使用 `senti-ui` 组件库（`st-*` 组件，基于 ofa.js + Material Design 3，CDN 引入即用）。
+- **视觉系统**：严格遵循 `senti-ui` 的颜色方案与设计语言，颜色一律消费 `--md-sys-color-*` M3 角色变量，不写死色值。
+- **开发参考**：在实现 UI 相关功能前，请查阅 `senti-ui` 的 Skill 知识库以保持风格一致性。
 
 ## 开发指令
 
@@ -76,9 +76,9 @@
 - **ofa.js-docs**
   - [GitHub 在线源码](https://github.com/ofajs/ofa.js/tree/main/skills/ofajs-docs)
   - [ZIP 离线包下载](https://raw.githubusercontent.com/ofajs/ofa.js/refs/heads/main/skills/ofajs-docs.zip)
-- **punch-ui-docs**
-  - [GitHub 在线源码](https://github.com/ofajs/Punch-UI/tree/v2/skills/punch-ui)
-  - [ZIP 离线包下载](https://raw.githubusercontent.com/ofajs/Punch-UI/refs/heads/v2/skills/punch-ui.zip)
+- **senti-ui**
+  - [Skill 在线源码目录](https://github.com/ofajs/senti-ui/tree/main/.agents/skills/senti-ui)
+  - [ZIP 离线包下载](https://raw.githubusercontent.com/ofajs/senti-ui/refs/heads/main/.agents/skills/senti-ui-skill.zip)
 - **noneos-core-docs**
   - [GitHub 在线源码](https://github.com/kirakiray/noneos-core/tree/main/skills/noneos-core-docs)
   - [ZIP 离线包下载](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/skills/noneos-core-docs.zip)

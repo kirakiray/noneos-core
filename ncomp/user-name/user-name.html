@@ -20,6 +20,9 @@
         data: {
           displayName: "",
           namespace: NAMESPACE,
+          // 调试信息：最近一次加载失败的步骤与原始错误（load:step:message），
+          // 供测试与排查使用，不影响正常渲染
+          lastLoadError: "",
         },
         watch: {
           userId(val) {
@@ -31,6 +34,10 @@
           },
         },
         proto: {
+          _recordError(step, err) {
+            this.lastLoadError =
+              `${step}: ${err?.message ?? err} | ${err?.stack ?? ""}`;
+          },
           _load() {
             if (this.attr("force") !== null) {
               return this._forceLoadUserName();
@@ -51,9 +58,13 @@
               const card = await user.card.get(uid);
               if (card && card.username) {
                 this.displayName = card.username;
+              } else {
+                this._recordError("getCard", new Error(
+                  card ? "card has no username" : "card not found",
+                ));
               }
-            } catch {
-              // 获取名片失败，保持显示 userId
+            } catch (err) {
+              this._recordError("loadUserName", err);
             }
           },
           async _forceLoadUserName() {
@@ -70,17 +81,21 @@
               // 尝试连接用户触发名片交换
               try {
                 await user.connectUser(uid);
-              } catch {
-                // 对方不在线
+              } catch (err) {
+                this._recordError("connectUser", err);
               }
               // 直接发起网络请求刷新名片（不先删缓存）：
               // 失败时保留旧名片显示，成功时按 signTime 保留更新的
               const card = await user.card.requestCard(uid);
               if (card && card.username) {
                 this.displayName = card.username;
+              } else {
+                this._recordError("requestCard", new Error(
+                  card ? "card has no username" : "card is null",
+                ));
               }
-            } catch {
-              // 保持当前显示
+            } catch (err) {
+              this._recordError("forceLoadUserName", err);
             }
           },
         },

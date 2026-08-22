@@ -271,15 +271,23 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .pagination-bar p-select {
+    .pagination-bar st-select {
       margin-left: 12px;
+      font-size: 13px;
+    }
+
+    .card-actions st-button,
+    .user-group-actions st-button,
+    .quota-quick-buttons st-button,
+    .pagination-bar st-button {
+      font-size: 12px;
     }
   </style>
 
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/tabs/tab-bar.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/tabs/tab-bar.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/select/select.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -294,22 +302,22 @@
         >
       </div>
 
-      <p-tab-bar>
-        <p-tab-item attr:active="!groupByUser" on:click="groupByUser = false">
+      <st-tab-bar>
+        <st-tab-item attr:active="!groupByUser" on:click="groupByUser = false">
           <span>实时会话</span>
-        </p-tab-item>
-        <p-tab-item attr:active="groupByUser" on:click="groupByUser = true">
+        </st-tab-item>
+        <st-tab-item attr:active="groupByUser" on:click="groupByUser = true">
           <span>在线用户</span>
-        </p-tab-item>
-      </p-tab-bar>
+        </st-tab-item>
+      </st-tab-bar>
 
-      <p-button
+      <st-button
         variant="outlined"
         on:click="refreshUsers"
         attr:disabled="!connected"
       >
         刷新用户列表
-      </p-button>
+      </st-button>
 
       <div class="user-count" :style.display="connected ? '' : 'none'">
         <o-if :value="!groupByUser">
@@ -355,23 +363,21 @@
             >
           </div>
           <div class="card-actions" :style.display="$data.isSelf ? 'none' : ''">
-            <p-button
+            <st-button
               color="error"
-              size="xs"
               on:click="$host.kickSession($data.userId, $data.sessionId)"
               attr:disabled="$data.isSelf"
             >
               断开会话
-            </p-button>
-            <p-button
+            </st-button>
+            <st-button
               variant="outlined"
               color="error"
-              size="xs"
               on:click="$host.kickUser($data.userId)"
               attr:disabled="$data.isSelf"
             >
               断开所有
-            </p-button>
+            </st-button>
           </div>
         </div>
       </o-fill>
@@ -417,46 +423,42 @@
                   class="card-actions"
                   :style.display="$data.isSelf ? 'none' : ''"
                 >
-                  <p-button
+                  <st-button
                     color="error"
-                    size="xs"
                     on:click="$host.kickSession($data.userId, $data.sessionId)"
                     attr:disabled="$data.isSelf"
                   >
                     断开会话
-                  </p-button>
+                  </st-button>
                 </div>
               </div>
             </o-fill>
           </div>
           <div class="user-group-actions">
-            <p-button
+            <st-button
               variant="outlined"
               color="primary"
-              size="xs"
               on:click="$host.showTrafficHistory($data.userId, $data.username)"
               attr:disabled="!$host._adminUser"
             >
               流量历史
-            </p-button>
-            <p-button
+            </st-button>
+            <st-button
               variant="outlined"
               color="primary"
-              size="xs"
               on:click="$host.openQuotaDialog($data)"
               attr:disabled="$data.isSelf"
             >
               设置额度
-            </p-button>
-            <p-button
+            </st-button>
+            <st-button
               variant="outlined"
               color="error"
-              size="xs"
               on:click="$host.kickUser($data.userId)"
               attr:disabled="$data.isSelf"
             >
               断开该用户所有会话
-            </p-button>
+            </st-button>
           </div>
         </div>
       </o-fill>
@@ -473,19 +475,17 @@
       class="pagination-bar"
       :style.display="connected && totalPages > 0 ? '' : 'none'"
     >
-      <p-button
+      <st-button
         variant="outlined"
-        size="xs"
         on:click="goFirstPage"
         attr:disabled="currentPage <= 1"
-        >首页</p-button
+        >首页</st-button
       >
-      <p-button
+      <st-button
         variant="outlined"
-        size="xs"
         on:click="goPrevPage"
         attr:disabled="currentPage <= 1"
-        >上一页</p-button
+        >上一页</st-button
       >
       <span class="page-info">
         <o-if :value="!groupByUser">
@@ -495,47 +495,49 @@
           第 {{currentPage}} / {{totalPages}} 页，共 {{totalUsers}} 个用户
         </o-else>
       </span>
-      <p-button
+      <st-button
         variant="outlined"
-        size="xs"
         on:click="goNextPage"
         attr:disabled="currentPage >= totalPages"
       >
         下一页
-      </p-button>
-      <p-button
+      </st-button>
+      <st-button
         variant="outlined"
-        size="xs"
         on:click="goLastPage"
         attr:disabled="currentPage >= totalPages"
       >
         末页
-      </p-button>
-      <p-select size="s" on:change="changePageSize" :value="20">
-        <p-option value="10">10条/页</p-option>
-        <p-option value="20">20条/页</p-option>
-        <p-option value="50">50条/页</p-option>
-        <p-option value="100">100条/页</p-option>
-      </p-select>
+      </st-button>
+      <st-select default-value="20" on:change="changePageSize">
+        <option value="10">10条/页</option>
+        <option value="20">20条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+      </st-select>
     </div>
   </div>
 
-  <p-dialog
+  <st-dialog
     id="traffic-history-dialog"
     sync:open="historyDialogOpen"
-    style="--dialog-width: auto"
   >
-    <span slot="title">{{historyDialogTitle}}</span>
+    <style>
+      #traffic-history-dialog::part(panel) {
+        width: auto;
+      }
+    </style>
+    <span slot="headline">{{historyDialogTitle}}</span>
     <o-if :value="historyDialogOpen">
       <o-page :src="historyPageSrc"></o-page>
     </o-if>
-    <div slot="bottom">
-      <p-button color="primary" on:click="closeTrafficHistory">关闭</p-button>
+    <div slot="actions">
+      <st-button color="primary" on:click="closeTrafficHistory">关闭</st-button>
     </div>
-  </p-dialog>
+  </st-dialog>
 
-  <p-dialog id="quota-dialog" sync:open="quotaDialogOpen">
-    <span slot="title">设置额度 — {{quotaDialogTarget?.username}}</span>
+  <st-dialog id="quota-dialog" sync:open="quotaDialogOpen">
+    <span slot="headline">设置额度 — {{quotaDialogTarget?.username}}</span>
     <div
       class="quota-dialog-body"
       :style.display="quotaDialogOpen ? '' : 'none'"
@@ -543,49 +545,44 @@
       <label>额度（字节）</label>
       <input type="number" min="0" step="1024" sync:value="quotaDialogBytes" />
       <div class="quota-quick-buttons">
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)"
-          >0</p-button
+        <st-button variant="outlined" on:click="setQuickQuota(0)"
+          >0</st-button
         >
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1048576)"
-          >1MB</p-button
+        <st-button variant="outlined" on:click="setQuickQuota(1048576)"
+          >1MB</st-button
         >
-        <p-button
-          size="xs"
+        <st-button
           variant="outlined"
           on:click="setQuickQuota(10485760)"
-          >10MB</p-button
+          >10MB</st-button
         >
-        <p-button
-          size="xs"
+        <st-button
           variant="outlined"
           on:click="setQuickQuota(104857600)"
-          >100MB</p-button
+          >100MB</st-button
         >
-        <p-button
-          size="xs"
+        <st-button
           variant="outlined"
           on:click="setQuickQuota(524288000)"
-          >500MB</p-button
+          >500MB</st-button
         >
-        <p-button
-          size="xs"
+        <st-button
           variant="outlined"
           on:click="setQuickQuota(1073741824)"
-          >1GB</p-button
+          >1GB</st-button
         >
-        <p-button
-          size="xs"
+        <st-button
           variant="outlined"
           on:click="setQuickQuota(10737418240)"
-          >10GB</p-button
+          >10GB</st-button
         >
       </div>
     </div>
-    <div slot="bottom">
-      <p-button variant="outlined" on:click="closeQuotaDialog">取消</p-button>
-      <p-button color="primary" on:click="confirmQuota">确定</p-button>
+    <div slot="actions">
+      <st-button variant="outlined" on:click="closeQuotaDialog">取消</st-button>
+      <st-button color="primary" on:click="confirmQuota">确定</st-button>
     </div>
-  </p-dialog>
+  </st-dialog>
 
   <style>
     .quota-dialog-body {

@@ -1,5 +1,7 @@
 <template page>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/input/input.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
   <l-m src="/nos/locale-text/locale-text.html"></l-m>
   <!-- <l-m src="../../../file-list/file-list.html"></l-m>/ -->
   <style>
@@ -8,8 +10,8 @@
     }
   </style>
 
-  <p-dialog :open="open" on:click-mask="open = false">
-    <div slot="title">
+  <st-dialog sync:open="open" auto-close>
+    <div slot="headline">
       <locale-text>
         <span lang="cn">创建{{ createTypeLabel }}</span>
         <span lang="en">Create {{ createTypeLabel }}</span>
@@ -21,7 +23,7 @@
           <span lang="cn">将要创建{{createTypeLabel}}</span>
           <span lang="en">Will create {{createTypeLabel}}</span>
         </locale-text>
-        <span style="color: var(--md-sys-color-neutral)">
+        <span style="color: var(--md-sys-color-on-surface-variant)">
           {{ createPath }}/
           <o-if :value="inputName.trim()">
             <span style="color: var(--md-sys-color-primary)">
@@ -30,38 +32,26 @@
           </o-if>
         </span>
       </div>
-      <p-input variant="filled" sync:value="inputName" id="create-name-input">
-        <label>
-          <locale-text>
-            <span lang="cn">{{createTypeLabel}}名称</span>
-            <span lang="en">{{createTypeLabel}} Name</span>
-          </locale-text>
-        </label>
-      </p-input>
+      <st-input variant="filled" sync:value="inputName" id="create-name-input"></st-input>
     </div>
-    <p-button
-      slot="bottom"
-      attr:disabled="!canSubmit"
-      style="margin-left: auto"
-      on:click="createFile"
-    >
-      <locale-text>
-        <span lang="cn">创建</span>
-        <span lang="en">Create</span>
-      </locale-text>
-    </p-button>
-    <p-button
-      slot="bottom"
-      variant="outlined"
-      color="neutral"
-      on:click="open = false"
-    >
-      <locale-text>
-        <span lang="cn">取消</span>
-        <span lang="en">Cancel</span>
-      </locale-text>
-    </p-button>
-  </p-dialog>
+    <div slot="actions">
+      <st-button variant="text" on:click="open = false">
+        <locale-text>
+          <span lang="cn">取消</span>
+          <span lang="en">Cancel</span>
+        </locale-text>
+      </st-button>
+      <st-button
+        attr:disabled="!canSubmit"
+        on:click="createFile"
+      >
+        <locale-text>
+          <span lang="cn">创建</span>
+          <span lang="en">Create</span>
+        </locale-text>
+      </st-button>
+    </div>
+  </st-dialog>
 
   <script>
     export default async ({ load, url }) => {
@@ -69,7 +59,7 @@
       const { getLocaleText } = await load(
         "/nos/locale-text/get-locale-text.js"
       );
-      const { toast } = await load("https://punch-ui-v2.pages.dev/packages/util.js");
+      const { default: toast } = await load("/gh/ofajs/senti-ui@1.0.6/packages/snackbar/toast.js");
 
       return {
         data: {
@@ -132,16 +122,11 @@
             // fileName只允许是英文，空格点和-构成
             if (!/^[a-zA-Z\s.-]+$/.test(this.fileName)) {
               toast({
-                content: getLocaleText({
+                message: getLocaleText({
                   cn: `组件名称只能包含英文、空格、点和连字符“-”`,
                   en: `Component name can only contain English letters, spaces, dots and hyphens "-"`,
                 }),
                 color: "error",
-                click() {
-                  window.open(
-                    "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
-                  );
-                },
               });
               return;
             }
@@ -150,16 +135,11 @@
               // 必须带有-
               if (!this.fileName.includes("-")) {
                 toast({
-                  content: getLocaleText({
+                  message: getLocaleText({
                     cn: `组件名称必须包含连字符“-”，例如：“my-component”`,
-                    en: `Component name must contain a hyphen "-", for example: "my-component"`,
+                    en: `Component name must include a hyphen “-”, for example: “my-component”`,
                   }),
-                  color: "error",
-                  click() {
-                    window.open(
-                      "https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#registering_a_custom_element"
-                    );
-                  },
+                  color: “error”,
                 });
                 return;
               }
@@ -172,14 +152,14 @@
 
             if (handle) {
               toast({
-                content: getLocaleText(
+                message: getLocaleText(
                   {
                     cn: "{name} 已存在",
                     en: "{name} already exists",
                   },
                   { name: fullFileName },
                 ),
-                type: "error",
+                color: "error",
               });
               return;
             }
