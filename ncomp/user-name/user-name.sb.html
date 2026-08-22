@@ -94,10 +94,15 @@
             // 先设置一个初始名称
             await testUser.updateInfo({ username: newUserName });
 
-            // 等待测试用户完成服务器连接，确保 default 用户 connectUser 能找到对方并交换名片
-            // （WebKit 上 getUser 后的自动连接较慢，不等待会导致 force 模式 connectUser 失败、显示 userId）
+            // 等待测试用户与 default 用户（请求方）都完成服务器连接，
+            // （WebKit 上 getUser 后的自动连接较慢，不等待会导致 force 模式
+            //   connectUser / findSessionId 找不到对方、显示 userId）
+            const defaultUser0 = await getUser("default");
             for (let i = 0; i < 50; i++) {
-              if (testUser.server.connectedUrls.length > 0) break;
+              if (
+                testUser.server.connectedUrls.length > 0 &&
+                defaultUser0.server.connectedUrls.length > 0
+              ) break;
               await new Promise((r) => setTimeout(r, 100));
             }
 
@@ -129,6 +134,19 @@
             }
             lastErrorSeen = el.lastLoadError || lastErrorSeen;
 
+            // 请求方（default 用户）视角：连接了哪些服务器、
+            // 目标在这些服务器上是否可见
+            const defaultUser = await getUser("default");
+            const targetVisibleOn = [];
+            for (const url of defaultUser.server.connectedUrls) {
+              try {
+                const r = await defaultUser.server.queryUserOnline(url, targetUserId);
+                targetVisibleOn.push(`${url}: online=${r.online} sessions=${(r.sessions || []).length}`);
+              } catch (e) {
+                targetVisibleOn.push(`${url}: query failed: ${e.message}`);
+              }
+            }
+
             return {
               assert: matched,
               content: {
@@ -136,8 +154,11 @@
                 newUserName,
                 afterForce,
                 lastLoadError: lastErrorSeen,
+                lastLoadErrors: Array.from(el.lastLoadErrors || []).map(String),
                 displayHistory,
                 connectedUrls: testUser.server.connectedUrls,
+                defaultConnectedUrls: defaultUser.server.connectedUrls,
+                targetVisibleOn,
               },
             };
           }

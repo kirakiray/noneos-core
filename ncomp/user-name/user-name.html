@@ -23,6 +23,7 @@
           // 调试信息：最近一次加载失败的步骤与原始错误（load:step:message），
           // 供测试与排查使用，不影响正常渲染
           lastLoadError: "",
+          lastLoadErrors: [],
         },
         watch: {
           userId(val) {
@@ -37,6 +38,7 @@
           _recordError(step, err) {
             this.lastLoadError =
               `${step}: ${err?.message ?? err} | ${err?.stack ?? ""}`;
+            this.lastLoadErrors.push(this.lastLoadError);
           },
           // 加载失败后的自动重试：底层 requestCard 有超时重试但可能超过
           // 调用方等待窗口（如连接尚未就绪），这里再兜底几轮，间隔递增
