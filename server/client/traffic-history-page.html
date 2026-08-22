@@ -92,13 +92,18 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .pagination-bar p-select {
+    .pagination-bar st-select {
       margin-left: 12px;
+      font-size: 13px;
+    }
+
+    .pagination-bar st-button {
+      font-size: 12px;
     }
   </style>
 
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/select/select.html"></l-m>
 
   <div class="history-loading" :style.display="loading ? '' : 'none'">
     正在加载流量历史...
@@ -145,47 +150,43 @@
       </table>
     </div>
     <div class="pagination-bar" :style.display="total > 0 ? '' : 'none'">
-      <p-button
+      <st-button
         variant="outlined"
-        size="s"
         on:click="goFirstPage"
         attr:disabled="currentPage <= 1"
       >
         首页
-      </p-button>
-      <p-button
+      </st-button>
+      <st-button
         variant="outlined"
-        size="s"
         on:click="goPrevPage"
         attr:disabled="currentPage <= 1"
       >
         上一页
-      </p-button>
+      </st-button>
       <span class="page-info">
         第 {{currentPage}} / {{totalPages}} 页，共 {{total}} 条
       </span>
-      <p-button
+      <st-button
         variant="outlined"
-        size="s"
         on:click="goNextPage"
         attr:disabled="currentPage >= totalPages"
       >
         下一页
-      </p-button>
-      <p-button
+      </st-button>
+      <st-button
         variant="outlined"
-        size="s"
         on:click="goLastPage"
         attr:disabled="currentPage >= totalPages"
       >
         末页
-      </p-button>
-      <p-select size="s" on:change="changePageSize" sync:value="pageSize">
-        <p-option value="10">10条/页</p-option>
-        <p-option value="20">20条/页</p-option>
-        <p-option value="50">50条/页</p-option>
-        <p-option value="100">100条/页</p-option>
-      </p-select>
+      </st-button>
+      <st-select on:change="changePageSize" sync:value="pageSize">
+        <option value="10">10条/页</option>
+        <option value="20">20条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+      </st-select>
     </div>
   </div>
 

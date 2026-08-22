@@ -53,85 +53,101 @@
       color: var(--md-sys-color-on-surface-variant);
     }
 
-    p-list-item.active {
+    st-list-item.active {
       background-color: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       border-radius: 12px;
     }
+
+    .url-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   </style>
 
   <l-m
-    src="https://punch-ui-v2.pages.dev/packages/navigation/nav-layout.html"
+    src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/navigation/nav-layout.html"
   ></l-m>
   <l-m
-    src="https://punch-ui-v2.pages.dev/packages/navigation/nav-bar.html"
+    src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/navigation/nav-bar.html"
   ></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/input/input.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/list/list.html"></l-m>
+  <l-m
+    src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/navigation/nav-item.html"
+  ></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/icon-button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/input/input.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/list/list.html"></l-m>
 
-  <p-dialog id="server-dialog" sync:open="serverDialogOpen" auto-close style="--dialog-width:auto;">
-    <span slot="title">切换服务器与登录帐户</span>
+  <st-dialog id="server-dialog" sync:open="serverDialogOpen" auto-close>
+    <style>
+      #server-dialog::part(panel) {
+        width: auto;
+      }
+    </style>
+    <span slot="headline">切换服务器与登录帐户</span>
     <div class="dialog-body">
       <div class="dialog-row">
         <label>登录帐户</label>
-        <p-list>
+        <st-list>
           <o-fill :value="accountSummaries">
-            <p-list-item button class:active="$host.currentAccount === $data.namespace" on:click="$host.switchAccount($data.namespace)">
+            <st-list-item button class:active="$host.currentAccount === $data.namespace" on:click="$host.switchAccount($data.namespace)">
               <span>{{$data.label}}<span :style.display="$data.shortUserId ? '' : 'none'">（{{$data.shortUserId}}）</span></span>
-            </p-list-item>
+            </st-list-item>
           </o-fill>
-        </p-list>
+        </st-list>
       </div>
-      <p-list>
+      <st-list>
         <o-fill :value="savedUrls">
-          <p-list-item class:active="$host.currentUrl === $data">
+          <st-list-item class:active="$host.currentUrl === $data">
             <div style="flex: 1; min-width: 0; cursor: pointer;" on:click="$host.switchToServer($data)">
-              <span ellipsis="1">{{$data}}</span>
+              <span class="url-text">{{$data}}</span>
             </div>
-            <p-button slot="suffix" icon variant="text" color="error" size="s" on:click="$host.removeServer($event, $data)">×</p-button>
-          </p-list-item>
+            <st-icon-button slot="suffix" color="error" style="font-size: 13px;" on:click="$host.removeServer($event, $data)">×</st-icon-button>
+          </st-list-item>
         </o-fill>
-      </p-list>
+      </st-list>
       <div class="dialog-row add-row">
-        <p-input placeholder="ws://localhost:8081" sync:value="newUrl">
+        <st-input placeholder="ws://localhost:8081" sync:value="newUrl">
           <span slot="suffix">
-            <p-button icon size="s" color="primary" on:click="addNewServer">+</p-button>
+            <st-icon-button color="primary" style="font-size: 13px;" on:click="addNewServer">+</st-icon-button>
           </span>
-        </p-input>
+        </st-input>
       </div>
     </div>
-    <div slot="bottom">
-      <p-button variant="text" on:click="closeServerDialog">关闭</p-button>
+    <div slot="actions">
+      <st-button variant="text" on:click="closeServerDialog">关闭</st-button>
     </div>
-  </p-dialog>
+  </st-dialog>
 
-  <p-nav-layout>
+  <st-nav-layout>
     <main>
       <slot></slot>
     </main>
 
-    <p-nav-bar slot="nav">
-      <p-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
+    <st-nav-bar slot="nav">
+      <st-nav-item attr:active="activeAdmin" on:click="navigateToAdmin">
         <span slot="icon">⚙️</span>
         <span>在线会话</span>
-      </p-nav-item>
-      <p-nav-item attr:active="activeAllUsers" on:click="navigateToAllUsers">
+      </st-nav-item>
+      <st-nav-item attr:active="activeAllUsers" on:click="navigateToAllUsers">
         <span slot="icon">👥</span>
         <span>所有用户</span>
-      </p-nav-item>
-      <p-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
+      </st-nav-item>
+      <st-nav-item attr:active="activeSysInfo" on:click="navigateToSysInfo">
         <span slot="icon">📊</span>
         <span>系统信息</span>
-      </p-nav-item>
-      <p-nav-item attr:active="activeTraffic" on:click="navigateToTraffic">
+      </st-nav-item>
+      <st-nav-item attr:active="activeTraffic" on:click="navigateToTraffic">
         <span slot="icon">📈</span>
         <span>流量统计</span>
-      </p-nav-item>
+      </st-nav-item>
 
       <div class="server-avatar" on:click="openServerDialog" attr:title="currentUrl">🌐</div>
-    </p-nav-bar>
+    </st-nav-bar>
 
   <script>
     export default async ({ load }) => {

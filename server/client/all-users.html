@@ -230,11 +230,17 @@
       flex-wrap: wrap;
       gap: 8px;
     }
+
+    .card-actions st-button,
+    .pagination-bar st-button,
+    .quick-buttons st-button {
+      font-size: 12px;
+    }
   </style>
 
-  <l-m src="https://punch-ui-v2.pages.dev/packages/button/button.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/dialog/dialog.html"></l-m>
-  <l-m src="https://punch-ui-v2.pages.dev/packages/select/select.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/button/button.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/dialog/dialog.html"></l-m>
+  <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/select/select.html"></l-m>
 
   <div class="container">
     <div class="top-bar">
@@ -247,13 +253,13 @@
         <span :style.display="connected ? '' : 'none'">— {{adminUsername}}</span>
       </div>
 
-      <p-button
+      <st-button
         variant="outlined"
         on:click="refreshUsers"
         attr:disabled="!connected"
       >
         刷新
-      </p-button>
+      </st-button>
 
       <div class="user-count" :style.display="connected ? '' : 'none'">
         总计历史用户：{{totalUsers}}
@@ -324,15 +330,14 @@
           </div>
 
           <div class="card-actions">
-            <p-button
+            <st-button
               variant="outlined"
-              size="s"
               color="primary"
               on:click="$host.openQuotaDialog($data)"
               attr:disabled="$data.isAdmin || !$host.connected"
             >
               设置额度
-            </p-button>
+            </st-button>
           </div>
         </div>
       </o-fill>
@@ -347,38 +352,38 @@
 
     <!-- 分页 -->
     <div class="pagination-bar" :style.display="connected && totalPages > 1 ? '' : 'none'">
-      <p-button variant="outlined" size="s" on:click="prevPage" attr:disabled="currentPage <= 1">上一页</p-button>
+      <st-button variant="outlined" on:click="prevPage" attr:disabled="currentPage <= 1">上一页</st-button>
       <span>第 {{currentPage}} / {{totalPages}} 页</span>
-      <p-button variant="outlined" size="s" on:click="nextPage" attr:disabled="currentPage >= totalPages">下一页</p-button>
+      <st-button variant="outlined" on:click="nextPage" attr:disabled="currentPage >= totalPages">下一页</st-button>
     </div>
   </div>
 
   <!-- 额度设置弹窗 -->
-  <p-dialog id="quota-dialog" sync:open="dialogOpen">
-    <span slot="title">设置转发额度 — {{dialogTarget?.username}}</span>
+  <st-dialog id="quota-dialog" sync:open="dialogOpen">
+    <span slot="headline">设置转发额度 — {{dialogTarget?.username}}</span>
     <div class="dialog-body" :style.display="dialogOpen ? '' : 'none'">
       <label>额度（字节）</label>
       <input type="number" min="0" step="1024" sync:value="dialogQuotaBytes" />
       <div class="quick-buttons">
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(0)">0 (禁止)</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10485760)">10MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(104857600)">100MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(524288000)">500MB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(1073741824)">1GB</p-button>
-        <p-button size="xs" variant="outlined" on:click="setQuickQuota(10737418240)">10GB</p-button>
+        <st-button variant="outlined" on:click="setQuickQuota(0)">0 (禁止)</st-button>
+        <st-button variant="outlined" on:click="setQuickQuota(10485760)">10MB</st-button>
+        <st-button variant="outlined" on:click="setQuickQuota(104857600)">100MB</st-button>
+        <st-button variant="outlined" on:click="setQuickQuota(524288000)">500MB</st-button>
+        <st-button variant="outlined" on:click="setQuickQuota(1073741824)">1GB</st-button>
+        <st-button variant="outlined" on:click="setQuickQuota(10737418240)">10GB</st-button>
       </div>
     </div>
-    <div slot="bottom">
-      <p-button variant="outlined" on:click="dialogOpen = false">取消</p-button>
-      <p-button color="primary" on:click="confirmQuota">保存设置</p-button>
+    <div slot="actions">
+      <st-button variant="outlined" on:click="dialogOpen = false">取消</st-button>
+      <st-button color="primary" on:click="confirmQuota">保存设置</st-button>
     </div>
-  </p-dialog>
+  </st-dialog>
 
   <script>
     export default async ({ query, load }) => {
       const { getAdmin, getCurrentServerUrl, showServerError } = await load("./admin-shared.js");
       const WS_URL = getCurrentServerUrl();
-      const { toast } = await import("https://punch-ui-v2.pages.dev/packages/util.js");
+      const { default: toast } = await import("https://cdn.jsdelivr.net/gh/ofajs/senti-ui@1.0.6/packages/snackbar/toast.js");
 
       return {
         parent: "./layout.html",
