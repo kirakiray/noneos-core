@@ -1305,5 +1305,165 @@
         </script>
       </template>
     </sb-test>
+    <!-- ====== 以下为空回退容器不占布局（:empty 修复）新增的用例 ====== -->
+
+    <sb-test name="空回退容器 - 无 JSON 回退时 #lt-json-fallback 不参与布局">
+      <template>
+        <script type="module">
+          {
+            const container_emptyLayout = $("#query-target");
+            // 带 gap 的 flex 宿主：若空回退容器参与布局，会成为额外 flex 项
+            container_emptyLayout.html = `
+              <div id="lt-flex-host" style="display:flex;gap:20px;width:fit-content;">
+                <locale-text id="lt-emptyLayout" lang="cn">
+                  <span lang="cn">内容</span>
+                  <span lang="en">Content</span>
+                </locale-text>
+                <span id="lt-flex-marker">标记</span>
+              </div>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const lt_emptyLayout = container_emptyLayout.$("#lt-emptyLayout");
+            const fallbackEl = lt_emptyLayout.shadow.$("#lt-json-fallback").ele;
+            const fallbackDisplay = getComputedStyle(fallbackEl).display;
+
+            // 直接验证空容器被 display:none
+            const hiddenWhenEmpty = fallbackDisplay === "none";
+
+            container_emptyLayout.html = "";
+
+            return {
+              assert: hiddenWhenEmpty,
+              content: {
+                message: "回退容器为空时应 display:none，不参与宿主布局",
+                fallbackDisplay,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="空回退容器 - flex 宿主中空容器不产生额外 gap">
+      <template>
+        <script type="module">
+          {
+            const container_gap = $("#query-target");
+            container_gap.html = `
+              <div id="lt-gap-host" style="display:flex;gap:20px;width:fit-content;">
+                <locale-text id="lt-gap" lang="cn">
+                  <span lang="cn" id="lt-gap-item">内容</span>
+                  <span lang="en">Content</span>
+                </locale-text>
+                <span id="lt-gap-marker">标记</span>
+              </div>
+            `;
+
+            await new Promise((r) => setTimeout(r, 200));
+
+            const item = container_gap.$("#lt-gap-item").ele;
+            const marker = container_gap.$("#lt-gap-marker").ele;
+            // 仅两个可见项时应恰好间隔一个 gap（20px）
+            const gapPx = marker.offsetLeft - (item.offsetLeft + item.offsetWidth);
+
+            container_gap.html = "";
+
+            return {
+              assert: gapPx === 20,
+              content: {
+                message:
+                  "空回退容器不应成为额外 flex 项，可见项间距应恰好等于 gap（20px）",
+                gapPx,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="空回退容器 - JSON 注入后容器恢复参与布局">
+      <template>
+        <script type="module">
+          {
+            const { setLang, resetLocaleTextJsonCache } = await import(
+              "/nos/locale-text/get-locale-text.js"
+            );
+            const { getHash } = await import("/nos/util/hash/get-hash.js");
+
+            const baseText_jsonShow = "回退容器布局测试";
+            const hash_jsonShow = await getHash(baseText_jsonShow);
+
+            resetLocaleTextJsonCache();
+            const origFetch_jsonShow = window.fetch;
+            window.fetch = (input, init) => {
+              if (typeof input === "string" && input === "/locale-text.json") {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      [hash_jsonShow]: {
+                        cn: baseText_jsonShow,
+                        ja: "レイアウトテスト",
+                      },
+                    }),
+                    {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    },
+                  ),
+                );
+              }
+              return origFetch_jsonShow(input, init);
+            };
+
+            setLang("ja");
+
+            const container_jsonShow = $("#query-target");
+            container_jsonShow.html = `
+              <locale-text id="lt-jsonShow">
+                <span lang="cn">${baseText_jsonShow}</span>
+                <span lang="en">Layout test</span>
+              </locale-text>
+            `;
+
+            await new Promise((r) => setTimeout(r, 300));
+
+            const lt_jsonShow = container_jsonShow.$("#lt-jsonShow");
+            const fallbackEl_jsonShow = lt_jsonShow.shadow.$(
+              "#lt-json-fallback",
+            ).ele;
+            const fallbackDisplay_jsonShow = getComputedStyle(
+              fallbackEl_jsonShow,
+            ).display;
+            // 注入内容后 :empty 不再命中，且容器有实际渲染尺寸
+            const hasSize = fallbackEl_jsonShow.offsetWidth > 0;
+
+            // 切回 slot 命中的语言，clearJsonFallback 清空后应重新隐藏
+            lt_jsonShow.attr("lang", "cn");
+            await new Promise((r) => setTimeout(r, 300));
+            const displayAfterClear = getComputedStyle(fallbackEl_jsonShow).display;
+
+            window.fetch = origFetch_jsonShow;
+            setLang(null);
+            container_jsonShow.html = "";
+
+            return {
+              assert:
+                fallbackDisplay_jsonShow !== "none" &&
+                hasSize &&
+                displayAfterClear === "none",
+              content: {
+                message:
+                  "JSON 注入后回退容器应正常显示，清空后应重新退出布局",
+                fallbackDisplay_jsonShow,
+                hasSize,
+                displayAfterClear,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>
