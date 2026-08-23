@@ -1,7 +1,7 @@
 {
-  "version": "4.4.3",
+  "version": "4.4.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1787420052791,
+  "signTime": 1787502138745,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -130,8 +130,8 @@
     },
     {
       "path": "locale-text/locale-text.html",
-      "hash": "a0b7a4b80eea24ee5b5c38671bebbf3edc9dd21edb505dbb7eb0a5667c78f4a2",
-      "size": 9014
+      "hash": "0fa6aa8ce2cbee817eaeb558f526560939862f12664645564af33261f7a396e5",
+      "size": 9071
     },
     {
       "path": "n-icon/n-icon.html",
@@ -294,5 +294,5 @@
       "size": 2117
     }
   ],
-  "signature": "dOMQj/yji15k9IQCRSfwLipCefgSofTEu/M2I3li6SMPiGrOvNzkwCYrFmlsgBeXHdvmV0Lk0jfoN5psR9ayxw=="
+  "signature": "JDUHaz7H1E96WNrnLP63YHASEBNiDm9OmcBG+0p1V4b9rdxh7rzcFtVJ34Elrbu8w7b1oFHepSWr6owao8CgMA=="
 }
