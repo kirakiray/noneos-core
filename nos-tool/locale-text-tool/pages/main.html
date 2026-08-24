@@ -743,6 +743,31 @@
                     });
                     hitFiles++;
                   }
+
+                  // HTML 内联脚本（含 template 内嵌）同样跑 getLocaleText 提取
+                  const scriptTexts = [];
+                  const collectScripts = (root) => {
+                    root.querySelectorAll("script").forEach((s) => {
+                      if (s.textContent) scriptTexts.push(s.textContent);
+                    });
+                    root.querySelectorAll("template").forEach((t) => {
+                      if (t.content) collectScripts(t.content);
+                    });
+                  };
+                  collectScripts(doc);
+                  const jsLangMaps = extractFromJs(scriptTexts.join("\n;\n"));
+                  if (jsLangMaps.length > 0) hitFiles++;
+                  jsLangMaps.forEach((langMap) => {
+                    const baseText =
+                      langMap.cn ?? langMap.en ?? Object.values(langMap)[0];
+                    const baseLang = langMap.cn
+                      ? "cn"
+                      : langMap.en
+                        ? "en"
+                        : Object.keys(langMap)[0];
+                    count++;
+                    entries.push({ langMap, baseText, baseLang, sourceFile: relPath });
+                  });
                 }
 
                 scannedFiles.push({ relPath, hit: count > 0, count });

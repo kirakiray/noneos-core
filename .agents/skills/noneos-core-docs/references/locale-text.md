@@ -7,6 +7,32 @@
 
 两者共享同一套语言判定逻辑（`getLang`）与 `locale-text.json` 中央翻译表回退机制。
 
+## ⚠️ 必须严格按照使用格式书写
+
+这套方案**依赖固定的书写格式才能被配套工具识别**，写代码时务必严格遵循：
+
+- **HTML 中**：多语言文案必须写在 `<locale-text>` 组件内，每个语种一个带 `lang` 属性的子元素：
+
+  ```html
+  <locale-text>
+    <span lang="cn">开始</span>
+    <span lang="en">Get Started</span>
+  </locale-text>
+  ```
+
+- **脚本中**（HTML 内联 `<script>` 或独立 `.js`/`.mjs` 文件均可，关键是必须通过 `getLocaleText` 函数调用）：动态文案以语言对象传入 `getLocaleText({ cn: "...", en: "..." })`（动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
+
+  ```javascript
+  import getLocaleText from "/nos/locale-text/get-locale-text.js";
+
+  getLocaleText({ cn: "保存失败", en: "Save failed" });
+  getLocaleText({ cn: "网络请求失败: {msg}", en: "Network failed: {msg}" }, { msg: err.message });
+  ```
+
+只要严格按照上述格式书写，`nos-tool/locale-text-tool` 就能扫描提取出项目中的全部文案条目，并在项目根目录生成 `locale-text.json`。之后即可借助任意第三方工具（机器翻译服务、AI 辅助翻译等）为每个条目批量补充 `ja`/`ko` 等语种，非常方便地为整个项目添加多国语言支持，无需改动源码。
+
+格式不规范（文本未包在 `<locale-text>` 内、JS 未走 `getLocaleText`、动态值直接拼进文本）的条目将无法被工具收录，也就无法进入中央翻译表获得扩展语种。
+
 ## 加载
 
 ```html
@@ -168,7 +194,7 @@ getLocaleText(
 3. 工具会：
    - 按 `.gitignore` 规则跳过匹配文件/目录
    - 递归扫描所有 `.html` / `.js` / `.mjs` 源码文件
-   - HTML 文件：提取 `<locale-text>` 节点（含 `<template page>` / `<template component>` 内嵌的）
+   - HTML 文件：提取 `<locale-text>` 节点（含 `<template>` 内嵌的），并对内联 `<script>`（含 `<template>` 内嵌脚本）中的 `getLocaleText({...})` 调用同样做提取
    - JS/MJS 文件：正则提取 `getLocaleText({...})` 调用里的语言字段
    - 计算基准文本的 SHA-256，与已有 JSON 增量合并
 4. 生成结果写入项目根目录 `locale-text.json`
