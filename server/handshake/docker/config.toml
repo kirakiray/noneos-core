@@ -1,7 +1,7 @@
 # NoneOS Handshake Server - 容器默认配置
 #
 # 仅显式设置与容器环境相关的三项，其余参数全部走程序内置默认值
-# （见 server/rust/CONTEXT.md 第七节「配置默认值」）。
+# （见 server/handshake/CONTEXT.md 第七节「配置默认值」）。
 # 如需管理员、流量额度等，请挂载自定义 config 覆盖本文件：
 #   docker run -v /path/to/my.toml:/app/config.toml noneos-handshake
 

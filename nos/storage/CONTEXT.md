@@ -59,7 +59,7 @@ nos/storage/
 - 句柄放在数组、普通对象、以及两者的任意嵌套中 → 正常转换
 - 句柄放在 `Map` / `Set` / 类实例内部 → **不会被转换**，会以类实例形态进入结构化克隆，结果是丢失原型的空对象（静默失效，非报错）
 
-这是当前实现的已知限制。若后续需要支持，应扩展 `toStorable` / `fromStorable` 的类型分支，并同步更新 README.md 与 `skills/noneos-core-docs/references/storage.md`。
+这是当前实现的已知限制。若后续需要支持，应扩展 `toStorable` / `fromStorable` 的类型分支，并同步更新 README.md 与 `.agents/skills/noneos-core-docs/references/storage.md`。
 
 ## 四、关键 API
 

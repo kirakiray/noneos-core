@@ -36,6 +36,9 @@ export class PublicBaseHandle {
   }
 
   async copyTo(targetHandle, name) {
+    if (typeof targetHandle !== "string" && (await this.isSame(targetHandle))) {
+      return this;
+    }
     const [finalTarget, finalName] = await resolveTargetAndName(
       targetHandle,
       name,
@@ -67,6 +70,9 @@ export class PublicBaseHandle {
   }
 
   async moveTo(targetHandle, name) {
+    if (typeof targetHandle !== "string" && (await this.isSame(targetHandle))) {
+      return this;
+    }
     const [finalTarget, finalName] = await resolveTargetAndName(
       targetHandle,
       name,
@@ -214,11 +220,6 @@ const resolveTargetAndName = async (targetHandle, name, methodName, self) => {
     finalName = targetHandle;
     finalTarget = self.parent;
   }
-  // 如果目标句柄和当前句柄相同，则不需要移动
-  if (await self.isSame(finalTarget)) {
-    return self;
-  }
-
   // 检查目标路径是否为当前路径的子目录
   const targetPath = finalTarget.path;
   const currentPath = self.path;

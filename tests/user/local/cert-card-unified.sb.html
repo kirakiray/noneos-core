@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cert-Card Unified Storage Tests</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>证书-名片统一存储测试</h1>
+
+  <sb-test name="updateInfo 产出统一凭证形态">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const shapeUser = new LocalUser("card_shape_test");
+        await shapeUser.ready();
+
+        const info = await shapeUser.updateInfo({ username: "形态用户", nickname: "别名" });
+
+        const hasRole = info.role === "profile";
+        const selfSigned = info.issuer === shapeUser.userId && info.subject === shapeUser.userId;
+        const subjectIsUserIdentity = info.subject === shapeUser.userId;
+        const hasNickname = info.nickname === "别名";
+        const signatureValid = await shapeUser.verify(info);
+
+        return {
+          assert: hasRole && selfSigned && subjectIsUserIdentity && hasNickname && signatureValid,
+          content: {
+            message: "updateInfo 产出 role=profile 的自签凭证形态",
+            checks: {
+              hasRole,
+              role: info.role,
+              selfSigned,
+              subjectIsUserIdentity,
+              hasNickname,
+              signatureValid,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="个人资料经统一导入路径入库并可证书查询">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const holder = new LocalUser("card_unified_holder");
+        const receiver = new LocalUser("card_unified_receiver");
+        await Promise.all([holder.ready(), receiver.ready()]);
+
+        await holder.updateInfo({ username: "统一用户" });
+        const cardData = await holder.getInfo();
+
+        // 清理可能残留的旧记录，保证测试独立性
+        await receiver.cred.deleteProfile(holder.userId);
+
+        // 资料走统一证书导入路径（与 #handleProfileResponse 一致）
+        const first = await receiver.cred.importRecord(cardData);
+        const firstSaved = first.saved === true;
+
+        // 同一记录重复导入：signTime 不更新，saved 应为 false 且记录不变
+        const second = await receiver.cred.importRecord(cardData);
+        const secondNotSaved = second.saved === false && second.cert.username === "统一用户";
+
+        // cred.getProfileByDB 命中统一凭证库（读回为签名载荷视图，不含外层 id）
+        const fromCardApi = await receiver.cred.getProfileByDB(holder.userId);
+        const cardApiHit = !!fromCardApi && fromCardApi.username === "统一用户";
+        const viewHasNoId = fromCardApi.id === undefined;
+
+        // 证书查询 API 也能查到资料（返回完整记录，含 id）
+        const certQueried = await receiver.cred.query({
+          role: "profile",
+          subject: holder.userId,
+        });
+        const certQueryHit = certQueried.length === 1 && certQueried[0].id === `profile-${holder.userId}-${holder.userId}`;
+
+        // 读回的载荷视图可直接整体验签
+        const signatureValid = await holder.verify(fromCardApi);
+
+        await receiver.cred.deleteProfile(holder.userId);
+
+        return {
+          assert: firstSaved && secondNotSaved && cardApiHit && certQueryHit && signatureValid && viewHasNoId,
+          content: {
+            message: "名片以 role=card 记录存入 certs store，两套 API 均可访问",
+            checks: {
+              firstSaved,
+              secondNotSaved,
+              cardApiHit,
+              viewHasNoId,
+              certQueryHit,
+              certQueryId: certQueried[0]?.id,
+              signatureValid,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="role=profile 保留角色禁止非自签导入">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const attacker = new LocalUser("card_role_attacker");
+        const victim = new LocalUser("card_role_victim");
+        await Promise.all([attacker.ready(), victim.ready()]);
+
+        // attacker 签发一张 issuer=自己、subject=别人的 "profile" 记录：
+        // 公钥与 issuer 匹配（签名真实），但违反名片必须自签的不变量
+        const forged = await attacker._sign({
+          role: "profile",
+          issuer: attacker.userId,
+          subject: victim.userId,
+          username: "伪造名片",
+        });
+
+        let catchError = false;
+        let errorMessage = "";
+        try {
+          await victim.cred.importRecord(forged);
+        } catch (err) {
+          catchError = true;
+          errorMessage = err.message;
+        }
+
+        // 被拒后不应留下任何名片记录
+        const noResidue = (await victim.cred.getProfileByDB(victim.userId)) === null;
+
+        return {
+          assert: catchError && noResidue,
+          content: {
+            message: "role=card 仅允许 issuer === subject 的自签记录",
+            errorMessage,
+            checks: { catchError, noResidue },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="v7 到 v8 迁移：cards store 被删除且旧缓存不搬迁">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        // 每次运行使用独立 namespace，避免与已有数据库冲突
+        const migrateNs = "card_migrate_" + Date.now();
+        const migrateDbName = `nos_user_${migrateNs}`;
+
+        // 1. 手工创建 v7 结构数据库：含 cards store 与一条旧缓存名片
+        await new Promise((resolve, reject) => {
+          const req = indexedDB.open(migrateDbName, 7);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            db.createObjectStore("data");
+            db.createObjectStore("certs", { keyPath: "id" });
+            db.createObjectStore("cards", { keyPath: "userId" });
+          };
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction("cards", "readwrite");
+            tx.objectStore("cards").put({
+              userId: "legacy-cached-user",
+              username: "旧缓存",
+              signTime: 1,
+            });
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+          };
+          req.onerror = () => reject(req.error);
+        });
+
+        // 2. LocalUser 打开触发 v8 升级迁移
+        const migrateUser = new LocalUser(migrateNs);
+        await migrateUser.ready();
+
+        // 3. 校验：版本为 8、cards store 已删除、旧名片缓存未搬迁
+        const dbState = await new Promise((resolve, reject) => {
+          const req = indexedDB.open(migrateDbName);
+          req.onsuccess = () => {
+            const db = req.result;
+            const state = {
+              version: db.version,
+              hasCardsStore: db.objectStoreNames.contains("cards"),
+              hasCertsStore: db.objectStoreNames.contains("certs"),
+            };
+            db.close();
+            resolve(state);
+          };
+          req.onerror = () => reject(req.error);
+        });
+
+        const versionOk = dbState.version === 8;
+        const cardsStoreRemoved = dbState.hasCardsStore === false;
+        const certsStoreExists = dbState.hasCertsStore === true;
+        const legacyCacheDropped = (await migrateUser.cred.count()) === 0;
+
+        return {
+          assert: versionOk && cardsStoreRemoved && certsStoreExists && legacyCacheDropped,
+          content: {
+            message: "v7→v8 迁移删除 cards store，旧缓存名片按需重取",
+            checks: {
+              versionOk,
+              dbVersion: dbState.version,
+              cardsStoreRemoved,
+              certsStoreExists,
+              legacyCacheDropped,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="旧形态用户信息经 updateInfo 归一为统一形态">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const normalizeUser = new LocalUser("card_info_normalize");
+        await normalizeUser.ready();
+
+        // 直接向 data store 写入老版本形态的 info（模拟老版本遗留数据）
+        await new Promise((resolve, reject) => {
+          const req = indexedDB.open(`nos_user_card_info_normalize`);
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction("data", "readwrite");
+            tx.objectStore("data").put(
+              {
+                userId: normalizeUser.userId,
+                username: "旧形态昵称",
+                signTime: 1,
+                publicKey: "legacy-key",
+                signature: "legacy-sig",
+              },
+              "info",
+            );
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+          };
+          req.onerror = () => reject(req.error);
+        });
+
+        const updated = await normalizeUser.updateInfo({ username: "新形态昵称" });
+
+        const hasRole = updated.role === "profile";
+        const selfSigned =
+          updated.issuer === normalizeUser.userId &&
+          updated.subject === normalizeUser.userId;
+        const usernameUpdated = updated.username === "新形态昵称";
+        const keyRefreshed = updated.publicKey === normalizeUser.publicKey;
+        const signatureValid = await normalizeUser.verify(updated);
+
+        return {
+          assert: hasRole && selfSigned && usernameUpdated && keyRefreshed && signatureValid,
+          content: {
+            message: "updateInfo 剥离旧字段并重建统一形态",
+            checks: {
+              hasRole,
+              selfSigned,
+              usernameUpdated,
+              keyRefreshed,
+              signatureValid,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+  <sb-test name="cred 正式 API：签发查询、deleteProfile、无记录读回">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const apiUser = new LocalUser("cred_api_test");
+        await apiUser.ready();
+
+        // 授权语义：签发/查询走统一入口
+        const apiCert = await apiUser.cred.issue({
+          subject: "api-target",
+          role: "api-role",
+        });
+        const viaCredHas = await apiUser.cred.has({
+          role: "api-role",
+          issuer: apiUser.userId,
+          subject: "api-target",
+        });
+
+        // 资料语义：无记录时 getProfileByDB 返回 null
+        const profileMiss = (await apiUser.cred.getProfileByDB("nobody")) === null;
+
+        // delete 按证书记录 id 删除；deleteProfile 按 userId 删除（无记录时安全 no-op）
+        await apiUser.cred.delete(apiCert.id);
+        const certDeleted = !(await apiUser.cred.has({ role: "api-role" }));
+        const profileDeleteNoop = await apiUser.cred
+          .deleteProfile("nonexistent-user-id")
+          .then(() => true)
+          .catch(() => false);
+
+        return {
+          assert: viaCredHas && profileMiss && certDeleted && profileDeleteNoop,
+          content: {
+            message: "cred 正式 API：delete 与 deleteProfile 职责分离",
+            checks: {
+              viaCredHas,
+              profileMiss,
+              certDeleted,
+              profileDeleteNoop,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

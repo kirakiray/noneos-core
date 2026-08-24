@@ -5,12 +5,12 @@
 ## 核心技术架构
 
 - **底层架构 (Base Layer)**：基于 `noneos-core` 开发。
-  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 skills/noneos-core-docs/SKILL.md。
+  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 .agents/skills/noneos-core-docs/SKILL.md。
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
 - **本地存储 (Storage Layer)**：统一使用项目内置的 `nos/storage`。
   - 涉及持久化数据（原本会用 `localStorage` 或手写 IndexedDB 的场景）时，一律改用 `nos/storage`，不要引入第三方存储库。
-  - 用法见 `nos/storage/README.md`，实现细节见 `nos/storage/CONTEXT.md`，Skill 文档见 `skills/noneos-core-docs/references/storage.md`。
+  - 用法见 `nos/storage/README.md`，实现细节见 `nos/storage/CONTEXT.md`，Skill 文档见 `.agents/skills/noneos-core-docs/references/storage.md`。
 
 > 项目的技术栈细节、目录结构、运行时路径映射、开发命令见根目录 [CONTEXT.md](CONTEXT.md)。
 
@@ -42,11 +42,11 @@
      - 事件清单、错误码、状态机
      - 已知限制 / 已知 bug
    - **审查时机**：若发现 CONTEXT.md 与源码不一致（即使非本次改动），应按第 9 条补充完善。
-7. **同步 Skill 文档**：对外可见行为发生变化后，**必须同步更新 `skills/noneos-core-docs/references/` 下对应的参考文档**，确保 Skill 知识库与源码保持一致。触发条件包括：
+7. **同步 Skill 文档**：对外可见行为发生变化后，**必须同步更新 `.agents/skills/noneos-core-docs/references/` 下对应的参考文档**，确保 Skill 知识库与源码保持一致。触发条件包括：
    - `nos/` 下模块的导出方法、参数、行为语义变化
    - `ncomp/` 新增/删除/修改公共组件（标签名、属性、事件）
    - `sw/` 路由策略或路径前缀变化
-   - `server/rust/` admin 命令、消息协议字段、配置项变化
+   - `server/handshake/` admin 命令、消息协议字段、配置项变化
    - CONTEXT.md 中标注为"关键 API"的任何改动
 8. **禁止使用 file 协议路径**：AI 书写的任何上下文、文档、注释、配置中的文件引用，一律禁止出现 `file://` / `file:///` 等本地绝对路径协议；项目内的文件引用统一使用相对路径或相对于仓库根目录的地址（如 `AGENTS.md`、`apps/main/home.html`、`nos/locale-text/README.md`），以免在不同机器上失效。
 9. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
@@ -81,8 +81,8 @@
   - [Skill 在线源码目录](https://github.com/ofajs/senti-ui/tree/main/.agents/skills/senti-ui)
   - [ZIP 离线包下载](https://raw.githubusercontent.com/ofajs/senti-ui/refs/heads/main/.agents/skills/senti-ui-skill.zip)
 - **noneos-core-docs**
-  - [GitHub 在线源码](https://github.com/kirakiray/noneos-core/tree/main/skills/noneos-core-docs)
-  - [ZIP 离线包下载](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/skills/noneos-core-docs.zip)
+  - [GitHub 在线源码](https://github.com/kirakiray/noneos-core/tree/main/.agents/skills/noneos-core-docs)
+  - [ZIP 离线包下载](https://raw.githubusercontent.com/kirakiray/noneos-core/refs/heads/main/.agents/skills/noneos-core-docs.zip)
 - **sibyl-test**
   - 该项目使用 `sibyl-test` 作为测试模块。
   - 使用前请检查本地是否有 sibyl-test Skill，若无则需导入。

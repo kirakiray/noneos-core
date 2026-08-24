@@ -168,7 +168,7 @@ const result = await publisher.assembleFile(fileHash);
 
 ### 通信详细操作
 
-- [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、名片交换、E2EE 加密
+- [用户连接与通信](references/connect-user.md) — 连接远程用户、发送/接收消息、个人资料交换、E2EE 加密
 - [应用层可靠消息投递](references/reliable-messaging.md) — ACK 确认、超时重发、msgId 去重（应用通信必读规范）
 - [通过服务器代理数据通信](references/agent-data.md) — 查询在线状态、转发数据与二进制传输
 

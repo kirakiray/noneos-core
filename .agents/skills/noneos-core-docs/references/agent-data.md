@@ -6,7 +6,7 @@
 
 ```javascript
 const result = await user.server.queryUserOnline(url, targetUserId);
-// 返回：{ online: true/false, sessions: ["s-xxxx", ...] }
+// 返回：{ online: true/false, sessions: ["s-xxxx", ...], sessionInfo: [{ sessionId, latencyMs }, ...] }
 ```
 
 ### 查询自己

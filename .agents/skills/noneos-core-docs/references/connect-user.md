@@ -248,64 +248,94 @@ remoteB.bind("message", (event) => {
 });
 ```
 
-## 名片交换
+## 个人资料交换（profile）
 
-名片（Card）是用于身份验证和 E2EE 加密的凭证，包含用户的公钥和签名信息。
+个人资料（profile，旧称"名片/card"）是用于身份验证和 E2EE 加密的凭证，包含用户的公钥和签名信息。个人资料与证书统一由 `user.cred`（CredentialManager）管理，存于同一个凭证库：个人资料就是 `role="profile"` 的**自签**证书记录（`issuer === subject === 持有者 userId`）。
 
-### 获取对方名片
+### 获取对方资料
 
 ```javascript
-const card = await userA.card.get(userB.userId);
-// 返回名片对象，包含 userId、publicKey、username、signTime、signature
+const profile = await userA.cred.getProfile(userB.userId);
+// 返回资料对象，包含 role:"profile"、issuer、subject、
+// publicKey、username、signTime、signature
 
-// 验证名片签名
-const valid = await userB.verify(card);
+// 验证资料签名
+const valid = await userB.verify(profile);
 ```
 
-### 名片缓存
+### 资料缓存
 
-获取后名片会自动缓存到本地数据库，再次获取直接返回缓存：
+获取后资料会自动缓存到本地凭证库（certs store 中 `role="profile"` 的记录），再次获取直接返回缓存：
 
 ```javascript
-const cached = await userA.card.get(userB.userId);   // 从缓存返回
-const fromDb = await userA.card.getByDB(userB.userId); // 直接从 DB 读取
+const cached = await userA.cred.getProfile(userB.userId);       // 从缓存返回
+const fromDb = await userA.cred.getProfileByDB(userB.userId);   // 直接从 DB 读取
 ```
 
-### 删除名片
+profile API 读回的是**签名载荷视图**（不含 DB 外层 `id` 等非签名字段），可直接整体验签：
 
 ```javascript
-await userA.card.delete(userB.userId);
+const valid = await userB.verify(fromDb); // true
 ```
 
-### 强制刷新名片
-
-`requestCard` 总是发起网络请求（不读缓存），适合需要最新名片的场景（如强制刷新用户名显示）：
+也可以用证书查询接口访问资料（与授权证书同一套 API，返回完整记录含 `id`）：
 
 ```javascript
-const fresh = await userA.card.requestCard(userB.userId);
+const profiles = await userA.cred.query({ role: "profile", subject: userB.userId });
 ```
 
-可靠性：名片请求是幂等 RPC——接收端按 `signTime` 保留更新的名片，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 1 次。失败时旧缓存不受影响，可放心保留兜底显示。
-
-### 名片事件
-
-当收到对方的名片时，会触发 `card_received` 事件：
+### 删除资料
 
 ```javascript
-userA.bind("card_received", (event) => {
-  console.log(event.detail.userId);     // 名片所属用户
-  console.log(event.detail.saved);      // 是否已保存到数据库
+// 按记录 id 删除凭证记录：userA.cred.delete(id)
+await userA.cred.deleteProfile(userB.userId); // 按 userId 删除该用户资料
+```
+
+### 强制刷新资料
+
+`requestProfile` 总是发起网络请求（不读缓存），适合需要最新资料的场合（如强制刷新用户名显示）：
+
+```javascript
+const fresh = await userA.cred.requestProfile(userB.userId);
+```
+
+可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 1 次。失败时旧缓存不受影响，可放心保留兜底显示。
+
+### 资料变更推送
+
+用户更新资料（`updateInfo`）后会**自动**把新资料推送给所有已建立通信的对端用户，无需手动触发：
+
+```javascript
+// A 改了用户名，B 侧会自动收到新资料并触发 profile_received 事件
+await userA.updateInfo({ username: "新名字" });
+
+userB.bind("profile_received", (event) => {
+  console.log(event.detail.saved); // true（signTime 更新，已覆盖旧资料）
+});
+```
+
+推送是幂等的（按 `signTime` 收敛）：对端离线时静默失败，其下次主动拉取会拿到最新资料。`n-user-name` 等组件可监听该事件实现资料变更的实时刷新。
+
+### 资料事件
+
+当收到对方的资料时（请求响应或变更推送），会触发 `profile_received` 事件：
+
+```javascript
+userA.bind("profile_received", (event) => {
+  console.log(event.detail.userId);    // 资料所属用户
+  console.log(event.detail.profile);   // 资料数据
+  console.log(event.detail.saved);     // 是否已保存到数据库
 });
 ```
 
 ## E2EE 加密通信
 
-当双方都持有对方的名片（公钥）后，发送的对象数据会自动加密：
+当双方都持有对方的资料（公钥）后，发送的对象数据会自动加密：
 
 ```javascript
-// 确保双方已交换名片
-const cardB = await userA.card.get(userB.userId);
-const cardA = await userB.card.get(userA.userId);
+// 确保双方已交换资料
+const profileB = await userA.cred.getProfile(userB.userId);
+const profileA = await userB.cred.getProfile(userA.userId);
 
 // 发送加密消息：纯对象会自动触发 E2EE 加密路径
 await remoteJ.send(userJ.sessionId, { text: "hello encrypted", num: 42 });

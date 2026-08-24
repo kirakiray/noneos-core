@@ -1436,8 +1436,9 @@
             const fallbackDisplay_jsonShow = getComputedStyle(
               fallbackEl_jsonShow,
             ).display;
-            // 注入内容后 :empty 不再命中，且容器有实际渲染尺寸
-            const hasSize = fallbackEl_jsonShow.offsetWidth > 0;
+            // 注入内容后 :empty 不再命中，且容器有实际渲染高度
+            // （不用 offsetWidth：套件运行时宿主容器宽度可能为 0，高度不受影响）
+            const hasSize = fallbackEl_jsonShow.getBoundingClientRect().height > 0;
 
             // 切回 slot 命中的语言，clearJsonFallback 清空后应重新隐藏
             lt_jsonShow.attr("lang", "cn");

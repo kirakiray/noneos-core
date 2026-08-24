@@ -8,7 +8,7 @@ import { getUser } from "/nos/user/main.js";
 const user = await getUser("my-user");
 const info = await user.getInfo();
 
-console.log(info.userId);    // 用户 ID
+console.log(info.subject);   // 用户 ID（签发者声明的主体）
 console.log(info.username);  // 默认格式为 "user-xxxx"
 console.log(info.signature); // 信息签名
 console.log(info.signTime);  // 签名时间

@@ -318,20 +318,20 @@
         const remoteH = await userG.connectUser(userH.userId);
 
         // 清空 userG 本地可能残留的名片（测试独立性）
-        const existingCard = await userG.card.get(userH.userId);
+        const existingCard = await userG.cred.getProfile(userH.userId);
         if (existingCard) {
-          await userG.card.delete(userH.userId);
+          await userG.cred.deleteProfile(userH.userId);
         }
 
-        // 监听 card_received 事件
+        // 监听 profile_received 事件
         let cardReceivedEvent = null;
-        const unbind = userG.bind("card_received", (event) => {
+        const unbind = userG.bind("profile_received", (event) => {
           cardReceivedEvent = event.detail;
         });
 
 
         // userG 向 userH 请求名片
-        const card = await userG.card.get(userH.userId);
+        const card = await userG.cred.getProfile(userH.userId);
 
         // 使用 userH 自身的公钥验证名片签名
         const signatureValid = await userH.verify(card);
@@ -342,43 +342,56 @@
         unbind();
 
         // 验证名片数据完整性
-        const cardHasUserId = card.userId === userH.userId;
+        const cardSubjectOk = card.subject === userH.userId;
         const hasPublicKey = typeof card.publicKey === "string" && card.publicKey.length > 0;
         const hasUsername = typeof card.username === "string" && card.username.length > 0;
         const hasSignTime = typeof card.signTime === "number" && card.signTime > 0;
         const hasSignature = typeof card.signature === "string" && card.signature.length > 0;
 
+        // 统一凭证形态：个人资料 = role="profile" 的自签证书（issuer = subject = 持有者）
+        const cardRoleOk = card.role === "profile";
+        const cardIssuerSubjectOk =
+          card.issuer === userH.userId && card.subject === userH.userId;
+
+        // 个人资料应存入统一凭证库（certs store），可用证书 API 查询
+        const certQueryResult = await userG.cred.query({
+          role: "profile",
+          subject: userH.userId,
+        });
+        const cardInCertStore = certQueryResult.length === 1;
+
         // 验证名片中的公钥与 userH 一致（即确认是 userH 签发的）
         const publicKeyMatch = card.publicKey === userH.publicKey;
 
-        // 验证 card_received 事件已触发
+        // 验证 profile_received 事件已触发
         const eventTriggered = cardReceivedEvent !== null;
         const eventUserIdMatch = cardReceivedEvent && cardReceivedEvent.userId === userH.userId;
         const eventSaved = cardReceivedEvent && cardReceivedEvent.saved === true;
 
         // 重新从 DB 读取，确认已持久化
-        const storedCard = await userG.card.get(userH.userId);
-        const storedMatch = storedCard && storedCard.userId === userH.userId;
+        const storedCard = await userG.cred.getProfile(userH.userId);
+        const storedMatch = storedCard && storedCard.subject === userH.userId;
 
         // 再次请求应返回本地缓存（不再发起网络请求）
-        const cachedCard = await userG.card.get(userH.userId);
-        const fromCache = cachedCard.userId === userH.userId;
+        const cachedCard = await userG.cred.getProfile(userH.userId);
+        const fromCache = cachedCard.subject === userH.userId;
 
         // 清理
-        await userG.card.delete(userH.userId);
+        await userG.cred.deleteProfile(userH.userId);
         userG.server.disconnectAll();
         userH.server.disconnectAll();
 
-        const allCardChecks = cardHasUserId && hasPublicKey && hasUsername && hasSignTime && hasSignature
+        const allCardChecks = cardSubjectOk && hasPublicKey && hasUsername && hasSignTime && hasSignature
           && signatureValid && publicKeyMatch && eventTriggered && eventUserIdMatch && eventSaved
-          && storedMatch && fromCache;
+          && storedMatch && fromCache
+          && cardRoleOk && cardIssuerSubjectOk && cardInCertStore;
 
         return {
           assert: allCardChecks,
           content: {
             message: allCardChecks ? "名片交换测试成功" : "名片交换测试失败",
             card: {
-              userId: card.userId,
+              subject: card.subject,
               username: card.username,
               signTime: card.signTime,
               hasPublicKey: hasPublicKey,
@@ -392,9 +405,9 @@
             cachedReturned: fromCache,
             // 错误诊断字段
             checks: {
-              cardHasUserId,
+              cardSubjectOk,
               expectedUserId: userH.userId,
-              actualUserId: card.userId,
+              actualSubject: card.subject,
               hasPublicKey,
               publicKeyValue: card.publicKey,
               hasUsername,
@@ -416,6 +429,11 @@
               storedUserId: storedCard?.userId,
               fromCache,
               cachedUserId: cachedCard?.userId,
+              cardRoleOk,
+              cardRoleValue: card.role,
+              cardIssuerSubjectOk,
+              cardInCertStore,
+              certQueryCount: certQueryResult.length,
             },
           },
         };
@@ -443,8 +461,8 @@
         ]);
 
         // 清空残留名片，强制走网络请求
-        if (await ru6_userK.card.getByDB(ru6_userL.userId)) {
-          await ru6_userK.card.delete(ru6_userL.userId);
+        if (await ru6_userK.cred.getProfileByDB(ru6_userL.userId)) {
+          await ru6_userK.cred.deleteProfile(ru6_userL.userId);
         }
 
         // 劫持 K 侧发送：吞掉第一条 card request（模拟请求在通道切换时丢失），
@@ -456,7 +474,7 @@
           const ru6_origSend = ru6_ru.send.bind(ru6_ru);
           ru6_ru.send = async (sid, data, raw) => {
             if (
-              data?.type === "card" &&
+              data?.type === "profile" &&
               data?.action === "request"
             ) {
               ru6_sendAttempts++;
@@ -469,13 +487,13 @@
           };
         });
 
-        const ru6_card = await ru6_userK.card.requestCard(ru6_userL.userId);
+        const ru6_card = await ru6_userK.cred.requestProfile(ru6_userL.userId);
         const ru6_retryWorked =
-          !!ru6_card && ru6_card.userId === ru6_userL.userId;
+          !!ru6_card && ru6_card.subject === ru6_userL.userId;
 
         ru6_userK.server.disconnectAll();
         ru6_userL.server.disconnectAll();
-        await ru6_userK.card.delete(ru6_userL.userId);
+        await ru6_userK.cred.deleteProfile(ru6_userL.userId);
 
         return {
           assert: ru6_retryWorked && ru6_swallowed && ru6_sendAttempts === 2,
@@ -487,6 +505,199 @@
             sendAttempts: ru6_sendAttempts,
             cardUserId: ru6_card?.userId,
             expectedUserId: ru6_userL.userId,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Card Update Push Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const push_nsM = "card-push-m";
+        const push_nsN = "card-push-n";
+        const pushUrl = "ws://localhost:8081";
+
+        const pushUserM = new LocalUser(push_nsM);
+        const pushUserN = new LocalUser(push_nsN);
+
+        await Promise.all([pushUserM.ready(), pushUserN.ready()]);
+
+        await Promise.all([
+          pushUserM.server.connect(pushUrl),
+          pushUserN.server.connect(pushUrl),
+        ]);
+
+        // M 连接 N 并完成一次名片交换，确保通信链路就绪、N 进入 M 的缓存
+        await pushUserM.connectUser(pushUserN.userId);
+        const nCard = await pushUserM.cred.getProfile(pushUserN.userId);
+
+        // 清掉 N 侧可能残留的 M 名片，确保后续读到的是推送结果而非旧缓存
+        if (await pushUserN.cred.getProfileByDB(pushUserM.userId)) {
+          await pushUserN.cred.deleteProfile(pushUserM.userId);
+        }
+
+        // N 监听 profile_received（变更推送到达时触发）
+        let pushEvent = null;
+        const pushUnbind = pushUserN.bind("profile_received", (event) => {
+          if (event.detail.userId === pushUserM.userId) {
+            pushEvent = event.detail;
+          }
+        });
+        // M 更新资料 → updateInfo 应自动把新资料推送给 N
+        const newInfo = await pushUserM.updateInfo({ username: "推送后的名字" });
+
+        // 等待推送经中继到达
+        const pushDeadline = Date.now() + 8000;
+        while (!pushEvent && Date.now() < pushDeadline) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        pushUnbind();
+
+        const pushReceived = pushEvent !== null;
+        const pushSaved = pushEvent?.saved === true;
+        const pushVerified = pushEvent
+          ? await pushUserM.verify(pushEvent.profile)
+          : false;
+
+        // N 本地读回应为推送的新资料（用户名已更新、signTime 与 M 刚签的一致）
+        const nSideCard = await pushUserN.cred.getProfileByDB(pushUserM.userId);
+        const nSideUpdated = nSideCard?.username === "推送后的名字";
+        const nSideNewer = nSideCard?.signTime === newInfo.signTime;
+
+        await pushUserN.cred.deleteProfile(pushUserM.userId);
+        pushUserM.server.disconnectAll();
+        pushUserN.server.disconnectAll();
+
+        return {
+          assert: !!nCard && pushReceived && pushSaved && pushVerified && nSideUpdated && nSideNewer,
+          content: {
+            message: "资料更新后新 profile 自动推送到对端",
+            channelReady: !!nCard,
+            checks: {
+              pushReceived,
+              pushSaved,
+              pushVerified,
+              nSideUpdated,
+              nSideUsername: nSideCard?.username,
+              nSideNewer,
+              nSideSignTime: nSideCard?.signTime,
+              expectedSignTime: newInfo.signTime,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Cert Share Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const cs_nsO = "cert-share-o";
+        const cs_nsP = "cert-share-p";
+        const csUrl = "ws://localhost:8081";
+
+        const csO = new LocalUser(cs_nsO);
+        const csP = new LocalUser(cs_nsP);
+        await Promise.all([csO.ready(), csP.ready()]);
+
+        await Promise.all([
+          csO.server.connect(csUrl),
+          csP.server.connect(csUrl),
+        ]);
+
+        // O 给 P 签发一张证书（存于 O 自己的库），随后通过网络分享给 P
+        const csCert = await csO.cred.issue({
+          subject: csP.userId,
+          role: "shared-member",
+          permissions: ["read"],
+        });
+
+        // 清理 P 侧残留，保证测试独立性
+        await csP.cred.delete(csCert.id);
+
+        // P 监听 cert_received 事件
+        const csEvents = [];
+        const csUnbind = csP.bind("cert_received", (event) => {
+          if (event.detail.cert?.role === "shared-member") {
+            csEvents.push(event.detail);
+          }
+        });
+
+        const csRemoteP = await csO.connectUser(csP.userId);
+        const csResult = await csRemoteP.shareCert(csCert);
+        const csSendOk = csResult?.status === "ok";
+
+        // 等待事件经中继到达
+        const csDeadline = Date.now() + 8000;
+        while (csEvents.length < 1 && Date.now() < csDeadline) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const csFirstEvent = csEvents[0] ?? null;
+        const csEventFired = csFirstEvent !== null;
+        const csFromOk = csFirstEvent?.fromUserId === csO.userId;
+        const csSavedOk = csFirstEvent?.saved === true;
+
+        // P 侧应能查到该证书
+        const csHasCert = await csP.cred.has({
+          role: "shared-member",
+          issuer: csO.userId,
+          subject: csP.userId,
+        });
+
+        // 重复分享：signTime 不变，接收端收敛后 saved 应为 false，且记录不被破坏
+        await csRemoteP.shareCert(csCert);
+        const csDeadline2 = Date.now() + 8000;
+        while (csEvents.length < 2 && Date.now() < csDeadline2) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        const csSecondEvent = csEvents[1] ?? null;
+        const csReshareConverged = csSecondEvent?.saved === false;
+        const csStillHasCert = await csP.cred.has({
+          role: "shared-member",
+          issuer: csO.userId,
+          subject: csP.userId,
+        });
+
+        // 篡改的记录应被接收端拒绝：伪造 issuer 后推送，不触发事件、不入库
+        const csTampered = { ...csCert, issuer: csP.userId };
+        const csSids = await csRemoteP.getSessionIds();
+        for (const sid of csSids) {
+          await csRemoteP.send(sid, { type: "__cert_share", cert: csTampered });
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+        const csNoTamperEvent = csEvents.length === 2;
+        const csStoreIntact =
+          (await csP.cred.count({ role: "shared-member" })) === 1;
+
+        csUnbind();
+        await csP.cred.delete(csCert.id);
+        csO.server.disconnectAll();
+        csP.server.disconnectAll();
+
+        return {
+          assert: csSendOk && csEventFired && csFromOk && csSavedOk && csHasCert
+            && csReshareConverged && csStillHasCert && csNoTamperEvent && csStoreIntact,
+          content: {
+            message: "凭证互传：验证入库、幂等收敛、篡改拒绝",
+            checks: {
+              csSendOk,
+              csEventFired,
+              csFromOk,
+              csSavedOk,
+              csHasCert,
+              csReshareConverged,
+              csSecondSaved: csSecondEvent?.saved,
+              csStillHasCert,
+              csNoTamperEvent,
+              csEventCount: csEvents.length,
+              csStoreIntact,
+            },
           },
         };
       </script>
@@ -517,19 +728,19 @@
         const remoteI = await userJ.connectUser(userI.userId);
 
         // 清空可能残留的名片，强制触发网络交换
-        const existingJ = await userI.card.getByDB(userJ.userId);
-        if (existingJ) await userI.card.delete(userJ.userId);
-        const existingI = await userJ.card.getByDB(userI.userId);
-        if (existingI) await userJ.card.delete(userI.userId);
+        const existingJ = await userI.cred.getProfileByDB(userJ.userId);
+        if (existingJ) await userI.cred.deleteProfile(userJ.userId);
+        const existingI = await userJ.cred.getProfileByDB(userI.userId);
+        if (existingI) await userJ.cred.deleteProfile(userI.userId);
 
         // 交换名片（双方都要持有对方公钥才能 E2EE）
-        const cardJ = await userI.card.get(userJ.userId);
-        const cardI = await userJ.card.get(userI.userId);
+        const cardJ = await userI.cred.getProfile(userJ.userId);
+        const cardI = await userJ.cred.getProfile(userI.userId);
         const cardJExists = cardJ !== null;
         const cardIExists = cardI !== null;
         const haveBothCards = cardJExists && cardIExists;
-        const hasUserJKey = !!(await userI.card.getByDB(userJ.userId))?.publicKey;
-        const hasUserIKey = !!(await userJ.card.getByDB(userI.userId))?.publicKey;
+        const hasUserJKey = !!(await userI.cred.getProfileByDB(userJ.userId))?.publicKey;
+        const hasUserIKey = !!(await userJ.cred.getProfileByDB(userI.userId))?.publicKey;
         const haveBothKeys = hasUserJKey && hasUserIKey;
 
         // 监听 userJ 侧原始消息：检查是否为二进制帧（证明加密）

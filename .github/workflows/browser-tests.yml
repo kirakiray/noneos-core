@@ -17,18 +17,18 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: server/rust
+          workspaces: server/handshake
 
       - name: Build handshake server
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build
 
       - name: Start handshake server 8081
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
 
       - name: Start handshake server 8082
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
 
       - name: Wait for handshake servers
@@ -58,18 +58,18 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: server/rust
+          workspaces: server/handshake
 
       - name: Build handshake server
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build
 
       - name: Start handshake server 8081
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
 
       - name: Start handshake server 8082
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
 
       - name: Wait for handshake servers
@@ -99,18 +99,18 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: server/rust
+          workspaces: server/handshake
 
       - name: Build handshake server
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build
 
       - name: Start handshake server 8081
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
 
       - name: Start handshake server 8082
-        working-directory: server/rust
+        working-directory: server/handshake
         run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
 
       - name: Wait for handshake servers

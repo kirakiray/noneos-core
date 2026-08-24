@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](package.json)
-[![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
+[![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
 
@@ -48,7 +48,7 @@ await remote.send(sessionId, { text: "Hello from NoneOS!" });
 └────────────────────────┼────────────────────────────────────────────┘
                          │ WebSocket (wss://)
 ┌────────────────────────┼────────────────────────────────────────────┐
-│                Rust Relay Server (server/rust/)                      │
+│                Rust Relay Server (server/handshake/)                      │
 │  ┌──────────┐  ┌──────┴──────┐  ┌──────────────────────────────┐   │
 │  │ Handshake│  │  Message    │  │  Traffic Stats               │   │
 │  │ (ECDSA   │  │  Relay      │  │  (redb persistence)          │   │
@@ -117,7 +117,7 @@ server/               # 后端实现
 tests/                # 浏览器测试套件(.sb.html)
 scripts/              # 构建、签名、打包工具
 docs/                 # 多语言文档站点(OBook)
-skills/               # AI 代理技能定义
+.agents/skills/       # AI 代理技能定义
 others/               # 归档/实验代码(不参与运行时)
 ```
 
@@ -143,7 +143,7 @@ others/               # 归档/实验代码(不参与运行时)
 - 通过 BroadcastChannel 支持**跨标签页会话**
 - 延迟监控与自动服务器选路
 
-### 中继服务器(`server/rust/`)
+### 中继服务器(`server/handshake/`)
 - 基于 ECDSA P-256 签名验证的挑战-响应握手
 - 文本与二进制中继,支持可配置的大小限制
 - **RTC 信令隧道**——透明转发 SDP/ICE offer 与 candidate,以普通中继数据形式传输;服务器对其承载的是信令毫无感知
@@ -271,9 +271,9 @@ importScripts("https://core.noneos.com/sw/dist.js");
 - [P2P 发布](nos/publish/README.md)——DataPublisher
 - [公共组件](ncomp/README.md)——`<n-user-name>`、`<n-user-status>`
 - [多语言模块](nos/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
-- [宿主项目离线缓存](skills/noneos-core-docs/references/host-cache.md)——缓存宿主项目自身文件
-- [服务器配置](server/rust/README.md)——中继服务器搭建
-- [AI 代理知识库](skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
+- [宿主项目离线缓存](.agents/skills/noneos-core-docs/references/host-cache.md)——缓存宿主项目自身文件
+- [服务器配置](server/handshake/README.md)——中继服务器搭建
+- [AI 代理知识库](.agents/skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
 
 ---
 
@@ -288,7 +288,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 | `npm run build` | 完整构建:哈希 → nos.zip → Service Worker → Skill 知识库 |
 | `npm run build:sw` | 通过 Rollup 构建 Service Worker(产出 `sw/dist.js` + `sw/dist.min.js`) |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希(供 `nos.json` 消费) |
-| `npm run build:skill` | 构建 `skills/noneos-core-docs` 知识库(生成 `noneos-core-docs.zip`) |
+| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库(生成 `noneos-core-docs.zip`) |
 | `npm run bump` | 跨所有文件升级版本号,并重新安装依赖与构建 |
 | `npm run ws` | 启动两个 Rust 中继服务器(测试模式,端口 8081 & 8082) |
 | `npm run ws1` / `npm run ws2` | 单独启动一个 Rust 中继服务器(端口 8081 / 8082) |

@@ -22,7 +22,7 @@ pub struct Config {
     #[serde(default = "default_port")]
     pub port: u16,
     /// 服务器监听的 IP 地址或主机名
-    /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 "localhost"
+    /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 ""（空=监听全地址）
     #[serde(default = "default_host")]
     pub host: String,
     /// 管理员用户的 userId，连接服务器后拥有管理权限
@@ -51,7 +51,7 @@ pub struct Config {
     // ===== 并发连接限制 =====
     /// 每个 userId 的最大并发 session 数
     /// 超出限制时新连接会被拒绝（不会踢掉旧 session）
-    /// 默认 5
+    /// 默认 10
     #[serde(default = "default_max_sessions_per_user")]
     pub max_sessions_per_user: usize,
 
@@ -86,7 +86,7 @@ pub struct Config {
     /// 服务器整体的月度转发流量额度（字节，统计口径 = inbound + outbound）
     /// 用于约束服务器自身的带宽账单：当本计费周期内累计进出流量达到该值后，
     /// 所有非 admin 的中继降级为仅放行 <= relay_small_message_max_bytes 的小消息
-    /// （WebRTC 信令与名片交换仍可通行，用户可继续建立 P2P 直连）
+    /// （WebRTC 信令与个人资料（profile）交换仍可通行，用户可继续建立 P2P 直连）
     /// 默认 0 表示不限制
     #[serde(default = "default_global_relay_quota_bytes")]
     pub global_relay_quota_bytes: u64,

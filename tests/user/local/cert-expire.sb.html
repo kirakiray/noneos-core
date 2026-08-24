@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credential Expire Tests</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Credential Expire Tests</h1>
+
+  <sb-test name="Issue Default And Explicit Expire">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const issueUser = new LocalUser("cert_expire_issue");
+        await issueUser.ready();
+
+        // 不传 expire：默认签发后 30 天
+        const defaultCert = await issueUser.cred.issue({
+          subject: "user1",
+          role: "admin",
+        });
+
+        // 显式时间戳
+        const explicitTime = Date.now() + 1000 * 60 * 60;
+        const explicitCert = await issueUser.cred.issue({
+          subject: "user2",
+          role: "admin",
+          expire: explicitTime,
+        });
+
+        // 显式 null：永不过期（不携带该字段）
+        const issueForeverCert = await issueUser.cred.issue({
+          subject: "user3",
+          role: "admin",
+          expire: null,
+        });
+
+        const defaultOk =
+          typeof defaultCert.expire === "number" &&
+          defaultCert.expire > Date.now() + 29 * 24 * 60 * 60 * 1000;
+        const explicitOk = explicitCert.expire === explicitTime;
+        const foreverOk = !("expire" in issueForeverCert);
+
+        // 非法类型应被拒绝
+        let invalidRejected = false;
+        try {
+          await issueUser.cred.issue({ subject: "user4", role: "admin", expire: "2026" });
+        } catch {
+          invalidRejected = true;
+        }
+
+        // 清理
+        for (const issueCert of await issueUser.cred.query({}, { includeExpired: true })) {
+          await issueUser.cred.delete(issueCert.id);
+        }
+
+        return {
+          assert: defaultOk && explicitOk && foreverOk && invalidRejected,
+          content: {
+            message: "签发默认/显式/永久 expire 验证通过",
+            checks: { defaultOk, explicitOk, foreverOk, invalidRejected },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Import Rejects Invalid And Expired Certs">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const importIssuer = new LocalUser("cert_expire_import_issuer");
+        const importReceiver = new LocalUser("cert_expire_import_receiver");
+        await importIssuer.ready();
+        await importReceiver.ready();
+
+        // expire 早于等于 signTime：被拒绝
+        const pastCert = await importIssuer._sign({
+          role: "admin",
+          issuer: importIssuer.userId,
+          subject: importReceiver.userId,
+          expire: 1,
+        });
+        let badExpireRejected = false;
+        try {
+          await importReceiver.cred.importRecord(pastCert);
+        } catch {
+          badExpireRejected = true;
+        }
+
+        // 已过期的证书：被拒绝
+        const importExpiredCert = await importIssuer._sign({
+          role: "admin",
+          issuer: importIssuer.userId,
+          subject: importReceiver.userId,
+          expire: Date.now() - 60 * 60 * 1000,
+        });
+        let expiredRejected = false;
+        try {
+          await importReceiver.cred.importRecord(importExpiredCert);
+        } catch {
+          expiredRejected = true;
+        }
+
+        // 永不过期（无 expire 字段）的证书：可正常导入
+        const importForeverCert = await importIssuer._sign({
+          role: "admin",
+          issuer: importIssuer.userId,
+          subject: importReceiver.userId,
+        });
+        const { saved } = await importReceiver.cred.importRecord(importForeverCert);
+
+        // 清理
+        await importReceiver.cred.delete("admin-" + importIssuer.userId + "-" + importReceiver.userId);
+
+        return {
+          assert: badExpireRejected && expiredRejected && saved,
+          content: {
+            message: "导入时非法/过期 expire 拦截验证通过",
+            checks: { badExpireRejected, expiredRejected, saved },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Query Has Count Values Filter Expired">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const queryUser = new LocalUser("cert_expire_query");
+        await queryUser.ready();
+
+        // 签发一张很快过期的证书（容忍期内仍有效，用已过期时间直接构造）
+        await queryUser.cred.issue({
+          subject: "user1",
+          role: "admin",
+          expire: Date.now() + 1000, // 1 秒后过期
+        });
+        await queryUser.cred.issue({ subject: "user2", role: "admin" }); // 默认 30 天
+        await queryUser.cred.issue({ subject: "user3", role: "admin", expire: null }); // 永久
+
+        // 等待第一张证书过期（含 5 分钟容差，需真正过期需等容差过后——
+        // 但容差内被视为有效正是被测行为，此处先验证有效期内的行为）
+        const beforeExpire = await queryUser.cred.count({ role: "admin" });
+        const hasAllBefore = beforeExpire === 3;
+
+        // 手动改 DB 不现实，通过 issue 构造已过期的无法入库（导入即拒绝），
+        // 过期后的过滤行为用 saveIfNewer 直接写入过期记录验证
+        const queryExpiredCert = await queryUser._sign({
+          role: "editor",
+          issuer: queryUser.userId,
+          subject: "user1",
+          expire: Date.now() - 60 * 60 * 1000,
+        });
+        const { id, ...record } = queryExpiredCert;
+        await queryUser.cred.saveIfNewer(
+          { id: "editor-" + queryUser.userId + "-user1", ...record },
+          { allowFuture: false },
+        );
+
+        // saveIfNewer 兜底：过期记录不写入
+        const editorCount = await queryUser.cred.count(
+          { role: "editor" },
+          { includeExpired: true },
+        );
+
+        // values 遍历默认过滤（此处全部未过期，验证数量语义）
+        let valuesCount = 0;
+        for await (const queryCert of queryUser.cred.values({ role: "admin" })) {
+          valuesCount++;
+        }
+
+        // 清理
+        for (const queryCert of await queryUser.cred.query({}, { includeExpired: true })) {
+          await queryUser.cred.delete(queryCert.id);
+        }
+
+        return {
+          assert: hasAllBefore && editorCount === 0 && valuesCount === 3,
+          content: {
+            message: "查询/计数/遍历的过期过滤验证通过",
+            checks: { hasAllBefore, editorCount, valuesCount },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

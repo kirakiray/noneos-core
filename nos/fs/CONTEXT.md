@@ -53,7 +53,7 @@ PublicBaseHandle (public/base.js)
 
 | 函数 | 说明 |
 |------|------|
-| `get(path, options)` | 按路径获取句柄，自动路由到 mount/remote/system |
+| `get(path, options)` | 按路径获取句柄，自动路由到 mount/system（`$mount-` 前缀走挂载库，其余走 OPFS 系统目录） |
 | `init(name)` | 初始化 OPFS 根目录（`navigator.storage.getDirectory()`） |
 | `open(options?)` | 弹出系统目录选择器，返回 DirHandle；options：`{ mode?: "read"|"readwrite"（默认 readwrite）, id?: string, mount?: true }`；不支持 `showDirectoryPicker` 时抛错。**返回的句柄会被打上 `PICKED` 标记**（见下文） |
 | `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>{encodeURI(name)}` 路径，并清除 `PICKED` 标记；若 handle 已挂载（`RESET_PATH` 已存在）则跳过持久化但仍清除标记 |
@@ -122,7 +122,7 @@ PublicBaseHandle (public/base.js)
 ### 2. 挂载机制（handle/mount/）
 - `open()` 调用 `window.showDirectoryPicker()` 获取真实目录句柄。
 - `mount()` 通过 `saveHandle()` 将原生 `FileSystemHandle` 存入 IndexedDB（`handles-db` 数据库，`handles` store，keyPath 为 `id`）。
-- ID 生成：先生成候选 id `{kind}-{Date.now()}`，再遍历已有句柄用 `isSameEntry` 去重 —— 找到相同项则复用已有 id，没找到才使用候选 id；`saveHandle` 写入时会附带 `time: Date.now()` 字段。
+- ID 生成：原生句柄支持 `getUniqueId()` 时直接以其返回值为 id；否则先生成候选 id `{kind}-{Date.now()}`，再遍历已有句柄用 `isSameEntry` 去重 —— 找到相同项则复用已有 id，没找到才使用候选 id；`saveHandle` 写入时会附带 `time: Date.now()` 字段。
 - `get("$mount-xxx>name/path")` 从 IndexedDB 加载句柄，重建 DirHandle 并设置 `RESET_PATH`；**每次 `get` 都会调用 `checkPermission(_handle)`**（readwrite 模式）。
 - Safari 不支持在 IndexedDB 存储 `FileSystemHandle`（`DataCloneError`），会抛出明确错误。
 - 所有挂载操作前会 `checkPermission`（`queryPermission` + `requestPermission`，readwrite 模式）。

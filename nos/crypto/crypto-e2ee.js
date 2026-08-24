@@ -120,7 +120,7 @@ async function decrypt(payload, aesKey) {
  * 尝试加密消息数据为二进制载荷
  *
  * 在 RemoteUser.send() 中调用。
- * 仅在本地已有对方名片（公钥）时加密，否则返回 null 走明文路径。
+ * 仅在本地已有对方资料（公钥）时加密，否则返回 null 走明文路径。
  *
  * @param {Object} localUser - LocalUser 实例
  * @param {string} remoteUserId - 目标用户 ID
@@ -131,12 +131,12 @@ export async function tryEncryptBinary(localUser, remoteUserId, data) {
   const privateKey = localUser._getPrivateKey();
   if (!privateKey) return null;
 
-  const remoteCard = await localUser.card.getByDB(remoteUserId);
-  if (!remoteCard || !remoteCard.publicKey) return null;
+  const remoteProfile = await localUser.cred.getProfileByDB(remoteUserId);
+  if (!remoteProfile || !remoteProfile.publicKey) return null;
 
   try {
     const aesKey = await getOrDeriveKey(
-      privateKey, remoteCard.publicKey,
+      privateKey, remoteProfile.publicKey,
       localUser.userId, remoteUserId
     );
     return encrypt(data, aesKey);
@@ -163,12 +163,12 @@ export async function tryDecryptBinary(localUser, fromUserId, payload) {
   const privateKey = localUser._getPrivateKey();
   if (!privateKey) return null;
 
-  const remoteCard = await localUser.card.getByDB(fromUserId);
-  if (!remoteCard || !remoteCard.publicKey) return null;
+  const remoteProfile = await localUser.cred.getProfileByDB(fromUserId);
+  if (!remoteProfile || !remoteProfile.publicKey) return null;
 
   try {
     const aesKey = await getOrDeriveKey(
-      privateKey, remoteCard.publicKey,
+      privateKey, remoteProfile.publicKey,
       localUser.userId, fromUserId
     );
     return decrypt(payload, aesKey);

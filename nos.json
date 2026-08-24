@@ -1,7 +1,7 @@
 {
-  "version": "4.4.4",
+  "version": "4.5.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1787502138745,
+  "signTime": 1787581628790,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -10,8 +10,8 @@
     },
     {
       "path": "crypto/crypto-e2ee.js",
-      "hash": "4c4ab79cde6f7dc01d9cd1bb6f22ee7962cb36f08c171386ecb8e9a866ac6909",
-      "size": 5220
+      "hash": "fa9778a2497324c0ca73e1727143af8672af0ad00e8dcb496838ed2812d9c83d",
+      "size": 5258
     },
     {
       "path": "crypto/crypto-ecdsa.js",
@@ -30,8 +30,8 @@
     },
     {
       "path": "fs/CONTEXT.md",
-      "hash": "a921f534740a12d3d498a674d5b6634711133ac6532e8118000511d93a9e63c0",
-      "size": 11072
+      "hash": "0da6073d683973b994646e75f6facb2d6f5bce1408f1c3273dcf4df16a42b241",
+      "size": 11203
     },
     {
       "path": "fs/README.md",
@@ -85,8 +85,8 @@
     },
     {
       "path": "fs/public/base.js",
-      "hash": "a3fc34737608717eb777f72ad332a07838947bfdfd6c06c7b9a2ac477a309622",
-      "size": 5492
+      "hash": "62e6ec48bf1c27b0860ddc851ff8ccf345d222b78e1bd716196e21cdf3c78c6b",
+      "size": 5576
     },
     {
       "path": "fs/public/dir.js",
@@ -140,8 +140,8 @@
     },
     {
       "path": "publish/CONTEXT.md",
-      "hash": "53723ca969beef20e42fadbb41c343e6b9e2cb2293ad0f8155f55b59be2489d2",
-      "size": 12331
+      "hash": "baba66d11a954b68a1475054dfee321c7e4af985891dec476f83d2b82479a8a2",
+      "size": 12336
     },
     {
       "path": "publish/README.md",
@@ -165,13 +165,13 @@
     },
     {
       "path": "storage/CONTEXT.md",
-      "hash": "63b5e23eafaaaee1eeb8d18bc0de86e7bed7125bfbeace43ad3386457452d05c",
-      "size": 15072
+      "hash": "4c0c87597d89217c61fbaab82b6246ae295ec24389ed47ca953c729785c24e5a",
+      "size": 15080
     },
     {
       "path": "storage/README.md",
-      "hash": "137b21b9c3bc02c253b5cdc7a0d7d3017ba2959f7628b65fed9d8b4515309d65",
-      "size": 9570
+      "hash": "20e32dabb8bf43c9bc476e6d16bb0d7e0661df293712cda05e669c5d2c7c4a08",
+      "size": 9578
     },
     {
       "path": "storage/main.js",
@@ -180,13 +180,13 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "127e2da23d3b3a662d18ade1527bbab5aa2584975e5724ca16dbab26ceec61b3",
-      "size": 27038
+      "hash": "4fdedf1bc9bc2a56dfcfbb3652a372cdcd99021eeb015bf58b6cdcd588a2b193",
+      "size": 32991
     },
     {
       "path": "user/README.md",
-      "hash": "f10417f9331b461c8a4dfa610c368080fcfe610ac92e37459e6aa2e675bcc631",
-      "size": 29147
+      "hash": "db93f9f5c018185a5585df12672c2fa984e532e66aefa05a3305210aae921ee2",
+      "size": 32273
     },
     {
       "path": "user/admin-user.js",
@@ -199,19 +199,14 @@
       "size": 5760
     },
     {
-      "path": "user/card.js",
-      "hash": "5d46dbefa2c95c558edc7fed00a00e3ff8cf19390fd16c2883913239256f72ce",
-      "size": 9273
-    },
-    {
-      "path": "user/cert.js",
-      "hash": "84ac005e0ffcefe162df43b88ccacd663fe6bc6f17c8b457420f9fd7ee6d5e01",
-      "size": 4299
+      "path": "user/cred.js",
+      "hash": "0cce47695cfabf184b11b4120ac914197a1d1edded665303f54f23f9dbc0710a",
+      "size": 21714
     },
     {
       "path": "user/db.js",
-      "hash": "43a4efac265e8e59ce1f392674434ce79cdb5f6231525bde0db4f8a2bb374dac",
-      "size": 26696
+      "hash": "cfbcc112e02d1237b7538c117ce365724217effce0827496aaf14e8bf94147f8",
+      "size": 24648
     },
     {
       "path": "user/main.js",
@@ -220,8 +215,8 @@
     },
     {
       "path": "user/remote-user.js",
-      "hash": "0ab4552cd15806fce73bb0bbaa73703e24cfd547d3d6d45cd60ac0598070c906",
-      "size": 33521
+      "hash": "cf4ccca75eb00a839dd7489d6099cae42926ebc5c5347611fd0880b9ae0bc63c",
+      "size": 36041
     },
     {
       "path": "user/rtc.js",
@@ -240,13 +235,13 @@
     },
     {
       "path": "user/traffic.js",
-      "hash": "8ebdfc5e47ee35dd893fd3d5fcb66fa0c58f91e1c9ffbd1a1c637745747f7da6",
-      "size": 26646
+      "hash": "6a9b0baecde3dbd6ec36e4203986cd6eb3bab7944d24956df7b5dfb7b3adaaed",
+      "size": 26655
     },
     {
       "path": "user/user.js",
-      "hash": "d96dde2d4405a740e53fb12bdd29a4f6ae4608e68b7a4de01473a8d0865a776f",
-      "size": 34633
+      "hash": "005743776dd7e4ffee3b3f8880909549b89f00611e96dd863cade6178421a2d2",
+      "size": 36706
     },
     {
       "path": "util/async-pool.js",
@@ -294,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "JDUHaz7H1E96WNrnLP63YHASEBNiDm9OmcBG+0p1V4b9rdxh7rzcFtVJ34Elrbu8w7b1oFHepSWr6owao8CgMA=="
+  "signature": "a1FCpbHFYjpQL7DhIxxILkaTEaht1LukUTm1lm3zbVhYnUX/ogGTPcqQKSk5BvcB6JI8BU2d2bxr2JrDKRpLYw=="
 }

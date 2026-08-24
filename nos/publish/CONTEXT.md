@@ -163,7 +163,7 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 | 验签 manifest | -> `verifyData` | nos/crypto |
 | 请求发起 | -> `remoteUser.send(raw=true)`（内部选择 RTC / server relay） | nos/user |
 | 响应回复 | -> `server.relayToUserViaServer` 或 `remoteUser.send(raw=true)` | nos/user |
-| 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` 或 RTC `dc.send(ArrayBuffer)` | nos/user + server/rust |
+| 二进制 chunk 传输 | 复用 nos/user 的二进制 relay 帧 `[4B header_len BE][header JSON][payload]` 或 RTC `dc.send(ArrayBuffer)` | nos/user + server/handshake |
 
 ## 九、与 README 的对应关系
 

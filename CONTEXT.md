@@ -5,7 +5,7 @@
 ## 一、核心技术架构
 
 - **底层架构 (Base Layer)**：基于 `noneos-core` 开发。
-  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 skills/noneos-core-docs/SKILL.md。
+  - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 .agents/skills/noneos-core-docs/SKILL.md。
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
 
@@ -17,14 +17,14 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util 等；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
+| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util/locale-text/n-icon，根证书 `root-cert.json`；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
-| `server/rust/` | Rust 服务端（WebSocket 握手/中继服务） |
+| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务） |
 | `server/client/` | 服务端管理前端（admin 页面） |
 | `nos-tool/` | 内置工具集（studio、file-explore、system-info、locale-text-tool、rtc-tool，安装/升级入口 `_install/`）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
-| `skills/` | Skill 知识库（`noneos-core-docs` 等） |
+| `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |
 | `others/` | 归档/实验代码（如 `others/old/editor/` 旧 Monaco 编辑器），**不参与运行时** |
@@ -33,7 +33,7 @@
 
 | URL 前缀 | 实际映射目标 | 处理器（sw/src/modules/） |
 |----------|------------|---------------------------|
-| `/nos/...` | 按 `systemConfig.mode` 映射到线上 `core.noneos.com` 或本地 OPFS `nos-{version}/` | nos-handle.js |
+| `/nos/...` | online 模式（默认）直接同域 fetch；local 模式映射到 OPFS `systemConfig.nosMapPath`（如 `nos-{version}/`）；dev 时 localhost:3002 直连、其他 localhost 端口先代理到 3002 | nos-handle.js |
 | `/gh/{path}` | `https://cdn.jsdelivr.net/gh/{path}` | cache-handlers.js |
 | `/npm/{path}` | `https://cdn.jsdelivr.net/npm/{path}` | cache-handlers.js |
 | `/ncomp/{path}` | 生产：`https://core.noneos.com/ncomp/{path}`；dev：localhost:3002 优先 | cache-handlers.js |
@@ -74,7 +74,7 @@
 - `npm start` = 本地正式部署用的静态服务器（`localhost:30028`，默认握手服务器会包含线上节点；同时也是自动化测试使用的端口）
 
 
-**Rust 服务配置文件**：`server/rust/test-space/config.example.toml`（ws1）与 `config2.toml`（ws2），测试环境已关闭内存过载保护、放宽 session/relay 限制。
+**Rust 服务配置文件**：`server/handshake/test-space/config.example.toml`（ws1）与 `config2.toml`（ws2），测试环境已关闭内存过载保护、放宽 session/relay 限制。
 
 ### 构建
 
@@ -83,7 +83,8 @@
 | `npm run build` | 完整构建 = `build:hashes` + `pack-nos.js` + `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出会被 `nos.json` 消费） |
-| `npm run build:skill` | 构建 `skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`） |
+| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`） |
+| `npm test` | 运行 sibyl-test 测试套件（`sb-test`；自定义多浏览器运行器见 `scripts/run-tests.js`） |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
 > **重要**：修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`（或开发期使用 `npm run watch:sw`），否则线上 SW 不会生效。
@@ -96,7 +97,7 @@
 
 - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
 - [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
-- [server/rust/CONTEXT.md](server/rust/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
+- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
 - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
 - [nos/storage/CONTEXT.md](nos/storage/CONTEXT.md) - 官方键值存储（IndexedDB、类 localStorage、跨标签页同步、句柄序列化）
 - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）

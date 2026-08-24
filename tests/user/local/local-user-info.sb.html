@@ -29,24 +29,24 @@
         const hasInfo_default = !!info_default;
         const hasUsername_default = !!info_default.username;
         const usernameFormatValid_default = info_default.username.startsWith("user-");
-        const hasUserId_default = info_default.userId === user_default.userId;
+        const hasSubject_default = info_default.subject === user_default.userId;
         const hasSignature_default = !!info_default.signature;
         const hasSignTime_default = !!info_default.signTime;
         const hasPublicKey_default = !!info_default.publicKey;
 
         return {
-          assert: hasInfo_default && hasUsername_default && usernameFormatValid_default && hasUserId_default && hasSignature_default && hasSignTime_default && hasPublicKey_default,
+          assert: hasInfo_default && hasUsername_default && usernameFormatValid_default && hasSubject_default && hasSignature_default && hasSignTime_default && hasPublicKey_default,
           content: {
             message: "新用户默认用户名生成测试成功",
             username: info_default.username,
-            userId: info_default.userId,
+            subject: info_default.subject,
             hasSignature: hasSignature_default,
             hasSignTime: hasSignTime_default,
             checks: {
               hasInfo_default,
               hasUsername_default,
               usernameFormatValid_default,
-              hasUserId_default,
+              hasSubject_default,
               hasSignature_default,
               hasSignTime_default,
               hasPublicKey_default,
@@ -77,7 +77,7 @@
         const hasNickname_update = updatedInfo.nickname === "测试用户";
         const hasAge_update = updatedInfo.age === 25;
         const hasEmail_update = updatedInfo.email === "test@example.com";
-        const hasUserId_update = updatedInfo.userId === user_update.userId;
+        const hasSubject_update = updatedInfo.subject === user_update.userId;
         const hasSignature_update = !!updatedInfo.signature;
 
         // 获取信息验证持久化
@@ -86,7 +86,7 @@
         const isAgePersisted = retrievedInfo.age === 25;
 
         return {
-          assert: hasNickname_update && hasAge_update && hasEmail_update && hasUserId_update && hasSignature_update && isNicknamePersisted && isAgePersisted,
+          assert: hasNickname_update && hasAge_update && hasEmail_update && hasSubject_update && hasSignature_update && isNicknamePersisted && isAgePersisted,
           content: {
             message: "用户信息更新测试成功",
             nickname: updatedInfo.nickname,
@@ -98,7 +98,7 @@
               hasNickname_update,
               hasAge_update,
               hasEmail_update,
-              hasUserId_update,
+              hasSubject_update,
               hasSignature_update,
               isNicknamePersisted,
               isAgePersisted,
@@ -134,14 +134,14 @@
         const isNicknameUpdated_merge = mergedInfo.nickname === "新昵称";
         const isCityRetained_merge = mergedInfo.city === "北京";
         const isHobbyAdded_merge = mergedInfo.hobby === "编程";
-        const hasUserId_merge = mergedInfo.userId === user_merge.userId;
+        const hasSubject_merge = mergedInfo.subject === user_merge.userId;
         const hasSignature_merge = !!mergedInfo.signature;
 
         // 验证签名有效性
         const isSignatureValid_merge = await user_merge.verify(mergedInfo);
 
         return {
-          assert: isNicknameUpdated_merge && isCityRetained_merge && isHobbyAdded_merge && hasUserId_merge && hasSignature_merge && isSignatureValid_merge,
+          assert: isNicknameUpdated_merge && isCityRetained_merge && isHobbyAdded_merge && hasSubject_merge && hasSignature_merge && isSignatureValid_merge,
           content: {
             message: "用户信息合并更新测试成功",
             nickname: mergedInfo.nickname,
@@ -152,7 +152,7 @@
               isNicknameUpdated_merge,
               isCityRetained_merge,
               isHobbyAdded_merge,
-              hasUserId_merge,
+              hasSubject_merge,
               hasSignature_merge,
               isSignatureValid_merge,
             },

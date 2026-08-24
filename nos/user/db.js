@@ -1,9 +1,10 @@
 const STORE_NAME = "data";
 const CERT_STORE_NAME = "certs";
+// 仅供 v7→v8 迁移引用：名片已并入 certs store（role="card"），cards store 在升级时删除
 const CARD_STORE_NAME = "cards";
 const TRAFFIC_ENTRIES_STORE = "traffic_entries";
 const TRAFFIC_AGG_MINUTE_STORE = "traffic_agg_minute";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 // 数据库连接缓存池
 // 缓存的是 Promise 而非连接本身：并发的 getDb 复用同一次 indexedDB.open，
@@ -74,20 +75,34 @@ function getDb(namespace) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
+      let certStore = null;
       if (!db.objectStoreNames.contains(CERT_STORE_NAME)) {
-        const certStore = db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
-        // 单字段索引
-        certStore.createIndex("role", "role", { unique: false });
-        certStore.createIndex("issuer", "issuer", { unique: false });
-        certStore.createIndex("subject", "subject", { unique: false });
-        // 复合索引
-        certStore.createIndex("role_issuer", ["role", "issuer"], { unique: false });
-        certStore.createIndex("role_subject", ["role", "subject"], { unique: false });
-        certStore.createIndex("issuer_subject", ["issuer", "subject"], { unique: false });
-        certStore.createIndex("role_issuer_subject", ["role", "issuer", "subject"], { unique: false });
+        certStore = db.createObjectStore(CERT_STORE_NAME, { keyPath: "id" });
+      } else {
+        // 已存在的 store 需经版本变更事务获取（event.target 为 open 请求）
+        certStore = event.target.transaction.objectStore(CERT_STORE_NAME);
       }
-      if (!db.objectStoreNames.contains(CARD_STORE_NAME)) {
-        db.createObjectStore(CARD_STORE_NAME, { keyPath: "userId" });
+      // 幂等确保索引：store 可能由更早版本创建而缺少后期新增的索引
+      // （跨版本升级时 contains(store) 为真会跳过整个建表块），缺失会查询崩溃
+      const CERT_INDEXES = [
+        ["role", "role"],
+        ["issuer", "issuer"],
+        ["subject", "subject"],
+        ["role_issuer", ["role", "issuer"]],
+        ["role_subject", ["role", "subject"]],
+        ["issuer_subject", ["issuer", "subject"]],
+        ["role_issuer_subject", ["role", "issuer", "subject"]],
+      ];
+      for (const [indexName, keyPath] of CERT_INDEXES) {
+        if (!certStore.indexNames.contains(indexName)) {
+          certStore.createIndex(indexName, keyPath, { unique: false });
+        }
+      }
+      // v8：个人资料与证书统一存储（资料 = role="profile" 的证书记录），删除 cards store。
+      // 旧缓存名片不做搬迁：其签名只覆盖旧字段集，补入 role/issuer/subject 后无法通过
+      // 统一验签，且无法用他人私钥重签；名片是可再生的拉取缓存，删除后按需重取即可。
+      if (event.oldVersion < 8 && db.objectStoreNames.contains(CARD_STORE_NAME)) {
+        db.deleteObjectStore(CARD_STORE_NAME);
       }
       if (!db.objectStoreNames.contains(TRAFFIC_ENTRIES_STORE)) {
         const trafficStore = db.createObjectStore(TRAFFIC_ENTRIES_STORE, {
@@ -213,21 +228,61 @@ export async function getUserKeys(namespace) {
 }
 
 /**
- * 保存证书
+ * 按证书 id 原子化写入：仅当新记录 signTime 更大时覆盖。
+ * 读取与写入在同一事务内完成，避免并发导入同 id 时的竞态。
  * @param {string} namespace
- * @param {Object} certData
+ * @param {Object} certData - 含 id 与 signTime 的证书记录
+ * @returns {Promise<{cert: Object, saved: boolean}>} cert 为最终保留的记录，saved 表示本次是否写入
  */
-export async function saveCertToDb(namespace, certData) {
+export async function saveCertIfNewer(namespace, certData) {
   if (!namespace) throw new Error("namespace is required");
+  if (!certData.id) throw new Error("certData.id is required");
   const db = await getDb(namespace);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CERT_STORE_NAME], "readwrite");
     const store = transaction.objectStore(CERT_STORE_NAME);
-    const request = store.put(certData);
+    const getRequest = store.get(certData.id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    getRequest.onsuccess = (event) => {
+      const existing = event.target.result;
+      if (existing && existing.signTime >= certData.signTime) {
+        resolve({ cert: existing, saved: false });
+        return;
+      }
+      const putRequest = store.put(certData);
+      putRequest.onsuccess = () => resolve({ cert: certData, saved: true });
+      putRequest.onerror = () => reject(putRequest.error);
+    };
+    getRequest.onerror = () => reject(getRequest.error);
   });
+}
+
+/**
+ * 依据查询条件选择最优证书索引（查询/遍历/计数/分页共用）
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @returns {{indexName: string | null, indexKey: IDBValidKey | undefined}}
+ */
+function pickCertIndex({ role, issuer, subject } = {}) {
+  const hasRole = role !== undefined;
+  const hasIssuer = issuer !== undefined;
+  const hasSubject = subject !== undefined;
+
+  if (hasRole && hasIssuer && hasSubject) {
+    return { indexName: "role_issuer_subject", indexKey: [role, issuer, subject] };
+  } else if (hasRole && hasIssuer) {
+    return { indexName: "role_issuer", indexKey: [role, issuer] };
+  } else if (hasRole && hasSubject) {
+    return { indexName: "role_subject", indexKey: [role, subject] };
+  } else if (hasIssuer && hasSubject) {
+    return { indexName: "issuer_subject", indexKey: [issuer, subject] };
+  } else if (hasRole) {
+    return { indexName: "role", indexKey: role };
+  } else if (hasIssuer) {
+    return { indexName: "issuer", indexKey: issuer };
+  } else if (hasSubject) {
+    return { indexName: "subject", indexKey: subject };
+  }
+  return { indexName: null, indexKey: undefined };
 }
 
 /**
@@ -239,43 +294,13 @@ export async function saveCertToDb(namespace, certData) {
 export async function getCertsFromDb(namespace, query = {}) {
   if (!namespace) throw new Error("namespace is required");
   const db = await getDb(namespace);
-  
-  const { role, issuer, subject } = query;
-  const hasRole = role !== undefined;
-  const hasIssuer = issuer !== undefined;
-  const hasSubject = subject !== undefined;
-  
-  // 确定使用哪个索引
-  let indexName = null;
-  let indexKey = null;
-  
-  if (hasRole && hasIssuer && hasSubject) {
-    indexName = "role_issuer_subject";
-    indexKey = [role, issuer, subject];
-  } else if (hasRole && hasIssuer) {
-    indexName = "role_issuer";
-    indexKey = [role, issuer];
-  } else if (hasRole && hasSubject) {
-    indexName = "role_subject";
-    indexKey = [role, subject];
-  } else if (hasIssuer && hasSubject) {
-    indexName = "issuer_subject";
-    indexKey = [issuer, subject];
-  } else if (hasRole) {
-    indexName = "role";
-    indexKey = role;
-  } else if (hasIssuer) {
-    indexName = "issuer";
-    indexKey = issuer;
-  } else if (hasSubject) {
-    indexName = "subject";
-    indexKey = subject;
-  }
-  
+
+  const { indexName, indexKey } = pickCertIndex(query);
+
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CERT_STORE_NAME], "readonly");
     const store = transaction.objectStore(CERT_STORE_NAME);
-    
+
     let request;
     if (indexName) {
       const index = store.index(indexName);
@@ -284,9 +309,121 @@ export async function getCertsFromDb(namespace, query = {}) {
       // 无查询条件，返回全部
       request = store.getAll();
     }
-    
+
     request.onsuccess = (event) => {
       resolve(event.target.result || []);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// IDB 键相等判断（键只可能是标量或数组，逐元素递归比较）
+function idbKeyEqual(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => idbKeyEqual(v, b[i]));
+  }
+  return a === b;
+}
+
+/**
+ * keyset 分页读取证书：游标按 [索引键, 主键] 顺序排列，after 为上一页
+ * nextCursor（不透明 token），从其后 exclusive 续读。
+ *
+ * 注意：IDB 索引游标的 range 只作用于索引键（不做主键 tie-break），
+ * 数组下界 [索引键, 主键] 会因"数组恒大于标量"把所有目标键排除在外，
+ * 因此索引路径的 range 始终用 only(indexKey) 锁定键集，
+ * 同键内主键 <= token 主键的记录在游标循环中跳过实现续读。
+ *
+ * 被过滤（filter 返回 false）的记录不占 limit 额度，游标继续前进，
+ * 因此配合过期过滤时页面不会因被滤记录而缩水。
+ *
+ * @param {string} namespace
+ * @param {Object} query - 查询条件 { role, issuer, subject }
+ * @param {Object} [options]
+ * @param {number} options.limit - 单页条数（正整数）
+ * @param {[key, primaryKey]} [options.after] - 续读游标（上一页 nextCursor）
+ * @param {(cert: Object) => boolean} [options.filter] - 记录级过滤（不占 limit 额度）
+ * @returns {Promise<{items: Array, nextCursor: [key, primaryKey] | null, hasMore: boolean}>}
+ */
+export async function getCertsPage(namespace, query = {}, { limit, after, filter } = {}) {
+  if (!namespace) throw new Error("namespace is required");
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("limit 必须为正整数");
+  }
+
+  const db = await getDb(namespace);
+  const { indexName, indexKey } = pickCertIndex(query);
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CERT_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CERT_STORE_NAME);
+    const source = indexName ? store.index(indexName) : store;
+
+    let range;
+    let skipUntilPk = null;
+    let skipKey = undefined;
+    if (after != null) {
+      if (!Array.isArray(after) || after.length !== 2) {
+        reject(new Error("after 必须为 [key, primaryKey] 形式的游标"));
+        return;
+      }
+      const [lastKey, lastPk] = after;
+      if (indexName) {
+        range = IDBKeyRange.only(indexKey);
+        skipKey = lastKey;
+        skipUntilPk = lastPk;
+      } else {
+        // 无索引时游标只按主键排序（此时 lastKey === lastPk），标量排他下界即可
+        range = IDBKeyRange.lowerBound(lastPk, true);
+      }
+    } else if (indexName) {
+      range = IDBKeyRange.only(indexKey);
+    }
+
+    const items = [];
+    let lastCursorKey = null;
+    let lastCursorPk = null;
+    let hasMore = false;
+
+    const finish = () => {
+      resolve({
+        items,
+        nextCursor: hasMore ? [lastCursorKey, lastCursorPk] : null,
+        hasMore,
+      });
+    };
+
+    const request = range ? source.openCursor(range) : source.openCursor();
+    request.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (!cursor) {
+        finish();
+        return;
+      }
+      // 续读：跳过同一索引键内主键不大于 token 主键的记录
+      if (
+        skipUntilPk !== null &&
+        idbKeyEqual(cursor.key, skipKey) &&
+        cursor.primaryKey <= skipUntilPk
+      ) {
+        cursor.continue();
+        return;
+      }
+      const value = cursor.value;
+      if (filter && !filter(value)) {
+        cursor.continue();
+        return;
+      }
+      if (items.length < limit) {
+        items.push(value);
+        lastCursorKey = cursor.key;
+        lastCursorPk = cursor.primaryKey;
+        cursor.continue();
+      } else {
+        // 已凑满 limit 后再探测到一条有效记录：说明还有下一页
+        hasMore = true;
+        finish();
+      }
     };
     request.onerror = () => reject(request.error);
   });
@@ -330,39 +467,9 @@ export function iterateCerts(namespace, query = {}) {
             db = await getDb(namespace);
             const transaction = db.transaction([CERT_STORE_NAME], "readonly");
             const store = transaction.objectStore(CERT_STORE_NAME);
-            
-            const { role, issuer, subject } = query;
-            const hasRole = role !== undefined;
-            const hasIssuer = issuer !== undefined;
-            const hasSubject = subject !== undefined;
-            
-            // 确定使用哪个索引
-            let indexName = null;
-            let indexKey = null;
-            
-            if (hasRole && hasIssuer && hasSubject) {
-              indexName = "role_issuer_subject";
-              indexKey = [role, issuer, subject];
-            } else if (hasRole && hasIssuer) {
-              indexName = "role_issuer";
-              indexKey = [role, issuer];
-            } else if (hasRole && hasSubject) {
-              indexName = "role_subject";
-              indexKey = [role, subject];
-            } else if (hasIssuer && hasSubject) {
-              indexName = "issuer_subject";
-              indexKey = [issuer, subject];
-            } else if (hasRole) {
-              indexName = "role";
-              indexKey = role;
-            } else if (hasIssuer) {
-              indexName = "issuer";
-              indexKey = issuer;
-            } else if (hasSubject) {
-              indexName = "subject";
-              indexKey = subject;
-            }
-            
+
+            const { indexName, indexKey } = pickCertIndex(query);
+
             if (indexName) {
               const index = store.index(indexName);
               request = index.openCursor(indexKey);
@@ -405,39 +512,9 @@ export async function countCerts(namespace, query = {}) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CERT_STORE_NAME], "readonly");
     const store = transaction.objectStore(CERT_STORE_NAME);
-    
-    const { role, issuer, subject } = query;
-    const hasRole = role !== undefined;
-    const hasIssuer = issuer !== undefined;
-    const hasSubject = subject !== undefined;
-    
-    // 确定使用哪个索引
-    let indexName = null;
-    let indexKey = null;
-    
-    if (hasRole && hasIssuer && hasSubject) {
-      indexName = "role_issuer_subject";
-      indexKey = [role, issuer, subject];
-    } else if (hasRole && hasIssuer) {
-      indexName = "role_issuer";
-      indexKey = [role, issuer];
-    } else if (hasRole && hasSubject) {
-      indexName = "role_subject";
-      indexKey = [role, subject];
-    } else if (hasIssuer && hasSubject) {
-      indexName = "issuer_subject";
-      indexKey = [issuer, subject];
-    } else if (hasRole) {
-      indexName = "role";
-      indexKey = role;
-    } else if (hasIssuer) {
-      indexName = "issuer";
-      indexKey = issuer;
-    } else if (hasSubject) {
-      indexName = "subject";
-      indexKey = subject;
-    }
-    
+
+    const { indexName, indexKey } = pickCertIndex(query);
+
     let request;
     if (indexName) {
       const index = store.index(indexName);
@@ -521,146 +598,6 @@ export async function getUserInfo(namespace) {
     request.onsuccess = (event) => {
       resolve(event.target.result || null);
     };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-/**
- * 保存名片
- * 若已存在同一 userId 的名片，保留 signTime 更大的那张
- * @param {string} namespace
- * @param {Object} cardData - 已签名的名片数据（含 userId, signTime 等）
- * @returns {Promise<boolean>} 是否成功保存（false 表示已有更新或相同时间的名片，未覆盖）
- */
-export async function saveCardToDb(namespace, cardData) {
-  if (!namespace) throw new Error("namespace is required");
-  if (!cardData.userId) throw new Error("cardData.userId is required");
-  const db = await getDb(namespace);
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
-    const store = transaction.objectStore(CARD_STORE_NAME);
-
-    const getRequest = store.get(cardData.userId);
-    getRequest.onsuccess = (event) => {
-      const existing = event.target.result;
-      if (existing && existing.signTime >= cardData.signTime) {
-        resolve(false);
-        return;
-      }
-      const putRequest = store.put(cardData);
-      putRequest.onsuccess = () => resolve(true);
-      putRequest.onerror = () => reject(putRequest.error);
-    };
-    getRequest.onerror = () => reject(getRequest.error);
-  });
-}
-
-/**
- * 获取名片
- * @param {string} namespace
- * @param {string} userId
- * @returns {Promise<Object | null>}
- */
-export async function getCardFromDb(namespace, userId) {
-  if (!namespace) throw new Error("namespace is required");
-  if (!userId) throw new Error("userId is required");
-  const db = await getDb(namespace);
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
-    const store = transaction.objectStore(CARD_STORE_NAME);
-    const request = store.get(userId);
-    request.onsuccess = (event) => resolve(event.target.result || null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-/**
- * 获取所有名片
- * @param {string} namespace
- * @returns {Promise<Array>}
- */
-export async function getAllCardsFromDb(namespace) {
-  if (!namespace) throw new Error("namespace is required");
-  const db = await getDb(namespace);
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
-    const store = transaction.objectStore(CARD_STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = (event) => resolve(event.target.result || []);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-/**
- * 删除名片
- * @param {string} namespace
- * @param {string} userId
- * @returns {Promise}
- */
-export async function deleteCardFromDb(namespace, userId) {
-  if (!namespace) throw new Error("namespace is required");
-  if (!userId) throw new Error("userId is required");
-  const db = await getDb(namespace);
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CARD_STORE_NAME], "readwrite");
-    const store = transaction.objectStore(CARD_STORE_NAME);
-    const request = store.delete(userId);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-/**
- * 遍历名片
- * @param {string} namespace
- * @returns {AsyncIterable}
- */
-export function iterateCards(namespace) {
-  if (!namespace) throw new Error("namespace is required");
-  return {
-    [Symbol.asyncIterator]() {
-      let db = null;
-      let request = null;
-      return {
-        async next() {
-          if (!db) {
-            db = await getDb(namespace);
-            const transaction = db.transaction([CARD_STORE_NAME], "readonly");
-            const store = transaction.objectStore(CARD_STORE_NAME);
-            request = store.openCursor();
-          }
-          return new Promise((resolve, reject) => {
-            request.onsuccess = (event) => {
-              const cursor = event.target.result;
-              if (cursor) {
-                const value = cursor.value;
-                cursor.continue();
-                resolve({ value, done: false });
-              } else {
-                resolve({ value: undefined, done: true });
-              }
-            };
-            request.onerror = () => reject(request.error);
-          });
-        }
-      };
-    }
-  };
-}
-
-/**
- * 统计名片数量
- * @param {string} namespace
- * @returns {Promise<number>}
- */
-export async function countCards(namespace) {
-  if (!namespace) throw new Error("namespace is required");
-  const db = await getDb(namespace);
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CARD_STORE_NAME], "readonly");
-    const store = transaction.objectStore(CARD_STORE_NAME);
-    const request = store.count();
-    request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
