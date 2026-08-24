@@ -112,3 +112,27 @@
 - `nos/util/`（hash/zip/async-pool 等工具）
 - `nos-tool/`（内置工具集：studio、file-explore、system-info、locale-text-tool、rtc-tool）
 - `server/client/`（服务端管理前端 admin 页面）
+
+## 五、多语言方案（locale-text）书写规范
+
+多语言文案**必须严格按照以下格式书写**，才能被 `nos-tool/locale-text-tool` 扫描收录，进而在根目录生成 `locale-text.json`；拿到该 JSON 后即可用任意第三方工具（机翻服务、AI 辅助翻译等）批量补充 `ja`/`ko` 等语种，方便地为整个项目添加多国语言，无需改源码。
+
+HTML 中（文案必须包在 `<locale-text>` 内，每语种一个带 `lang` 属性的子元素）：
+
+```html
+<locale-text>
+  <span lang="cn">开始</span>
+  <span lang="en">Get Started</span>
+</locale-text>
+```
+
+JS 中（动态文案必须走 `getLocaleText`，动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
+
+```javascript
+import getLocaleText from "/nos/locale-text/get-locale-text.js";
+
+getLocaleText({ cn: "保存失败", en: "Save failed" });
+getLocaleText({ cn: "网络请求失败: {msg}", en: "Network failed: {msg}" }, { msg: err.message });
+```
+
+格式不规范的条目无法被工具收录，也就无法进入中央翻译表获得扩展语种。详见 [nos/locale-text/README.md](nos/locale-text/README.md)。
