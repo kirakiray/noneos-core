@@ -20,7 +20,7 @@
   </locale-text>
   ```
 
-- **JS 中**：动态文案必须通过 `getLocaleText({ cn: "...", en: "..." })` 传入语言对象（动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
+- **脚本中**（HTML 内联 `<script>` 或独立 `.js`/`.mjs` 文件均可，关键是必须通过 `getLocaleText` 函数调用）：动态文案以语言对象传入 `getLocaleText({ cn: "...", en: "..." })`（动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
 
   ```javascript
   import getLocaleText from "/nos/locale-text/get-locale-text.js";

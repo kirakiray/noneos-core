@@ -126,7 +126,7 @@ HTML 中（文案必须包在 `<locale-text>` 内，每语种一个带 `lang` �
 </locale-text>
 ```
 
-JS 中（动态文案必须走 `getLocaleText`，动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
+脚本中（HTML 内联 `<script>` 或独立 `.js`/`.mjs` 文件均可，关键是必须通过 `getLocaleText` 函数调用；动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
 
 ```javascript
 import getLocaleText from "/nos/locale-text/get-locale-text.js";
