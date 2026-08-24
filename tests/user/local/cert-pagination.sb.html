@@ -148,6 +148,9 @@
         for (let boundaryI = 0; boundaryI < 7; boundaryI++) {
           await boundaryUser.cred.issue({ subject: "b" + boundaryI, role: "bound" });
         }
+        // 干扰角色：验证分页游标锁定在查询的索引键上，不串入其他角色
+        await boundaryUser.cred.issue({ subject: "n1", role: "aanoise" });
+        await boundaryUser.cred.issue({ subject: "n2", role: "zznoise" });
 
         // limit 大于总数：一次取完，hasMore=false
         const boundaryOver = await boundaryUser.cred.query({ role: "bound" }, { limit: 100 });
@@ -159,6 +162,20 @@
         // 无条件全表分页（无索引路径）：与索引路径结果一致
         const boundaryWholePage = await boundaryUser.cred.query({}, { limit: 5 });
         const boundaryWholeCount = (await boundaryUser.cred.query({}, { includeExpired: true })).length;
+
+        // 翻页跨干扰角色：limit 4 的两页应恰好取完全部 7 条 bound，且不含 noise
+        const boundaryPages = [];
+        let boundaryAfter = undefined;
+        for (;;) {
+          const boundaryPage = await boundaryUser.cred.query(
+            { role: "bound" },
+            { limit: 4, after: boundaryAfter },
+          );
+          boundaryPages.push(boundaryPage);
+          if (!boundaryPage.hasMore) break;
+          boundaryAfter = boundaryPage.nextCursor;
+        }
+        const boundaryPagedAll = boundaryPages.flatMap((p) => p.items);
 
         // 非法 limit 拒绝
         let boundaryBadLimitRejected = false;
@@ -177,7 +194,10 @@
           overOk: boundaryOver.items.length === 7 && boundaryOver.hasMore === false && boundaryOver.nextCursor === null,
           exactOk: boundaryExact.items.length === 7 && boundaryExact.hasMore === false,
           plusOk: boundaryPlus.items.length === 7 && boundaryPlus.hasMore === false,
-          wholeScanOk: boundaryWholePage.items.length === 5 && boundaryWholeCount === 7,
+          wholeScanOk: boundaryWholePage.items.length === 5 && boundaryWholeCount === 9,
+          pagedRoleOnly:
+            boundaryPagedAll.length === 7 &&
+            boundaryPagedAll.every((c) => c.role === "bound"),
           badLimitRejected: boundaryBadLimitRejected,
         };
 

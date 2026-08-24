@@ -317,9 +317,22 @@ export async function getCertsFromDb(namespace, query = {}) {
   });
 }
 
+// IDB 键相等判断（键只可能是标量或数组，逐元素递归比较）
+function idbKeyEqual(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => idbKeyEqual(v, b[i]));
+  }
+  return a === b;
+}
+
 /**
- * keyset 分页读取证书：游标按 [索引键, 主键] 排序，after 为上一页
+ * keyset 分页读取证书：游标按 [索引键, 主键] 顺序排列，after 为上一页
  * nextCursor（不透明 token），从其后 exclusive 续读。
+ *
+ * 注意：IDB 索引游标的 range 只作用于索引键（不做主键 tie-break），
+ * 数组下界 [索引键, 主键] 会因"数组恒大于标量"把所有目标键排除在外，
+ * 因此索引路径的 range 始终用 only(indexKey) 锁定键集，
+ * 同键内主键 <= token 主键的记录在游标循环中跳过实现续读。
  *
  * 被过滤（filter 返回 false）的记录不占 limit 额度，游标继续前进，
  * 因此配合过期过滤时页面不会因被滤记录而缩水。
@@ -339,7 +352,7 @@ export async function getCertsPage(namespace, query = {}, { limit, after, filter
   }
 
   const db = await getDb(namespace);
-  const { indexName } = pickCertIndex(query);
+  const { indexName, indexKey } = pickCertIndex(query);
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CERT_STORE_NAME], "readonly");
@@ -347,17 +360,24 @@ export async function getCertsPage(namespace, query = {}, { limit, after, filter
     const source = indexName ? store.index(indexName) : store;
 
     let range;
+    let skipUntilPk = null;
+    let skipKey = undefined;
     if (after != null) {
       if (!Array.isArray(after) || after.length !== 2) {
         reject(new Error("after 必须为 [key, primaryKey] 形式的游标"));
         return;
       }
       const [lastKey, lastPk] = after;
-      // 索引游标按 [索引键, 主键] 排序，数组下界即跳过同索引键中主键更小的记录；
-      // 无索引时游标只按主键排序（此时 lastKey === lastPk），用标量下界
-      range = indexName
-        ? IDBKeyRange.lowerBound([lastKey, lastPk], true)
-        : IDBKeyRange.lowerBound(lastPk, true);
+      if (indexName) {
+        range = IDBKeyRange.only(indexKey);
+        skipKey = lastKey;
+        skipUntilPk = lastPk;
+      } else {
+        // 无索引时游标只按主键排序（此时 lastKey === lastPk），标量排他下界即可
+        range = IDBKeyRange.lowerBound(lastPk, true);
+      }
+    } else if (indexName) {
+      range = IDBKeyRange.only(indexKey);
     }
 
     const items = [];
@@ -378,6 +398,15 @@ export async function getCertsPage(namespace, query = {}, { limit, after, filter
       const cursor = event.target.result;
       if (!cursor) {
         finish();
+        return;
+      }
+      // 续读：跳过同一索引键内主键不大于 token 主键的记录
+      if (
+        skipUntilPk !== null &&
+        idbKeyEqual(cursor.key, skipKey) &&
+        cursor.primaryKey <= skipUntilPk
+      ) {
+        cursor.continue();
         return;
       }
       const value = cursor.value;
