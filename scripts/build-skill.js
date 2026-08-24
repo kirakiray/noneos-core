@@ -12,8 +12,8 @@ if (!skillName) {
   process.exit(1);
 }
 
-const skillDir = path.resolve(__dirname, `../skills/${skillName}`);
-const outputPath = path.resolve(__dirname, `../skills/${skillName}.zip`);
+const skillDir = path.resolve(__dirname, `../.agents/skills/${skillName}`);
+const outputPath = path.resolve(__dirname, `../.agents/skills/${skillName}.zip`);
 
 if (!fs.existsSync(skillDir)) {
   console.error(`skill 目录不存在: ${skillDir}`);

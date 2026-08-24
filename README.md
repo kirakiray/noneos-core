@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](package.json)
-[![Rust Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-rust-server.yml)
+[![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
 
@@ -48,7 +48,7 @@ await remote.send(sessionId, { text: "Hello from NoneOS!" });
 └────────────────────────┼────────────────────────────────────────────┘
                          │ WebSocket (wss://)
 ┌────────────────────────┼────────────────────────────────────────────┐
-│                Rust Relay Server (server/rust/)                      │
+│                Rust Relay Server (server/handshake/)                      │
 │  ┌──────────┐  ┌──────┴──────┐  ┌──────────────────────────────┐   │
 │  │ Handshake│  │  Message    │  │  Traffic Stats               │   │
 │  │ (ECDSA   │  │  Relay      │  │  (redb persistence)          │   │
@@ -117,7 +117,7 @@ server/               # Backend implementations
 tests/                # Browser-based test suites (.sb.html)
 scripts/              # Build, signing, packing utilities
 docs/                 # Multi-language documentation site (OBook)
-skills/               # AI agent skill definitions
+.agents/skills/       # AI agent skill definitions
 others/               # Archived / experimental code (not part of the runtime)
 ```
 
@@ -143,7 +143,7 @@ others/               # Archived / experimental code (not part of the runtime)
 - **Cross-tab session** support via BroadcastChannel
 - Latency monitoring with automatic server selection
 
-### Relay Server (`server/rust/`)
+### Relay Server (`server/handshake/`)
 - Challenge-response handshake with ECDSA P-256 signature verification
 - Text and binary relay with configurable size limits
 - **RTC signaling tunnel** — transparently passes SDP/ICE offers and candidates as ordinary relay data; the server is unaware it's carrying signaling
@@ -271,9 +271,9 @@ Key references:
 - [P2P Publishing](nos/publish/README.md) — DataPublisher
 - [Shared Components](ncomp/README.md) — `<n-user-name>`, `<n-user-status>`
 - [i18n Module](nos/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
-- [Host Offline Cache](skills/noneos-core-docs/references/host-cache.md) — cache a host project's own files
-- [Server Configuration](server/rust/README.md) — relay server setup
-- [AI Agent Skill](skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
+- [Host Offline Cache](.agents/skills/noneos-core-docs/references/host-cache.md) — cache a host project's own files
+- [Server Configuration](server/handshake/README.md) — relay server setup
+- [AI Agent Skill](.agents/skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
 
 ---
 
@@ -288,7 +288,7 @@ Key references:
 | `npm run build` | Build all: hashes → nos.zip → service worker → skill package |
 | `npm run build:sw` | Build the service worker via Rollup (`sw/dist.js` + `sw/dist.min.js`) |
 | `npm run build:hashes` | Compute and sign hashes of `nos/` sources (consumed by `nos.json`) |
-| `npm run build:skill` | Build the `skills/noneos-core-docs` knowledge base (`noneos-core-docs.zip`) |
+| `npm run build:skill` | Build the `.agents/skills/noneos-core-docs` knowledge base (`noneos-core-docs.zip`) |
 | `npm run bump` | Increment version across all files, then reinstall & rebuild |
 | `npm run ws` | Start two Rust relay servers (test mode, ports 8081 & 8082) |
 | `npm run ws1` / `npm run ws2` | Start a single Rust relay server (port 8081 / 8082) |

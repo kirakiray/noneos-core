@@ -223,7 +223,7 @@ import { init, mount } from "/nos/fs/main.js";
 const testDir = await init("my-dir");
 const mountedHandle = await mount(testDir);
 
-console.log(mountedHandle.path); // 如 "$mount-my-dir-xxxxx"
+console.log(mountedHandle.path); // 如 "$mount-dir-1712345678901>my-dir"（$mount-{id}>{encodeURI(name)}）
 ```
 
 ### 通过 get() 访问挂载目录
@@ -279,7 +279,7 @@ const text = await response.text(); // "sample content"
 import { getMounted } from "/nos/fs/main.js";
 
 const allHandles = await getMounted();
-// 例: [{ path: "$mount-my-dir-xxxxx", handle: DirHandle }, ...]
+// 例: [{ id, name, path, handle }, ...]（path 形如 "$mount-dir-1712345678901>my-dir"）
 
 // 查找已挂载的目录
 const found = allHandles.find(item => item.path === mountedHandle.path);
@@ -372,7 +372,7 @@ try {
 |------|------|--------|
 | `isSame(target)` | 是否指向同一文件/目录 | boolean |
 | `id()` | 唯一标识符 | string |
-| `parent` | 获取父目录 | Promise<DirHandle> |
+| `parent` | 获取父目录（同步 getter） | DirHandle |
 | `root` | 获取根目录 | DirHandle |
 
 ### parent - 获取父目录
@@ -429,7 +429,7 @@ console.log(content); // "some text"
 
 ### 基本观察
 
-观察目录中的文件变更（创建、修改、删除）：
+观察目录中的文件变更（目前仅 `write` / `remove` 两类会触发事件；创建操作不触发）：
 
 ```javascript
 const unobserve = await dir.observe((event) => {
@@ -438,9 +438,9 @@ const unobserve = await dir.observe((event) => {
 });
 
 // 触发事件
-const file = await dir.get("test.txt", { create: "file" }); // 触发事件
-await file.write("content");                                 // 可能触发事件
-await file.remove();                                         // 触发事件
+const file = await dir.get("test.txt", { create: "file" }); // 创建不触发事件
+await file.write("content");                                 // 触发 write 事件
+await file.remove();                                         // 触发 remove 事件
 
 // 取消观察
 unobserve();
@@ -501,7 +501,7 @@ const unobserve = await testDir.observe((event) => {
 });
 
 // 其他标签页/iframe 中创建文件后，events 会收到对应事件
-// events: [{ type: "create", path: "..." }, { type: "delete", path: "..." }]
+// events: [{ type: "write", path: "..." }, { type: "remove", path: "..." }]
 
 unobserve();
 ```

@@ -69,6 +69,8 @@ console.log(userInfo.username);  // 默认用户名 "user-xxxxx"
 console.log(userInfo.nickname);  // "我的昵称"
 ```
 
+> 用户信息记录即个人资料（profile）的签名载荷，以 `role="profile"` 的自签证书形态存储（含 `issuer`/`subject` 等身份字段）；`updateInfo` 重新签名时会自动剥离遗留旧字段并重建统一形态。更新成功后还会自动把新资料推送给所有已建立通信的对端用户（幂等，按 `signTime` 收敛），资料变更无需对端重新拉取。
+
 ### 信息合并更新
 
 多次调用 `updateInfo` 会合并数据，不会覆盖未更新的字段：
@@ -93,6 +95,8 @@ console.log(isValid); // true
 
 ## 证书管理
 
+> **统一凭证管理**：个人资料（profile，旧称"名片"）与证书由同一个管理器统一管理——入口为 `user.cred`（`CredentialManager`）。个人资料与证书存于同一个凭证库：个人资料就是 `role="profile"` 的**自签**证书（`issuer === subject`）。`role="profile"` 是系统保留角色，导入时强制自签校验，不构成任何授权，权限判断不应使用该角色。
+
 ### 签发与导入
 
 ```javascript
@@ -100,24 +104,43 @@ const admin = await getUser("admin-user");
 const normalUser = await getUser("normal-user");
 
 // 管理员签发证书
-const cert = await admin.cert.issue({
+const cert = await admin.cred.issue({
   subject: normalUser.userId,
   role: "editor",
   permissions: ["read", "write"]
 });
 
 // 用户导入证书（自动验证签名）
-await normalUser.cert.import(cert);
+await normalUser.cred.import(cert);
+
+// 需要感知是否实际写入时（本地已有更新的同 id 记录则 saved 为 false）
+const { cert: saved1, saved } = await normalUser.cred.importRecord(cert);
 ```
+
+### 分享证书（用户间互传）
+
+签发后可以直接通过网络把证书推送给对方（需对方在线），接收端自动验证入库并触发 `cert_received` 事件：
+
+```javascript
+const remote = await admin.connectUser(normalUser.userId);
+await remote.shareCert(cert);
+
+// 接收端
+normalUser.bind("cert_received", (event) => {
+  console.log(event.detail.saved); // 是否实际写入（重复分享为 false）
+});
+```
+
+传输自动选路（双方已交换资料时 E2EE，否则明文中继），按 `signTime` 幂等收敛；对方离线时抛出 `code: "offline"`。
 
 ### 查询与检查
 
 ```javascript
 // 查询特定角色的证书
-const editorCerts = await user.cert.query({ role: "editor" });
+const editorCerts = await user.cred.query({ role: "editor" });
 
 // 检查是否拥有某证书
-const hasEditorRole = await user.cert.has({
+const hasEditorRole = await user.cred.has({
   role: "editor",
   issuer: admin.userId
 });
@@ -127,16 +150,16 @@ const hasEditorRole = await user.cert.has({
 
 ```javascript
 // 统计证书数量
-const total = await user.cert.count();
-const editorCount = await user.cert.count({ role: "editor" });
+const total = await user.cred.count();
+const editorCount = await user.cred.count({ role: "editor" });
 
 // 遍历所有证书（内存友好，使用游标）
-for await (const cert of user.cert.values()) {
+for await (const cert of user.cred.values()) {
   console.log(`证书: ${cert.role} - ${cert.subject}`);
 }
 
 // 遍历特定条件的证书
-for await (const cert of user.cert.values({ role: "editor" })) {
+for await (const cert of user.cred.values({ role: "editor" })) {
   console.log(`编辑权限: ${cert.subject}`);
 }
 ```
@@ -144,8 +167,8 @@ for await (const cert of user.cert.values({ role: "editor" })) {
 ### 删除证书
 
 ```javascript
-await user.cert.delete(cert.id);
-const hasCert = await user.cert.has({ role: "editor" });
+await user.cred.delete(cert.id);
+const hasCert = await user.cred.has({ role: "editor" });
 console.log(hasCert); // false
 ```
 
@@ -194,7 +217,7 @@ const keys = await rSt.keys(); // ["theme"]
 ### 发送消息
 
 ```javascript
-// 发送普通对象（若双方已交换名片，会自动启用 E2EE 加密）
+// 发送普通对象（若双方已交换资料，会自动启用 E2EE 加密）
 await remoteUser.send(sessionIds[0], { text: "hello", num: 42 });
 
 // 发送二进制数据
@@ -207,10 +230,10 @@ await remoteUser.send(sessionIds[0], "hello");
 
 **返回值：** `{ status: "ok", via: "rtc"|"server", url?: string, result?: object }`
 
-- 默认对纯对象启用 E2EE 加密（需双方先通过 `user.card.get()` 交换名片）
+- 默认对纯对象启用 E2EE 加密（需双方先通过 `user.cred.getProfile()` 交换资料）
 - 第一次发送走服务器中转；第二次开始后台静默尝试 WebRTC 直连
 - 若 WebRTC DataChannel 已就绪，优先走 RTC
-- `raw=true` 为内部参数，跳过 E2EE（如名片协议自身）
+- `raw=true` 为内部参数，跳过 E2EE（如资料交换协议自身）
 
 ### 接收消息
 
@@ -373,7 +396,8 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `latency_monitor` | 延迟监测启动 | `{ status: "started", intervalMs }` |
 | `rtt_update` | 用户间 ping 完成 | `{ userId, sessionId, rtt, via, url }` |
 | `rtc_state` | WebRTC 连接状态变化 | `{ userId, sessionId, state: "connected"|"disconnected" }` |
-| `card_received` | 收到并验证远程用户名片 | `{ userId, card, saved }` |
+| `profile_received` | 收到并验证远程用户资料（请求响应或资料变更推送） | `{ userId, profile, saved }` |
+| `cert_received` | 收到对端分享的凭证并验证入库 | `{ cert, saved, fromUserId }` |
 
 示例：
 
@@ -506,28 +530,28 @@ console.log("用户昵称:", userInfo.nickname);
 console.log("默认用户名:", userInfo.username);
 
 // 管理员签发证书
-const cert = await admin.cert.issue({
+const cert = await admin.cred.issue({
   subject: user.userId,
   role: "editor",
   permissions: ["read", "write"]
 });
 
 // 用户导入并验证证书
-await user.cert.import(cert);
+await user.cred.import(cert);
 
 // 检查权限
-const hasEditorRole = await user.cert.has({
+const hasEditorRole = await user.cred.has({
   role: "editor",
   issuer: admin.userId
 });
 console.log("拥有编辑权限:", hasEditorRole);
 
 // 统计证书
-const totalCount = await user.cert.count();
+const totalCount = await user.cred.count();
 console.log(`总共有 ${totalCount} 个证书`);
 
 // 遍历证书
-for await (const c of user.cert.values()) {
+for await (const c of user.cred.values()) {
   console.log(`证书: ${c.role} - ${c.subject}`);
 }
 
@@ -588,7 +612,7 @@ await user.ready();
 | `userId` | string | 用户唯一标识（公钥哈希） |
 | `publicKey` | string | 用户公钥 |
 | `sign` | Function \| null | 签名函数（只读模式返回 null） |
-| `cert` | CertManager | 证书管理器实例 |
+| `cred` | CredentialManager | 凭证管理器实例（个人资料 + 证书统一管理） |
 
 ---
 
@@ -628,9 +652,10 @@ await user.ready();
 **返回值：** Promise\<Object\> - 更新后的签名用户信息
 
 **特性：**
-- 自动添加 `userId` 字段
+- 以 `role="profile"` 的自签证书形态存储（含 `issuer`/`subject` 身份字段）
 - 自动签名数据
 - 合并现有信息，不会覆盖未更新的字段
+- 成功后自动向已建立通信的对端推送新资料
 
 #### `getInfo()`
 
@@ -667,11 +692,11 @@ await user.ready();
 
 ---
 
-## CertManager 类
+## CredentialManager 类
 
-证书管理器类，通过 `user.cert` 访问。
+凭证管理器类，通过 `user.cred` 访问，统一管理个人资料（profile）与证书。
 
-### CertManager 方法
+### 证书方法
 
 #### `issue(options)`
 
@@ -685,16 +710,17 @@ await user.ready();
 
 **返回值：** Promise\<Object\> - 签发后的证书对象
 
-#### `import(certData)`
+#### `import(certData)` / `importRecord(certData)`
 
-验证并导入证书。会自动验证：
-- 证书签名是否有效
+验证并导入凭证。会自动验证：
+- 凭证签名是否有效（规范化排序序列化，不依赖字段顺序）
 - `issuer` 是否与公钥匹配
+- `role="profile"` 的记录必须自签（issuer === subject）
 
 **参数：**
-- `certData` (Object) - 包含签名和公钥的证书数据
+- `certData` (Object) - 包含签名和公钥的凭证数据
 
-**返回值：** Promise\<Object\> - 导入后的证书
+**返回值：** `import` 返回导入后的凭证对象；`importRecord` 返回 `{ cert, saved }`（saved 表示是否实际写入）
 
 **抛出错误：**
 - 缺少必要字段
@@ -703,37 +729,38 @@ await user.ready();
 
 #### `query(query)`
 
-查询证书。
+查询凭证（含个人资料记录）。
 
 **参数：**
 - `query` (Object) - 查询条件
-  - `role` (string) - 角色（可选）
+  - `role` (string) - 角色（可选，个人资料传 `"profile"`）
   - `issuer` (string) - 签发者ID（可选）
   - `subject` (string) - 接收者ID（可选）
 
-**返回值：** Promise\<Array\<Object\>\> - 证书数组
+**返回值：** Promise\<Array\<Object\>\> - 凭证数组
 
 #### `has(query)`
 
-检查是否拥有某证书。
+检查是否拥有某凭证。
 
 **参数：**
 - `query` (Object) - 查询条件（同 `query`）
 
 **返回值：** Promise\<boolean\>
 
-#### `delete(id)`
+#### `delete(id)` / `deleteProfile(userId)`
 
-删除证书。
+`delete` 按记录 id 删除证书；`deleteProfile` 删除某用户的个人资料记录。
 
 **参数：**
-- `id` (string) - 证书ID
+- `id` (string) - 证书记录 id（`${role}-${issuer}-${subject}`）
+- `userId` (string) - 用户 ID
 
 **返回值：** Promise\<void\>
 
 #### `count(query)`
 
-获取证书数量。
+获取凭证数量。无查询条件时为全部记录（含个人资料）。
 
 **参数：**
 - `query` (Object) - 查询条件（可选）
@@ -742,12 +769,30 @@ await user.ready();
 
 #### `values(query)`
 
-获取证书异步迭代器，支持 `for await...of` 语法遍历。使用 IndexedDB 游标实现，内存友好。
+获取凭证异步迭代器，支持 `for await...of` 语法遍历。使用 IndexedDB 游标实现，内存友好。
 
 **参数：**
 - `query` (Object) - 查询条件（可选）
 
 **返回值：** AsyncIterable
+
+### 个人资料方法
+
+#### `getProfile(userId)`
+
+获取远程用户的个人资料：本地 DB 优先，未命中则发起网络请求（10s 超时，失败自动重发 1 次）。
+
+#### `getProfileByDB(userId)`
+
+直接读取本地缓存的个人资料，返回**签名载荷视图**（不含 DB 外层 `id` 字段），可直接整体验签。
+
+#### `requestProfile(userId)`
+
+总是发起网络请求刷新个人资料（不读缓存），适合需要最新资料的场合。
+
+#### `pushProfile(profileData)`
+
+向所有已建立通信的远端用户广播新资料（`updateInfo` 成功后自动调用，通常无需手动调用）。
 
 ## 安全特性
 
@@ -770,7 +815,7 @@ await user.ready();
 ```javascript
 // 篡改证书会被检测
 const fakeCert = { ...originalCert, issuer: "hacker-id" };
-await user.cert.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
+await user.cred.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 ```
 
 ## 测试

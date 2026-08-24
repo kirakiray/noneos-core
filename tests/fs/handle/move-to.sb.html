@@ -134,5 +134,29 @@
         </script>
       </template>
     </sb-test>
+    <sb-test name="Test move to itself returns self">
+      <template>
+        <script>
+          import { init } from "/nos/fs/main.js";
+          {
+            const testDir = await init("test-dir-move");
+
+            const sourceFile = await testDir.get("self.txt", { create: "file" });
+            await sourceFile.write("stay");
+
+            const result = await sourceFile.moveTo(sourceFile);
+
+            const stillThere = await testDir.get("self.txt");
+            const content = stillThere && (await stillThere.read());
+
+            return {
+              assert:
+                result === sourceFile && content === "stay",
+              content: `result is same handle: ${result === sourceFile}, content: ${content}`,
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>

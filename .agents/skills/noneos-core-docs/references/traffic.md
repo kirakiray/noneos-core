@@ -67,7 +67,7 @@ await user.traffic.flush();
 |----------|----------|
 | `app` | 业务消息（含 `__app` / `__data`） |
 | `service` | `__service_query` / `__service_response` |
-| `card` | `type === "card"` 名片消息 |
+| `profile` | `type === "profile"` 个人资料交换消息 |
 | `rtc_signal` | WebRTC 信令 |
 | `handshake` | 握手相关：`handshake_challenge` / `handshake` / `handshake_response` |
 | `latency` | 延迟测试：`__ping__` / `__pong__` / `latency_test*` |

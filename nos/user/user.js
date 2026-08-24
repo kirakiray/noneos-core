@@ -11,8 +11,7 @@ import {
 } from "./db.js";
 import { getStorage as getGlobalStorage } from "../storage/main.js";
 import { generateKeyPair } from "../crypto/crypto-ecdsa.js";
-import { CertManager } from "./cert.js";
-import { CardManager } from "./card.js";
+import { CredentialManager, PROFILE_ROLE } from "./cred.js";
 import { ServerManager } from "./server.js";
 import { RemoteUser } from "./remote-user.js";
 import { RTCManager } from "./rtc.js";
@@ -34,7 +33,7 @@ const SHARED_STORAGE_READ_OPS = [
 ];
 
 // 共享存储回传大小上限（字节）。中继服务器对单条文本消息硬限制 256KB
-// （server/rust/src/config.rs 的 text_message_max_size），超限响应会被服务器
+// （server/handshake/src/config.rs 的 text_message_max_size），超限响应会被服务器
 // 直接拒绝且无法送达——对端已执行操作却收不到回包，只能干等超时。
 // 因此回传前先测量完整 resp 的字节数，超限改回 too_large 错误，让请求端
 // 立刻得到明确失败而不是超时。
@@ -47,8 +46,7 @@ const SHARED_STORAGE_RESP_MAX_BYTES = 256 * 1024;
 export class LocalUser extends BaseUser {
   #namespace;
   #sessionId = "s-" + Math.random().toString(36).substring(2, 10);
-  #cert;
-  #card;
+  #cred;
   #server;
   #rtc;
   #sessionChannel;
@@ -66,8 +64,7 @@ export class LocalUser extends BaseUser {
       throw new Error("namespace is required");
     }
     this.#namespace = namespace;
-    this.#cert = new CertManager(this);
-    this.#card = new CardManager(this);
+    this.#cred = new CredentialManager(this);
     this.#server = new ServerManager(this);
     this.#rtc = new RTCManager(this);
     this.#serviceRegistry = new ServiceRegistry(this);
@@ -97,7 +94,7 @@ export class LocalUser extends BaseUser {
    * 解析后分发给缓存的 RemoteUser 实例。
    *
    * 支持两种 relay 格式：
-   * - 文本 relay：JSON 格式，用于明文消息和内部协议（名片等）
+   * - 文本 relay：JSON 格式，用于明文消息和内部协议（个人资料交换等）
    * - 二进制 relay：帧格式 [4B header_len][header JSON][payload]，用于 E2EE 加密数据
    *
    * E2EE 数据自动尝试解密，解密失败则透传原始 Uint8Array。
@@ -421,6 +418,8 @@ export class LocalUser extends BaseUser {
    *
    * 分发优先级：
    * 1. 若消息 type 为 __service_query → LocalUser 级别处理（回复 service 列表）
+   * 1.5 若消息 type 为 __storage_req → 远端共享存储只读请求，本地校验执行并回传
+   * 1.6 若消息 type 为 __cert_share → 凭证互传，验证后导入统一凭证库
    * 2. 若消息 type 为 __service_available / __service_unavailable → 更新对端 RemoteUser 的服务缓存
    * 3. 若消息包含 __app 字段 → 分发给 ServiceRegistry 中对应的 handler
    * 4. 否则 → 分发给缓存的 RemoteUser 实例
@@ -439,6 +438,16 @@ export class LocalUser extends BaseUser {
       messageData.type === "__storage_req"
     ) {
       this.#handleStorageRequest(fromUserId, fromSessionId, messageData);
+      return;
+    }
+
+    // 1.6 拦截凭证互传（__cert_share）：对端分享的证书记录经验证后导入统一凭证库
+    if (
+      messageData &&
+      typeof messageData === "object" &&
+      messageData.type === "__cert_share"
+    ) {
+      this.#handleCertShare(fromUserId, messageData.cert);
       return;
     }
 
@@ -511,6 +520,24 @@ export class LocalUser extends BaseUser {
       }, true); // raw=true 跳过 E2EE
     } catch {
       // 失败静默
+    }
+  }
+
+  /**
+   * 处理入站 __cert_share：对端分享的证书记录经验证后导入统一凭证库，
+   * 并触发 cert_received 事件（detail: { cert, saved, fromUserId }）。
+   *
+   * 导入路径与本地导入完全一致（规范化验签 + signTime 收敛 + role="card"
+   * 自签不变量），无效/被篡改的记录拒绝入库且不影响后续消息；
+   * 存储的记录是否可信由应用在查询时自行判断（issuer 信任是应用层语义）。
+   */
+  async #handleCertShare(fromUserId, cert) {
+    if (!cert || typeof cert !== "object") return;
+    try {
+      const { cert: savedCert, saved } = await this.#cred.importRecord(cert);
+      this._trigger("cert_received", { cert: savedCert, saved, fromUserId });
+    } catch (err) {
+      console.warn("[LocalUser] Rejected shared cert:", err.message);
     }
   }
 
@@ -686,17 +713,10 @@ export class LocalUser extends BaseUser {
   }
 
   /**
-   * 获取证书管理器
+   * 获取凭证管理器（统一入口：个人资料 profile 与证书共用同一实例与存储）
    */
-  get cert() {
-    return this.#cert;
-  }
-
-  /**
-   * 获取名片管理器
-   */
-  get card() {
-    return this.#card;
+  get cred() {
+    return this.#cred;
   }
 
   /**
@@ -800,8 +820,8 @@ export class LocalUser extends BaseUser {
       await this.updateInfo({ username: defaultUsername });
     }
 
-    // 启动名片监听
-    this.#card.start();
+    // 启动个人资料（profile）交换监听
+    this.#cred.start();
 
     // 自动连接默认服务器列表，不阻塞 ready()
     this.#server.connectAll().catch(() => {});
@@ -852,7 +872,11 @@ export class LocalUser extends BaseUser {
 
   /**
    * 更新用户信息
-   * 合并现有信息，签名后存储到数据库
+   * 合并现有信息，签名后存储到数据库，并推送给已建立通信的远端用户
+   *
+   * 用户信息即个人资料（profile，旧称名片）的签名载荷：以 role="profile"
+   * 的自签证书形态产出，与证书共用同一数据模型（存储时按 cert 规则生成 id
+   * 入 certs store）
    * @param {Object} data - 需要更新的用户信息字段
    * @returns {Promise<Object>} 更新后的签名用户信息
    */
@@ -860,16 +884,32 @@ export class LocalUser extends BaseUser {
     // 获取现有信息
     const existingInfo = (await getUserInfo(this.#namespace)) || {};
 
-    // 合并数据，移除签名相关字段后重新签名
-    const { signTime, publicKey, signature, ...pureExistingInfo } =
-      existingInfo;
-    const mergedData = { ...pureExistingInfo, ...data, userId: this.userId };
+    // 合并数据，移除签名相关字段后重新签名；
+    // 同时剥掉旧形态可能遗留的 userId（历史兼容字段，统一形态用 subject 标识持有者）
+    const {
+      signTime,
+      publicKey,
+      signature,
+      userId: _legacyUserId,
+      ...pureExistingInfo
+    } = existingInfo;
+    const mergedData = {
+      ...pureExistingInfo,
+      ...data,
+      role: PROFILE_ROLE,
+      issuer: this.userId,
+      subject: this.userId,
+    };
 
     // 签名数据
     const signedData = await this._sign(mergedData);
 
     // 保存到数据库
     await saveUserInfo(this.#namespace, signedData);
+
+    // 将新资料推送给已建立通信的远端用户（幂等收敛，静默失败），
+    // 让资料变更（如用户名）实时传播，对端无需重新拉取
+    this.#cred.pushProfile(signedData);
 
     return signedData;
   }

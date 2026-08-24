@@ -27,27 +27,30 @@ const userInfo = await user.getInfo();
 const admin = await getUser("admin-user");
 const normalUser = await getUser("normal-user");
 
-// 管理员签发证书
-const cert = await admin.cert.issue({
+// 管理员签发证书（expire 不传默认 30 天后过期，传 null 永不过期）
+const cert = await admin.cred.issue({
   subject: normalUser.userId,
   role: "editor"
 });
 
 // 用户导入证书
-await normalUser.cert.import(cert);
+await normalUser.cred.import(cert);
 ```
 
 ### 查询与删除
 
 ```javascript
 // 查询
-const editorCerts = await user.cert.query({ role: "editor" });
+const editorCerts = await user.cred.query({ role: "editor" });
+
+// 分页查询（keyset）：返回 { items, nextCursor, hasMore }，after 续读下一页
+const page = await user.cred.query({ role: "editor" }, { limit: 50 });
 
 // 检查
-const hasEditorRole = await user.cert.has({ role: "editor" });
+const hasEditorRole = await user.cred.has({ role: "editor" });
 
 // 删除
-await user.cert.delete(cert.id);
+await user.cred.delete(cert.id);
 ```
 
 ## 远程用户高级功能
@@ -134,7 +137,8 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `remote_user_disconnected` | `disconnectUser()` 或 `connectUser()` 失败。detail: `{ userId, remoteUser, reason, error }` |
 | `message` | 通过服务器中继收到消息 |
 | `rtt_update` | RTT 延迟更新 |
-| `card_received` | 收到名片 |
+| `profile_received` | 收到个人资料（请求响应或资料变更推送） |
+| `cert_received` | 收到对端分享的凭证并验证入库（`__cert_share`）。detail: `{ cert, saved, fromUserId }` |
 
 ### RemoteUser 类
 
@@ -148,16 +152,27 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `ping(sessionId, timeout?)` | 测 RTT |
 | `getRTT(sessionId?)` | 读缓存的 RTT |
 | `sendToService(appId, data, options?)` | 应用间通信（服务发现精准投递） |
+| `shareCert(cert)` | 将证书记录（含统一形态个人资料）分享给对方（`__cert_share`）：接收端验证入库并触发 `cert_received`；E2EE 可用时自动加密；幂等（signTime 收敛）；离线抛 `code:"offline"`，全部会话投递失败抛 `code:"send_failed"` |
 | `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，单次尝试默认 10s 超时 `options.timeout` 可调；瞬时失败自动重发，默认 `options.retries=1`），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/too_large/internal`） |
 
-### CertManager 类 (user.cert)
+### CredentialManager 类 (user.cred)
+
+个人资料（profile）与证书的统一凭证管理器。
 
 | 方法 | 说明 |
 |------|------|
 | `issue(options)` | 签发证书 |
 | `import(certData)` | 导入并验证证书 |
-| `query(query)` | 查询证书 |
-| `has(query)` | 检查是否拥有某证书 |
-| `delete(id)` | 删除证书 |
-| `count(query)` | 获取证书数量 |
-| `values(query)` | 获取证书异步迭代器 |
+| `importRecord(certData)` | 同 `import`，但返回 `{ cert, saved }`（saved 表示是否实际写入） |
+| `query(query)` | 查询凭证（含个人资料记录） |
+| `has(query)` | 检查是否拥有某凭证 |
+| `delete(id)` | 按记录 id 删除证书记录 |
+| `deleteProfile(userId)` | 删除某用户的个人资料记录 |
+| `count(query)` | 获取数量；无查询条件时含资料在内的全部记录 |
+| `values(query)` | 异步迭代器；无查询条件时含资料在内的全部记录 |
+| `getProfile(userId)` | 获取个人资料：DB 优先 → 网络拉取（10s 超时自动重发 1 次） |
+| `getProfileByDB(userId)` | 直接读本地资料（签名载荷视图，可整体验签） |
+| `requestProfile(userId)` | 强制网络刷新资料 |
+| `pushProfile(data)` | 向所有已缓存远端用户广播新资料（updateInfo 后自动调用） |
+
+> 个人资料是 `role="profile"` 的自签证书记录（`issuer === subject`），可用同一套查询 API 访问（如 `cred.query({ role: "profile", subject })`）。`role="profile"` 为系统保留角色，仅允许自签，不构成授权。

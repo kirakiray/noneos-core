@@ -285,5 +285,5 @@ for (let i = 0; i < 100; i++) {
 ## 相关文档
 
 - [CONTEXT.md](CONTEXT.md) — 模块架构与实现细节（供 AI 阅读）
-- `skills/noneos-core-docs/references/storage.md` — Skill 知识库文档
+- `.agents/skills/noneos-core-docs/references/storage.md` — Skill 知识库文档
 - `tests/storage/storage.sb.html` — 测试用例

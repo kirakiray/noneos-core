@@ -1,6 +1,6 @@
-# server/rust 服务端模块上下文
+# server/handshake 服务端模块上下文
 
-> 本文档供 AI 阅读，用于快速理解 `server/rust/src` 服务端实现的整体架构与实现细节，无需逐文件阅读源码即可进行代码更新。
+> 本文档供 AI 阅读，用于快速理解 `server/handshake/src` 服务端实现的整体架构与实现细节，无需逐文件阅读源码即可进行代码更新。
 > 本模块与客户端 `nos/user` 是**联动的服务端实现**，协议对应关系见第六节。
 
 ## 一、整体架构
@@ -18,7 +18,7 @@ NoneOS Handshake Server 是一个基于 **Tokio + tokio-tungstenite** 的异步 
 ## 二、模块地图
 
 ```
-server/rust/
+server/handshake/
 ├── Cargo.toml              # 依赖清单
 ├── CONTEXT.md              # 本文档
 └── src/
@@ -145,7 +145,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
 - **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝非 admin 新连接。
 - **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
-- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/名片交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc `localtime_r` 获取，含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
+- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc `localtime_r` 获取，含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 
 ### 4. 优雅关闭（main.rs）
@@ -166,12 +166,13 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `handle_connection` 验签 | `handshake_challenge` → 签名 | `ServerManager.connect` 握手应答 |
 | `relay` 分支 + `relay_deliver_and_finalize` | `relay` JSON / 二进制帧 | `ServerManager.sendToUser` 中继 |
 | 透传中继 | `rtc_signal` | `RTCManager` 信令 |
-| 透传中继 | `card` | `CardManager` 名片交换 |
+| 透传中继 | `profile` | `CredentialManager` 个人资料交换 |
+| 透传中继 | `__cert_share` | `RemoteUser.shareCert` 凭证互传 |
 | 透传中继 | `__service_query`/`__service_response` | `RemoteUser.getServiceSessions` |
 | `update_services` 分支 | `update_services` | `ServiceRegistry.#syncToServer` |
 | 透传中继 | `__app`/`__data` 包裹 | `RemoteUser.sendToService` |
-| `latency_test`/`latency_report` 分支 | `latency_test` → `latency_test_response` → `latency_report` | `ServerManager.testLatency` |
-| AdminCommand 路由 | HTTP `/admin?...` | `AdminUser.#adminCommand` |
+| `latency_test`/`latency_report` 分支 | `latency_test` → `latency_test_response` → `latency_report`（服务端回 `latency_report_ack`） | `ServerManager.testLatency` |
+| AdminCommand 路由 | WebSocket 消息 `{type:"admin", action, url, ...}` | `AdminUser.#adminCommand` |
 | Ping/Pong | WS Ping | 客户端自动响应 |
 
 ## 七、配置默认值（config.rs）
@@ -196,6 +197,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `traffic_flush_interval_secs` | 30 | 流量刷盘间隔 |
 | `heartbeat_interval_secs` | 15 | Ping 间隔 |
 | `heartbeat_timeout_secs` | 60 | 心跳超时 |
+| `admin_user_id` | 无默认（不配置则无管理员） | 管理员用户 ID（admin 命令鉴权） |
 
 启动：`-c/--config` 指定 TOML 配置文件覆盖默认值。
 
@@ -224,7 +226,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 ### 本地构建
 
 ```bash
-cd server/rust
+cd server/handshake
 cargo build --release
 ./target/release/noneos-handshake -c config.toml
 ```
@@ -234,10 +236,10 @@ cargo build --release
 镜像采用多阶段构建（`Dockerfile`），编译产物为 `noneos-handshake`，运行镜像基于 `debian:bookworm-slim`。容器默认配置见 `docker/config.toml`（监听 `0.0.0.0:8081`，redb 落盘到 `/app/data`）。`.dockerignore` 用于排除本地 `target/`、`test-space/`、`*.redb` 等，避免污染构建上下文。
 
 ```bash
-cd server/rust
+cd server/handshake
 
 # 构建（默认用本机架构；为 x86 服务器构建时加 --platform=linux/amd64）
-docker build -t noneos-handshake:3.1.0 .
+docker build -t noneos-handshake:3.1.1 .
 ```
 
 > 国内网络拉取 Docker Hub 镜像超时时，可通过 `--build-arg` 指定国内加速源（`Dockerfile` 已用 `ARG` 暴露 `RUST_IMAGE`/`DEBIAN_IMAGE`，并内置 rsproxy crates 加速）：
@@ -245,17 +247,17 @@ docker build -t noneos-handshake:3.1.0 .
 > docker build \
 >   --build-arg RUST_IMAGE=docker.1ms.run/library/rust:latest \
 >   --build-arg DEBIAN_IMAGE=docker.1ms.run/library/debian:bookworm-slim \
->   -t noneos-handshake:3.1.0 .
+>   -t noneos-handshake:3.1.1 .
 > ```
 # 运行：映射端口 + 持久化数据库卷
 docker run -d \
   -p 8081:8081 \
   -v handshake-data:/app/data \
-  noneos-handshake:3.1.0
+  noneos-handshake:3.1.1
 
 # 覆盖默认配置（自定义 config 挂载到 /app/config.toml）
 docker run -d -p 8081:8081 -v handshake-data:/app/data \
-  -v $(pwd)/my.toml:/app/config.toml noneos-handshake:3.1.0
+  -v $(pwd)/my.toml:/app/config.toml noneos-handshake:3.1.1
 ```
 
 > 关键约定：容器内 `host` 必须为 `0.0.0.0`（或空串），写成 `localhost`/`127.0.0.1` 将导致端口映射后外部无法连接。

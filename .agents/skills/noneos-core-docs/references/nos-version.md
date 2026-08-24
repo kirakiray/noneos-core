@@ -47,12 +47,12 @@ NoneOS Core 版本管理组件，用于检测当前安装版本、提示升级�
 |--------|-------------|----------|
 | `check-start` | 无 | 开始检测版本状态时 |
 | `uninstalled` | 无 | 检测到系统未安装时 |
-| `upgradable` | `{ version, lastVersion }` | 检测到可升级到新版本时 |
+| `upgradable` | `{ data: { version, lastVersion } }` | 检测到可升级到新版本时 |
 | `install-start` | 无 | 开始安装/升级时 |
-| `install-progress` | `{ step, desc, total }` | 安装进度更新时 |
+| `install-progress` | `{ data: { step, desc, total } }` | 安装进度更新时 |
 | `install-complete` | 无 | 安装/升级完成时 |
-| `installed` | `{ version }` | 确认已安装且版本正常时 |
-| `error` | `{ message, phase }` | check 或 install 过程中发生错误时 |
+| `installed` | `{ data: { version } }` | 确认已安装且版本正常时 |
+| `error` | `{ data: { message, phase } }` | check 或 install 过程中发生错误时 |
 
 ## 状态机
 
@@ -101,19 +101,19 @@ UI 表现对应关系：
 <nos-version id="nv"></nos-version>
 <script>
   $("#nv").on("install-progress", (e) => {
-    console.log(e.detail); // { step: 2, desc: "downloading", total: 5 }
+    console.log(e.detail.data); // { step: 2, desc: "downloading", total: 5 }
   });
 
   $("#nv").on("installed", (e) => {
-    console.log("当前版本:", e.detail.version);
+    console.log("当前版本:", e.detail.data.version);
   });
 
   $("#nv").on("upgradable", (e) => {
-    console.log("可升级:", e.detail.version, "→", e.detail.lastVersion);
+    console.log("可升级:", e.detail.data.version, "→", e.detail.data.lastVersion);
   });
 
   $("#nv").on("error", (e) => {
-    console.error("出错:", e.detail.message, "阶段:", e.detail.phase);
+    console.error("出错:", e.detail.data.message, "阶段:", e.detail.data.phase);
   });
 </script>
 ```

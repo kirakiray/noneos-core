@@ -44,8 +44,8 @@ export function inferCategory(data, hint = {}) {
   if (type === "__service_query" || type === "__service_response") {
     return { category: "service", messageType: type, appId: "" };
   }
-  if (type === "card") {
-    return { category: "card", messageType: "card", appId: "" };
+  if (type === "profile") {
+    return { category: "profile", messageType: "profile", appId: "" };
   }
   if (type === "rtc_signal") {
     return { category: "rtc_signal", messageType: "rtc_signal", appId: "" };

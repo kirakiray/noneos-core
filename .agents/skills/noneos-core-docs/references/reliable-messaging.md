@@ -40,7 +40,7 @@
 
 ### 单条消息大小限制：必须 < 256KB
 
-这是**服务端硬限制**，不是建议值。中继服务器对两类消息都有上限校验（见 `server/rust/src/config.rs`）：
+这是**服务端硬限制**，不是建议值。中继服务器对两类消息都有上限校验（见 `server/handshake/src/config.rs`）：
 
 | 配置项 | 默认值 | 作用 |
 |--------|--------|------|
@@ -53,7 +53,7 @@
 发送前做一次前置校验，避免白跑一轮重试。字节数测量可直接复用 `nos/user/traffic.js` 已导出的 `measureSize`（已覆盖 string / ArrayBuffer / TypedArray / Blob / 纯对象）：
 
 ```javascript
-import { measureSize } from "/packages/user/traffic.js";
+import { measureSize } from "/nos/user/traffic.js";
 
 const MAX_PAYLOAD = 128 * 1024; // 安全上限，为加密与序列化开销留余量
 
@@ -126,7 +126,7 @@ for (const item of items) {
 > **框架内的既有实践**：`nos/publish` 的 `fetchFile` 拉取多个 chunk 时，使用 `asyncPool`（`nos/util/async-pool.js`）把在途请求限制在 `CHUNK_FETCH_CONCURRENCY = 8`。需要并发上限时可直接复用这个工具，不必自己写调度：
 >
 > ```javascript
-> import { asyncPool } from "/packages/util/async-pool.js";
+> import { asyncPool } from "/nos/util/async-pool.js";
 >
 > await asyncPool(items, (item) => sendReliable(remoteUser, appId, item), 8);
 > ```

@@ -1,4 +1,4 @@
-name: Build Rust Server
+name: Build Handshake Server
 
 on:
   release:
@@ -36,14 +36,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-${{ matrix.target }}
-          path: server/rust/target/${{ matrix.target }}/release/noneos-handshake
+          path: server/handshake/target/${{ matrix.target }}/release/noneos-handshake
           compression-level: 0
 
   build-windows:
@@ -77,19 +77,19 @@ jobs:
 
       - name: Build (MSVC target)
         if: matrix.target == 'aarch64-pc-windows-msvc'
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo xwin build --release --target aarch64-pc-windows-msvc
 
       - name: Build (GNU target)
         if: matrix.target != 'aarch64-pc-windows-msvc'
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-${{ matrix.target }}
-          path: server/rust/target/${{ matrix.target }}/release/noneos-handshake.exe
+          path: server/handshake/target/${{ matrix.target }}/release/noneos-handshake.exe
           compression-level: 0
 
   build-macos:
@@ -104,14 +104,14 @@ jobs:
           targets: aarch64-apple-darwin
 
       - name: Build
-        working-directory: server/rust
+        working-directory: server/handshake
         run: cargo build --release --target aarch64-apple-darwin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: noneos-handshake-aarch64-apple-darwin
-          path: server/rust/target/aarch64-apple-darwin/release/noneos-handshake
+          path: server/handshake/target/aarch64-apple-darwin/release/noneos-handshake
           compression-level: 0
 
   upload-release:

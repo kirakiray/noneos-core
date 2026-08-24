@@ -1,7 +1,7 @@
 # nos/user 用户模块上下文
 
 > 本文档供 AI 阅读，用于快速理解 `nos/user` 模块的整体架构与实现细节，无需逐文件阅读源码即可进行代码更新。
-> 本模块与服务端 `server/rust/src` 是**联动的客户端实现**，协议对应关系见第六节。
+> 本模块与服务端 `server/handshake/src` 是**联动的客户端实现**，协议对应关系见第六节。
 
 ## 一、整体架构
 
@@ -9,13 +9,13 @@ NoneOS 用户系统基于 **ECDSA P-256** 公私钥对建立身份（`userId = h
 
 ### 核心设计
 
-1. **分层身份**：`BaseUser` 封装签名/验签能力；`LocalUser` 扩展出证书、名片、服务器、RTC、服务注册等管理器；`AdminUser` 增加管理命令；`RemoteUser` 代表对端用户。
+1. **分层身份**：`BaseUser` 封装签名/验签能力；`LocalUser` 扩展出凭证（cred，个人资料 profile + 证书统一）、服务器、RTC、服务注册等管理器；`AdminUser` 增加管理命令；`RemoteUser` 代表对端用户。
 2. **多服务器多会话**：单个用户可同时连接多个服务器（dev/prod 多区域），每个浏览器标签页生成独立 `sessionId`，通过 `BroadcastChannel` 跨标签页发现。
 3. **三种传输路径**：
    - 服务器中继（文本 JSON / 二进制帧）—— 默认通道
    - WebRTC DataChannel（P2P 直连，ordered）—— 延迟敏感场景
    - 服务端 admin HTTP 命令 —— 仅 AdminUser
-4. **E2EE 建链**：握手 → 名片交换（Card，含双方公钥签名）→ ECDH 派生密钥 → AES-GCM 加密 P2P 消息。
+4. **E2EE 建链**：握手 → 资料交换（profile，含双方公钥签名）→ ECDH 派生密钥 → AES-GCM 加密 P2P 消息。
 5. **应用层路由**：通过 `__app`/`__data` 包裹业务消息，`ServiceRegistry` 在应用层（appId）维度路由；服务发现使用 `__service_query`/`__service_response`。
 
 ## 二、模块地图
@@ -29,11 +29,10 @@ nos/user/
 ├── remote-user.js           # RemoteUser extends BaseUser：对端用户、send/RTT/服务查询
 ├── server.js                # ServerManager：WebSocket 连接、握手、延迟选路
 ├── rtc.js                   # RTCManager：WebRTC DataChannel P2P 连接
-├── card.js                  # CardManager：名片交换协议（E2EE 密钥派生前置）
-├── cert.js                  # CertManager：证书签发/导入/查询（PKI）
+├── cred.js                  # CredentialManager：凭证统一管理（个人资料 profile + 证书）；统一存储（certs store）与导入路径；含资料在线交换协议
 ├── service-registry.js      # ServiceRegistry：应用级服务注册与路由
 ├── traffic.js               # TrafficLogger：客户端流量记录与查询
-├── db.js                    # IndexedDB 持久化（data/certs/cards/traffic_entries/traffic_agg_minute 五仓库）
+├── db.js                    # IndexedDB 持久化（data/certs/traffic_entries/traffic_agg_minute 四仓库；个人资料以 role="profile" 记录存于 certs）
 ├── README.md                # API 文档（人类阅读）
 └── CONTEXT.md               # 本文档
 ```
@@ -43,7 +42,7 @@ nos/user/
 ```
 EventTarget
   └── BaseUser (base-user.js)            ← #signer/#verifier/#userId/#privateKey/#publicKey
-        ├── LocalUser (user.js)          ← 聚合 CertManager/CardManager/ServerManager/RTCManager/ServiceRegistry/TrafficLogger
+        ├── LocalUser (user.js)          ← 聚合 CredentialManager(cred)/ServerManager/RTCManager/ServiceRegistry/TrafficLogger
         │     └── AdminUser (admin-user.js)  ← #adminCommand(url, action, extra)
         └── RemoteUser (remote-user.js)  ← #rttMap/#pendingPings/#serviceSessionCache/#serviceWaiters、E2EE 解密；Ping/Pong RTT、服务发现缓存
 ```
@@ -80,7 +79,7 @@ EventTarget
 | `#ensureRemoteUser(userId, initiatedBy)` / `_ensureRemoteUser(...)` | 内部辅助与供管理器调用的包装：确保 RemoteUser 存在，新创建时触发 `remote_user_connected` |
 | `getStorage(name)` | 获取该用户专属的独立存储空间（async，默认 name=`"default"`）。存储 id = `user:<namespace>:<userId>:<name>`，复用 `nos/storage` 的 `getStorage`，不同用户/身份互不可见；创建时经 `addUserStorageId` 登记到用户库，供 `deleteUser` 联动清理 |
 | `shareStorage(name)` | 显式开启一个存储空间的共享（**只读**，async）。`name` 必须以 `share:` 开头，否则抛错；经 `addSharedStorage` 登记到用户库 `shared-storages` 键（幂等），返回 revoke 函数（调用 `removeSharedStorage` 关闭共享）。远端用户只能读取已开启的共享空间，无法写入 |
-| `cert` / `card` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
+| `cred` / `server` / `rtc` / `services` / `traffic` | 各管理器实例 |
 
 ### RemoteUser（remote-user.js）
 
@@ -89,6 +88,7 @@ EventTarget
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
+| `shareCert(cert)` | 将证书记录（含统一形态个人资料）分享给对端：`__cert_share` 消息，E2EE 可用时自动加密否则明文中继；接收端验证入库并触发 `cert_received`。解析对端全部在线 session 逐个尝试，任一成功返回 `{status:"ok"}`；离线抛 `code:"offline"`，全部失败抛 `code:"send_failed"` |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
 | `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
 | `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
@@ -111,8 +111,7 @@ EventTarget
 
 | 管理器 | 关键方法 |
 |--------|---------|
-| `CertManager` (cert.js) | `issue`/`import`/`query`/`has`/`delete`/`count`/`values`；`query(query)` 返回数组；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→userId 哈希、签名、signTime 新旧替换、拒绝未来时间 |
-| `CardManager` (card.js) | `start()` 监听中继 `type:"card"`；收到名片请求/响应时调用 `_ensureRemoteUser()` 建立 RemoteUser；`get(userId)` DB 优先 → 网络请求（10s 超时）；`requestCard` 流程：connectUser → findSessionId → 发请求，超时/发送失败自动重发 1 次（幂等，按 signTime 去重） |
+| `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**资料在线交换**：`start()` 监听中继 `type:"profile"`（收到请求/响应时 `_ensureRemoteUser()`）；`getProfile(userId)` DB 优先 → 网络请求（10s 超时）；`requestProfile`：connectUser → findSessionId → 发请求，超时/失败自动重发 1 次（幂等）；`pushProfile(data)` 向所有已缓存远端用户广播新资料（`updateInfo` 成功后自动调用）。响应走 `importRecord` 统一导入（规范化验签 + signTime 竞争，`role` 非 `profile` 的记录拒绝）。`getProfileByDB`/`getProfile` 读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
@@ -153,7 +152,7 @@ EventTarget
 
 ### 3. 中继消息格式（user.js / server.js）
 
-- **文本中继**：JSON 对象，含 `type`、`from`、`to`、`sessionId` 等字段。例如 `card`、`rtc_signal`、`relay`、`__service_query`、`__service_response`、`update_services`。
+- **文本中继**：JSON 对象，含 `type`、`from`、`to`、`sessionId` 等字段。例如 `profile`、`rtc_signal`、`relay`、`__service_query`、`__service_response`、`update_services`。
 - **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，header 含路由信息。用于大 payload（如文件块），避免 JSON 序列化开销。
 
 ### 4. WebRTC 建链（rtc.js）
@@ -169,26 +168,30 @@ EventTarget
 
 ### 5. E2EE 端到端加密
 
-- 前置：通过 `CardManager` 交换双方名片（含经签名的公钥），校验 `publicKey → userId` 哈希一致 + 签名有效。
+- 前置：通过 CredentialManager 交换双方个人资料（含经签名的公钥），校验 `publicKey → userId` 哈希一致 + 签名有效。
 - 密钥派生：双方 `publicKey`/`privateKey` 做 ECDH（P-256）得到共享密钥。
 - 加密：AES-GCM，每条消息含 IV/nonce + 密文 + TAG。
 - `RemoteUser.send` 对普通对象自动加密；`raw=true` 跳过加密。
 
-### 6. 名片交换协议（card.js）
+### 6. 个人资料交换协议（profile；cred.js，CredentialManager）
 
 ```
 A.get(B.userId)
-  └── DB 命中 → 返回
-  └── DB 未命中 → requestCard
+  └── DB 命中（certs store 中 role="profile" 且 subject=B.userId 的记录）→ 返回
+  └── DB 未命中 → requestProfile
         ├── connectUser(B.userId)   # 确保对端在线
         ├── findSessionId            # 选一个会话
-        ├── 发送 {type:"card", action:"request"}  ──→ B
-        │     （超时/发送失败 300ms 后自动重发 1 次，CARD_REQ_RETRIES）
-        └── B 回 {type:"card", action:"response", card} ──→ A
-              └── 校验 publicKey→userId + 签名 → 存 DB
+        ├── 发送 {type:"profile", action:"request"}  ──→ B
+        │     （超时/发送失败 300ms 后自动重发 1 次，PROFILE_REQ_RETRIES）
+        └── B 回 {type:"profile", action:"response", data} ──→ A
+              └── 校验持有者身份 + 验签 → 存入 certs store（signTime 竞争收敛）
 ```
 
-可靠性：名片请求是幂等 RPC——接收端按 `signTime` 保留更新的名片（`saveCardToDb`），重复请求与迟到响应均安全，因此超时（`CARD_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 userId 合并并发请求，重试耗尽才 reject。
+**个人资料（profile）= role="profile" 的自签证书**：`updateInfo()` 产出的用户信息即资料签名载荷，形态为 `{role:"profile", issuer, subject, username..., signTime, publicKey, signature}`（`subject` 标识持有者）。收到响应/推送后校验 `subject` 与发送方 userId 一致，经 `cred.importRecord` 统一导入（规范化排序验签 + signTime 竞争）。
+
+可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全，因此超时（`PROFILE_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 userId 合并并发请求，重试耗尽才 reject。资料的 signTime 仅作版本号，收敛时不做未来时间校验（区别于授权类证书）。
+
+**变更推送**：`updateInfo` 成功后自动调用 `cred.pushProfile(新资料)`，向所有已缓存 RemoteUser 的全部在线 session 广播不请自来的资料 response（`RemoteUser._notifyProfileUpdate`，raw 发送——对端可能尚未持有本地资料、无法派生 E2EE 密钥）。接收端 `#handleProfileResponse` 对无挂起请求的推送同样验签入库并触发 `profile_received`（signTime 幂等收敛），资料变更（如用户名）无需对端重新拉取即可传播；推送静默失败，不影响本地更新流程。
 
 ### 7. 服务注册与发现（service-registry.js + remote-user.js）
 
@@ -207,22 +210,21 @@ A.get(B.userId)
 
 ### 8. IndexedDB Schema（db.js）
 
-- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 7`
-- 五仓库：
+- 数据库名：`nos_user_${namespace}`，`DB_VERSION = 8`
+- 四仓库：
   - `data`：用户信息、密钥、服务器列表等键值。**含 `user-storages` 键**：字符串数组，登记该用户通过 `LocalUser.getStorage()` 创建的全部存储 id（`addUserStorageId` 去重追加 / `getUserStorageIds` 读取），供 `deleteUser` 联动清理。**含 `shared-storages` 键**：字符串数组，登记该用户通过 `LocalUser.shareStorage()` 显式开放的共享空间名（`addSharedStorage` / `removeSharedStorage` / `getSharedStorages`），供入站共享请求做「已显式开启」校验
-  - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）
-  - `cards`：keyPath `"userId"`
-  - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / via_ts / dir_ts / cat_ts / app_ts / server_ts`
+  - `certs`：keyPath `"id"`，7 个索引（role/issuer/subject 及 4 个复合索引）。**统一凭证库**：既存授权证书，也存个人资料（`role="profile"`、`issuer=subject=userId` 的自签记录，id = `profile-${userId}-${userId}`）；`saveCertIfNewer` 在同一事务内按 signTime 竞争写入（原子化，防并发导入竞态）；索引选择统一走 `pickCertIndex`（按 role/issuer/subject 组合选最优索引）。**keyset 分页**：`getCertsPage(namespace, query, {limit, after, filter})` 用游标按 `[索引键, 主键]` 顺序读取，返回 `{items, nextCursor, hasMore}`（凑满 limit 后多探测一条判定 hasMore）；`after` 传上页 `nextCursor` 续读（无索引路径按主键标量下界）；`filter` 拒绝的记录不占 limit 额度（配合过期过滤页面不缩水）
+  - `traffic_entries`：keyPath `"id"`（自增），流量明细，索引 `ts / peer_ts / dir_ts / cat_ts / app_ts / server_ts`
   - `traffic_agg_minute`：keyPath `"id"` = `"${bucket}|${peerUserId}|${via}|${serverUrl}|${category}"`，分钟聚合桶；索引 `bucket`/`peer_bucket`/`via_bucket`/`server_bucket`/`cat_bucket`（供 summary 聚合查询）
 - 连接缓存 5s 自动关闭，避免长期占用。
-- `saveCardToDb`：保留 `signTime` 更大的名片。
+- **v7→v8 迁移**：删除 cards store，旧缓存资料**不做搬迁**——其签名只覆盖旧字段集，补入统一存储所需字段后无法通过验签，也无法用他人私钥重签；资料是可再生的拉取缓存，删除后按需重取自愈。
 
 ### 9. 流量记录（traffic.js）
 
 - **埋点位置**：入站在 [user.js #setupRelayDispatch / #setupRTCDispatch](./user.js)；出站在 [server.js sendToServer](./server.js)（含握手响应）+ [remote-user.js RTC 分支](./remote-user.js)。
 - **记录内容**：仅元数据 + 链路字节数（`size`），从不记录消息内容。
 - **字段**：`ts / direction / peerUserId / sessionId / via / serverUrl / size / category / messageType / appId / success / errorCode`。
-- **category 枚举**：`app / service / card / rtc_signal / handshake / latency / control / relay / other`。
+- **category 枚举**：`app / service / profile / rtc_signal / handshake / latency / control / relay / other`。
 - **失败记录**：`success: false`，`size` 为尝试发送字节，`errorCode` 记原因（如 `not_open`）。
 - **批量刷盘**：默认 500ms 或积累 50 条触发；`deleteBefore`/`delete` 之前会 `flush()`；**`clearAll()` 则直接丢弃未刷盘队列**（不调用 flush）。
 - **聚合桶**：`peerUserId × via × serverUrl × category`，按分钟对齐。**不含 appId 维度**，按 app 查询走明细表 `by_app_ts` 索引。
@@ -253,16 +255,32 @@ A.get(B.userId)
 
 **请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`sendToUser` 投递失败（候选 session 过期、服务器确认目标不在线）抛出的 Error 也带 `code:"offline"`，不会被当作瞬时错误重试；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
 
+### 11. 凭证互传（__cert_share）
+
+```
+A ──→ { type:"__cert_share", cert } ──→ B
+      （send 默认路径：双方已交换资料时 E2EE，否则明文中继——记录有签名保护完整性）
+
+B（user.js #handleCertShare，#dispatchToRemote 1.6 优先级拦截）
+  └── cred.importRecord(cert) —— 与本地导入同一条路径
+        ├── 通过（规范化验签 + issuer 公钥哈希 + role="profile" 自签不变量）
+        │     → 入库（signTime 幂等收敛）+ 触发 cert_received { cert, saved, fromUserId }
+        └── 无效/被篡改 → 拒绝入库（console.warn），不影响后续消息
+```
+
+发送端 `RemoteUser.shareCert(cert)`（remote-user.js）：解析对端全部在线 session，逐会话尝试投递，任一成功返回 `{status:"ok", via}`；对端无在线会话抛 `code:"offline"`，全部投递失败抛 `code:"send_failed"`。个人资料与证书是同一种记录，同一接口可分享两者（资料日常走拉取/推送，`__cert_share` 主要服务授权证书与任意凭证的定向交付）。**信任边界**：接收端只验记录的密码学有效性，不判断 issuer 是否可信——「谁签发的证书算数」是应用层在 `query/has` 消费时的语义。
+
 ## 六、客户端-服务端联动协议对应表
 
-| 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/rust/CONTEXT.md） |
+| 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/handshake/CONTEXT.md） |
 |-----------|------|---------|----------------------------------------|
 | 握手应答 | WS 文本 | `handshake_challenge` → 签名回发 | `handle_connection` 验签注册 |
 | 中继发送 | WS 文本/二进制 | `relay` JSON / 二进制帧 | `relay` 分支 + `relay_deliver_and_finalize` |
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
-| 名片交换 | 中继 | `card` (request/response) | 透传中继 |
+| 个人资料交换 | 中继 | `profile` (request/response) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
 | 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
+| 凭证互传 | 中继/RTC | `__cert_share`（E2EE 可用时应用层加密） | 透传中继 |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
@@ -272,10 +290,9 @@ A.get(B.userId)
 ## 七、依赖关系
 
 - `../util/hash/get-hash.js` —— userId 派生
-- `../crypto/crypto-ecdsa.js` —— ECDSA 签名/验签（base-user.js、cert.js、user.js）
+- `../crypto/crypto-ecdsa.js` —— ECDSA 签名/验签（base-user.js、cred.js、user.js）
 - `../crypto/crypto-e2ee.js` —— E2EE 加解密（remote-user.js；user.js 动态导入）
 - `../crypto/crypto-aes.js` —— AES 加解密（main.js，用于 export/import 加密）
-- `../crypto/crypto-verify.js` —— 通用验签（card.js）
 - `../storage/main.js` —— `LocalUser.getStorage()` 用户专属存储（user.js / main.js 静态导入；storage 无静态依赖，不成环）
 - 浏览器 API：WebSocket、WebRTC（RTCPeerConnection/DataChannel）、IndexedDB、BroadcastChannel、Crypto.subtle（ECDSA/ECDH/AES-GCM）
 
@@ -293,7 +310,8 @@ A.get(B.userId)
 | `close` | 连接关闭 |
 | `latency_test` / `latency_monitor` / `rtt_update` | 延迟测速与监控 |
 | `rtc_state` | RTC 连接状态变化 |
-| `card_received` | 收到对端名片 |
+| `profile_received` | 收到对端个人资料（请求响应或资料变更推送）。detail: `{ userId, profile, saved }` |
+| `cert_received` | 收到对端分享的凭证并验证入库（`__cert_share`）。detail: `{ cert, saved, fromUserId }`，`saved=false` 表示本地已有更新的同 id 记录 |
 | `remote_user_connected` | RemoteUser 进入缓存：主动 `connectUser()` 成功，或收到对方消息后被动创建。detail: `{ userId, remoteUser, initiatedBy: "local"|"remote" }` |
 | `remote_user_disconnected` | RemoteUser 被移除：显式 `disconnectUser()`（`reason: "manual"`），或 `connectUser()` 失败（`reason: "error"`）。detail: `{ userId, remoteUser, reason, error }` |
 | `service_registered` / `service_unregistered` | 本地 `ServiceRegistry.register`/`unregister` 成功时触发。detail: `{ appId }` |

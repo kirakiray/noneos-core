@@ -29,15 +29,15 @@ ncomp/
 - **依赖**：`/nos/user/main.js`
 - **功能**：根据 `user-id` 显示对应用户的用户名。
   - 若本地用户就是自己，直接读取 `user.getInfo().username`。
-  - 否则读取本地名片缓存 `user.card.get(uid)` 中的 `username`。
-  - 当设置 `force` 属性时，会尝试主动连接目标用户并刷新名片缓存，再显示最新名称。
-  - 名片加载失败（如对端连接尚未就绪）时自动重试最多 3 次（间隔递增 1s/2s）；`userId` 变化后旧的重试轮次自动作废，不会写回过期名称。
+  - 否则读取本地资料缓存 `user.cred.getProfile(uid)` 中的 `username`。
+  - 当设置 `force` 属性时，会尝试主动连接目标用户并刷新资料缓存，再显示最新名称。
+  - 资料加载失败（如对端连接尚未就绪）时自动重试最多 3 次（间隔递增 1s/2s）；`userId` 变化后旧的重试轮次自动作废，不会写回过期名称。
   - 失败步骤与原始错误记录在 `el.lastLoadError`（格式 `步骤: message | stack`），供调试与测试诊断。
 - **属性**：
   - `user-id`：目标用户 ID。
-  - `force`：存在时强制触发在线名片刷新。
+  - `force`：存在时强制触发在线资料刷新。
   - `namespace`：指定用户命名空间，默认为 `"default"`。
-- **回退行为**：名片获取失败时保持显示 `user-id`。
+- **回退行为**：资料获取失败时保持显示 `user-id`。
 
 ### `user-status`
 
@@ -45,7 +45,7 @@ ncomp/
 - **标签**：`<n-user-status>`
 - **依赖**：`/nos/user/main.js`
 - **功能**：根据 `user-id` 显示对应用户的在线/连接状态，以颜色圆点呈现。
-  - 默认未查询或查询出错时显示灰色（`neutral`）。
+  - 默认未查询或查询出错时显示灰色（`--md-sys-color-surface-container`）。
   - 通过服务器查询到对方在线但尚未建立 RTC 直连时，显示 `primary` 色。
   - 任意 session 的 RTC DataChannel 已处于 `open` 状态时，显示 `success` 色。
   - 所有已连接服务器均查找不到对方时，显示 `error` 色。

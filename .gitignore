@@ -162,3 +162,4 @@ _prompt*.md
 .chrome-test-data
 server/**/*.db
 server/**/*.redb
+.playwright-mcp

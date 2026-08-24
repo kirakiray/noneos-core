@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credential Query Pagination Tests</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Credential Query Pagination Tests</h1>
+
+  <sb-test name="Basic Keyset Pagination">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const basicUser = new LocalUser("cert_page_basic");
+        await basicUser.ready();
+
+        // 25 张证书，subject 为 pager00 ~ pager24（同 role 同 issuer，走 role 索引）
+        for (let basicI = 0; basicI < 25; basicI++) {
+          const basicSubject = "pager" + String(basicI).padStart(2, "0");
+          await basicUser.cred.issue({ subject: basicSubject, role: "pager" });
+        }
+
+        // 翻页收集：limit 10 → 应为 10 + 10 + 5，最后一页 hasMore=false / nextCursor=null
+        const basicPages = [];
+        let basicAfter = undefined;
+        for (;;) {
+          const basicPage = await basicUser.cred.query({ role: "pager" }, { limit: 10, after: basicAfter });
+          basicPages.push(basicPage);
+          if (!basicPage.hasMore || !basicPage.nextCursor) break;
+          basicAfter = basicPage.nextCursor;
+        }
+
+        const basicAll = basicPages.flatMap((p) => p.items);
+        const basicIds = new Set(basicAll.map((c) => c.id));
+        const basicSorted = [...basicAll].sort((a, b) => a.id < b.id ? -1 : 1);
+
+        const basicChecks = {
+          pageCountIs3: basicPages.length === 3,
+          firstPageFull: basicPages[0].items.length === 10 && basicPages[0].hasMore === true,
+          lastPagePartial:
+            basicPages[2].items.length === 5 &&
+            basicPages[2].hasMore === false &&
+            basicPages[2].nextCursor === null,
+          noDuplicate: basicIds.size === 25,
+          orderedNoLoss: basicAll.every((c, idx) => c === basicSorted[idx]) && basicAll.length === 25,
+        };
+
+        // 清理
+        for (const basicCert of await basicUser.cred.query({}, { includeExpired: true })) {
+          await basicUser.cred.delete(basicCert.id);
+        }
+
+        return {
+          assert: Object.values(basicChecks).every(Boolean),
+          content: { message: "基础 keyset 分页验证通过", checks: basicChecks },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Expired Records Do Not Shrink Pages">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        // 直接写库以构造已过期记录（cred 层的写入路径会拒绝过期证书）
+        import { saveCertIfNewer } from "/nos/user/db.js";
+
+        const expiredUser = new LocalUser("cert_page_expired");
+        await expiredUser.ready();
+
+        const expiredNow = Date.now();
+        // 12 条有效（含 expire 的正常证书，由 issue 签发）
+        for (let expiredI = 0; expiredI < 12; expiredI++) {
+          const expiredSubject = "valid" + String(expiredI).padStart(2, "0");
+          await expiredUser.cred.issue({ subject: expiredSubject, role: "mix" });
+        }
+        // 6 条已过期记录，subject 与有效记录交错（insert 后按 id 排序穿插）
+        for (let expiredI = 0; expiredI < 6; expiredI++) {
+          const expiredSubject = "zexp" + String(expiredI).padStart(2, "0");
+          await saveCertIfNewer(expiredUser.namespace, {
+            id: `mix-${expiredUser.userId}-${expiredSubject}`,
+            role: "mix",
+            issuer: expiredUser.userId,
+            subject: expiredSubject,
+            signTime: expiredNow - 2 * 60 * 60 * 1000,
+            expire: expiredNow - 60 * 60 * 1000, // 1 小时前已过期
+          });
+        }
+
+        // 默认过滤过期：每页仍应凑满 limit=4，翻完只有 12 条有效记录
+        const expiredPages = [];
+        let expiredAfter = undefined;
+        for (;;) {
+          const expiredPage = await expiredUser.cred.query({ role: "mix" }, { limit: 4, after: expiredAfter });
+          expiredPages.push(expiredPage);
+          if (!expiredPage.hasMore) break;
+          expiredAfter = expiredPage.nextCursor;
+        }
+        const expiredValidAll = expiredPages.flatMap((p) => p.items);
+        const expiredFilteredOk =
+          expiredValidAll.length === 12 &&
+          expiredValidAll.every((c) => !c.subject.startsWith("zexp")) &&
+          expiredPages.every((p) => p.items.length === 4);
+
+        // includeExpired：应翻到 18 条
+        const expiredPagesAll = [];
+        expiredAfter = undefined;
+        for (;;) {
+          const expiredPage = await expiredUser.cred.query(
+            { role: "mix" },
+            { limit: 4, after: expiredAfter, includeExpired: true },
+          );
+          expiredPagesAll.push(expiredPage);
+          if (!expiredPage.hasMore) break;
+          expiredAfter = expiredPage.nextCursor;
+        }
+        const expiredIncludeOk = expiredPagesAll.flatMap((p) => p.items).length === 18;
+
+        // 清理
+        for (const expiredCert of await expiredUser.cred.query({}, { includeExpired: true })) {
+          await expiredUser.cred.delete(expiredCert.id);
+        }
+
+        return {
+          assert: expiredFilteredOk && expiredIncludeOk,
+          content: {
+            message: "过期记录不占分页额度验证通过",
+            checks: { filteredOk: expiredFilteredOk, includeOk: expiredIncludeOk, validCount: expiredValidAll.length },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Boundary Limits And Full Scan Consistency">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const boundaryUser = new LocalUser("cert_page_boundary");
+        await boundaryUser.ready();
+
+        for (let boundaryI = 0; boundaryI < 7; boundaryI++) {
+          await boundaryUser.cred.issue({ subject: "b" + boundaryI, role: "bound" });
+        }
+
+        // limit 大于总数：一次取完，hasMore=false
+        const boundaryOver = await boundaryUser.cred.query({ role: "bound" }, { limit: 100 });
+        // limit 恰等于总数：凑满后探测不到更多，hasMore=false
+        const boundaryExact = await boundaryUser.cred.query({ role: "bound" }, { limit: 7 });
+        // limit 恰等于总数+1：凑满 7 后仍能继续（第 8 次探测为空），hasMore=false
+        const boundaryPlus = await boundaryUser.cred.query({ role: "bound" }, { limit: 8 });
+
+        // 无条件全表分页（无索引路径）：与索引路径结果一致
+        const boundaryWholePage = await boundaryUser.cred.query({}, { limit: 5 });
+        const boundaryWholeCount = (await boundaryUser.cred.query({}, { includeExpired: true })).length;
+
+        // 非法 limit 拒绝
+        let boundaryBadLimitRejected = false;
+        try {
+          await boundaryUser.cred.query({ role: "bound" }, { limit: 0 });
+        } catch {
+          boundaryBadLimitRejected = true;
+        }
+
+        // 清理
+        for (const boundaryCert of await boundaryUser.cred.query({}, { includeExpired: true })) {
+          await boundaryUser.cred.delete(boundaryCert.id);
+        }
+
+        const boundaryChecks = {
+          overOk: boundaryOver.items.length === 7 && boundaryOver.hasMore === false && boundaryOver.nextCursor === null,
+          exactOk: boundaryExact.items.length === 7 && boundaryExact.hasMore === false,
+          plusOk: boundaryPlus.items.length === 7 && boundaryPlus.hasMore === false,
+          wholeScanOk: boundaryWholePage.items.length === 5 && boundaryWholeCount === 7,
+          badLimitRejected: boundaryBadLimitRejected,
+        };
+
+        return {
+          assert: Object.values(boundaryChecks).every(Boolean),
+          content: { message: "分页边界验证通过", checks: boundaryChecks },
+        };
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

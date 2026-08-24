@@ -40,7 +40,7 @@
               `${step}: ${err?.message ?? err} | ${err?.stack ?? ""}`;
             this.lastLoadErrors.push(this.lastLoadError);
           },
-          // 加载失败后的自动重试：底层 requestCard 有超时重试但可能超过
+          // 加载失败后的自动重试：底层 requestProfile 有超时重试但可能超过
           // 调用方等待窗口（如连接尚未就绪），这里再兜底几轮，间隔递增
           async _loadWithRetry(retries = 3) {
             const uid = this.userId;
@@ -76,12 +76,12 @@
                 if (this.userId === uid) this.displayName = info.username;
                 return;
               }
-              const card = await user.card.get(uid);
-              if (card && card.username) {
-                if (this.userId === uid) this.displayName = card.username;
+              const profile = await user.cred.getProfile(uid);
+              if (profile && profile.username) {
+                if (this.userId === uid) this.displayName = profile.username;
               } else {
-                this._recordError("getCard", new Error(
-                  card ? "card has no username" : "card not found",
+                this._recordError("getProfile", new Error(
+                  profile ? "profile has no username" : "profile not found",
                 ));
               }
             } catch (err) {
@@ -99,20 +99,20 @@
                 if (this.userId === uid) this.displayName = info.username;
                 return;
               }
-              // 尝试连接用户触发名片交换
+              // 尝试连接用户触发资料交换
               try {
                 await user.connectUser(uid);
               } catch (err) {
                 this._recordError("connectUser", err);
               }
-              // 直接发起网络请求刷新名片（不先删缓存）：
-              // 失败时保留旧名片显示，成功时按 signTime 保留更新的
-              const card = await user.card.requestCard(uid);
-              if (card && card.username) {
-                if (this.userId === uid) this.displayName = card.username;
+              // 直接发起网络请求刷新资料（不先删缓存）：
+              // 失败时保留旧资料显示，成功时按 signTime 保留更新的
+              const profile = await user.cred.requestProfile(uid);
+              if (profile && profile.username) {
+                if (this.userId === uid) this.displayName = profile.username;
               } else {
-                this._recordError("requestCard", new Error(
-                  card ? "card has no username" : "card is null",
+                this._recordError("requestProfile", new Error(
+                  profile ? "profile has no username" : "profile is null",
                 ));
               }
             } catch (err) {
