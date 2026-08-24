@@ -294,7 +294,7 @@ setLang(null);   // 恢复到启动期判定的语言
 4. 工具会：
    - 按完整 `.gitignore` 规则跳过匹配文件/目录
    - 递归扫描所有 `.html` / `.js` / `.mjs` 源码文件
-   - HTML 文件：提取 `<locale-text>` 节点（含 `<template page>` / `<template component>` 内嵌的）
+   - HTML 文件：提取 `<locale-text>` 节点（含 `<template page>` / `<template component>` 内嵌的），并对内联 `<script>`（含 `<template>` 内嵌脚本）中的 `getLocaleText({...})` 调用同样做提取
    - JS/MJS 文件：正则提取 `getLocaleText({...})` 调用里的语言字段
    - 取每个节点的基准文本（`cn` → `en` → 第一个带 `lang` 的子元素）并计算 SHA-256
    - 与项目根目录已有的 `locale-text.json` 增量合并：旧条目的非基准语言字段保留，仅追加新条目

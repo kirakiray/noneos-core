@@ -194,7 +194,7 @@ getLocaleText(
 3. 工具会：
    - 按 `.gitignore` 规则跳过匹配文件/目录
    - 递归扫描所有 `.html` / `.js` / `.mjs` 源码文件
-   - HTML 文件：提取 `<locale-text>` 节点（含 `<template page>` / `<template component>` 内嵌的）
+   - HTML 文件：提取 `<locale-text>` 节点（含 `<template>` 内嵌的），并对内联 `<script>`（含 `<template>` 内嵌脚本）中的 `getLocaleText({...})` 调用同样做提取
    - JS/MJS 文件：正则提取 `getLocaleText({...})` 调用里的语言字段
    - 计算基准文本的 SHA-256，与已有 JSON 增量合并
 4. 生成结果写入项目根目录 `locale-text.json`
