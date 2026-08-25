@@ -429,8 +429,19 @@ export class CredentialManager {
     let data = null;
     try {
       const normalized = normalizeKey(key);
-      const records = await getCertsFromDb(this.#user.namespace, normalized);
-      data = records[0] ?? null;
+
+      // 本地用户自己的资料存于 data store（saveUserInfo，key "info"），
+      // 不在 certs store，命中本地 profile key 时从 getInfo() 应答
+      if (
+        normalized.role === PROFILE_ROLE &&
+        normalized.issuer === this.#user.userId &&
+        normalized.subject === this.#user.userId
+      ) {
+        data = await this.#user.getInfo();
+      } else {
+        const records = await getCertsFromDb(this.#user.namespace, normalized);
+        data = records[0] ?? null;
+      }
     } catch (err) {
       console.warn("[CredentialManager] Invalid cred request key:", err.message);
     }

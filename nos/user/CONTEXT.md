@@ -190,7 +190,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
         └── data 为 null（对端无该记录）→ resolve(null)
 ```
 
-**应答规则**：不限定签发/被签发关系——响应方对本地持有的任意精确匹配 key 的记录都应答（含他人签发给第三方的证书，支持本地应用托管此类记录）。安全边界：请求方必须已知精确 key（无法枚举），且收到记录仍走 `importRecord` 完整验签。
+**应答规则**：不限定签发/被签发关系——响应方对本地持有的任意精确匹配 key 的记录都应答（含他人签发给第三方的证书，支持本地应用托管此类记录）。安全边界：请求方必须已知精确 key（无法枚举），且收到记录仍走 `importRecord` 完整验签。注意：本地用户**自己的** profile 存于 data store（`saveUserInfo`，key `"info"`）而非 certs store，应答时命中本地 profile key 走 `getInfo()` 读取。
 
 **个人资料（profile）= role="profile" 的自签证书**：`updateInfo()` 产出的用户信息即资料签名载荷，形态为 `{role:"profile", issuer, subject, username..., signTime, publicKey, signature}`（`subject` 标识持有者）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装（key 固定为 `{role:"profile", issuer:uid, subject:uid}`，向持有者本人拉取，并保留 subject === 发送方校验）。
 
