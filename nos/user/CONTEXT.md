@@ -88,7 +88,7 @@ EventTarget
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
 | `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
-| `shareCert(cert)` | 将证书记录（含统一形态个人资料）分享给对端：`__cert_share` 消息，E2EE 可用时自动加密否则明文中继；接收端验证入库并触发 `cert_received`。解析对端全部在线 session 逐个尝试，任一成功返回 `{status:"ok"}`；离线抛 `code:"offline"`，全部失败抛 `code:"send_failed"` |
+| ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
 | `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
 | `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
@@ -111,7 +111,7 @@ EventTarget
 
 | 管理器 | 关键方法 |
 |--------|---------|
-| `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**资料在线交换**：`start()` 监听中继 `type:"profile"`（收到请求/响应时 `_ensureRemoteUser()`）；`getProfile(userId)` DB 优先 → 网络请求（10s 超时）；`requestProfile`：connectUser → findSessionId → 发请求，超时/失败自动重发 1 次（幂等）；`pushProfile(data)` 向所有已缓存远端用户广播新资料（`updateInfo` 成功后自动调用）。响应走 `importRecord` 统一导入（规范化验签 + signTime 竞争，`role` 非 `profile` 的记录拒绝）。`getProfileByDB`/`getProfile` 读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
+| `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**凭证在线拉取**：`start()` 监听中继 `type:"cred"`（收到请求/响应时 `_ensureRemoteUser()`）；通用 API `requestRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串；connectUser → findSessionId → 发请求，超时/失败自动重发 2 次，幂等，未命中 resolve null）与 `getRecord(fromUserId, key)`（DB 优先 → 网络拉取）、`getRecordByDB(key)`。响应校验记录与 key 一致后走 `importRecord` 统一导入（规范化验签 + signTime 竞争；profile 额外校验 subject === 发送方）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装。拉取读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
@@ -173,25 +173,30 @@ EventTarget
 - 加密：AES-GCM，每条消息含 IV/nonce + 密文 + TAG。
 - `RemoteUser.send` 对普通对象自动加密；`raw=true` 跳过加密。
 
-### 6. 个人资料交换协议（profile；cred.js，CredentialManager）
+### 6. 凭证按 key 拉取协议（cred；cred.js，CredentialManager）
+
+所有凭证（含个人资料）共用的按需拉取协议，线上类型 `type:"cred"`（raw 发送，不做 E2EE）：
 
 ```
-A.get(B.userId)
-  └── DB 命中（certs store 中 role="profile" 且 subject=B.userId 的记录）→ 返回
-  └── DB 未命中 → requestProfile
-        ├── connectUser(B.userId)   # 确保对端在线
-        ├── findSessionId            # 选一个会话
-        ├── 发送 {type:"profile", action:"request"}  ──→ B
-        │     （超时/发送失败 300ms 后自动重发 1 次，PROFILE_REQ_RETRIES）
-        └── B 回 {type:"profile", action:"response", data} ──→ A
-              └── 校验持有者身份 + 验签 → 存入 certs store（signTime 竞争收敛）
+A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id 字符串
+  ├── connectUser(fromUserId)             # 确保对端在线
+  ├── findSessionId                       # 选一个会话
+  ├── 发送 {type:"cred", action:"request", key} ──→ 对端
+  │     （超时/发送失败 300ms 后自动重发 2 次，CRED_REQ_RETRIES）
+  └── 对端回 {type:"cred", action:"response", key, data} ──→ A
+        ├── data 非空：校验记录与 key 一致 + 统一验签 → importRecord（signTime 竞争收敛）
+        │     ├── role="profile" → 触发 profile_received，并校验 subject === 发送方
+        │     └── 其他 role → 触发 cert_received
+        └── data 为 null（对端无该记录）→ resolve(null)
 ```
 
-**个人资料（profile）= role="profile" 的自签证书**：`updateInfo()` 产出的用户信息即资料签名载荷，形态为 `{role:"profile", issuer, subject, username..., signTime, publicKey, signature}`（`subject` 标识持有者）。收到响应/推送后校验 `subject` 与发送方 userId 一致，经 `cred.importRecord` 统一导入（规范化排序验签 + signTime 竞争）。
+**应答规则**：不限定签发/被签发关系——响应方对本地持有的任意精确匹配 key 的记录都应答（含他人签发给第三方的证书，支持本地应用托管此类记录）。安全边界：请求方必须已知精确 key（无法枚举），且收到记录仍走 `importRecord` 完整验签。注意：本地用户**自己的** profile 存于 data store（`saveUserInfo`，key `"info"`）而非 certs store，应答时命中本地 profile key 走 `getInfo()` 读取。
 
-可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全，因此超时（`PROFILE_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 userId 合并并发请求，重试耗尽才 reject。资料的 signTime 仅作版本号，收敛时不做未来时间校验（区别于授权类证书）。
+**个人资料（profile）= role="profile" 的自签证书**：`updateInfo()` 产出的用户信息即资料签名载荷，形态为 `{role:"profile", issuer, subject, username..., signTime, publicKey, signature}`（`subject` 标识持有者）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装（key 固定为 `{role:"profile", issuer:uid, subject:uid}`，向持有者本人拉取，并保留 subject === 发送方校验）。
 
-**变更推送**：`updateInfo` 成功后自动调用 `cred.pushProfile(新资料)`，向所有已缓存 RemoteUser 的全部在线 session 广播不请自来的资料 response（`RemoteUser._notifyProfileUpdate`，raw 发送——对端可能尚未持有本地资料、无法派生 E2EE 密钥）。接收端 `#handleProfileResponse` 对无挂起请求的推送同样验签入库并触发 `profile_received`（signTime 幂等收敛），资料变更（如用户名）无需对端重新拉取即可传播；推送静默失败，不影响本地更新流程。
+可靠性：拉取是幂等 RPC——接收端按 `signTime` 保留更新的记录，重复请求与迟到响应均安全，因此超时（`CRED_REQ_TIMEOUT = 10s`）或发送阶段异常直接重发；`#requestMap` 按 `fromUserId+key` 合并并发请求，重试耗尽才 reject。资料的 signTime 仅作版本号，收敛时不做未来时间校验（区别于授权类证书）。
+
+**纯拉取、无推送**：`updateInfo` / `issue` 成功后只写本地，不向任何对端广播。凭证变更由对端按需拉取（`getRecord` 缓存优先 / `requestRecord` 强制网络），拉取后经 signTime 竞争自动收敛到最新版本，无需额外协调。
 
 ### 7. 服务注册与发现（service-registry.js + remote-user.js）
 
@@ -255,20 +260,9 @@ A.get(B.userId)
 
 **请求端**（remote-user.js `getStorage` / `#requestStorage`）：调用前本地预校验 `share:` 前缀；`getSessionIds()` 为空直接抛 `code:"offline"`（确定状态，不重试）；`sendToUser` 投递失败（候选 session 过期、服务器确认目标不在线）抛出的 Error 也带 `code:"offline"`，不会被当作瞬时错误重试；`#sendRaw` 发送请求（raw，与 `__service_query` 一致）后按 reqId 挂起等待，单次尝试超时抛 `code:"timeout"`（默认 10s，`getStorage(name, { timeout })` 可调）。**自动重发**：只读操作幂等，对瞬时失败（超时、无 code 的发送异常）默认重发 1 次（`retries` 选项可调，每次尝试用新 reqId）；对端明确回传的错误（`not_shared` 等）为确定性失败，立即抛出不重试。`__storage_resp` 由 `#setupPingListener` 拦截并按 reqId 结算，对端错误回传时抛出带 `code` 的 Error。
 
-### 11. 凭证互传（__cert_share）
+### 11. （已移除）凭证互传 __cert_share
 
-```
-A ──→ { type:"__cert_share", cert } ──→ B
-      （send 默认路径：双方已交换资料时 E2EE，否则明文中继——记录有签名保护完整性）
-
-B（user.js #handleCertShare，#dispatchToRemote 1.6 优先级拦截）
-  └── cred.importRecord(cert) —— 与本地导入同一条路径
-        ├── 通过（规范化验签 + issuer 公钥哈希 + role="profile" 自签不变量）
-        │     → 入库（signTime 幂等收敛）+ 触发 cert_received { cert, saved, fromUserId }
-        └── 无效/被篡改 → 拒绝入库（console.warn），不影响后续消息
-```
-
-发送端 `RemoteUser.shareCert(cert)`（remote-user.js）：解析对端全部在线 session，逐会话尝试投递，任一成功返回 `{status:"ok", via}`；对端无在线会话抛 `code:"offline"`，全部投递失败抛 `code:"send_failed"`。个人资料与证书是同一种记录，同一接口可分享两者（资料日常走拉取/推送，`__cert_share` 主要服务授权证书与任意凭证的定向交付）。**信任边界**：接收端只验记录的密码学有效性，不判断 issuer 是否可信——「谁签发的证书算数」是应用层在 `query/has` 消费时的语义。
+已删除：凭证交付统一走第 6 节的按 key 拉取协议（`cred.requestRecord`）。`RemoteUser.shareCert` 与 `__cert_share` 消息不再存在；拉取导入成功触发 `cert_received`（detail 与原 `__cert_share` 路径一致）。**信任边界**：接收端只验记录的密码学有效性，不判断 issuer 是否可信——「谁签发的证书算数」是应用层在 `query/has` 消费时的语义。
 
 ## 六、客户端-服务端联动协议对应表
 
@@ -277,10 +271,10 @@ B（user.js #handleCertShare，#dispatchToRemote 1.6 优先级拦截）
 | 握手应答 | WS 文本 | `handshake_challenge` → 签名回发 | `handle_connection` 验签注册 |
 | 中继发送 | WS 文本/二进制 | `relay` JSON / 二进制帧 | `relay` 分支 + `relay_deliver_and_finalize` |
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
-| 个人资料交换 | 中继 | `profile` (request/response) | 透传中继 |
+| 凭证按 key 拉取 | 中继 | `cred` (request/response，raw 不做 E2EE) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
 | 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
-| 凭证互传 | 中继/RTC | `__cert_share`（E2EE 可用时应用层加密） | 透传中继 |
+| 凭证互传 | —— | 已移除，统一走 `cred` 按 key 拉取 | —— |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
@@ -310,8 +304,8 @@ B（user.js #handleCertShare，#dispatchToRemote 1.6 优先级拦截）
 | `close` | 连接关闭 |
 | `latency_test` / `latency_monitor` / `rtt_update` | 延迟测速与监控 |
 | `rtc_state` | RTC 连接状态变化 |
-| `profile_received` | 收到对端个人资料（请求响应或资料变更推送）。detail: `{ userId, profile, saved }` |
-| `cert_received` | 收到对端分享的凭证并验证入库（`__cert_share`）。detail: `{ cert, saved, fromUserId }`，`saved=false` 表示本地已有更新的同 id 记录 |
+| `profile_received` | 收到对端个人资料（请求响应）。detail: `{ userId, profile, saved }` |
+| `cert_received` | 按 key 拉取到非 profile 凭证并验证入库（cred 协议）。detail: `{ cert, saved, fromUserId }`，`saved=false` 表示本地已有更新的同 id 记录 |
 | `remote_user_connected` | RemoteUser 进入缓存：主动 `connectUser()` 成功，或收到对方消息后被动创建。detail: `{ userId, remoteUser, initiatedBy: "local"|"remote" }` |
 | `remote_user_disconnected` | RemoteUser 被移除：显式 `disconnectUser()`（`reason: "manual"`），或 `connectUser()` 失败（`reason: "error"`）。detail: `{ userId, remoteUser, reason, error }` |
 | `service_registered` / `service_unregistered` | 本地 `ServiceRegistry.register`/`unregister` 成功时触发。detail: `{ appId }` |

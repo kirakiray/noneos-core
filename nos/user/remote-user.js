@@ -86,57 +86,6 @@ export class RemoteUser extends BaseUser {
     return [...allSessions];
   }
 
-  /**
-   * 将一条证书记录（含统一形态名片）分享给该远端用户。
-   *
-   * 接收端经验证后导入统一凭证库并触发 `cert_received` 事件；
-   * 按 signTime 幂等收敛，重复分享安全。发送走默认路径：
-   * 双方已交换名片时自动 E2EE，否则回退明文中继
-   * （记录本身有签名保护完整性，明文中继不降低可信度）。
-   *
-   * @param {Object} cert - 完整证书记录（issue() 的产物或 cert.query() 的返回值）
-   * @returns {Promise<{status: "ok", via: string}>}
-   * @throws {Error} code 为 "offline"（对端无在线会话）或 "send_failed"（全部会话投递失败）
-   */
-  async shareCert(cert) {
-    if (!cert || typeof cert !== "object") {
-      throw new Error("cert record is required");
-    }
-
-    let sessionIds;
-    try {
-      sessionIds = await this.getSessionIds();
-    } catch (err) {
-      const error = new Error("Failed to resolve remote sessions", {
-        cause: err,
-      });
-      error.code = "offline";
-      throw error;
-    }
-    if (sessionIds.length === 0) {
-      const error = new Error(`User ${this.#userId} is offline`);
-      error.code = "offline";
-      throw error;
-    }
-
-    // 逐个会话尝试，任一成功即视为送达（接收端按 signTime 幂等收敛）
-    let lastError = null;
-    for (const sid of sessionIds) {
-      try {
-        const result = await this.send(sid, { type: "__cert_share", cert });
-        return { status: "ok", via: result.via };
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    const error = new Error(
-      `Failed to share cert with user ${this.#userId}`,
-      { cause: lastError },
-    );
-    error.code = "send_failed";
-    throw error;
-  }
-
   // ───── 远端共享存储（只读） ─────
 
   /**
@@ -927,25 +876,6 @@ export class RemoteUser extends BaseUser {
     for (const sid of sessionIds) {
       // raw=true：这类协议消息不做 E2EE，走中继/RTC 底层通道即可
       this.#sendRaw(sid, { type, appId }).catch(() => {});
-    }
-  }
-
-  /**
-   * 内部：本地用户信息更新后向对端推送新资料（不请自来的 profile response）。
-   * 接收端对无挂起请求的资料同样验签入库（按 signTime 幂等收敛），
-   * 重复/迟到推送均安全；静默失败（对端可能不在线）。
-   * @param {Object} profileData - 已签名的新资料数据
-   */
-  async _notifyProfileUpdate(profileData) {
-    let sessionIds;
-    try {
-      sessionIds = await this.getSessionIds();
-    } catch {
-      return;
-    }
-    for (const sid of sessionIds) {
-      // raw=true：资料协议消息不做 E2EE（对端可能还没有本地资料，无法派生密钥）
-      this.#sendRaw(sid, { type: "profile", action: "response", data: profileData }).catch(() => {});
     }
   }
 

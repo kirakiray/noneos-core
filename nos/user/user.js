@@ -419,7 +419,6 @@ export class LocalUser extends BaseUser {
    * 分发优先级：
    * 1. 若消息 type 为 __service_query → LocalUser 级别处理（回复 service 列表）
    * 1.5 若消息 type 为 __storage_req → 远端共享存储只读请求，本地校验执行并回传
-   * 1.6 若消息 type 为 __cert_share → 凭证互传，验证后导入统一凭证库
    * 2. 若消息 type 为 __service_available / __service_unavailable → 更新对端 RemoteUser 的服务缓存
    * 3. 若消息包含 __app 字段 → 分发给 ServiceRegistry 中对应的 handler
    * 4. 否则 → 分发给缓存的 RemoteUser 实例
@@ -438,16 +437,6 @@ export class LocalUser extends BaseUser {
       messageData.type === "__storage_req"
     ) {
       this.#handleStorageRequest(fromUserId, fromSessionId, messageData);
-      return;
-    }
-
-    // 1.6 拦截凭证互传（__cert_share）：对端分享的证书记录经验证后导入统一凭证库
-    if (
-      messageData &&
-      typeof messageData === "object" &&
-      messageData.type === "__cert_share"
-    ) {
-      this.#handleCertShare(fromUserId, messageData.cert);
       return;
     }
 
@@ -520,24 +509,6 @@ export class LocalUser extends BaseUser {
       }, true); // raw=true 跳过 E2EE
     } catch {
       // 失败静默
-    }
-  }
-
-  /**
-   * 处理入站 __cert_share：对端分享的证书记录经验证后导入统一凭证库，
-   * 并触发 cert_received 事件（detail: { cert, saved, fromUserId }）。
-   *
-   * 导入路径与本地导入完全一致（规范化验签 + signTime 收敛 + role="card"
-   * 自签不变量），无效/被篡改的记录拒绝入库且不影响后续消息；
-   * 存储的记录是否可信由应用在查询时自行判断（issuer 信任是应用层语义）。
-   */
-  async #handleCertShare(fromUserId, cert) {
-    if (!cert || typeof cert !== "object") return;
-    try {
-      const { cert: savedCert, saved } = await this.#cred.importRecord(cert);
-      this._trigger("cert_received", { cert: savedCert, saved, fromUserId });
-    } catch (err) {
-      console.warn("[LocalUser] Rejected shared cert:", err.message);
     }
   }
 
@@ -906,10 +877,6 @@ export class LocalUser extends BaseUser {
 
     // 保存到数据库
     await saveUserInfo(this.#namespace, signedData);
-
-    // 将新资料推送给已建立通信的远端用户（幂等收敛，静默失败），
-    // 让资料变更（如用户名）实时传播，对端无需重新拉取
-    this.#cred.pushProfile(signedData);
 
     return signedData;
   }

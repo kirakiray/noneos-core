@@ -474,7 +474,7 @@
           const ru6_origSend = ru6_ru.send.bind(ru6_ru);
           ru6_ru.send = async (sid, data, raw) => {
             if (
-              data?.type === "profile" &&
+              data?.type === "cred" &&
               data?.action === "request"
             ) {
               ru6_sendAttempts++;
@@ -511,80 +511,70 @@
     </template>
   </sb-test>
 
-  <sb-test name="Card Update Push Test">
+  <sb-test name="Card Update Pull Test">
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
 
-        const push_nsM = "card-push-m";
-        const push_nsN = "card-push-n";
-        const pushUrl = "ws://localhost:8081";
+        const pull_nsM = "card-pull-m";
+        const pull_nsN = "card-pull-n";
+        const pullUrl = "ws://localhost:8081";
 
-        const pushUserM = new LocalUser(push_nsM);
-        const pushUserN = new LocalUser(push_nsN);
+        const pullUserM = new LocalUser(pull_nsM);
+        const pullUserN = new LocalUser(pull_nsN);
 
-        await Promise.all([pushUserM.ready(), pushUserN.ready()]);
+        await Promise.all([pullUserM.ready(), pullUserN.ready()]);
 
         await Promise.all([
-          pushUserM.server.connect(pushUrl),
-          pushUserN.server.connect(pushUrl),
+          pullUserM.server.connect(pullUrl),
+          pullUserN.server.connect(pullUrl),
         ]);
 
-        // M 连接 N 并完成一次名片交换，确保通信链路就绪、N 进入 M 的缓存
-        await pushUserM.connectUser(pushUserN.userId);
-        const nCard = await pushUserM.cred.getProfile(pushUserN.userId);
+        // M 连接 N 并完成一次名片交换，确保通信链路就绪
+        await pullUserM.connectUser(pullUserN.userId);
+        const nCard = await pullUserM.cred.getProfile(pullUserN.userId);
 
-        // 清掉 N 侧可能残留的 M 名片，确保后续读到的是推送结果而非旧缓存
-        if (await pushUserN.cred.getProfileByDB(pushUserM.userId)) {
-          await pushUserN.cred.deleteProfile(pushUserM.userId);
-        }
+        // N 先拉取一份 M 的旧资料
+        const oldCard = await pullUserN.cred.requestProfile(pullUserM.userId);
+        const oldUsernameOk = oldCard.username !== "拉取后的名字";
 
-        // N 监听 profile_received（变更推送到达时触发）
-        let pushEvent = null;
-        const pushUnbind = pushUserN.bind("profile_received", (event) => {
-          if (event.detail.userId === pushUserM.userId) {
-            pushEvent = event.detail;
-          }
-        });
-        // M 更新资料 → updateInfo 应自动把新资料推送给 N
-        const newInfo = await pushUserM.updateInfo({ username: "推送后的名字" });
+        // M 更新资料（不再主动推送，由对端按需拉取）
+        const newInfo = await pullUserM.updateInfo({ username: "拉取后的名字" });
 
-        // 等待推送经中继到达
-        const pushDeadline = Date.now() + 8000;
-        while (!pushEvent && Date.now() < pushDeadline) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
-        pushUnbind();
+        // N 重新拉取，应经 signTime 竞争收敛到 M 的新资料
+        const pulledCard = await pullUserN.cred.requestProfile(pullUserM.userId);
 
-        const pushReceived = pushEvent !== null;
-        const pushSaved = pushEvent?.saved === true;
-        const pushVerified = pushEvent
-          ? await pushUserM.verify(pushEvent.profile)
-          : false;
+        const pulledUpdated = pulledCard.username === "拉取后的名字";
+        const pulledNewer = pulledCard.signTime === newInfo.signTime;
+        const pulledVerified = await pullUserM.verify(pulledCard);
 
-        // N 本地读回应为推送的新资料（用户名已更新、signTime 与 M 刚签的一致）
-        const nSideCard = await pushUserN.cred.getProfileByDB(pushUserM.userId);
-        const nSideUpdated = nSideCard?.username === "推送后的名字";
+        // N 本地读回应为拉取到的新资料
+        const nSideCard = await pullUserN.cred.getProfileByDB(pullUserM.userId);
+        const nSideUpdated = nSideCard?.username === "拉取后的名字";
         const nSideNewer = nSideCard?.signTime === newInfo.signTime;
 
-        await pushUserN.cred.deleteProfile(pushUserM.userId);
-        pushUserM.server.disconnectAll();
-        pushUserN.server.disconnectAll();
+        await pullUserN.cred.deleteProfile(pullUserM.userId);
+        pullUserM.server.disconnectAll();
+        pullUserN.server.disconnectAll();
+
+        const allPullChecks = !!nCard && oldUsernameOk && pulledUpdated && pulledNewer
+          && pulledVerified && nSideUpdated && nSideNewer;
 
         return {
-          assert: !!nCard && pushReceived && pushSaved && pushVerified && nSideUpdated && nSideNewer,
+          assert: allPullChecks,
           content: {
-            message: "资料更新后新 profile 自动推送到对端",
+            message: allPullChecks ? "资料更新后对端拉取到最新资料" : "对端拉取到最新资料失败",
             channelReady: !!nCard,
             checks: {
-              pushReceived,
-              pushSaved,
-              pushVerified,
-              nSideUpdated,
-              nSideUsername: nSideCard?.username,
-              nSideNewer,
-              nSideSignTime: nSideCard?.signTime,
+              oldUsernameOk,
+              pulledUpdated,
+              pulledUsername: pulledCard.username,
+              pulledNewer,
+              pulledSignTime: pulledCard.signTime,
               expectedSignTime: newInfo.signTime,
+              pulledVerified,
+              nSideUpdated,
+              nSideNewer,
             },
           },
         };
@@ -592,13 +582,13 @@
     </template>
   </sb-test>
 
-  <sb-test name="Cert Share Test">
+  <sb-test name="Cert Pull Test">
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
 
-        const cs_nsO = "cert-share-o";
-        const cs_nsP = "cert-share-p";
+        const cs_nsO = "cert-pull-o";
+        const cs_nsP = "cert-pull-p";
         const csUrl = "ws://localhost:8081";
 
         const csO = new LocalUser(cs_nsO);
@@ -610,7 +600,7 @@
           csP.server.connect(csUrl),
         ]);
 
-        // O 给 P 签发一张证书（存于 O 自己的库），随后通过网络分享给 P
+        // O 给 P 签发一张证书（存于 O 自己的库），P 通过按 key 拉取获取
         const csCert = await csO.cred.issue({
           subject: csP.userId,
           role: "shared-member",
@@ -628,15 +618,16 @@
           }
         });
 
-        const csRemoteP = await csO.connectUser(csP.userId);
-        const csResult = await csRemoteP.shareCert(csCert);
-        const csSendOk = csResult?.status === "ok";
+        await csO.connectUser(csP.userId);
 
-        // 等待事件经中继到达
-        const csDeadline = Date.now() + 8000;
-        while (csEvents.length < 1 && Date.now() < csDeadline) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
+        // P 向 O 按 key 拉取该证书
+        const csKey = {
+          role: "shared-member",
+          issuer: csO.userId,
+          subject: csP.userId,
+        };
+        const csPulled = await csP.cred.requestRecord(csO.userId, csKey);
+        const csPulledOk = csPulled?.role === "shared-member";
 
         const csFirstEvent = csEvents[0] ?? null;
         const csEventFired = csFirstEvent !== null;
@@ -644,35 +635,24 @@
         const csSavedOk = csFirstEvent?.saved === true;
 
         // P 侧应能查到该证书
-        const csHasCert = await csP.cred.has({
-          role: "shared-member",
-          issuer: csO.userId,
-          subject: csP.userId,
-        });
+        const csHasCert = await csP.cred.has(csKey);
 
-        // 重复分享：signTime 不变，接收端收敛后 saved 应为 false，且记录不被破坏
-        await csRemoteP.shareCert(csCert);
-        const csDeadline2 = Date.now() + 8000;
-        while (csEvents.length < 2 && Date.now() < csDeadline2) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
+        // 重复拉取：signTime 不变，接收端收敛后 saved 应为 false，且记录不被破坏
+        const csPulled2 = await csP.cred.requestRecord(csO.userId, csKey);
         const csSecondEvent = csEvents[1] ?? null;
-        const csReshareConverged = csSecondEvent?.saved === false;
-        const csStillHasCert = await csP.cred.has({
+        const csReshareConverged =
+          csPulled2 !== null && csSecondEvent?.saved === false;
+        const csStillHasCert = await csP.cred.has(csKey);
+
+        // 拉取不存在的 key：应返回 null，不触发事件、不入库
+        const csMiss = await csP.cred.requestRecord(csO.userId, {
           role: "shared-member",
           issuer: csO.userId,
-          subject: csP.userId,
+          subject: csO.userId, // 未签发过该 subject
         });
-
-        // 篡改的记录应被接收端拒绝：伪造 issuer 后推送，不触发事件、不入库
-        const csTampered = { ...csCert, issuer: csP.userId };
-        const csSids = await csRemoteP.getSessionIds();
-        for (const sid of csSids) {
-          await csRemoteP.send(sid, { type: "__cert_share", cert: csTampered });
-        }
-        await new Promise((r) => setTimeout(r, 1500));
         const csNoTamperEvent = csEvents.length === 2;
         const csStoreIntact =
+          csMiss === null &&
           (await csP.cred.count({ role: "shared-member" })) === 1;
 
         csUnbind();
@@ -681,12 +661,12 @@
         csP.server.disconnectAll();
 
         return {
-          assert: csSendOk && csEventFired && csFromOk && csSavedOk && csHasCert
+          assert: csPulledOk && csEventFired && csFromOk && csSavedOk && csHasCert
             && csReshareConverged && csStillHasCert && csNoTamperEvent && csStoreIntact,
           content: {
-            message: "凭证互传：验证入库、幂等收敛、篡改拒绝",
+            message: "凭证按 key 拉取：验证入库、幂等收敛、未命中返回 null",
             checks: {
-              csSendOk,
+              csPulledOk,
               csEventFired,
               csFromOk,
               csSavedOk,
@@ -697,6 +677,107 @@
               csNoTamperEvent,
               csEventCount: csEvents.length,
               csStoreIntact,
+            },
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <sb-test name="Third-party Cert Pull Test">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        // 场景：issuer 签证书给 subject，但持有方是第三方 host（本地应用托管场景）。
+        // 请求方按 key 向 host 拉取，应能拿到非 host 签发的记录并验签入库。
+        const tp_nsIssuer = "cert-tp-issuer";
+        const tp_nsSubject = "cert-tp-subject";
+        const tp_nsHost = "cert-tp-host";
+        const tp_nsPuller = "cert-tp-puller";
+        const tpUrl = "ws://localhost:8081";
+
+        const tpIssuer = new LocalUser(tp_nsIssuer);
+        const tpSubject = new LocalUser(tp_nsSubject);
+        const tpHost = new LocalUser(tp_nsHost);
+        const tpPuller = new LocalUser(tp_nsPuller);
+        await Promise.all([
+          tpIssuer.ready(),
+          tpSubject.ready(),
+          tpHost.ready(),
+          tpPuller.ready(),
+        ]);
+
+        await Promise.all([
+          tpIssuer.server.connect(tpUrl),
+          tpSubject.server.connect(tpUrl),
+          tpHost.server.connect(tpUrl),
+          tpPuller.server.connect(tpUrl),
+        ]);
+
+        // issuer 签发给 subject，随后把记录交给 host 托管
+        const tpCert = await tpIssuer.cred.issue({
+          subject: tpSubject.userId,
+          role: "hosted-member",
+          expire: null,
+        });
+        await tpHost.cred.importRecord(tpCert);
+
+        await Promise.all([
+          tpPuller.connectUser(tpHost.userId),
+          tpPuller.connectUser(tpIssuer.userId),
+        ]);
+
+        const tpKey = {
+          role: "hosted-member",
+          issuer: tpIssuer.userId,
+          subject: tpSubject.userId,
+        };
+
+        // 清理请求方残留，保证测试独立性
+        await tpPuller.cred.delete(tpCert.id);
+
+        // 向 host（非签发者）按 key 拉取
+        const tpPulled = await tpPuller.cred.requestRecord(tpHost.userId, tpKey);
+        const tpPulledOk = tpPulled?.role === "hosted-member";
+        const tpIssuerMatch = tpPulled?.issuer === tpIssuer.userId;
+        const tpSubjectMatch = tpPulled?.subject === tpSubject.userId;
+        const tpVerified = tpPulled
+          ? await tpIssuer.verify(tpPulled)
+          : false;
+
+        // 拉取到的记录应已入库，可用证书 API 查询
+        const tpStored = await tpPuller.cred.has(tpKey);
+
+        // host 没有的 key 同样返回 null
+        const tpMiss = await tpPuller.cred.requestRecord(tpIssuer.userId, {
+          role: "not-exist",
+          issuer: tpIssuer.userId,
+          subject: tpSubject.userId,
+        });
+
+        await tpPuller.cred.delete(tpCert.id);
+        tpIssuer.server.disconnectAll();
+        tpSubject.server.disconnectAll();
+        tpHost.server.disconnectAll();
+        tpPuller.server.disconnectAll();
+
+        const tpAllOk = tpPulledOk && tpIssuerMatch && tpSubjectMatch
+          && tpVerified && tpStored && tpMiss === null;
+
+        return {
+          assert: tpAllOk,
+          content: {
+            message: tpAllOk
+              ? "第三方托管的凭证可按 key 拉取并验签入库"
+              : "第三方托管凭证拉取失败",
+            checks: {
+              tpPulledOk,
+              tpIssuerMatch,
+              tpSubjectMatch,
+              tpVerified,
+              tpStored,
+              tpMissIsNull: tpMiss === null,
             },
           },
         };
