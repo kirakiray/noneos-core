@@ -155,7 +155,6 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，单次尝试默认 10s 超时 `options.timeout` 可调；瞬时失败自动重发，默认 `options.retries=1`），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/too_large/internal`） |
 
 > 凭证交付走拉取而非推送：用 `cred.requestRecord` / `cred.getRecord`（见下表）向对方按 key 拉取证书或资料，`shareCert` 已移除。
-| `getStorage(name, options?)` | 获取对方**显式共享**的存储空间只读代理（async）。`name` 必须 `share:` 开头（本地预校验抛错）；同一 `(userId, name)` 代理缓存复用。代理：`getItem/has/key/length/keys/entries`（走 `__storage_req`，单次尝试默认 10s 超时 `options.timeout` 可调；瞬时失败自动重发，默认 `options.retries=1`），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout/invalid_name/not_shared/read_only/too_large/internal`） |
 
 ### CredentialManager 类 (user.cred)
 
@@ -172,7 +171,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `deleteProfile(userId)` | 删除某用户的个人资料记录 |
 | `count(query)` | 获取数量；无查询条件时含资料在内的全部记录 |
 | `values(query)` | 异步迭代器；无查询条件时含资料在内的全部记录 |
-| `getRecord(fromUserId, keyOrId)` | 按需获取凭证记录：DB 优先 → 向指定用户按 key 网络拉取（10s 超时自动重发 1 次）；未命中返回 `null` |
+| `getRecord(fromUserId, keyOrId)` | 按需获取凭证记录：DB 优先 → 向指定用户按 key 网络拉取（10s 超时自动重发 2 次）；未命中返回 `null` |
 | `getRecordByDB(keyOrId)` | 从本地按 key 读凭证记录（签名载荷视图，可整体验签） |
 | `requestRecord(fromUserId, keyOrId)` | 强制网络拉取凭证记录（key 为 `{role, issuer, subject}` 或 id 字符串）；未命中 `resolve(null)` |
 | `getProfile(userId)` | 获取个人资料：DB 优先 → 网络拉取（`getRecord` 薄封装，key 固定 `{role:"profile", issuer:uid, subject:uid}`） |

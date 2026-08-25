@@ -299,7 +299,7 @@ await userA.cred.deleteProfile(userB.userId); // 按 userId 删除该用户资�
 const fresh = await userA.cred.requestProfile(userB.userId);
 ```
 
-可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 1 次。失败时旧缓存不受影响，可放心保留兜底显示。
+可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 2 次。失败时旧缓存不受影响，可放心保留兜底显示。
 
 > 资料拉取是**通用凭证拉取**（线上类型 `type:"cred"`，raw 不做 E2EE）的薄封装：任意凭证都可按精确 key 向持有方拉取——`cred.requestRecord(fromUserId, key)` / `cred.getRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串，未命中返回 `null`），非 profile 记录入库触发 `cert_received`。应答不限定签发关系（对方托管的第三方证书也能拉），安全边界为"必须已知精确 key + 统一验签"。
 

@@ -63,9 +63,10 @@ function normalizeKey(keyOrId) {
 
 // 单次凭证拉取请求的等待超时（毫秒）与瞬时失败重发次数。
 // 拉取是幂等 RPC：接收端按 signTime 保留更新的记录，
-// 重复请求与迟到响应均安全，故超时/发送失败可直接重发。
+// 重复请求与迟到响应均安全，故超时/发送失败可直接重发
+// （重试额度给 2 次：高负载下中继偶发丢失/延迟时仍能收敛）。
 const CRED_REQ_TIMEOUT = 10000;
-const CRED_REQ_RETRIES = 1;
+const CRED_REQ_RETRIES = 2;
 
 // 凭证拉取的中继消息类型。
 const CRED_WIRE_TYPE = "cred";

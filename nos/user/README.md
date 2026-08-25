@@ -800,7 +800,7 @@ await user.ready();
 
 #### `getProfile(userId)`
 
-获取远程用户的个人资料：本地 DB 优先，未命中则发起网络请求（10s 超时，失败自动重发 1 次）。
+获取远程用户的个人资料：本地 DB 优先，未命中则发起网络请求（10s 超时，失败自动重发 2 次）。
 
 #### `getProfileByDB(userId)`
 
