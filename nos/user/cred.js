@@ -40,14 +40,35 @@ function profilePayloadView(record) {
   return payload;
 }
 
-// 单次资料请求的等待超时（毫秒）与瞬时失败重发次数。
-// 资料请求是幂等 RPC：接收端按 signTime 保留更新的资料，
-// 重复请求与迟到响应均安全，故超时/发送失败可直接重发。
-const PROFILE_REQ_TIMEOUT = 10000;
-const PROFILE_REQ_RETRIES = 1;
+// 凭证拉取 key 的归一化：接受 {role, issuer, subject} 对象或记录 id 字符串
+// （id = `${role}-${issuer}-${subject}`，userId 为公钥哈希、不含 "-"，
+// 故按前两个 "-" 拆三段即可无损还原）
+function normalizeKey(keyOrId) {
+  if (typeof keyOrId === "string") {
+    const i1 = keyOrId.indexOf("-");
+    const i2 = keyOrId.indexOf("-", i1 + 1);
+    if (i1 < 0 || i2 < 0) throw new Error("无效的凭证 key");
+    return {
+      role: keyOrId.slice(0, i1),
+      issuer: keyOrId.slice(i1 + 1, i2),
+      subject: keyOrId.slice(i2 + 1),
+    };
+  }
+  const { role, issuer, subject } = keyOrId ?? {};
+  if (!role || !issuer || !subject) {
+    throw new Error("凭证 key 需包含 role、issuer、subject");
+  }
+  return { role, issuer, subject };
+}
 
-// 资料交换的中继消息类型。
-const PROFILE_WIRE_TYPE = "profile";
+// 单次凭证拉取请求的等待超时（毫秒）与瞬时失败重发次数。
+// 拉取是幂等 RPC：接收端按 signTime 保留更新的记录，
+// 重复请求与迟到响应均安全，故超时/发送失败可直接重发。
+const CRED_REQ_TIMEOUT = 10000;
+const CRED_REQ_RETRIES = 1;
+
+// 凭证拉取的中继消息类型。
+const CRED_WIRE_TYPE = "cred";
 
 // 授权类证书的默认有效期（30 天）。expire 为绝对时间戳，随证书内容一同签名；
 // 签发时显式传 null（或省略该字段）表示永不过期；profile 无过期语义（见 isCertExpired）。
@@ -71,8 +92,8 @@ function isCertExpired(cert) {
  * （importRecord：规范化验签 + signTime 收敛）：
  *
  * - 个人资料（profile，旧称"名片/card"）：role="profile" 的**自签**声明
- *   （issuer = subject = 持有者），用户身份与公钥的载体；本类同时承载其
- *   在线交换协议（拉取 request/response + 资料变更推送 pushProfile）
+ *   （issuer = subject = 持有者），用户身份与公钥的载体；
+ *   `getProfile`/`requestProfile` 是通用凭证拉取的薄封装
  * - 证书（cert）：issuer ≠ subject 的**他签**授权声明，PKI 语义
  *
  * 方法语义：
@@ -83,7 +104,7 @@ function isCertExpired(cert) {
 export class CredentialManager {
   #user;
   #unbind;
-  #requestMap = new Map(); // userId -> { resolve, reject, timer }
+  #requestMap = new Map(); // `${fromUserId}:${role}:${issuer}:${subject}` -> { resolve, reject, timer }
 
   /**
    * @param {import("./user.js").LocalUser} user - 本地用户实例
@@ -339,11 +360,11 @@ export class CredentialManager {
     }
   }
 
-  // ───── 个人资料在线交换协议（传输） ─────
+  // ───── 凭证按 key 拉取协议（传输） ─────
 
   /**
-   * 启动资料交换监听
-   * 自动响应 incoming 的资料请求，以及处理 incoming 的资料响应/推送
+   * 启动凭证拉取监听
+   * 自动响应 incoming 的凭证拉取请求，以及处理 incoming 的拉取响应
    */
   start() {
     if (this.#unbind) return;
@@ -354,8 +375,8 @@ export class CredentialManager {
   }
 
   /**
-   * 处理 relay 消息中的资料交换协议
-   * （线上 token 为 "profile"，见 PROFILE_WIRE_TYPE 说明）
+   * 处理 relay 消息中的凭证拉取协议
+   * （线上 token 为 "cred"，见 CRED_WIRE_TYPE 说明）
    */
   async #handleRelayMessage(detail) {
     let rawData;
@@ -376,71 +397,116 @@ export class CredentialManager {
     }
 
     if (parsed.type !== "relay") return;
-    if (!parsed.data || parsed.data.type !== PROFILE_WIRE_TYPE) return;
+    if (!parsed.data || parsed.data.type !== CRED_WIRE_TYPE) return;
 
-    const profileMsg = parsed.data;
+    const credMsg = parsed.data;
     const fromUserId = parsed.from_user_id;
     const fromSessionId = parsed.from_session_id;
     const viaServer = detail.url;
 
-    if (profileMsg.action === "request") {
-      await this.#handleProfileRequest(fromUserId, fromSessionId, viaServer);
-    } else if (profileMsg.action === "response") {
-      await this.#handleProfileResponse(profileMsg.data, fromUserId);
+    if (credMsg.action === "request") {
+      await this.#handleCredRequest(
+        fromUserId,
+        fromSessionId,
+        viaServer,
+        credMsg.key,
+      );
+    } else if (credMsg.action === "response") {
+      await this.#handleCredResponse(credMsg.key, credMsg.data, fromUserId);
     }
   }
 
   /**
-   * 处理 incoming 资料请求：回复自己的 getInfo()
+   * 处理 incoming 拉取请求：按精确 key 查本地记录并回复
+   *
+   * 应答规则：不限定签发/被签发关系——本地持有的任意精确匹配 key 的记录均可应答
+   * （含他人签发给第三方的证书，支持本地应用托管此类记录）。
+   * 安全边界：请求方必须已知精确 key（无法枚举），且收到记录仍走 importRecord 验签。
    */
-  async #handleProfileRequest(fromUserId, fromSessionId, viaServer) {
+  async #handleCredRequest(fromUserId, fromSessionId, viaServer, key) {
     this.#user._ensureRemoteUser(fromUserId, "remote").catch(() => {});
 
-    const myInfo = await this.#user.getInfo();
-    if (!myInfo) return;
+    let data = null;
+    try {
+      const normalized = normalizeKey(key);
+      const records = await getCertsFromDb(this.#user.namespace, normalized);
+      data = records[0] ?? null;
+    } catch (err) {
+      console.warn("[CredentialManager] Invalid cred request key:", err.message);
+    }
 
     try {
       await this.#user.server.relayToUserViaServer(viaServer, fromUserId, fromSessionId, {
-        type: PROFILE_WIRE_TYPE,
+        type: CRED_WIRE_TYPE,
         action: "response",
-        data: myInfo,
+        key,
+        data,
       });
     } catch (err) {
-      console.warn("[CredentialManager] Failed to send profile response:", err.message);
+      console.warn("[CredentialManager] Failed to send cred response:", err.message);
     }
   }
 
   /**
-   * 处理 incoming 资料响应/推送：验证签名后保存
+   * 处理 incoming 拉取响应：校验记录与请求 key 一致后统一导入（结算对应的挂起请求）
    */
-  async #handleProfileResponse(profileData, fromUserId) {
+  async #handleCredResponse(key, data, fromUserId) {
     this.#user._ensureRemoteUser(fromUserId, "remote").catch(() => {});
 
-    if (!profileData || profileData.subject !== fromUserId) {
+    let normalized;
+    try {
+      normalized = normalizeKey(key);
+    } catch {
+      return;
+    }
+
+    // 未命中：响应方没有该 key 的记录，直接结算挂起请求
+    if (!data) {
+      this.#resolveRequest(fromUserId, normalized, null);
+      return;
+    }
+
+    const matchesKey =
+      data.role === normalized.role &&
+      data.issuer === normalized.issuer &&
+      data.subject === normalized.subject;
+    if (!matchesKey) {
+      console.warn("[CredentialManager] Cred record key mismatch");
+      this.#rejectRequest(fromUserId, normalized, new Error("Cred record key mismatch"));
+      return;
+    }
+
+    // profile 是持有者的自签声明：必须由持有者本人提供
+    if (data.role === PROFILE_ROLE && data.subject !== fromUserId) {
       console.warn("[CredentialManager] Profile userId mismatch");
-      this.#rejectRequest(fromUserId, new Error("Profile userId mismatch"));
+      this.#rejectRequest(fromUserId, normalized, new Error("Profile userId mismatch"));
       return;
     }
 
     let saved = false;
     try {
-      if (profileData.role !== PROFILE_ROLE) {
-        throw new Error(`Invalid profile record (role: ${profileData.role})`);
-      }
       // 统一证书导入路径（规范化验签 + signTime 竞争）
-      ({ saved } = await this.importRecord(profileData));
+      ({ saved } = await this.importRecord(data));
     } catch (err) {
-      console.warn("[CredentialManager] Profile verification failed:", err.message);
-      this.#rejectRequest(fromUserId, err);
+      console.warn("[CredentialManager] Cred verification failed:", err.message);
+      this.#rejectRequest(fromUserId, normalized, err);
       return;
     }
 
-    this.#user._trigger("profile_received", {
-      userId: fromUserId,
-      profile: profileData,
-      saved,
-    });
-    this.#resolveRequest(fromUserId, profileData);
+    if (data.role === PROFILE_ROLE) {
+      this.#user._trigger("profile_received", {
+        userId: fromUserId,
+        profile: data,
+        saved,
+      });
+    } else {
+      this.#user._trigger("cert_received", {
+        cert: data,
+        saved,
+        fromUserId,
+      });
+    }
+    this.#resolveRequest(fromUserId, normalized, profilePayloadView(data));
   }
 
   /**
@@ -476,19 +542,146 @@ export class CredentialManager {
   }
 
   /**
-   * 将新资料推送给所有已建立通信的远端用户（不请自来的 profile response）。
-   *
-   * 接收端 #handleProfileResponse 对无挂起请求的推送同样验签入库
-   * （按 signTime 幂等收敛，重复/迟到推送均安全），
-   * 用于用户名等资料变更的实时传播，对端无需重新拉取。
-   * 静默失败（对端可能不在线），不影响本地更新流程。
-   * @param {Object} profileData - 已签名的新资料数据
+   * 从本地数据库按 key 获取凭证记录（签名载荷视图，可直接整体验签）
+   * @param {string|Object} keyOrId - {role, issuer, subject} 或记录 id 字符串
+   * @returns {Promise<Object | null>}
    */
-  pushProfile(profileData) {
-    for (const remote of this.#user.remoteUsers) {
-      remote._notifyProfileUpdate(profileData).catch(() => {});
+  async getRecordByDB(keyOrId) {
+    const records = await getCertsFromDb(this.#user.namespace, normalizeKey(keyOrId));
+    return profilePayloadView(records[0] ?? null);
+  }
+
+  /**
+   * 按需获取凭证记录：先查本地 DB，没有再向指定用户发起网络拉取
+   * @param {string} fromUserId - 向哪个用户拉取（key 不含"该问谁"的信息，需显式指定）
+   * @param {string|Object} keyOrId - {role, issuer, subject} 或记录 id 字符串
+   * @returns {Promise<Object | null>} 记录（签名载荷视图）或 null（未命中）
+   */
+  async getRecord(fromUserId, keyOrId) {
+    if (!fromUserId) throw new Error("fromUserId is required");
+    const key = normalizeKey(keyOrId);
+
+    const existing = await this.getRecordByDB(key);
+    if (existing) return existing;
+
+    return this.requestRecord(fromUserId, key);
+  }
+
+  /**
+   * 向远程用户按 key 拉取凭证记录（总是发起网络请求）
+   *
+   * 超时或发送阶段异常视为瞬时失败，自动重发一次
+   * （CRED_REQ_RETRIES，300ms 间隔）；响应到达且签名验证通过才 resolve，
+   * 响应方无该记录时 resolve(null)。
+   *
+   * @param {string} fromUserId - 目标用户的 userId
+   * @param {string|Object} keyOrId - {role, issuer, subject} 或记录 id 字符串
+   * @returns {Promise<Object | null>} 记录（签名载荷视图）或 null（未命中）
+   */
+  async requestRecord(fromUserId, keyOrId) {
+    if (!fromUserId) throw new Error("fromUserId is required");
+    const key = normalizeKey(keyOrId);
+    const mapKey = this.#requestKey(fromUserId, key);
+
+    if (this.#requestMap.has(mapKey)) {
+      return this.#requestMap.get(mapKey).promise;
+    }
+
+    // 先把请求占位放入 #requestMap，再异步执行 connectUser/findSessionId/send，
+    // 避免响应在请求发送完成前到达却找不到对应占位的情况
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+
+    this.#requestMap.set(mapKey, {
+      resolve,
+      reject,
+      timer: null,
+      promise,
+      attempts: 0,
+    });
+
+    this.#attemptCredRequest(fromUserId, key, mapKey);
+
+    return promise;
+  }
+
+  /**
+   * 执行一次凭证拉取的发送与等待，带瞬时失败重发。
+   *
+   * 单次尝试：connectUser → findSessionId → 发送 cred request，
+   * 并在 CRED_REQ_TIMEOUT 内等待响应（由 #handleCredResponse 结算）。
+   * 超时或发送异常时，若还有重试额度则 300ms 后重发，
+   * 重试耗尽才 reject；响应按 fromUserId+key 配对，重复请求与迟到响应均安全。
+   */
+  #attemptCredRequest(fromUserId, key, mapKey) {
+    const entry = this.#requestMap.get(mapKey);
+    if (!entry) return;
+
+    entry.attempts++;
+    const maxAttempts = 1 + CRED_REQ_RETRIES;
+
+    const fail = (err) => {
+      if (entry.attempts >= maxAttempts) {
+        clearTimeout(entry.timer);
+        this.#requestMap.delete(mapKey);
+        entry.reject(err);
+        return;
+      }
+      // 瞬时失败且还有重试额度：短暂延迟后重发
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(
+        () => this.#attemptCredRequest(fromUserId, key, mapKey),
+        300,
+      );
+    };
+
+    entry.timer = setTimeout(() => {
+      fail(new Error(`Cred request timed out for user ${fromUserId}`));
+    }, CRED_REQ_TIMEOUT);
+
+    (async () => {
+      try {
+        const remoteUser = await this.#user.connectUser(fromUserId);
+        const sessionId = await this.#findSessionId(fromUserId);
+        await remoteUser.send(
+          sessionId,
+          { type: CRED_WIRE_TYPE, action: "request", key },
+          true,
+        );
+      } catch (err) {
+        fail(err);
+      }
+    })();
+  }
+
+  #requestKey(fromUserId, key) {
+    return `${fromUserId}:${key.role}:${key.issuer}:${key.subject}`;
+  }
+
+  #resolveRequest(fromUserId, key, record) {
+    const mapKey = this.#requestKey(fromUserId, key);
+    if (this.#requestMap.has(mapKey)) {
+      const { resolve, timer } = this.#requestMap.get(mapKey);
+      clearTimeout(timer);
+      this.#requestMap.delete(mapKey);
+      resolve(record);
     }
   }
+
+  #rejectRequest(fromUserId, key, error) {
+    const mapKey = this.#requestKey(fromUserId, key);
+    if (this.#requestMap.has(mapKey)) {
+      const { reject, timer } = this.#requestMap.get(mapKey);
+      clearTimeout(timer);
+      this.#requestMap.delete(mapKey);
+      reject(error);
+    }
+  }
+
+  // ───── 个人资料便捷封装（薄封装，语义同通用拉取） ─────
 
   /**
    * 从本地数据库获取个人资料（签名载荷视图，可直接整体验签）
@@ -496,17 +689,18 @@ export class CredentialManager {
    * @returns {Promise<Object | null>}
    */
   async getProfileByDB(userId) {
-    const profiles = await getCertsFromDb(this.#user.namespace, {
+    if (!userId) throw new Error("userId is required");
+    return this.getRecordByDB({
       role: PROFILE_ROLE,
+      issuer: userId,
       subject: userId,
     });
-    return profilePayloadView(profiles[0] ?? null);
   }
 
   /**
    * 获取远程用户的个人资料
    *
-   * 统一入口：先查本地 DB，没有再通过网络请求获取。
+   * 统一入口：先查本地 DB，没有再向持有者本人拉取。
    *
    * @param {string} userId - 目标用户的 userId
    * @returns {Promise<Object>} 资料数据
@@ -521,103 +715,16 @@ export class CredentialManager {
   }
 
   /**
-   * 向远程用户请求个人资料（总是发起网络请求）
-   *
-   * 超时或发送阶段异常视为瞬时失败，自动重发一次
-   * （PROFILE_REQ_RETRIES，300ms 间隔）；响应到达且签名验证通过才 resolve。
-   *
+   * 向资料持有者拉取个人资料（总是发起网络请求）
    * @param {string} userId - 目标用户的 userId
    * @returns {Promise<Object>} 资料数据
    */
   async requestProfile(userId) {
     if (!userId) throw new Error("userId is required");
-
-    if (this.#requestMap.has(userId)) {
-      return this.#requestMap.get(userId).promise;
-    }
-
-    // 先把请求占位放入 #requestMap，再异步执行 connectUser/findSessionId/send，
-    // 避免响应在请求发送完成前到达却找不到对应占位的情况
-    let resolve, reject;
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
+    return this.requestRecord(userId, {
+      role: PROFILE_ROLE,
+      issuer: userId,
+      subject: userId,
     });
-
-    this.#requestMap.set(userId, {
-      resolve,
-      reject,
-      timer: null,
-      promise,
-      attempts: 0,
-    });
-
-    this.#attemptProfileRequest(userId);
-
-    return promise;
-  }
-
-  /**
-   * 执行一次资料请求的发送与等待，带瞬时失败重发。
-   *
-   * 单次尝试：connectUser → findSessionId → 发送 profile request，
-   * 并在 PROFILE_REQ_TIMEOUT 内等待响应（由 #handleProfileResponse 结算）。
-   * 超时或发送异常时，若还有重试额度则 300ms 后重发，
-   * 重试耗尽才 reject；响应按 userId 配对，重复请求与迟到响应均安全。
-   */
-  #attemptProfileRequest(userId) {
-    const entry = this.#requestMap.get(userId);
-    if (!entry) return;
-
-    entry.attempts++;
-    const maxAttempts = 1 + PROFILE_REQ_RETRIES;
-
-    const fail = (err) => {
-      if (entry.attempts >= maxAttempts) {
-        clearTimeout(entry.timer);
-        this.#requestMap.delete(userId);
-        entry.reject(err);
-        return;
-      }
-      // 瞬时失败且还有重试额度：短暂延迟后重发
-      clearTimeout(entry.timer);
-      entry.timer = setTimeout(() => this.#attemptProfileRequest(userId), 300);
-    };
-
-    entry.timer = setTimeout(() => {
-      fail(new Error(`Profile request timed out for user ${userId}`));
-    }, PROFILE_REQ_TIMEOUT);
-
-    (async () => {
-      try {
-        const remoteUser = await this.#user.connectUser(userId);
-        const sessionId = await this.#findSessionId(userId);
-        await remoteUser.send(
-          sessionId,
-          { type: PROFILE_WIRE_TYPE, action: "request" },
-          true,
-        );
-      } catch (err) {
-        fail(err);
-      }
-    })();
-  }
-
-  #resolveRequest(userId, profileData) {
-    if (this.#requestMap.has(userId)) {
-      const { resolve, timer } = this.#requestMap.get(userId);
-      clearTimeout(timer);
-      this.#requestMap.delete(userId);
-      resolve(profileData);
-    }
-  }
-
-  #rejectRequest(userId, error) {
-    if (this.#requestMap.has(userId)) {
-      const { reject, timer } = this.#requestMap.get(userId);
-      clearTimeout(timer);
-      this.#requestMap.delete(userId);
-      reject(error);
-    }
   }
 }

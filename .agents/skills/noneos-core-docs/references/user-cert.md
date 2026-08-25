@@ -63,31 +63,35 @@ const imported = await normal.cred.import(cert);
 // 如果证书被篡改（如伪造 issuer），导入会抛出错误
 ```
 
-## 分享证书（用户间互传）
+## 获取凭证（按 key 拉取）
 
-除了手动传递证书对象，还可以直接通过网络把证书分享给对方：
+凭证通过网络按精确 key 向持有方拉取（无推送；`shareCert` 已移除）：
 
 ```javascript
-// admin 签发证书后，直接推送给 normal（需对方在线）
-const remote = await admin.connectUser(normal.userId);
-await remote.shareCert(cert);
+// admin 签发证书后，normal 按key 向 admin 拉取（需对方在线）
+const cert = await normal.cred.getRecord(admin.userId, {
+  role: "editor",
+  issuer: admin.userId,
+  subject: normal.userId,
+});
+// 也可传记录 id 字符串：`${role}-${issuer}-${subject}`
 ```
 
 接收端收到后会走同一条导入路径（验证签名 → signTime 收敛入库），并触发 `cert_received` 事件：
 
 ```javascript
 normal.bind("cert_received", (event) => {
-  console.log(event.detail.fromUserId); // 分享者 userId
-  console.log(event.detail.saved);      // 是否实际写入（重复分享为 false）
+  console.log(event.detail.fromUserId); // 提供记录的用户 userId
+  console.log(event.detail.saved);      // 是否实际写入（重复拉取为 false）
   console.log(event.detail.cert);       // 最终保留的证书记录
 });
 ```
 
 说明：
 
-- 传输自动选路：双方已交换资料时 E2EE 加密，否则明文中继（证书自带签名，完整性不受影响）
-- 幂等：按 signTime 收敛，重复分享安全
-- 对方离线时 `shareCert` 抛出 `code: "offline"` 错误
+- 应答规则不限定签发/被签发关系：对方本地持有精确匹配 key 的记录即可拉到（含他人签发给第三方的证书，支持本地托管）
+- 安全边界：请求方必须已知精确 key（无法枚举对方凭证），记录仍走统一验签导入
+- 幂等：按 signTime 收敛，重复拉取安全；对方无该记录时 `resolve(null)`
 - 接收端只验证密码学有效性；「谁签发的证书算数」由应用在 `query/has` 消费时自行判断
 
 ## 查询证书

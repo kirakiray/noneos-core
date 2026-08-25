@@ -163,3 +163,4 @@ _prompt*.md
 server/**/*.db
 server/**/*.redb
 .playwright-mcp
+.zcode

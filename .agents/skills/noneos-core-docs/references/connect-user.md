@@ -301,24 +301,23 @@ const fresh = await userA.cred.requestProfile(userB.userId);
 
 可靠性：资料请求是幂等 RPC——接收端按 `signTime` 保留更新的资料，重复请求与迟到响应均安全；请求超时（10s）或发送失败会自动重发 1 次。失败时旧缓存不受影响，可放心保留兜底显示。
 
-### 资料变更推送
+> 资料拉取是**通用凭证拉取**（线上类型 `type:"cred"`，raw 不做 E2EE）的薄封装：任意凭证都可按精确 key 向持有方拉取——`cred.requestRecord(fromUserId, key)` / `cred.getRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串，未命中返回 `null`），非 profile 记录入库触发 `cert_received`。应答不限定签发关系（对方托管的第三方证书也能拉），安全边界为"必须已知精确 key + 统一验签"。
 
-用户更新资料（`updateInfo`）后会**自动**把新资料推送给所有已建立通信的对端用户，无需手动触发：
+### 资料变更的传播（纯拉取）
+
+资料变更**不主动推送**：用户更新资料（`updateInfo`）只写本地。对端需要最新资料时重新拉取即可（`getProfile` 走缓存，`requestProfile` 强制网络请求），拉取后按 `signTime` 竞争自动收敛到最新版本，无需任何额外协调：
 
 ```javascript
-// A 改了用户名，B 侧会自动收到新资料并触发 profile_received 事件
+// A 改了用户名
 await userA.updateInfo({ username: "新名字" });
 
-userB.bind("profile_received", (event) => {
-  console.log(event.detail.saved); // true（signTime 更新，已覆盖旧资料）
-});
+// B 需要展示最新用户名时重新拉取
+const fresh = await userB.cred.requestProfile(userA.userId);
 ```
-
-推送是幂等的（按 `signTime` 收敛）：对端离线时静默失败，其下次主动拉取会拿到最新资料。`n-user-name` 等组件可监听该事件实现资料变更的实时刷新。
 
 ### 资料事件
 
-当收到对方的资料时（请求响应或变更推送），会触发 `profile_received` 事件：
+当收到对方请求响应的资料时，会触发 `profile_received` 事件：
 
 ```javascript
 userA.bind("profile_received", (event) => {

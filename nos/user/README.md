@@ -69,7 +69,7 @@ console.log(userInfo.username);  // 默认用户名 "user-xxxxx"
 console.log(userInfo.nickname);  // "我的昵称"
 ```
 
-> 用户信息记录即个人资料（profile）的签名载荷，以 `role="profile"` 的自签证书形态存储（含 `issuer`/`subject` 等身份字段）；`updateInfo` 重新签名时会自动剥离遗留旧字段并重建统一形态。更新成功后还会自动把新资料推送给所有已建立通信的对端用户（幂等，按 `signTime` 收敛），资料变更无需对端重新拉取。
+> 用户信息记录即个人资料（profile）的签名载荷，以 `role="profile"` 的自签证书形态存储（含 `issuer`/`subject` 等身份字段）；`updateInfo` 重新签名时会自动剥离遗留旧字段并重建统一形态。资料变更不主动推送，对端按需拉取即可（拉取按 `signTime` 竞争自动收敛到最新版本）。
 
 ### 信息合并更新
 
@@ -117,21 +117,29 @@ await normalUser.cred.import(cert);
 const { cert: saved1, saved } = await normalUser.cred.importRecord(cert);
 ```
 
-### 分享证书（用户间互传）
+### 获取凭证（按 key 拉取）
 
-签发后可以直接通过网络把证书推送给对方（需对方在线），接收端自动验证入库并触发 `cert_received` 事件：
+任意凭证（含证书与个人资料）都可向持有方按精确 key 拉取（需对方在线）。key 为 `{ role, issuer, subject }` 或记录 id 字符串；对方本地持有该 key 的记录即应答（不限定签发/被签发关系），收到后自动验签入库并触发 `cert_received` 事件（profile 触发 `profile_received`）：
 
 ```javascript
-const remote = await admin.connectUser(normalUser.userId);
-await remote.shareCert(cert);
+// 按对象 key 或 id 字符串拉取（DB 优先，未命中才发起网络请求）
+const cert = await normalUser.cred.getRecord(admin.userId, "editor-<issuerId>-<subjectId>");
+const cert2 = await normalUser.cred.getRecord(admin.userId, {
+  role: "editor", issuer: admin.userId, subject: normalUser.userId,
+});
+
+// 强制网络刷新；对方没有该记录时 resolve(null)
+const fresh = await normalUser.cred.requestRecord(admin.userId, {
+  role: "editor", issuer: admin.userId, subject: normalUser.userId,
+});
 
 // 接收端
 normalUser.bind("cert_received", (event) => {
-  console.log(event.detail.saved); // 是否实际写入（重复分享为 false）
+  console.log(event.detail.saved); // 是否实际写入（重复拉取为 false）
 });
 ```
 
-传输自动选路（双方已交换资料时 E2EE，否则明文中继），按 `signTime` 幂等收敛；对方离线时抛出 `code: "offline"`。
+安全边界：请求方必须已知精确 key（无法枚举对方凭证），且记录仍走统一验签导入，按 `signTime` 幂等收敛。
 
 ### 查询与检查
 
@@ -396,7 +404,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 | `latency_monitor` | 延迟监测启动 | `{ status: "started", intervalMs }` |
 | `rtt_update` | 用户间 ping 完成 | `{ userId, sessionId, rtt, via, url }` |
 | `rtc_state` | WebRTC 连接状态变化 | `{ userId, sessionId, state: "connected"|"disconnected" }` |
-| `profile_received` | 收到并验证远程用户资料（请求响应或资料变更推送） | `{ userId, profile, saved }` |
+| `profile_received` | 收到并验证远程用户资料（请求响应） | `{ userId, profile, saved }` |
 | `cert_received` | 收到对端分享的凭证并验证入库 | `{ cert, saved, fromUserId }` |
 
 示例：
@@ -655,7 +663,7 @@ await user.ready();
 - 以 `role="profile"` 的自签证书形态存储（含 `issuer`/`subject` 身份字段）
 - 自动签名数据
 - 合并现有信息，不会覆盖未更新的字段
-- 成功后自动向已建立通信的对端推送新资料
+- 成功后资料变更不主动推送，对端按需拉取
 
 #### `getInfo()`
 
@@ -778,6 +786,18 @@ await user.ready();
 
 ### 个人资料方法
 
+#### `getRecord(fromUserId, keyOrId)`
+
+按需获取凭证记录：先查本地 DB，没有再向 `fromUserId` 发起网络拉取。`keyOrId` 为 `{role, issuer, subject}` 对象或记录 id 字符串；未命中返回 `null`。
+
+#### `getRecordByDB(keyOrId)`
+
+从本地数据库按 key 读取凭证记录（签名载荷视图，可直接整体验签）。
+
+#### `requestRecord(fromUserId, keyOrId)`
+
+向指定用户按 key 拉取凭证记录（总是发起网络请求）；对方无该记录时 `resolve(null)`。
+
 #### `getProfile(userId)`
 
 获取远程用户的个人资料：本地 DB 优先，未命中则发起网络请求（10s 超时，失败自动重发 1 次）。
@@ -788,11 +808,11 @@ await user.ready();
 
 #### `requestProfile(userId)`
 
-总是发起网络请求刷新个人资料（不读缓存），适合需要最新资料的场合。
+总是发起网络请求刷新个人资料（不读缓存），适合需要最新资料的场合。内部等价于 `requestRecord(userId, {role:"profile", issuer:userId, subject:userId})`。
 
-#### `pushProfile(profileData)`
+#### 资料变更的传播
 
-向所有已建立通信的远端用户广播新资料（`updateInfo` 成功后自动调用，通常无需手动调用）。
+资料变更不主动推送：`updateInfo` 只写本地；对端需要最新资料时调用 `getProfile`/`requestProfile` 拉取，按 `signTime` 竞争自动收敛到最新版本。
 
 ## 安全特性
 
