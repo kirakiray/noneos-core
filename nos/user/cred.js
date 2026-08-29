@@ -14,6 +14,16 @@ import { getHash } from "../util/hash/get-hash.js";
 // 任何授权，权限判断永远不应把 role="profile" 当作授权凭证。
 export const PROFILE_ROLE = "profile";
 
+/**
+ * 读取 cred 协议层诊断日志（时间戳环形缓冲，跨同页面所有用户实例共享，
+ * 同时暴露在 window.__NOS_CRED_DIAG__）。供测试在断言失败时附进输出，
+ * 以便 CI（不展示 console 输出）也能看到协议层排查信息。
+ * @returns {string[]}
+ */
+export function getCredDiagnostics() {
+  return [...credDiagLog];
+}
+
 // 与 BaseUser._sign 一致的规范化序列化：按 key 字母序排序后 JSON.stringify。
 // 验签方使用相同规则，消除对对象属性插入顺序的依赖，
 // 记录中途经过任何序列化/重构都不会破坏验签。
@@ -70,6 +80,28 @@ const CRED_REQ_RETRIES = 2;
 
 // 凭证拉取的中继消息类型。
 const CRED_WIRE_TYPE = "cred";
+
+// ───── 诊断日志 ─────
+// CI 只展示用例的 Error/Stack，console.warn 不可见；所有 cred 协议层的
+// 告警统一写入这里的时间戳环形缓冲，并在请求失败时随 Error 一并抛出。
+// 同页面的多个用户实例（测试场景）共享同一份缓冲，因此请求方的失败
+// 错误里也能看到对端应答侧的诊断（如"应答发送失败"）。
+const CRED_DIAG_LIMIT = 60;
+const credDiagLog = [];
+if (typeof window !== "undefined") {
+  window.__NOS_CRED_DIAG__ = credDiagLog;
+}
+
+function credDiag(message, { quiet = false } = {}) {
+  const entry = `${new Date().toISOString()} ${message}`;
+  credDiagLog.push(entry);
+  if (credDiagLog.length > CRED_DIAG_LIMIT) credDiagLog.shift();
+  if (!quiet) console.warn(`[CredentialManager] ${message}`);
+}
+
+function credDiagSnapshot(max = 15) {
+  return credDiagLog.slice(-max).join("\n  ");
+}
 
 // 授权类证书的默认有效期（30 天）。expire 为绝对时间戳，随证书内容一同签名；
 // 签发时显式传 null（或省略该字段）表示永不过期；profile 无过期语义（见 isCertExpired）。
@@ -406,6 +438,12 @@ export class CredentialManager {
     const viaServer = detail.url;
 
     if (credMsg.action === "request") {
+      if (!fromUserId || !fromSessionId) {
+        credDiag(
+          `Cred request missing fromUserId/fromSessionId, cannot reply: ${JSON.stringify({ fromUserId, fromSessionId, viaServer })}`,
+        );
+        return;
+      }
       await this.#handleCredRequest(
         fromUserId,
         fromSessionId,
@@ -414,6 +452,8 @@ export class CredentialManager {
       );
     } else if (credMsg.action === "response") {
       await this.#handleCredResponse(credMsg.key, credMsg.data, fromUserId);
+    } else {
+      credDiag(`Unknown cred action "${credMsg.action}" from ${fromUserId}`);
     }
   }
 
@@ -444,7 +484,9 @@ export class CredentialManager {
         data = records[0] ?? null;
       }
     } catch (err) {
-      console.warn("[CredentialManager] Invalid cred request key:", err.message);
+      credDiag(
+        `Invalid cred request key from ${fromUserId}: ${err.message}`,
+      );
     }
 
     try {
@@ -455,7 +497,9 @@ export class CredentialManager {
         data,
       });
     } catch (err) {
-      console.warn("[CredentialManager] Failed to send cred response:", err.message);
+      credDiag(
+        `Failed to send cred response to ${fromUserId} (session ${fromSessionId} via ${viaServer}): ${err.message}`,
+      );
     }
   }
 
@@ -483,14 +527,14 @@ export class CredentialManager {
       data.issuer === normalized.issuer &&
       data.subject === normalized.subject;
     if (!matchesKey) {
-      console.warn("[CredentialManager] Cred record key mismatch");
+      credDiag(`Cred record key mismatch in response from ${fromUserId}`);
       this.#rejectRequest(fromUserId, normalized, new Error("Cred record key mismatch"));
       return;
     }
 
     // profile 是持有者的自签声明：必须由持有者本人提供
     if (data.role === PROFILE_ROLE && data.subject !== fromUserId) {
-      console.warn("[CredentialManager] Profile userId mismatch");
+      credDiag(`Profile userId mismatch in response from ${fromUserId}`);
       this.#rejectRequest(fromUserId, normalized, new Error("Profile userId mismatch"));
       return;
     }
@@ -500,7 +544,7 @@ export class CredentialManager {
       // 统一证书导入路径（规范化验签 + signTime 竞争）
       ({ saved } = await this.importRecord(data));
     } catch (err) {
-      console.warn("[CredentialManager] Cred verification failed:", err.message);
+      credDiag(`Cred verification failed for record from ${fromUserId}: ${err.message}`);
       this.#rejectRequest(fromUserId, normalized, err);
       return;
     }
@@ -530,9 +574,14 @@ export class CredentialManager {
   async #findSessionId(userId) {
     const server = this.#user.server;
     const maxRetries = 5;
+    const failures = [];
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const urls = server.connectedUrls;
+
+      if (urls.length === 0) {
+        failures.push(`attempt ${attempt + 1}: no connected server`);
+      }
 
       for (const url of urls) {
         try {
@@ -540,7 +589,11 @@ export class CredentialManager {
           if (result.online && result.sessions && result.sessions.length > 0) {
             return result.sessions[0];
           }
-        } catch {
+          failures.push(
+            `attempt ${attempt + 1}: ${url} online=${result.online} sessions=${result.sessions?.length ?? 0}`,
+          );
+        } catch (err) {
+          failures.push(`attempt ${attempt + 1}: ${url} error: ${err.message}`);
           continue;
         }
       }
@@ -550,7 +603,12 @@ export class CredentialManager {
       }
     }
 
-    throw new Error(`User ${userId} is not online on any connected server`);
+    credDiag(
+      `findSessionId exhausted ${maxRetries} retries for user ${userId}: ${failures.join(" | ")}`,
+    );
+    throw new Error(
+      `User ${userId} is not online on any connected server (${failures.join(" | ")})`,
+    );
   }
 
   /**
@@ -582,8 +640,8 @@ export class CredentialManager {
   /**
    * 向远程用户按 key 拉取凭证记录（总是发起网络请求）
    *
-   * 超时或发送阶段异常视为瞬时失败，自动重发一次
-   * （CRED_REQ_RETRIES，300ms 间隔）；响应到达且签名验证通过才 resolve，
+   * 超时或发送阶段异常视为瞬时失败，自动重发
+   * （最多 CRED_REQ_RETRIES 次，300ms 间隔）；响应到达且签名验证通过才 resolve，
    * 响应方无该记录时 resolve(null)。
    *
    * @param {string} fromUserId - 目标用户的 userId
@@ -613,6 +671,8 @@ export class CredentialManager {
       timer: null,
       promise,
       attempts: 0,
+      startTime: Date.now(),
+      errors: [],
     });
 
     this.#attemptCredRequest(fromUserId, key, mapKey);
@@ -623,23 +683,45 @@ export class CredentialManager {
   /**
    * 执行一次凭证拉取的发送与等待，带瞬时失败重发。
    *
-   * 单次尝试：connectUser → findSessionId → 发送 cred request，
+   * 单次尝试：connectUser → findSessionId → 通过服务器中转发送 cred request，
    * 并在 CRED_REQ_TIMEOUT 内等待响应（由 #handleCredResponse 结算）。
    * 超时或发送异常时，若还有重试额度则 300ms 后重发，
    * 重试耗尽才 reject；响应按 fromUserId+key 配对，重复请求与迟到响应均安全。
+   *
+   * 注意：cred 协议必须强制走服务器中转（server.sendToUser），
+   * 不能使用 remoteUser.send()——后者在 RTC 通道就绪后会静默改走
+   * DataChannel，而对端 cred 处理器只监听服务器 relay 消息，
+   * 经 RTC 到达的请求将无人应答直至超时。
    */
   #attemptCredRequest(fromUserId, key, mapKey) {
     const entry = this.#requestMap.get(mapKey);
     if (!entry) return;
 
     entry.attempts++;
+    const attempt = entry.attempts;
     const maxAttempts = 1 + CRED_REQ_RETRIES;
+    const keyDesc = `${key.role}/${key.issuer}/${key.subject}`;
 
-    const fail = (err) => {
+    const fail = (stage, err) => {
+      const detail = `${stage}: ${err?.message || err}`;
+      entry.errors.push(`attempt ${attempt}/${maxAttempts} ${detail}`);
+      credDiag(
+        `Cred request attempt ${attempt}/${maxAttempts} failed for user ${fromUserId} (key=${keyDesc}) — ${detail}`,
+      );
+
       if (entry.attempts >= maxAttempts) {
         clearTimeout(entry.timer);
         this.#requestMap.delete(mapKey);
-        entry.reject(err);
+        // CI 只展示 Error/Stack：把 cred 协议层最近的诊断（含对端应答侧，
+        // 同页面共享缓冲）随错误一并抛出，便于离线定位
+        entry.reject(
+          new Error(
+            `Cred request failed for user ${fromUserId} (key=${keyDesc}, ` +
+              `${Date.now() - entry.startTime}ms total). Attempts: ${entry.errors.join(" | ")}` +
+              `\n--- recent cred diagnostics ---\n  ${credDiagSnapshot()}`,
+            { cause: err },
+          ),
+        );
         return;
       }
       // 瞬时失败且还有重试额度：短暂延迟后重发
@@ -651,20 +733,31 @@ export class CredentialManager {
     };
 
     entry.timer = setTimeout(() => {
-      fail(new Error(`Cred request timed out for user ${fromUserId}`));
+      fail(
+        "timeout",
+        new Error(
+          `no cred response within ${CRED_REQ_TIMEOUT}ms (request sent via server relay)`,
+        ),
+      );
     }, CRED_REQ_TIMEOUT);
 
     (async () => {
       try {
         const remoteUser = await this.#user.connectUser(fromUserId);
         const sessionId = await this.#findSessionId(fromUserId);
-        await remoteUser.send(
+        // 强制服务器中转，见方法注释；此处等价于 remoteUser.send 的
+        // server 路径（raw 跳过加密），但不允许其回落到 RTC
+        const result = await this.#user.server.sendToUser(
+          fromUserId,
           sessionId,
           { type: CRED_WIRE_TYPE, action: "request", key },
-          true,
+        );
+        credDiag(
+          `Cred request sent to user ${fromUserId} via server ${result?.url} (session ${sessionId}, attempt ${attempt}/${maxAttempts}, key=${keyDesc})`,
+          { quiet: true },
         );
       } catch (err) {
-        fail(err);
+        fail("send", err);
       }
     })();
   }

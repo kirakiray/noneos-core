@@ -111,7 +111,7 @@ EventTarget
 
 | 管理器 | 关键方法 |
 |--------|---------|
-| `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**凭证在线拉取**：`start()` 监听中继 `type:"cred"`（收到请求/响应时 `_ensureRemoteUser()`）；通用 API `requestRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串；connectUser → findSessionId → 发请求，超时/失败自动重发 2 次，幂等，未命中 resolve null）与 `getRecord(fromUserId, key)`（DB 优先 → 网络拉取）、`getRecordByDB(key)`。响应校验记录与 key 一致后走 `importRecord` 统一导入（规范化验签 + signTime 竞争；profile 额外校验 subject === 发送方）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装。拉取读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
+| `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**凭证在线拉取**：`start()` 监听中继 `type:"cred"`（收到请求/响应时 `_ensureRemoteUser()`）；通用 API `requestRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串；connectUser → findSessionId → 经 `server.sendToUser` 强制服务器中转发请求（不走 RTC，见第 6 节），超时/失败自动重发 2 次，幂等，未命中 resolve null）与 `getRecord(fromUserId, key)`（DB 优先 → 网络拉取）、`getRecordByDB(key)`。响应校验记录与 key 一致后走 `importRecord` 统一导入（规范化验签 + signTime 竞争；profile 额外校验 subject === 发送方）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装。拉取读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
@@ -180,9 +180,11 @@ EventTarget
 ```
 A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id 字符串
   ├── connectUser(fromUserId)             # 确保对端在线
-  ├── findSessionId                       # 选一个会话
-  ├── 发送 {type:"cred", action:"request", key} ──→ 对端
-  │     （超时/发送失败 300ms 后自动重发 2 次，CRED_REQ_RETRIES）
+  ├── findSessionId                       # 选一个会话（重试耗尽时带各服务器查询详情抛错）
+  ├── 经 server.sendToUser 强制服务器中转发送 {type:"cred", action:"request", key} ──→ 对端
+  │     （不可走 remoteUser.send：其可能在 RTC 通道就绪后改走 DataChannel，
+  │      而对端 cred 处理器只监听服务器 relay 消息，RTC 到达的请求将无人应答直至超时；
+  │      超时/发送失败 300ms 后自动重发 2 次，CRED_REQ_RETRIES，最终错误聚合各次尝试详情）
   └── 对端回 {type:"cred", action:"response", key, data} ──→ A
         ├── data 非空：校验记录与 key 一致 + 统一验签 → importRecord（signTime 竞争收敛）
         │     ├── role="profile" → 触发 profile_received，并校验 subject === 发送方
