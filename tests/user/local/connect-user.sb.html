@@ -465,27 +465,26 @@
           await ru6_userK.cred.deleteProfile(ru6_userL.userId);
         }
 
-        // 劫持 K 侧发送：吞掉第一条 card request（模拟请求在通道切换时丢失），
+        // 劫持 K 侧服务器中转发送（cred request 强制走 server.sendToUser）：
+        // 吞掉第一条 card request（模拟请求在传输中丢失），
         // 之后放行——重发机制应靠第二次请求拿到名片
         let ru6_swallowed = false;
         let ru6_sendAttempts = 0;
-        ru6_userK.bind("remote_user_connected", (event) => {
-          const ru6_ru = event.detail.remoteUser;
-          const ru6_origSend = ru6_ru.send.bind(ru6_ru);
-          ru6_ru.send = async (sid, data, raw) => {
-            if (
-              data?.type === "cred" &&
-              data?.action === "request"
-            ) {
-              ru6_sendAttempts++;
-              if (!ru6_swallowed) {
-                ru6_swallowed = true;
-                return { status: "ok", via: "test" }; // 假装发出，实际丢弃
-              }
+        const ru6_origSendToUser = ru6_userK.server.sendToUser.bind(ru6_userK.server);
+        ru6_userK.server.sendToUser = async (targetUserId, sessionId, data) => {
+          if (
+            data?.type === "cred" &&
+            data?.action === "request" &&
+            targetUserId === ru6_userL.userId
+          ) {
+            ru6_sendAttempts++;
+            if (!ru6_swallowed) {
+              ru6_swallowed = true;
+              return { result: { status: "ok" }, url: ru6_serverUrl }; // 假装发出，实际丢弃
             }
-            return ru6_origSend(sid, data, raw);
-          };
-        });
+          }
+          return ru6_origSendToUser(targetUserId, sessionId, data);
+        };
 
         const ru6_card = await ru6_userK.cred.requestProfile(ru6_userL.userId);
         const ru6_retryWorked =
@@ -586,6 +585,7 @@
     <template>
       <script type="module">
         import { LocalUser } from "/nos/user/user.js";
+        import { getCredDiagnostics } from "/nos/user/cred.js";
 
         const cs_nsO = "cert-pull-o";
         const cs_nsP = "cert-pull-p";
@@ -665,6 +665,11 @@
             && csReshareConverged && csStillHasCert && csNoTamperEvent && csStoreIntact,
           content: {
             message: "凭证按 key 拉取：验证入库、幂等收敛、未命中返回 null",
+            credDiagnostics: csPulledOk && csEventFired && csFromOk && csSavedOk
+              && csHasCert && csReshareConverged && csStillHasCert
+              && csNoTamperEvent && csStoreIntact
+              ? undefined
+              : getCredDiagnostics(),
             checks: {
               csPulledOk,
               csEventFired,

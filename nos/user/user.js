@@ -300,7 +300,7 @@ export class LocalUser extends BaseUser {
         if (buffer.byteLength > 12) {
           try {
             const { tryDecryptBinary } = await import(
-              "../../crypto/crypto-e2ee.js"
+              "../crypto/crypto-e2ee.js"
             );
             const decrypted = await tryDecryptBinary(
               this,

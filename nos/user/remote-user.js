@@ -337,6 +337,13 @@ export class RemoteUser extends BaseUser {
         this.#handlePong(parsed);
       } else if (parsed.type === "__storage_resp") {
         this.#handleStorageResponse(parsed);
+      } else if (parsed.type === "cred") {
+        // cred 协议只走服务器中转：对端 cred 处理器只监听 relay 消息，
+        // 经 RTC 到达的 cred 消息不会有人处理。正常情况下不应出现，
+        // 留告警便于诊断发送方路径异常。
+        console.warn(
+          `[RemoteUser] cred message received via RTC path (unhandled, cred protocol is server-relay only): from=${this.#userId} action=${parsed.action}`,
+        );
       }
     });
   }
