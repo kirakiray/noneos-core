@@ -44,6 +44,7 @@
 | `/__host-cache` | 特殊路由：返回宿主项目离线缓存状态（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | `/__update-host-cache` | 特殊路由：触发宿主项目离线缓存更新（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | (fallback) | 同域 GET 请求且路径在 host-cache manifest files 列表中时，从 OPFS 缓存返回 | host-cache-handler.js |
+| (dev-bridge) | `systemConfig.devBridge` 配置非空时，对同域顶层 HTML 导航（GET + `destination === "document"`）在 `<head>` 开标签后注入调试 script（无 `<head>` 的文档不注入）；生产配置无此字段即完全不生效 | dev-bridge.js（包装所有 handler 的响应） |
 
 ### 根目录运行时文件（部署/入口产物，**非源码**）
 
@@ -64,6 +65,7 @@
 | 命令 | 作用 | 监听地址 |
 |------|------|---------|
 | `npm run static` | 启动静态文件服务器（页面 + SW 源） | `http://localhost:3002` |
+| `npm run static:test` | 启动独立 origin 的测试用静态服务器（dev-bridge 注入等会污染 origin 状态的测试专用） | `http://localhost:3003` |
 | `npm run ws1` | 启动主 WebSocket 服务（Rust） | `ws://localhost:8081` |
 | `npm run ws2` | 启动备 WebSocket 服务（Rust，用于多服务器选路联调） | `ws://localhost:8082` |
 | `npm run watch:sw` | 监听 `sw/src/**` 自动重建 SW（可与 static 合并成 `npm run dev`） | — |

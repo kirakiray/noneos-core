@@ -5,6 +5,11 @@ import {
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
 import {
+  isDevBridgeRequest,
+  wrapDevBridgeRespond,
+  injectDevBridgeScript,
+} from "./modules/dev-bridge.js";
+import {
   handleHostCacheMessage,
   handleHostCacheRequest,
   handleHostCacheStatus,
@@ -43,6 +48,12 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
     return event.respondWith(triggerHostCacheUpdate());
+  }
+
+  // dev-bridge 开发模式：包装 respondWith，让所有导航响应统一过注入逻辑
+  let devBridgeResponded = null;
+  if (isDevBridgeRequest(request, systemConfig)) {
+    devBridgeResponded = wrapDevBridgeRespond(event, systemConfig);
   }
 
   try {
@@ -132,6 +143,22 @@ self.addEventListener("fetch", (event) => {
     return new Response(err.stack || err.toString(), {
       status: 400,
     });
+  }
+
+  // dev-bridge：上面所有路由都未接管的导航请求，由 SW 主动 fetch 并注入
+  if (devBridgeResponded && !devBridgeResponded()) {
+    event.respondWith(
+      (async () => {
+        try {
+          return await injectDevBridgeScript(
+            await fetch(request),
+            systemConfig,
+          );
+        } catch {
+          return fetch(request);
+        }
+      })(),
+    );
   }
 
   // if (/^\/_/.test(pathname)) {

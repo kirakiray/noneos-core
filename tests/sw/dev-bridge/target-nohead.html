@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <body>
+    <p>dev-bridge target without head</p>
+    <script>
+      // 原始文档不含 head 开标签，按约定不应被注入
+      const report_2 = () => {
+        window.opener &&
+          window.opener.postMessage(
+            {
+              type: "dev-bridge-result",
+              page: "no-head",
+              injected: !!self.__bridgeInjected,
+            },
+            "*",
+          );
+      };
+      if (document.readyState === "complete") {
+        report_2();
+      } else {
+        window.addEventListener("load", report_2);
+      }
+    </script>
+  </body>
+</html>

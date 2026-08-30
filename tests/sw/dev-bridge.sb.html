@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>dev-bridge 开发模式注入测试</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>dev-bridge 开发模式注入测试</h1>
+
+    <!-- 注意：本测试会写 OPFS nos-config/system.json 并独占 Service Worker， -->
+    <!-- 必须在独立端口（3003，npm run static:test）运行，避免污染其他测试用例 -->
+    <!-- 的 origin 状态。在其他端口（如 3002）混跑时，下方守卫会让所有用例跳过。 -->
+    <script>
+      // 端口守卫：仅 3003 端口执行真实测试逻辑
+      self.__devBridgeGuard = () => {
+        if (location.port === "3003") return null;
+        return { assert: true, content: "skipped：dev-bridge 测试需在 3003 端口运行（npm run static:test）" };
+      };
+
+      // 顶层导航探针：复用同一个弹窗窗口（连续 window.open 会被弹窗拦截），
+      // 通过真实导航打开目标页并等待其 postMessage 回报，带超时兜底防止卡死。
+      self.__devBridgeNav = (url) =>
+        new Promise((resolve_0) => {
+          let win_0 = self.__devBridgeWin;
+          if (!win_0 || win_0.closed) {
+            win_0 = self.__devBridgeWin = window.open(
+              url,
+              "_blank",
+              "width=400,height=300",
+            );
+          } else {
+            win_0.location = url;
+          }
+
+          const timer_0 = setTimeout(() => {
+            window.removeEventListener("message", onMsg_0);
+            resolve_0({ timeout: true, opened: !!win_0 });
+          }, 15000);
+
+          const onMsg_0 = (e_0) => {
+            if (e_0.data?.type === "dev-bridge-result") {
+              clearTimeout(timer_0);
+              window.removeEventListener("message", onMsg_0);
+              resolve_0(e_0.data);
+            }
+          };
+          window.addEventListener("message", onMsg_0);
+        });
+    </script>
+
+    <sb-test name="注册 SW 并写入 devBridge 配置">
+      <template>
+        <script type="module">
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 清理已有 SW，注册正式 sw.js
+          const regs_1 = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_1.map((r) => r.unregister()));
+          await navigator.serviceWorker.register("/sw.js");
+
+          // 等待本页被正式 SW 控制
+          const controlled_1 = await new Promise((resolve_1) => {
+            if (navigator.serviceWorker.controller) return resolve_1(true);
+            navigator.serviceWorker.addEventListener(
+              "controllerchange",
+              () => resolve_1(true),
+              { once: true },
+            );
+          });
+
+          // 写入 devBridge 配置到 OPFS nos-config/system.json
+          const root_1 = await navigator.storage.getDirectory();
+          const configDir_1 = await root_1.getDirectoryHandle("nos-config", {
+            create: true,
+          });
+          const configFile_1 = await configDir_1.getFileHandle("system.json", {
+            create: true,
+          });
+          const writable_1 = await configFile_1.createWritable();
+          await writable_1.write(
+            JSON.stringify({
+              devBridge: {
+                script: `${location.origin}/tests/sw/dev-bridge/dev-bridge-marker.js`,
+                async: true,
+              },
+            }),
+          );
+          await writable_1.close();
+
+          // 触发 SW 重载配置
+          const res_1 = await fetch("/__config");
+          const data_1 = await res_1.json();
+
+          return {
+            assert:
+              controlled_1 &&
+              !!data_1.systemConfig?.devBridge?.script?.includes(
+                "dev-bridge-marker.js",
+              ),
+            content: { systemConfig: data_1.systemConfig },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="带 head 的页面顶层导航被注入 script（async）">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 通过真实顶层导航打开目标页，等待其 postMessage 回报注入结果
+          const result_1 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target.html",
+          );
+
+          return {
+            assert:
+              result_1.page === "with-head" &&
+              result_1.injected === true &&
+              result_1.async === true,
+            content: result_1,
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="无 head 的页面不注入">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          const result_2 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target-nohead.html",
+          );
+
+          return {
+            assert:
+              result_2.page === "no-head" && result_2.injected === false,
+            content: result_2,
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="关闭配置后恢复不注入">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 清空 devBridge 配置并触发重载
+          const root_4 = await navigator.storage.getDirectory();
+          const configDir_4 = await root_4.getDirectoryHandle("nos-config", {
+            create: true,
+          });
+          const configFile_4 = await configDir_4.getFileHandle("system.json", {
+            create: true,
+          });
+          const writable_4 = await configFile_4.createWritable();
+          await writable_4.write(JSON.stringify({}));
+          await writable_4.close();
+          await (await fetch("/__config")).json();
+
+          const result_4 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target.html",
+          );
+
+          // 测试结束，关闭探针窗口
+          if (self.__devBridgeWin && !self.__devBridgeWin.closed) {
+            self.__devBridgeWin.close();
+          }
+
+          return {
+            assert: result_4.page === "with-head" && result_4.injected === false,
+            content: result_4,
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>
