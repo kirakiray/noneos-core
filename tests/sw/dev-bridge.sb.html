@@ -106,7 +106,7 @@
       </template>
     </sb-test>
 
-    <sb-test name="带 head 的页面顶层导航被注入 script（async）">
+    <sb-test name="带 head 的页面顶层导航被注入 script（async）与警告横幅">
       <template>
         <script>
           if (self.__devBridgeGuard()) return self.__devBridgeGuard();
@@ -119,8 +119,51 @@
             assert:
               result_1.page === "with-head" &&
               result_1.injected === true &&
-              result_1.async === true,
+              result_1.async === true &&
+              result_1.banner === true &&
+              result_1.bannerShown === true &&
+              result_1.bannerOnTop === true,
             content: result_1,
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="移除警告横幅触发整页恶意程序警告">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 在探针窗口中移除横幅，等待守卫脚本触发整页告警
+          const win_5 = self.__devBridgeWin;
+          if (!win_5 || win_5.closed) {
+            return { assert: false, content: { error: "探针窗口不存在" } };
+          }
+
+          const banner_5 = win_5.document.getElementById(
+            "__noneos-dev-banner",
+          );
+          if (!banner_5) {
+            return { assert: false, content: { error: "横幅不存在" } };
+          }
+          banner_5.remove();
+
+          // 守卫通过 MutationObserver 立即响应，最迟 1s 轮询兜底
+          await new Promise((r_5) => setTimeout(r_5, 1500));
+
+          const alarm_5 = win_5.document.getElementById(
+            "__noneos-dev-alarm",
+          );
+          return {
+            assert:
+              !!alarm_5 &&
+              (alarm_5.textContent?.includes("恶意程序") ||
+                alarm_5.textContent?.includes("malicious")),
+            content: {
+              alarmed: !!alarm_5,
+              bannerRestored: !!win_5.document.getElementById(
+                "__noneos-dev-banner",
+              ),
+            },
           };
         </script>
       </template>

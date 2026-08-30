@@ -44,7 +44,7 @@
 | `/__host-cache` | 特殊路由：返回宿主项目离线缓存状态（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | `/__update-host-cache` | 特殊路由：触发宿主项目离线缓存更新（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | (fallback) | 同域 GET 请求且路径在 host-cache manifest files 列表中时，从 OPFS 缓存返回 | host-cache-handler.js |
-| (dev-bridge) | `systemConfig.devBridge` 配置非空时，对同域顶层 HTML 导航（GET + `destination === "document"`）在 `<head>` 开标签后注入调试 script（无 `<head>` 的文档不注入）；生产配置无此字段即完全不生效 | dev-bridge.js（包装所有 handler 的响应） |
+| (dev-bridge) | `systemConfig.devBridge` 配置非空时，对同域顶层 HTML 导航（GET + `destination === "document"`）在 `<head>` 开标签后注入调试 script 与防篡改开发模式警告横幅（横幅被移除则整页替换为恶意程序警告；无 `<head>` 的文档不注入）；生产配置无此字段即完全不生效 | dev-bridge.js（包装所有 handler 的响应） |
 
 ### 根目录运行时文件（部署/入口产物，**非源码**）
 

@@ -17,6 +17,11 @@
               page: "with-head",
               injected: !!self.__bridgeInjected,
               async: !!self.__bridgeAsync,
+              banner: !!self.__noneosDevBanner,
+              bannerShown: !!document.getElementById("__noneos-dev-banner"),
+              bannerOnTop:
+                document.documentElement.lastElementChild?.id ===
+                "__noneos-dev-banner",
             },
             "*",
           );
