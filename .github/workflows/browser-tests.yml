@@ -62,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+
       - name: Install xvfb
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
