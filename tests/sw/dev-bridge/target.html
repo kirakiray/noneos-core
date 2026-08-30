@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>dev-bridge 注入目标页（带 head）</title>
+  </head>
+  <body>
+    <p>dev-bridge target</p>
+    <script>
+      // 将注入结果回报给打开本页的测试页。
+      // 必须等 window load：注入的 script 可能带 async，其执行完成不早于 load。
+      const report_1 = () => {
+        window.opener &&
+          window.opener.postMessage(
+            {
+              type: "dev-bridge-result",
+              page: "with-head",
+              injected: !!self.__bridgeInjected,
+              async: !!self.__bridgeAsync,
+              banner: !!self.__noneosDevBanner,
+              bannerShown: !!document.getElementById("__noneos-dev-banner"),
+              bannerOnTop:
+                document.documentElement.lastElementChild?.id ===
+                "__noneos-dev-banner",
+            },
+            "*",
+          );
+      };
+      if (document.readyState === "complete") {
+        report_1();
+      } else {
+        window.addEventListener("load", report_1);
+      }
+    </script>
+  </body>
+</html>

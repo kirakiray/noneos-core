@@ -47,6 +47,30 @@ jobs:
         with:
           browsers: 'chrome'
 
+  test-dev-bridge:
+    # dev-bridge 注入测试：需独占 SW 与 system.json，在独立 origin（端口 3003）运行，
+    # 不依赖握手服务器，因此不走 sibyl-test action，直接运行专用 npm script。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run dev-bridge tests
+        run: xvfb-run -a npm run test:dev-bridge
+
   test-firefox:
     runs-on: ubuntu-latest
     steps:

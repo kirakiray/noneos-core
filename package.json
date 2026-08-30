@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.5.3",
+  "version": "4.5.4",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -16,7 +16,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "npm run static & npm run watch:sw",
-    "static": "http-server -p 3002 -c-1 --cors",
+    "static": "node scripts/static.js",
     "start": "http-server -p 30028 -c-1 --cors",
     "ws": "npm run ws1 & npm run ws2",
     "ws1": "cd server/handshake && cargo run -- --config test-space/config.example.toml",
@@ -27,7 +27,8 @@
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "sb-test"
+    "test": "sb-test",
+    "test:dev-bridge": "sb-test -f tests/sw/dev-bridge.sb.html --browsers chrome -p 3003"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",
