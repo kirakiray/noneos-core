@@ -186,6 +186,96 @@
       </template>
     </sb-test>
 
+    <sb-test name="隐藏横幅（低透明度）同样触发整页告警">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 重新导航到全新页面（守卫状态随页面重置）
+          const result_6 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target.html",
+          );
+          if (result_6.bannerShown !== true) {
+            return { assert: false, content: { error: "横幅未出现", result_6 } };
+          }
+
+          // 狡猾手段：不删除，只把透明度调到几乎不可见
+          const win_6 = self.__devBridgeWin;
+          const banner_6 = win_6.document.getElementById(
+            "__noneos-dev-banner",
+          );
+          banner_6.style.opacity = "0.01";
+          await new Promise((r_6) => setTimeout(r_6, 1500));
+
+          const alarm_6 = win_6.document.getElementById(
+            "__noneos-dev-alarm",
+          );
+          return {
+            assert: !!alarm_6,
+            content: { alarmed: !!alarm_6 },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="宿主未声明总开关时配置不生效">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 重新写入 devBridge 配置
+          const root_7 = await navigator.storage.getDirectory();
+          const configDir_7 = await root_7.getDirectoryHandle("nos-config", {
+            create: true,
+          });
+          const configFile_7 = await configDir_7.getFileHandle("system.json", {
+            create: true,
+          });
+          const writable_7 = await configFile_7.createWritable();
+          await writable_7.write(
+            JSON.stringify({
+              devBridge: {
+                script: `${location.origin}/tests/sw/dev-bridge/dev-bridge-marker.js`,
+                async: true,
+              },
+            }),
+          );
+          await writable_7.close();
+
+          // 换用不带 DEV_BRIDGE_ENABLED 总开关的测试 SW。
+          // 注意：该 SW 位于 /tests/sw/dev-bridge/ 下，scope 不覆盖测试页本身，
+          // 不能等 controllerchange，只需等它 activated（弹窗导航会被其拦截）。
+          const regs_7 = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_7.map((r_7) => r_7.unregister()));
+          const reg_7 = await navigator.serviceWorker.register(
+            "/tests/sw/dev-bridge/sw-nogate.js"
+          );
+          await new Promise((resolve_7) => {
+            const sw_7 =
+              reg_7.installing || reg_7.waiting || reg_7.active;
+            if (!sw_7 || sw_7.state === "activated") return resolve_7();
+            sw_7.addEventListener("statechange", () => {
+              if (sw_7.state === "activated") resolve_7();
+            });
+          });
+          // nogate SW 激活时会自行 reloadSystemConfig；测试页不在其 scope，
+          // 页面发出的 /__config 不会经过它，无需也无法触发重载
+
+          const result_7 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target.html",
+          );
+
+          // 恢复注册正式 sw.js，供后续用例使用
+          const regs_7b = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_7b.map((r_7b) => r_7b.unregister()));
+          await navigator.serviceWorker.register("/sw.js");
+
+          return {
+            assert: result_7.injected === false,
+            content: result_7,
+          };
+        </script>
+      </template>
+    </sb-test>
+
     <sb-test name="关闭配置后恢复不注入">
       <template>
         <script>

@@ -20,6 +20,8 @@
 // - 任何读取/解析失败都原样返回原始响应，绝不因注入失败破坏页面。
 
 // 注入到每个页面的守卫脚本：显示开发模式警告横幅，并被防篡改保护。
+// ⚠️ 注意：本脚本写在模板字符串内，正则等处的反斜杠必须双写（\\s、\\d），
+// 否则会被模板字符串转义吞掉，生成非法正则导致整个守卫脚本崩溃。
 // 说明：注入位置在 <head> 最前，本脚本先于页面所有脚本执行，因此闭包内
 // 固化的 MutationObserver/setInterval 引用无法被页面脚本替换；防御是
 // 尽力而为（best-effort）级别，而非绝对不可绕过。
@@ -145,15 +147,55 @@ const BANNER_GUARD_SCRIPT = `
     return el;
   };
 
+  // 可见性判断：综合样式与几何信息，覆盖常见的「不删除但隐藏」手段 ——
+  // display/visibility/低透明度、filter 透明或大模糊、clip-path 裁剪、
+  // transform 缩放为 0 或移出视口、宽高压 0、背景与文字同时全透明。
+  const alphaOf = (color) => {
+    const m = /rgba?\\([^)]*,\\s*([\\d.]+)\\s*\\)|rgba?\\(([^)]*)\\)/.exec(color || "");
+    if (!m) return 1;
+    const val = m[1] !== undefined ? m[1] : (m[2] || "").split(",").pop();
+    return parseFloat(val);
+  };
+
   const isBannerVisible = () => {
     const el = getBanner();
     if (!el || !el.isConnected) return false;
     const style = self.getComputedStyle(el);
-    return (
-      style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      parseFloat(style.opacity || "1") > 0.05
-    );
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      parseFloat(style.opacity || "1") < 0.3
+    ) {
+      return false;
+    }
+    // filter：整体透明度过低或模糊到不可读
+    const filter = style.filter || "";
+    const fOpacity = /opacity\\(\\s*([\\d.]+)%?\\s*\\)/.exec(filter);
+    if (fOpacity && parseFloat(fOpacity[1]) < 0.3) return false;
+    const fBlur = /blur\\(\\s*([\\d.]+)px\\s*\\)/.exec(filter);
+    if (fBlur && parseFloat(fBlur[1]) >= 5) return false;
+    // clip-path：整圆/整 inset 裁剪为 0
+    const clip = (style.clipPath || "") + (style.webkitClipPath || "");
+    if (/(100%|circle\\(0|inset\\(\\s*100%)/i.test(clip)) return false;
+    // 文字与背景同时全透明（横幅还在但完全看不见）
+    if (
+      alphaOf(style.backgroundColor) === 0 &&
+      alphaOf(style.color) === 0
+    ) {
+      return false;
+    }
+    // 几何兜底：尺寸被压扁 / transform 缩放或位移出视口
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 50 || rect.height < 8) return false;
+    if (
+      rect.bottom <= 0 ||
+      rect.top >= innerHeight ||
+      rect.right <= 0 ||
+      rect.left >= innerWidth
+    ) {
+      return false;
+    }
+    return true;
   };
 
   let alarmed = false;
@@ -237,10 +279,13 @@ const BANNER_GUARD_SCRIPT = `
 })();
 `;
 
-// 判断当前请求是否需要启用 dev-bridge 拦截
+// 判断当前请求是否需要启用 dev-bridge 拦截。
+// 双重开关：宿主必须在自己的 sw.js 中显式声明 globalThis.DEV_BRIDGE_ENABLED = true，
+// 且 systemConfig.devBridge.script 非空，二者缺一不可。
 export const isDevBridgeRequest = (request, systemConfig) => {
   const { script } = systemConfig?.devBridge || {};
   return (
+    globalThis.DEV_BRIDGE_ENABLED === true &&
     !!script &&
     request.method === "GET" &&
     request.destination === "document"
