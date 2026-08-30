@@ -64,8 +64,8 @@
 
 | 命令 | 作用 | 监听地址 |
 |------|------|---------|
-| `npm run static` | 启动静态文件服务器（页面 + SW 源） | `http://localhost:3002` |
-| `npm run static:test` | 启动独立 origin 的测试用静态服务器（dev-bridge 注入等会污染 origin 状态的测试专用） | `http://localhost:3003` |
+| `npm run static` | 启动静态文件服务器（`scripts/static.js`，同时监听两个端口：3002 常规开发；3003 独立 origin，供 dev-bridge 等会污染 origin 状态的测试使用） | `http://localhost:3002` / `http://localhost:3003` |
+| `npm run test:dev-bridge` | 单独运行 dev-bridge 注入测试（自动在 3003 起测试服务器，Chrome） | — |
 | `npm run ws1` | 启动主 WebSocket 服务（Rust） | `ws://localhost:8081` |
 | `npm run ws2` | 启动备 WebSocket 服务（Rust，用于多服务器选路联调） | `ws://localhost:8082` |
 | `npm run watch:sw` | 监听 `sw/src/**` 自动重建 SW（可与 static 合并成 `npm run dev`） | — |

@@ -37,6 +37,6 @@
 ## 测试
 
 - 测试文件：`tests/sw/dev-bridge.sb.html`（含 fixture `tests/sw/dev-bridge/`）
-- 测试会写 OPFS `nos-config/system.json` 并独占 SW，**必须在独立 origin 运行**：
-  `npm run static:test`（端口 3003），再 `npx sb-test -f tests/sw/dev-bridge.sb.html --browsers chrome`
+- 测试会写 OPFS `nos-config/system.json` 并独占 SW，**必须在独立 origin 运行**，一条命令即可（会自动在 3003 端口起测试服务器）：
+  `npm run test:dev-bridge`
 - 文件内置端口守卫：在非 3003 端口（如 3002 混跑）时所有用例自动跳过，不会污染共享 origin

@@ -12,13 +12,13 @@
     <h1>dev-bridge 开发模式注入测试</h1>
 
     <!-- 注意：本测试会写 OPFS nos-config/system.json 并独占 Service Worker， -->
-    <!-- 必须在独立端口（3003，npm run static:test）运行，避免污染其他测试用例 -->
-    <!-- 的 origin 状态。在其他端口（如 3002）混跑时，下方守卫会让所有用例跳过。 -->
+    <!-- 必须在独立端口（3003，随 npm run static 一起启动）运行，避免污染其他 -->
+    <!-- 测试用例的 origin 状态。在其他端口（如 3002）混跑时，下方守卫会让用例跳过。 -->
     <script>
       // 端口守卫：仅 3003 端口执行真实测试逻辑
       self.__devBridgeGuard = () => {
         if (location.port === "3003") return null;
-        return { assert: true, content: "skipped：dev-bridge 测试需在 3003 端口运行（npm run static:test）" };
+        return { assert: true, content: "skipped：dev-bridge 测试需在 3003 端口运行（npm run static）" };
       };
 
       // 顶层导航探针：复用同一个弹窗窗口（连续 window.open 会被弹窗拦截），
