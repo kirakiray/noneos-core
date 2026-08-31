@@ -292,22 +292,6 @@ export const isDevBridgeRequest = (request, systemConfig) => {
   );
 };
 
-// 包装 event.respondWith：所有经 SW 处理的导航响应统一过一遍注入
-export const wrapDevBridgeRespond = (event, systemConfig) => {
-  const originalRespondWith = event.respondWith.bind(event);
-  let responded = false;
-  event.respondWith = (promise) => {
-    responded = true;
-    originalRespondWith(
-      Promise.resolve(promise).then((response) =>
-        injectDevBridgeScript(response, systemConfig),
-      ),
-    );
-  };
-  // 返回探针函数：分支逻辑执行完后可据此判断是否已被响应
-  return () => responded;
-};
-
 // 对 text/html 响应注入 dev bridge script；不满足条件时原样返回
 export const injectDevBridgeScript = async (response, systemConfig) => {
   const { script, async: asyncAttr, banner = true } =

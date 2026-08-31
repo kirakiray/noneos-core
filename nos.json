@@ -1,7 +1,7 @@
 {
-  "version": "4.5.4",
+  "version": "4.5.5",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1788085362173,
+  "signTime": 1788192432537,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -289,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "AfczWTgka7CvliMVccU8ShV4Bw5wUNZzk9QXm/lHDc+LV+8yc+BFBG4/rp94aR1uiW07N6M/iksowxmrVu1EtA=="
+  "signature": "xUArRexqpCNegE5C/VjSLH7SbZVp9hcWITvyR0NrqR8QellaRzwrh0pEj1fsssjcZ9nwmdR/4ioVMevbNeh2vA=="
 }
