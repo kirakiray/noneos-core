@@ -68,11 +68,12 @@ sw/src/main.js
 | `/__host-cache` 路径 | 特殊路由（仅在 `globalThis.HOST_CACHE_CONFIG` 设置时生效）：返回当前 host-cache 状态 JSON `{ name, version, fileCount, precaching }` |
 | `/__update-host-cache` 路径 | 特殊路由（仅在 `globalThis.HOST_CACHE_CONFIG` 设置时生效）：触发 host-cache 更新，SW 自行拉取最新 manifest 并预缓存，返回更新结果 JSON |
 | `message` 事件 | 监听 `host-cache-update` 消息，触发宿主项目缓存更新流程；完成后回复 `host-cache-update-result` |
-| `install` | `skipWaiting()` 立即激活 |
-| `activate` | `clients.claim()` 接管页面，1s 后刷新配置 |
-| `reloadSystemConfig()` | 从 OPFS `nos-config/system.json` 读取 `systemConfig`；失败返回 500 状态码 |
+| `install` | `skipWaiting()` 立即激活，并预热配置加载（`ensureConfigReady()`） |
+| `activate` | `clients.claim()` 接管页面，并预热配置加载 |
+| `reloadSystemConfig()` | 重建 `configReadyPromise` 并等待 `loadSystemConfig()` 从 OPFS `nos-config/system.json` 读取 `systemConfig`；读取失败降级为保留当前配置（不 reject），始终返回 `{ serviceWorkerVersion, systemConfig }` JSON |
+| `ensureConfigReady()` | 返回配置就绪 Promise（无进行中加载时发起一次）；`fetch` 监听器在 dev-bridge 判断前 `await` 它，避免 SW 冷启动首个导航读到的 `systemConfig` 还是空对象 |
 | `initHostCache()` | SW 脚本加载时触发（文件末尾）；从 OPFS 加载持久化 manifest，再从网络拉取最新版本，版本变化时触发预缓存 |
-| 初始加载 | SW 脚本加载时（文件末尾）也会立即同步触发一次 `reloadSystemConfig()`，不等 activate |
+| 初始加载 | SW 脚本加载时（文件末尾）立即预热一次配置加载，不等 activate |
 
 ### 路径路由表
 
@@ -149,8 +150,8 @@ sw/src/main.js
 
 ### 6. 配置热更新
 
-- `systemConfig` 初始为空对象，SW 脚本加载时与 activate 后 1s 各触发一次加载。
-- `/__config` 请求触发 `reloadSystemConfig()` 并返回当前版本与配置；读取失败返回 500。
+- `systemConfig` 初始为空对象，SW 脚本加载时、install/activate 时预热加载；`fetch` 监听器在 `globalThis.DEV_BRIDGE_ENABLED === true` 时（同步短路）才包装 `respondWith`，包装器在 dev-bridge 判断前会 `await` 配置就绪 Promise（`configReadyPromise`），保证 SW 冷启动后首个导航也能读到最新配置；总开关关闭时不包装、无路由接管的导航也不接管，请求路径与无 dev-bridge 时一致。
+- `/__config` 请求触发 `reloadSystemConfig()`（重建就绪 Promise 后重新读取）并返回当前版本与配置；读取失败降级保留当前配置（不 reject、不返回 500）。
 - 配置存储在 OPFS `nos-config/system.json` 中，由 `nos-tool/_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。
 
 ### 7. 宿主项目离线缓存（host-cache-handler.js）

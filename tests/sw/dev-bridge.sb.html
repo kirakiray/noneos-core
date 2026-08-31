@@ -129,6 +129,41 @@
       </template>
     </sb-test>
 
+    <sb-test name="SW 冷启动首个导航即被注入">
+      <template>
+        <script>
+          if (self.__devBridgeGuard()) return self.__devBridgeGuard();
+          // 模拟冷启动：重新注册 SW 会创建全新的 worker 实例，
+          // 其模块级 systemConfig 从空对象开始异步加载，
+          // 冷启动窗口期内的首个导航也必须被正确注入
+          const regs_8 = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs_8.map((r_8) => r_8.unregister()));
+          const reg_8 = await navigator.serviceWorker.register("/sw.js");
+          await new Promise((resolve_8) => {
+            const sw_8 = reg_8.installing || reg_8.waiting || reg_8.active;
+            if (!sw_8 || sw_8.state === "activated") return resolve_8();
+            sw_8.addEventListener("statechange", () => {
+              if (sw_8.state === "activated") resolve_8();
+            });
+          });
+
+          // SW 刚激活就立即导航，命中配置尚未加载完成的窗口期
+          const result_8 = await self.__devBridgeNav(
+            "/tests/sw/dev-bridge/target.html",
+          );
+
+          return {
+            assert:
+              result_8.page === "with-head" &&
+              result_8.injected === true &&
+              result_8.banner === true &&
+              result_8.bannerShown === true,
+            content: result_8,
+          };
+        </script>
+      </template>
+    </sb-test>
+
     <sb-test name="移除警告横幅触发整页恶意程序警告">
       <template>
         <script>
