@@ -184,14 +184,11 @@ await project.meta.nested.handle.text();
 
   注意 `mount()` 依赖 IndexedDB 持久化 `FileSystemHandle`，**仅 Chrome 支持**。
 
-- ⚠️ **存储的是路径而非文件内容**。若目标文件/目录之后被删除或移动，读取会抛错：
+- ⚠️ **存储的是路径而非文件内容**。若目标文件/目录之后被删除或卸载，读取时该句柄会降级为 `null`（伴随 `console.warn`），键内其他数据仍可正常读出，不抛错：
 
   ```js
-  try {
-    const handle = await storage.getItem("last-opened");
-  } catch (err) {
-    // nos-storage: fs handle "my-app/data.txt" no longer exists
-  }
+  const value = await storage.getItem("last-opened");
+  // 句柄已失效时 value 为 null，其余字段不受影响
   ```
 
 - `keys()` 不读取值，因此即使句柄已失效也能正常列出键名。

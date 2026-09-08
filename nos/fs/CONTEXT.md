@@ -123,9 +123,9 @@ PublicBaseHandle (public/base.js)
 - `open()` 调用 `window.showDirectoryPicker()` 获取真实目录句柄。
 - `mount()` 通过 `saveHandle()` 将原生 `FileSystemHandle` 存入 IndexedDB（`handles-db` 数据库，`handles` store，keyPath 为 `id`）。
 - ID 生成：原生句柄支持 `getUniqueId()` 时直接以其返回值为 id；否则先生成候选 id `{kind}-{Date.now()}`，再遍历已有句柄用 `isSameEntry` 去重 —— 找到相同项则复用已有 id，没找到才使用候选 id；`saveHandle` 写入时会附带 `time: Date.now()` 字段。
-- `get("$mount-xxx>name/path")` 从 IndexedDB 加载句柄，重建 DirHandle 并设置 `RESET_PATH`；**每次 `get` 都会调用 `checkPermission(_handle)`**（readwrite 模式）。
+- `get("$mount-xxx>name/path")` 从 IndexedDB 加载句柄，重建 DirHandle 并设置 `RESET_PATH`；记录不存在时抛明确的「挂载句柄不存在」错误。
+- `checkPermission` 只做 `queryPermission`（readwrite 模式）查询，**不主动 `requestPermission`**：`get` 是 nos-storage 还原句柄的必经路径，常在无用户手势时触发，主动申请会被 Chrome 以 SecurityError 拒绝。授权由上层在用户手势中调用包装句柄的 `requestPermission`（`BaseHandle` 代理到原生句柄）补齐；`open()` 例外，刚从 picker 返回仍在手势窗口内，会就地补授权。
 - Safari 不支持在 IndexedDB 存储 `FileSystemHandle`（`DataCloneError`），会抛出明确错误。
-- 所有挂载操作前会 `checkPermission`（`queryPermission` + `requestPermission`，readwrite 模式）。
 
 ### 3. Safari 写入降级（handle/file.js + write-worker.js）
 

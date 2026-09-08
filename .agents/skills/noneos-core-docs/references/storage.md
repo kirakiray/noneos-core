@@ -210,17 +210,14 @@ await project.meta.nested.handle.text(); // 可用
 
   挂载后的句柄可跨会话还原。注意 `mount()` 依赖 IndexedDB 持久化 `FileSystemHandle`，**仅 Chrome 支持**。
 
-- ⚠️ **存储的是路径而非文件内容**。若目标文件/目录之后被删除或移动，读取会抛出错误：
+- ⚠️ **存储的是路径而非文件内容**。若目标文件/目录之后被删除或卸载，读取时该句柄会降级为 `null`（伴随 `console.warn`），键内其他数据仍可正常读出，不抛错：
 
   ```javascript
-  try {
-    const handle = await storage.getItem("last-opened");
-  } catch (err) {
-    // nos-storage: fs handle "my-app/data.txt" no longer exists
-  }
+  const value = await storage.getItem("last-opened");
+  // 句柄已失效时 value 为 null（或对象中对应字段为 null），其余字段不受影响
   ```
 
-  需要判断有效性时用 try-catch 包裹，或改存路径字符串自行处理。
+  需要区分「键不存在」与「句柄失效」时，用 `has(key)` 配合句柄可用性校验。
 
 - `keys()` 不读取值，因此即使句柄已失效也能正常列出键名。
 

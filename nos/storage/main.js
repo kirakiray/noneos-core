@@ -140,13 +140,18 @@ const fromStorable = async (value, seen = new WeakMap()) => {
 
   if (value[HANDLE_MARK]) {
     const { get } = await import("../fs/main.js");
-    const handle = await get(value.path);
-    if (!handle) {
-      throw new Error(
-        `nos-storage: fs handle "${value.path}" no longer exists`
-      );
+    try {
+      const handle = await get(value.path);
+      if (!handle) {
+        throw new Error(`fs handle "${value.path}" no longer exists`);
+      }
+      return handle;
+    } catch (err) {
+      // 单个句柄还原失败（如挂载记录已被删除）时降级为 null，
+      // 不让同键内的其他数据读取失败
+      console.warn(`nos-storage: failed to restore fs handle "${value.path}":`, err.message);
+      return null;
     }
-    return handle;
   }
 
   const isPlain = Array.isArray(value) || value.constructor === Object;
