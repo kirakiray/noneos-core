@@ -13,6 +13,16 @@ export class BaseHandle extends PublicBaseHandle {
     return this.#originHandle;
   }
 
+  // 暴露权限 API，上层可直接在包装句柄上查询/补授权
+  // （requestPermission 需在用户手势中调用）
+  queryPermission(options) {
+    return this.#originHandle.queryPermission(options);
+  }
+
+  requestPermission(options) {
+    return this.#originHandle.requestPermission(options);
+  }
+
   get name() {
     return this.#originHandle.name;
   }

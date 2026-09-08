@@ -584,13 +584,21 @@
               keys.push(key);
             }
 
-            // 目标文件已删除时，getItem 应抛出明确错误而非返回空对象
+            // 目标文件已删除时，getItem 应降级返回 null 而非抛错
+            let missingValue = "unset";
             let missingError = null;
             try {
-              await storage.getItem("gone");
+              missingValue = await storage.getItem("gone");
             } catch (err) {
               missingError = err.message;
             }
+
+            // 嵌套场景：先存两个句柄，删除其中一个后再读回，
+            // 失效的降级为 null，有效的正常还原
+            const keepRef = await caseDir.get("keep.txt");
+            const goneRef = await caseDir.get("gone.txt");
+            await storage.setItem("mixed", { gone: goneRef, keep: keepRef });
+            const mixed = await storage.getItem("mixed");
 
             await caseDir.remove();
             await deleteStorage(id);
@@ -600,9 +608,11 @@
                 kinds.length === 2 &&
                 kinds.every((k) => k === "file") &&
                 keys.sort().join(",") === "gone,keep" &&
-                !!missingError &&
-                missingError.includes("no longer exists"),
-              content: { kinds, keys, missingError },
+                missingValue === null &&
+                missingError === null &&
+                mixed.gone === null &&
+                mixed.keep.kind === "file",
+              content: { kinds, keys, missingValue, missingError, mixed },
             };
           }
         </script>

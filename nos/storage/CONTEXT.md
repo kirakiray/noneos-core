@@ -155,7 +155,7 @@ nos/storage/
 
 > 早期曾尝试用 `fs.get(path)` + `isSame()` 验证路径可还原性，已废弃：需要额外 IO，且对 `$mount-` 路径会触发挂载授权弹窗。也验证过 `queryPermission` 与 `path` 形态均无法区分句柄来源（OPFS 句柄同样具备 `queryPermission`，根目录 `path` 也是单段名）。
 
-**已知行为**：目标文件/目录已被删除时，`getItem` 抛 `nos-storage: fs handle "<path>" no longer exists`，而非返回空对象。路径引用方案的固有特性 —— 明确报错优于静默拿到坏对象。
+**已知行为**：目标文件/目录已被删除或挂载记录不存在时，`fromStorable` 对该句柄降级返回 `null`（伴随 `console.warn`），键内其他数据正常还原，`getItem` 不抛错。理由：还原常在无用户手势时触发（页面 init、selectApp 等），单个失效句柄不应拖垮整个键的读取。
 
 `keys()` 因此刻意不走 `entries()`：不读值即不触发还原，遍历大量句柄时更快，且句柄失效时仍能正常列出键名。
 

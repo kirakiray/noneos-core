@@ -2,17 +2,18 @@ import { DirHandle } from "../dir.js";
 import { RESET_PATH, PICKED } from "../../public/base.js";
 import { saveHandle, loadHandle, deleteHandle, getAllHandles } from "./db.js";
 
-// 检查权限
+// 查询权限（只查不申请）
+// requestPermission 必须在用户手势中调用，而 get("$mount-...") 是
+// nos-storage 还原句柄的必经路径，常在无手势时被触发，
+// 此处若主动申请会被 Chrome 以 SecurityError 拒绝；
+// 授权应由上层拿到包装句柄后在用户手势里调用 requestPermission 补齐。
 const checkPermission = async (handle) => {
-  try {
-    if (handle.queryPermission) {
-      const result = await handle.queryPermission({ mode: "readwrite" });
+  if (!handle?.queryPermission) {
+    return "denied";
+  }
 
-      if (result !== "granted") {
-        // 进行申请权限
-        await handle.requestPermission({ mode: "readwrite" });
-      }
-    }
+  try {
+    return await handle.queryPermission({ mode: "readwrite" });
   } catch (err) {
     throw new Error(`Permission denied: ${err.message}`);
   }
@@ -31,7 +32,12 @@ export const open = async (options) => {
     mode,
   });
 
-  await checkPermission(directoryHandle);
+  const permission = await checkPermission(directoryHandle);
+
+  // 刚从 picker 返回仍在用户手势窗口内，可安全补授权
+  if (permission !== "granted") {
+    await directoryHandle.requestPermission({ mode });
+  }
 
   const handle = new DirHandle(directoryHandle);
 
@@ -93,6 +99,10 @@ export const get = async (path, options) => {
 
   const _handle = await loadHandle(dirId);
 
+  if (!_handle) {
+    throw new Error(`Mounted handle "$mount-${dirId}" does not exist (unmounted?)`);
+  }
+
   await checkPermission(_handle);
 
   const handle = new DirHandle(_handle);
@@ -111,11 +121,6 @@ export const get = async (path, options) => {
 // 获取已经挂载的句柄列表
 export const getMounted = async () => {
   const allHandles = await getAllHandles();
-
-  // 检查权限
-  for await (const item of allHandles) {
-    await checkPermission(item.handle);
-  }
 
   // 重新包装
   return allHandles.map((item) => {
