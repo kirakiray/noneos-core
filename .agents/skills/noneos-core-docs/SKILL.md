@@ -1,6 +1,7 @@
 ---
 name: "noneos-core-docs"
 description: "提供 NoneOS Core 文件系统与用户管理文档，涵盖安装、文件系统挂载、用户联机与服务通信。当用户询问 NoneOS Core 使用方法、挂载静态文件或实现应用联机功能时调用。"
+version: "4.5.6"
 ---
 
 # NoneOS Core 核心文档
@@ -254,7 +255,6 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 > ⚠️ **实验性特性**：`hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [storage 存储模块](references/storage.md)
-- [dev-bridge 开发模式脚本注入](references/dev-bridge.md)
 - [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)

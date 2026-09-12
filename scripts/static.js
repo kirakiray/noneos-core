@@ -1,8 +1,7 @@
 import httpServer from "http-server";
 
 // 3002：常规开发（页面 + SW 源）
-// 3003：独立 origin，供 dev-bridge 等会污染 origin 状态的测试使用
-const PORTS = [3002, 3003];
+const PORTS = [3002];
 const servers = [];
 
 for (const port of PORTS) {

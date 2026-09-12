@@ -20,6 +20,29 @@ if (!fs.existsSync(skillDir)) {
   process.exit(1);
 }
 
+// 把仓库版本号同步到 SKILL.md 顶部 frontmatter 的 version 字段（幂等）
+const repoVersion = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'),
+).version;
+const skillMdPath = path.join(skillDir, 'SKILL.md');
+const skillMd = fs.readFileSync(skillMdPath, 'utf-8');
+const frontmatterMatch = skillMd.match(/^---\n([\s\S]*?)\n---/);
+if (!frontmatterMatch) {
+  console.error('SKILL.md 缺少 frontmatter，无法写入 version');
+  process.exit(1);
+}
+let frontmatter = frontmatterMatch[1];
+if (/^version:/m.test(frontmatter)) {
+  frontmatter = frontmatter.replace(/^version:.*$/m, `version: "${repoVersion}"`);
+} else {
+  frontmatter += `\nversion: "${repoVersion}"`;
+}
+fs.writeFileSync(
+  skillMdPath,
+  `---\n${frontmatter}\n---${skillMd.slice(frontmatterMatch[0].length)}`,
+);
+console.log(`已同步 version: ${repoVersion} 到 ${skillName}/SKILL.md`);
+
 const output = fs.createWriteStream(outputPath);
 const archive = new ZipArchive({
   zlib: { level: 9 }

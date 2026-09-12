@@ -27,8 +27,7 @@
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "sb-test",
-    "test:dev-bridge": "sb-test -f tests/sw/dev-bridge.sb.html --browsers chrome -p 3003"
+    "test": "sb-test"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",

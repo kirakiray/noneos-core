@@ -44,14 +44,13 @@
 | `/__host-cache` | 特殊路由：返回宿主项目离线缓存状态（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | `/__update-host-cache` | 特殊路由：触发宿主项目离线缓存更新（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
 | (fallback) | 同域 GET 请求且路径在 host-cache manifest files 列表中时，从 OPFS 缓存返回 | host-cache-handler.js |
-| (dev-bridge) | 需**双重开关**：宿主 `sw.js` 声明 `globalThis.DEV_BRIDGE_ENABLED = true`，且 `systemConfig.devBridge.script` 非空。开启后对同域顶层 HTML 导航（GET + `destination === "document"`）在 `<head>` 开标签后注入调试 script 与防篡改开发模式警告横幅（横幅被移除/隐藏则整页替换为恶意程序警告；无 `<head>` 的文档不注入） | dev-bridge.js（包装所有 handler 的响应） |
 
 ### 根目录运行时文件（部署/入口产物，**非源码**）
 
 | 文件 | 角色 | 是否需手动修改 |
 |------|------|---------------|
 | `/index.html` | 项目入口 HTML | 是（页面初始化逻辑） |
-| `/sw.js` | SW 注册桥接文件：声明 dev-bridge 总开关 `DEV_BRIDGE_ENABLED` 并 `importScripts("/sw/dist.js")` | 仅开关行（不要把 import 改成 dist.min.js） |
+| `/sw.js` | SW 注册桥接文件：`importScripts("/sw/dist.js")` | 仅 import 行（不要改成 dist.min.js） |
 | `/nos.json` | 在线版本与哈希清单（构建产物，由 `scripts/pack-nos.js` 生成） | 否（构建生成） |
 | `/nos.zip` | 系统文件压缩包（构建产物） | 否（构建生成） |
 | `/404.html`、`/_redirects` | Cloud Pages 托管配置 | 视部署需求 |
@@ -64,8 +63,7 @@
 
 | 命令 | 作用 | 监听地址 |
 |------|------|---------|
-| `npm run static` | 启动静态文件服务器（`scripts/static.js`，同时监听两个端口：3002 常规开发；3003 独立 origin，供 dev-bridge 等会污染 origin 状态的测试使用） | `http://localhost:3002` / `http://localhost:3003` |
-| `npm run test:dev-bridge` | 单独运行 dev-bridge 注入测试（自动在 3003 起测试服务器，Chrome） | — |
+| `npm run static` | 启动静态文件服务器（`scripts/static.js`，监听 3002 常规开发端口） | `http://localhost:3002` |
 | `npm run ws1` | 启动主 WebSocket 服务（Rust） | `ws://localhost:8081` |
 | `npm run ws2` | 启动备 WebSocket 服务（Rust，用于多服务器选路联调） | `ws://localhost:8082` |
 | `npm run watch:sw` | 监听 `sw/src/**` 自动重建 SW（可与 static 合并成 `npm run dev`） | — |
@@ -85,7 +83,7 @@
 | `npm run build` | 完整构建 = `build:hashes` + `pack-nos.js` + `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出会被 `nos.json` 消费） |
-| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`） |
+| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
 | `npm test` | 运行 sibyl-test 测试套件（`sb-test`；自定义多浏览器运行器见 `scripts/run-tests.js`） |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
