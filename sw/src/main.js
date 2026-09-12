@@ -5,10 +5,6 @@ import {
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
 import {
-  isDevBridgeRequest,
-  injectDevBridgeScript,
-} from "./modules/dev-bridge.js";
-import {
   handleHostCacheMessage,
   handleHostCacheRequest,
   handleHostCacheStatus,
@@ -24,8 +20,8 @@ import { handleNosToolRequest } from "./modules/nostool-handle.js";
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
 let systemConfig = {};
 
-// 配置就绪 Promise：fetch 判断（如 dev-bridge 开关）依赖 systemConfig，
-// SW 冷启动时首个请求可能早于 OPFS 读取完成，必须先 await 该 Promise。
+// 配置就绪 Promise：systemConfig 供各路由处理器消费，
+// SW 冷启动时首个请求可能早于 OPFS 读取完成。
 let configReadyPromise = null;
 
 // 读取 OPFS 中的系统配置；失败（如 nos-config/system.json 不存在）时
@@ -77,36 +73,6 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
     return event.respondWith(triggerHostCacheUpdate());
-  }
-
-  // dev-bridge 开发模式：包装 respondWith，等待配置就绪后，
-  // 让所有经 SW 处理的导航响应统一过注入逻辑（冷启动首个请求也不例外）。
-  // 总开关是同步全局量，未开启时直接短路，保持与未包装时完全一致的请求路径
-  let devBridgeRespondWith = null;
-  let isDevBridgeResponded = null;
-  if (globalThis.DEV_BRIDGE_ENABLED === true) {
-    const configReady = ensureConfigReady();
-    const originalRespondWith = event.respondWith.bind(event);
-    let responded = false;
-    devBridgeRespondWith = (fallbackPromise) => {
-      originalRespondWith(
-        (async () => {
-          await configReady;
-          if (isDevBridgeRequest(request, systemConfig)) {
-            return injectDevBridgeScript(
-              await Promise.resolve(fallbackPromise),
-              systemConfig,
-            );
-          }
-          return fallbackPromise;
-        })(),
-      );
-    };
-    event.respondWith = (promise) => {
-      responded = true;
-      devBridgeRespondWith(promise);
-    };
-    isDevBridgeResponded = () => responded;
   }
 
   try {
@@ -196,33 +162,6 @@ self.addEventListener("fetch", (event) => {
     return new Response(err.stack || err.toString(), {
       status: 400,
     });
-  }
-
-  // dev-bridge：上面所有路由都未接管的顶层导航，由 SW 主动 fetch 并注入。
-  // 仅在总开关开启时接管；关闭时不调用 respondWith，交还浏览器默认行为
-  if (
-    devBridgeRespondWith &&
-    !isDevBridgeResponded() &&
-    request.method === "GET" &&
-    request.destination === "document"
-  ) {
-    const configReady = ensureConfigReady();
-    devBridgeRespondWith(
-      (async () => {
-        await configReady;
-        if (!isDevBridgeRequest(request, systemConfig)) {
-          return fetch(request);
-        }
-        try {
-          return await injectDevBridgeScript(
-            await fetch(request),
-            systemConfig,
-          );
-        } catch {
-          return fetch(request);
-        }
-      })(),
-    );
   }
 
   // if (/^\/_/.test(pathname)) {
