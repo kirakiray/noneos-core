@@ -83,7 +83,7 @@
 | `npm run build` | 完整构建 = `build:hashes` + `pack-nos.js` + `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出会被 `nos.json` 消费） |
-| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`） |
+| `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
 | `npm test` | 运行 sibyl-test 测试套件（`sb-test`；自定义多浏览器运行器见 `scripts/run-tests.js`） |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
