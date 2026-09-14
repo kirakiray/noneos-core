@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>服务注册表发现与身份寻址测试</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>服务注册表发现 — exposeToServer 正命中 / 私密服务 P2P / 重连重上报 / 广播寻址</h1>
+
+  <!-- Test 1: exposeToServer 服务 —— 服务端注册表正命中，精准投递 -->
+  <sb-test name="exposed service discovered via server registry and delivered">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsG1A = "registry-1-a";
+        const nsG1B = "registry-1-b";
+        const urlG1 = "ws://localhost:8081";
+
+        const userG1A = new LocalUser(nsG1A);
+        const userG1B = new LocalUser(nsG1B);
+        await Promise.all([userG1A.ready(), userG1B.ready()]);
+        await pinToServer(userG1A, urlG1);
+        await pinToServer(userG1B, urlG1);
+
+        let gotG1 = 0;
+        userG1B.registerService("exposed-app", {
+          exposeToServer: true,
+          onMessage() { gotG1++; },
+        });
+        // 等待 update_services 到达服务器
+        await new Promise((r) => setTimeout(r, 300));
+
+        const remoteG1B = await userG1A.connectUser(userG1B.userId);
+        const resultsG1 = await remoteG1B.sendToService("exposed-app", { n: 1 });
+        for (let i = 0; i < 20; i++) {
+          if (gotG1 > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        await disconnectAll(userG1A, userG1B);
+        const passG1 = resultsG1.some((r) => r.delivered) && gotG1 === 1;
+        return {
+          assert: passG1,
+          content: {
+            message: passG1 ? "exposeToServer 服务经服务端注册表发现并投递成功" : "exposeToServer 服务投递失败",
+            results: resultsG1.map((r) => ({ status: r.status, sessionId: r.sessionId })),
+            got: gotG1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 私密服务 —— 服务端注册表不可见，回退 P2P 查询投递 -->
+  <sb-test name="private service falls back to p2p discovery and delivered">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsG2A = "registry-2-a";
+        const nsG2B = "registry-2-b";
+        const urlG2 = "ws://localhost:8081";
+
+        const userG2A = new LocalUser(nsG2A);
+        const userG2B = new LocalUser(nsG2B);
+        await Promise.all([userG2A.ready(), userG2B.ready()]);
+        await pinToServer(userG2A, urlG2);
+        await pinToServer(userG2B, urlG2);
+
+        let gotG2 = 0;
+        // 私密服务：不设置 exposeToServer（默认 false），服务端注册表不可见
+        userG2B.registerService("private-app", {
+          onMessage() { gotG2++; },
+        });
+        await new Promise((r) => setTimeout(r, 300));
+
+        const remoteG2B = await userG2A.connectUser(userG2B.userId);
+        const resultsG2 = await remoteG2B.sendToService("private-app", { n: 2 });
+        for (let i = 0; i < 20; i++) {
+          if (gotG2 > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        await disconnectAll(userG2A, userG2B);
+        const passG2 = resultsG2.some((r) => r.delivered) && gotG2 === 1;
+        return {
+          assert: passG2,
+          content: {
+            message: passG2 ? "私密服务经 P2P 查询回退投递成功" : "私密服务投递失败",
+            results: resultsG2.map((r) => ({ status: r.status, sessionId: r.sessionId })),
+            got: gotG2,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: 重连重上报 —— B 重连后服务端注册表仍能发现 exposeToServer 服务 -->
+  <sb-test name="exposed service re-synced to server registry after reconnect">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsG3A = "registry-3-a";
+        const nsG3B = "registry-3-b";
+        const urlG3 = "ws://localhost:8081";
+
+        const userG3A = new LocalUser(nsG3A);
+        const userG3B = new LocalUser(nsG3B);
+        await Promise.all([userG3A.ready(), userG3B.ready()]);
+        await pinToServer(userG3A, urlG3);
+        await pinToServer(userG3B, urlG3);
+
+        let gotG3 = 0;
+        userG3B.registerService("resync-app", {
+          exposeToServer: true,
+          onMessage() { gotG3++; },
+        });
+        await new Promise((r) => setTimeout(r, 300));
+
+        const remoteG3B = await userG3A.connectUser(userG3B.userId);
+
+        // B 断开重连：重连后是全新服务器会话（services 为空），
+        // 依赖 server_connected 重上报才能继续被发现
+        userG3B.server.disconnectAll();
+        await new Promise((r) => setTimeout(r, 300));
+        await userG3B.server.connect(urlG3);
+        // 等 update_services 重上报到达服务器
+        await new Promise((r) => setTimeout(r, 500));
+
+        const resultsG3 = await remoteG3B.sendToService("resync-app", { n: 3 });
+        for (let i = 0; i < 20; i++) {
+          if (gotG3 > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        await disconnectAll(userG3A, userG3B);
+        const passG3 = resultsG3.some((r) => r.delivered) && gotG3 === 1;
+        return {
+          assert: passG3,
+          content: {
+            message: passG3 ? "重连后公开服务已重上报，发现与投递正常" : "重连后服务重上报失效",
+            results: resultsG3.map((r) => ({ status: r.status, sessionId: r.sessionId })),
+            got: gotG3,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: 身份寻址广播 —— send 不带 sessionId 投递到对端全部 session -->
+  <sb-test name="send without sessionId broadcasts to all peer sessions">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsG4A = "registry-4-a";
+        const nsG4B = "registry-4-b";
+        const urlG4 = "ws://localhost:8081";
+
+        const userG4A = new LocalUser(nsG4A);
+        // B 用户两个 session（模拟两个标签页）
+        const userG4B1 = new LocalUser(nsG4B);
+        const userG4B2 = new LocalUser(nsG4B);
+        await Promise.all([userG4A.ready(), userG4B1.ready(), userG4B2.ready()]);
+        await pinToServer(userG4A, urlG4);
+        await Promise.all([pinToServer(userG4B1, urlG4), pinToServer(userG4B2, urlG4)]);
+
+        const gotB1 = [];
+        const gotB2 = [];
+        // LocalUser 上的 message 事件给的是原始 WS 文本，需解析并剥掉 relay 信封
+        const onRelayData = (store) => (e) => {
+          let d = e.detail.data;
+          if (typeof d === "string") {
+            try { d = JSON.parse(d); } catch { return; }
+          }
+          if (d?.type === "relay") d = d.data;
+          if (d?.broadcast) store.push(d);
+        };
+        userG4B1.bind("message", onRelayData(gotB1));
+        userG4B2.bind("message", onRelayData(gotB2));
+
+        const remoteG4B = await userG4A.connectUser(userG4B1.userId);
+        // 不传 sessionId：身份寻址广播
+        const resultG4 = await remoteG4B.send(undefined, { broadcast: true, n: 4 });
+        for (let i = 0; i < 20; i++) {
+          if (gotB1.length > 0 && gotB2.length > 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        await disconnectAll(userG4A, userG4B1, userG4B2);
+        const passG4 =
+          resultG4.status === "ok" &&
+          resultG4.via === "broadcast" &&
+          resultG4.delivered === 2 &&
+          gotB1.length === 1 &&
+          gotB2.length === 1;
+        return {
+          assert: passG4,
+          content: {
+            message: passG4 ? "身份寻址广播：两个 session 均收到且各一次" : "广播寻址异常",
+            result: {
+              status: resultG4.status,
+              via: resultG4.via,
+              delivered: resultG4.delivered,
+              total: resultG4.total,
+            },
+            gotB1: gotB1.length,
+            gotB2: gotB2.length,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <script>
+    // 测试辅助：把用户钉死到指定服务器（避免 ready() 的 connectAll 连到
+    // 线上服务器留下幽灵会话，干扰发现与投递判定）。
+    // 经典脚本同步执行，保证各测试模块运行时已定义。
+    window.pinToServer = async function pinToServer(user, url) {
+      for (const u of await user.server.getServers()) {
+        user.server.disconnect(u);
+      }
+      await user.server.connect(url);
+    };
+    window.disconnectAll = async function disconnectAll() {
+      for (const u of arguments) u.server.disconnectAll();
+    };
+  </script>
+
+</body>
+
+</html>

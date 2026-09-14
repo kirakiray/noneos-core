@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>服务端离线收件箱测试（store_if_offline / 握手补投）</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>服务端离线收件箱 — store_if_offline / queued 回执 / 握手补投</h1>
+
+  <!-- Test 1: 服务端收件箱 E2E —— 对端离线时入服务器收件箱，重连后自动送达并回 ACK -->
+  <sb-test name="offline message stored on server and delivered after peer reconnect">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsI1A = "server-inbox-1-a";
+        const nsI1B = "server-inbox-1-b";
+        const urlI1 = "ws://localhost:8081";
+
+        const userI1A = new LocalUser(nsI1A);
+        const userI1B = new LocalUser(nsI1B);
+        await Promise.all([userI1A.ready(), userI1B.ready()]);
+
+        // 钉死在 ws1：排除线上服务器幽灵会话对离线判定的干扰
+        for (const u of await userI1A.server.getServers()) {
+          userI1A.server.disconnect(u);
+        }
+        for (const u of await userI1B.server.getServers()) {
+          userI1B.server.disconnect(u);
+        }
+        await Promise.all([
+          userI1A.server.connect(urlI1),
+          userI1B.server.connect(urlI1),
+        ]);
+
+        let gotI1 = null;
+        userI1B.registerService("inbox-app", {
+          onMessage(data) { gotI1 = data; },
+        });
+
+        const remoteI1B = await userI1A.connectUser(userI1B.userId);
+
+        // B 断开（仅 ws1，无幽灵会话）
+        userI1B.server.disconnectAll();
+        let offlineI1 = false;
+        for (let i = 0; i < 150; i++) {
+          offlineI1 = !(await userI1A.isRemoteUserOnline(userI1B.userId));
+          if (offlineI1) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // A 发送：应被服务器收件箱接收（status=queued, via=server）
+        const resultsI1 = await remoteI1B.sendToService(
+          "inbox-app",
+          { text: "server-inbox-hello" },
+          { ackTimeout: 20000 }, // 给对端重连 + 补投 + ACK 留足时间
+        );
+        const firstI1 = resultsI1[0] || {};
+        const queuedI1 = firstI1.status === "queued" && firstI1.via === "server";
+
+        // B 重连 → 服务器握手补投 → handler 执行 → 核心层回 __ack
+        userI1B.server.connect(urlI1).catch(() => {});
+
+        // 等 acked 终态（最长 20s）
+        let ackI1 = { confirmed: false, reason: "not_awaited" };
+        if (firstI1.acked) {
+          ackI1 = await Promise.race([
+            firstI1.acked,
+            new Promise((r) => setTimeout(() => r({ confirmed: false, reason: "test_timeout" }), 25000)),
+          ]);
+        }
+
+        // 兜底等待 handler 执行
+        for (let i = 0; i < 50; i++) {
+          if (gotI1 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userI1A.server.disconnectAll();
+        userI1B.server.disconnectAll();
+
+        const dataOkI1 = gotI1?.text === "server-inbox-hello";
+        const passI1 = offlineI1 && queuedI1 && dataOkI1 && ackI1.confirmed === true;
+
+        return {
+          assert: passI1,
+          content: {
+            message: passI1
+              ? "离线消息经服务端收件箱补投成功，且收到对端 ACK"
+              : "服务端收件箱补投失败",
+            offline: offlineI1,
+            status: firstI1.status,
+            via: firstI1.via,
+            msgId: typeof firstI1.msgId === "string",
+            ack: ackI1,
+            got: gotI1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: queue:"local" 跳过服务端存储，回执带 flushed（本地队列语义保持） -->
+  <sb-test name="queue local skips server inbox and keeps flushed receipt">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsI2A = "server-inbox-2-a";
+        const nsI2B = "server-inbox-2-b";
+        const urlI2 = "ws://localhost:8081";
+
+        const userI2A = new LocalUser(nsI2A);
+        const userI2B = new LocalUser(nsI2B);
+        await Promise.all([userI2A.ready(), userI2B.ready()]);
+
+        for (const u of await userI2A.server.getServers()) {
+          userI2A.server.disconnect(u);
+        }
+        for (const u of await userI2B.server.getServers()) {
+          userI2B.server.disconnect(u);
+        }
+        await Promise.all([
+          userI2A.server.connect(urlI2),
+          userI2B.server.connect(urlI2),
+        ]);
+
+        userI2B.registerService("local-q-app", { onMessage() {} });
+        const remoteI2B = await userI2A.connectUser(userI2B.userId);
+
+        userI2B.server.disconnectAll();
+        let offlineI2 = false;
+        for (let i = 0; i < 150; i++) {
+          offlineI2 = !(await userI2A.isRemoteUserOnline(userI2B.userId));
+          if (offlineI2) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const resultsI2 = await remoteI2B.sendToService(
+          "local-q-app",
+          { n: 1 },
+          { queue: "local" },
+        );
+        const firstI2 = resultsI2[0] || {};
+
+        // 清理：本地队列随页面销毁，不补投，直接断开
+        userI2A.server.disconnectAll();
+        userI2B.server.disconnectAll();
+
+        const passI2 =
+          offlineI2 &&
+          firstI2.status === "queued" &&
+          firstI2.via === undefined &&
+          typeof firstI2.flushed?.then === "function";
+
+        return {
+          assert: passI2,
+          content: {
+            message: passI2
+              ? "queue:local 走本地队列，flushed 回执存在"
+              : "queue:local 未按本地队列语义工作",
+            offline: offlineI2,
+            status: firstI2.status,
+            via: firstI2.via,
+            hasFlushed: typeof firstI2.flushed?.then === "function",
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

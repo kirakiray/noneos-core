@@ -724,9 +724,10 @@ export class ServerManager {
    * @param {string} targetUserId - 目标用户 ID
    * @param {string} targetSessionId - 目标会话 ID
    * @param {ArrayBuffer|ArrayBufferView|Blob|File} data - 要发送的二进制数据
+   * @param {Object} [extra] - 附加 header 字段（如 store_if_offline）
    * @returns {Promise<Object>} 发送结果
    */
-  async #sendBinaryRelayCommand(url, targetUserId, targetSessionId, data) {
+  async #sendBinaryRelayCommand(url, targetUserId, targetSessionId, data, extra = {}) {
     await this.connect(url);
 
     const payloadBytes = await this.#binaryToUint8Array(data);
@@ -736,6 +737,7 @@ export class ServerManager {
       action: "send_data",
       target_user_id: targetUserId,
       target_session_id: targetSessionId,
+      ...extra,
     });
     const headerBytes = new TextEncoder().encode(header);
     const headerLen = headerBytes.length;
@@ -788,15 +790,17 @@ export class ServerManager {
    * @param {string} targetUserId - 目标用户 ID
    * @param {string} targetSessionId - 目标会话 ID
    * @param {*} data - 要发送的数据（JSON 可序列化值或二进制数据）
+   * @param {Object} [extra] - 附加协议字段（如 store_if_offline）
    * @returns {Promise<Object>} 发送结果
    */
-  async relayToUserViaServer(url, targetUserId, targetSessionId, data) {
+  async relayToUserViaServer(url, targetUserId, targetSessionId, data, extra = {}) {
     if (this.#isBinaryData(data)) {
       return this.#sendBinaryRelayCommand(
         url,
         targetUserId,
         targetSessionId,
         data,
+        extra,
       );
     }
 
@@ -807,11 +811,33 @@ export class ServerManager {
         action: "send_data",
         target_user_id: targetUserId,
         target_session_id: targetSessionId,
+        ...extra,
         data,
       },
       "relay_response",
       "send_data",
     );
+  }
+
+  /**
+   * 请求服务器把消息存入离线收件箱（store_if_offline）。
+   * 目标用户完全离线时，服务器暂存消息（E2EE 密文对服务器不可读），
+   * 目标下次握手成功后自动补投。
+   *
+   * 响应 status：
+   * - "queued"：已存入收件箱
+   * - "inbox_full"：目标收件箱已满（服务器拒存，不静默淘汰）
+   * - "error" / 超时：服务器为旧版本不支持，或存储失败
+   *
+   * @param {string} url - 服务器地址
+   * @param {string} targetUserId - 目标用户 ID
+   * @param {*} data - 要存储的数据（JSON 可序列化值或二进制数据）
+   * @returns {Promise<Object>} 发送结果
+   */
+  async relayStoreOffline(url, targetUserId, data) {
+    return this.relayToUserViaServer(url, targetUserId, "", data, {
+      store_if_offline: true,
+    });
   }
 
   /**

@@ -102,8 +102,11 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 
 底层步骤：
 1. 命中 `serviceSessionCache`（TTL 30s，或对端主动推送刷新）→ 直接投递
-2. 未命中缓存 → 查询对端所有 session，再发起 `__service_query` 询问归属并写入缓存
-3. 只发到装了 `chat-v1` 的 session，不再盲广播
+2. 未命中缓存 → 查**服务端注册表**（对端 `exposeToServer: true` 的服务，正命中即精准投递，无需逐 session 询问）
+3. 注册表未命中（私密服务）→ 发起 `__service_query` P2P 询问归属并写入缓存
+4. 只发到装了 `chat-v1` 的 session，不再盲广播
+
+> 隐私语义：只有显式声明 `exposeToServer: true` 的服务会被服务端感知并参与快速发现；私密服务始终走 P2P 查询，服务端不可见。公开服务在重连后会自动重新上报注册表。
 
 ### 返回值语义
 
@@ -112,7 +115,7 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 | status | 含义 |
 |---|---|
 | `"ok"` + `delivered:true` | 成功送达（含 `sessionId` / `via`） |
-| `"queued"` | 对端离线，消息已进入离线队列等待补投（含 `flushed` Promise；`{queue:false}` 可关闭） |
+| `"queued"` | 对端离线，消息进入离线队列等待补投（`{queue:false}` 可关闭）。`via:"server"` 表示已存入**服务端收件箱**（对端下次握手服务器自动补投，跨刷新有效）；无 `via` 为客户端本地队列（内存态，回执含 `flushed`） |
 | `"no_receiver"` | 对端在线（有 session 应答了服务查询）但没有 session 注册该 `appId`。若服务器仍列出对端 session 但查询全部无应答（对端已断开、服务器未清理的陈旧会话），不会误报此状态，而是回退向原 session 投递：死 session 进入离线队列，活 session 回 `no_handler` ack |
 | `"offline"` | 对端所有 session 都不在线（仅 `{queue:false}` 时返回） |
 | `"discovery_failed"` | 服务发现流程超时（可用 `fallback:"broadcast"` 兜底） |
@@ -142,7 +145,7 @@ if (ack.confirmed) {
 |---|---|---|
 | `ackTimeout` | `5000` | 等待对端 `__ack` 的超时（毫秒）；`≤0` 关闭 acked 跟踪 |
 | `retries` | `0` | ACK 超时后的自动重发次数。**仅对已确认支持 `__ack` 的对端生效**（对端具备核心层去重后重发才安全，向旧版对端重发会造成重复执行） |
-| `queue` | `true` | 对端离线时进入离线队列（上限 200 条、TTL 10 分钟，内存态），由服务器恢复连接 / 对端服务上线 / 退避定时器（1.5s→30s）触发补投；补投复用原 `msgId` 不会重复执行 |
+| `queue` | `true` | 对端离线时的策略：`true` 优先**服务端收件箱**（需服务端支持 `store_if_offline`，对端重连即自动补投，跨刷新有效），服务器旧版本或收件箱满时回退本地队列；`"local"` 仅用客户端本地队列（上限 200 条、TTL 10 分钟，内存态，由服务器恢复连接 / 对端服务上线 / 退避定时器 1.5s→30s 触发补投，补投复用原 `msgId` 不会重复执行）；`false` 保持旧行为返回 `offline` |
 | `waitForService` | `0` | 无接收者时等待对端注册服务的毫秒数 |
 | `fallback` | `"none"` | 服务发现失败时的兜底策略（`"broadcast"`） |
 | `sessionId` | — | 指定目标 session，跳过服务发现 |
@@ -235,6 +238,10 @@ userB.bind("service_unregistered", (e) => {
 ```javascript
 await remoteB.send(userB.sessionId, "hello");           // 字符串
 await remoteB.send(userB.sessionId, { text: "hi" });    // 对象
+
+// 身份寻址广播：省略 sessionId，投递到对端当前所有 session（每个标签页各一份）
+const r = await remoteB.send(undefined, { text: "hi" });
+// r = { status: "ok", via: "broadcast", delivered: 2, total: 2 }
 ```
 
 ### 发送二进制数据

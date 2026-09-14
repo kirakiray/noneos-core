@@ -117,6 +117,36 @@ pub struct Config {
     /// 默认 60 秒
     #[serde(default = "default_heartbeat_timeout")]
     pub heartbeat_timeout_secs: u64,
+
+    // ===== 离线收件箱（store-and-forward inbox） =====
+    /// 是否启用离线收件箱：relay 请求携带 store_if_offline 且目标用户
+    /// 完全离线时，消息暂存服务器，目标用户下次握手成功后补投
+    /// 默认开启
+    #[serde(default = "default_inbox_enabled")]
+    pub inbox_enabled: bool,
+    /// 每个用户收件箱的最大条目数，超出时拒存（回 inbox_full，不静默淘汰）
+    /// 默认 100
+    #[serde(default = "default_inbox_max_per_user")]
+    pub inbox_max_per_user: usize,
+    /// 收件箱条目 TTL（秒），过期条目在补投读取时惰性丢弃
+    /// 默认 86400（24 小时）
+    #[serde(default = "default_inbox_ttl_secs")]
+    pub inbox_ttl_secs: u64,
+}
+
+/// 离线收件箱默认开启
+fn default_inbox_enabled() -> bool {
+    true
+}
+
+/// 每用户收件箱默认最大条目数
+fn default_inbox_max_per_user() -> usize {
+    100
+}
+
+/// 收件箱条目默认 TTL：24 小时
+fn default_inbox_ttl_secs() -> u64 {
+    86_400
 }
 
 /// 默认流量落盘间隔
@@ -233,6 +263,9 @@ impl Default for Config {
             traffic_flush_interval_secs: default_traffic_flush_interval(),
             heartbeat_interval_secs: default_heartbeat_interval(),
             heartbeat_timeout_secs: default_heartbeat_timeout(),
+            inbox_enabled: default_inbox_enabled(),
+            inbox_max_per_user: default_inbox_max_per_user(),
+            inbox_ttl_secs: default_inbox_ttl_secs(),
         }
     }
 }

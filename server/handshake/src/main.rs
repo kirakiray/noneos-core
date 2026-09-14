@@ -2,6 +2,7 @@ mod admin;
 mod config;
 mod crypto;
 mod handler;
+mod inbox;
 mod traffic;
 
 use tokio::net::TcpListener;

@@ -14,6 +14,7 @@ use rand::distributions::Alphanumeric;
 
 use dashmap::DashMap;
 use crate::admin;
+use crate::inbox;
 use redb::Database;
 
 /// WebSocket 发送端类型别名，用于简化函数签名
@@ -306,6 +307,8 @@ struct HandshakeResponse {
 /// 公共 relay 投递逻辑：检查配额、发送到目标 session、记录流量、处理失败/风暴防护
 /// 返回 Ok(()) 表示正常完成；返回 Err 表示需要踢出当前连接（由调用方退出循环）
 /// `success_label` 用于日志输出，如 "Relay" 或 "Binary relay"
+/// `store_if_offline`：目标离线时把消息存入离线收件箱（目标用户下次握手补投），
+/// 回 `queued` 回执且不计入 relay 失败计数
 async fn relay_deliver_and_finalize(
     ws_sender: &mut WsSender,
     state: &AppState,
@@ -318,6 +321,7 @@ async fn relay_deliver_and_finalize(
     message: Message,
     success_label: &str,
     silent: bool,
+    store_if_offline: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 检查转发额度
     if !state.check_relay_quota(user_id, forward_size) {
@@ -334,8 +338,9 @@ async fn relay_deliver_and_finalize(
         return Ok(());
     }
 
+    let mut pending = Some(message);
     let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-        tx.send(message).is_ok()
+        tx.send(pending.take().unwrap()).is_ok()
     } else {
         false
     };
@@ -345,7 +350,7 @@ async fn relay_deliver_and_finalize(
             state.traffic.add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
         }
         state.record_relay_usage(user_id, forward_size);
-        
+
         // 只有在非静默模式下才返回成功响应
         if !silent {
             let resp = serde_json::json!({
@@ -356,9 +361,66 @@ async fn relay_deliver_and_finalize(
             });
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
         }
-        
+
         println!("{}: {}:{} -> {}:{}", success_label, user_id, session_id, target_user, target_session);
         state.reset_relay_failure(conn_key);
+    } else if store_if_offline && state.config.inbox_enabled {
+        // 目标离线 + 请求离线存储：暂存收件箱，目标用户下次握手成功后补投。
+        // 存储按发送方额度计费（record_relay_usage），不计入 relay 失败计数——
+        // 这是有意行为，不是打不存在目标的滥用。
+        let message = pending.take().unwrap_or_else(|| Message::Text(String::new()));
+        let (is_binary, payload) = match &message {
+            Message::Text(t) => (false, t.as_bytes().to_vec()),
+            Message::Binary(b) => (true, b.clone()),
+            _ => (false, Vec::new()),
+        };
+        let entry = inbox::InboxEntry {
+            from_user_id: user_id.to_string(),
+            from_session_id: session_id.to_string(),
+            is_binary,
+            payload,
+            stored_at_ms: traffic::now_ms(),
+        };
+        match inbox::store(&state.db, target_user, entry, state.config.inbox_max_per_user) {
+            Ok(true) => {
+                state.record_relay_usage(user_id, forward_size);
+                state.reset_relay_failure(conn_key);
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "queued",
+                    "message": "Target offline, message stored in inbox for delivery on next handshake"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                println!("Inbox stored: {}:{} -> {} ({} bytes)", user_id, session_id, target_user, forward_size);
+            }
+            Ok(false) => {
+                // 收件箱已满：明确拒存（不静默淘汰旧条目），客户端可回退本地策略
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "inbox_full",
+                    "message": format!("Inbox full for target user (max {} entries)", state.config.inbox_max_per_user)
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                println!("Inbox full: {}:{} -> {}", user_id, session_id, target_user);
+            }
+            Err(e) => {
+                println!("Inbox store failed: {}:{} -> {}: {}", user_id, session_id, target_user, e);
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "error",
+                    "message": "Target session not found or offline"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let should_kick = state.handle_relay_failure(user_id, session_id);
+                if should_kick {
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    return Err("User kicked due to relay abuse".into());
+                }
+            }
+        }
     } else {
         println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
         let resp = serde_json::json!({
@@ -405,8 +467,13 @@ async fn handle_relay_send_data_text(
     let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
     let relay_data = cmd.get("data");
     let silent = cmd.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+    let store_if_offline = cmd.get("store_if_offline").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
+    // store_if_offline 模式下目标 session 可为空（按 userId 整体暂存）
+    if target_user.is_empty()
+        || relay_data.is_none()
+        || (target_session.is_empty() && !store_if_offline)
+    {
         let resp = serde_json::json!({
             "type": "relay_response",
             "action": "send_data",
@@ -433,6 +500,7 @@ async fn handle_relay_send_data_text(
         Message::Text(forward_text),
         "Relay",
         silent,
+        store_if_offline,
     ).await
 }
 
@@ -486,8 +554,10 @@ async fn handle_relay_send_data_binary(
     let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
     let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
     let silent = header.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+    let store_if_offline = header.get("store_if_offline").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    if target_user.is_empty() || target_session.is_empty() {
+    // store_if_offline 模式下目标 session 可为空（按 userId 整体暂存）
+    if target_user.is_empty() || (target_session.is_empty() && !store_if_offline) {
         let resp = serde_json::json!({
             "type": "relay_response",
             "action": "send_data",
@@ -531,6 +601,7 @@ async fn handle_relay_send_data_binary(
         Message::Binary(forward_frame),
         "Binary relay",
         silent,
+        store_if_offline,
     ).await
 }
 
@@ -867,6 +938,8 @@ pub async fn handle_connection(
             // 创建 disconnect 通道 and data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
+            // 收件箱补投用的发送端克隆（data_tx 本体移入 add_user 注册表）
+            let inbox_tx = data_tx.clone();
             if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
@@ -912,6 +985,29 @@ pub async fn handle_connection(
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
             println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
+
+            // 离线收件箱补投：把该用户离线期间暂存的消息按存储顺序投递给本会话。
+            // 消息先入 data_tx 通道缓冲，客户端收到 handshake success 后立即收到积压。
+            if state.config.inbox_enabled {
+                match inbox::load_and_clear(&state.db, &user_id, state.config.inbox_ttl_secs * 1000) {
+                    Ok(entries) if !entries.is_empty() => {
+                        println!("Inbox flush: {} entries for {}:{}", entries.len(), user_id, session_id);
+                        for entry in entries {
+                            let size = entry.payload.len() as u64;
+                            let msg = if entry.is_binary {
+                                Message::Binary(entry.payload)
+                            } else {
+                                Message::Text(String::from_utf8_lossy(&entry.payload).to_string())
+                            };
+                            if inbox_tx.send(msg).is_ok() {
+                                state.traffic.add_outbound(&conn_key, size, traffic::now_ms());
+                            }
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => eprintln!("Inbox flush failed for {}: {}", user_id, e),
+                }
+            }
 
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),

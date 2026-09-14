@@ -25,6 +25,7 @@ server/handshake/
     ├── main.rs             # 入口：解析参数 → 加载配置 → 打开 redb → 启动 AppState → flush 定时器 → accept 循环 + 优雅关闭
     ├── config.rs           # Args(clap) + Config(TOML) + 各项默认值
     ├── handler.rs          # 核心：UserSession/AppState + 连接生命周期 + 消息分发 + 中继/配额/防滥用
+    ├── inbox.rs            # 离线收件箱：store_if_offline 暂存 + 握手补投（read-and-delete + TTL + 每用户上限）
     ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集
     ├── crypto.rs           # ECDSA P-256 验签（p256 crate，Base64 SPKI 公钥 + 64B raw 签名）
     └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 计费周期用量（含重置日历法计算与单元测试） + 系统快照 + 用户持久化
@@ -89,7 +90,7 @@ server/handshake/
 1. `check_relay_quota`：admin 全放；服务器整体月度配额超限或用户配额超限时，仅放 ≤ `relay_small_message_max_bytes`；否则放行。
 2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递；`silent: bool` 参数控制成功是否返回 `relay_response`。
 3. **成功**才记录流量（`traffic.add_relay_forwarded` + `state.record_relay_usage`），并 `reset_relay_failure` 重置失败计数；**失败不记录流量**。
-4. 失败累加 `relay_fail_count`，达 `relay_fail_limit`/`relay_fail_window_secs` 踢出。
+4. 失败时的离线收件箱路径：请求携带 `store_if_offline: true`（文本 relay 的命令字段 / 二进制帧 header 字段，此时目标 sessionId 允许为空）且 `inbox_enabled` 时，把完整转发消息存入收件箱（`inbox::store`），回 `status: "queued"`；收件箱满回 `status: "inbox_full"`（拒存不淘汰）；存储成功**按发送方额度计费**且**不计入 relay 失败计数**（有意行为而非滥用）。未携带标记或存储出错时走原有 `error` + 失败计数路径。
 
 ### 二进制中继帧解析
 
@@ -98,6 +99,13 @@ server/handshake/
 ```
 
 header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接透传不参与 JSON 序列化。
+
+### 离线收件箱（inbox.rs）
+
+- **表结构**：redb 表 `inbox`，key = `(userId, stored_at_ms, seq)`（seq 为进程内单调计数），value = bincode(`InboxEntry`: from_user_id / from_session_id / is_binary / payload / stored_at_ms)。payload 为「完整转发消息」：文本 JSON 字节或完整二进制帧，补投时原样下发（E2EE 场景为密文，服务器不可读）。
+- **补投时机**：握手成功（`add_user` + 用户持久化之后）调用 `inbox::load_and_clear`，按存储顺序把积压消息经 `data_tx` 发给本会话（入站计 receiver outbound 流量）。**读取即删除**：积压投递给最先握手的那个会话，不做多会话重投；过期条目（TTL）在读取时惰性丢弃。
+- **上限**：每用户 `inbox_max_per_user` 条，超出拒存（回 `inbox_full`），不静默淘汰。
+- 存储与补投均有单元测试（`cargo test`）。
 
 ### AdminCommand（admin.rs）
 
@@ -197,6 +205,9 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `traffic_flush_interval_secs` | 30 | 流量刷盘间隔 |
 | `heartbeat_interval_secs` | 15 | Ping 间隔 |
 | `heartbeat_timeout_secs` | 60 | 心跳超时 |
+| `inbox_enabled` | true | 离线收件箱开关（relay `store_if_offline` 暂存 + 握手补投） |
+| `inbox_max_per_user` | 100 | 每用户收件箱最大条目数，超出拒存（回 `inbox_full`） |
+| `inbox_ttl_secs` | 86400 | 收件箱条目 TTL（秒），读取时惰性丢弃过期条目 |
 | `admin_user_id` | 无默认（不配置则无管理员） | 管理员用户 ID（admin 命令鉴权） |
 
 启动：`-c/--config` 指定 TOML 配置文件覆盖默认值。

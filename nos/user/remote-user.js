@@ -298,12 +298,19 @@ export class RemoteUser extends BaseUser {
    * 每次发送后会检测传输路径是否变化（server ↔ rtc），
    * 路径变化时自动触发一次 ping 以重新计算 RTT。
    *
-   * @param {string} sessionId - 目标会话 ID
+   * @param {string|null} [sessionId] - 目标会话 ID；**省略时为身份寻址广播**：
+   *        投递到目标用户当前的所有 session（对端各标签页各收到一份）
    * @param {*} data - 要发送的数据（JSON 可序列化值）
    * @param {boolean} [raw=false] - 内部使用，设为 true 跳过加密
-   * @returns {Promise<Object>} 发送结果
+   * @returns {Promise<Object>} 发送结果；广播时为
+   *          `{ status: "ok", via: "broadcast", delivered: number, total: number }`
    */
   async send(sessionId, data, raw = false) {
+    // 身份寻址：sessionId 省略时广播到对端全部 session
+    if (sessionId == null || sessionId === "") {
+      return this.#sendToAllSessions(data, raw);
+    }
+
     // 优先走 RTC DataChannel
     const dc = this.#localUser.rtc.getChannel(this.#userId, sessionId);
     if (dc?.readyState === "open") {
@@ -348,6 +355,35 @@ export class RemoteUser extends BaseUser {
     const { result, url } = await this.#sendViaServer(sessionId, data, raw);
     this.#onSendComplete(sessionId, "server", url);
     return { status: "ok", via: "server", url, result };
+  }
+
+  /**
+   * 身份寻址广播：向目标用户当前所有 session 投递同一份数据。
+   * 任一 session 成功即视为成功；全部失败时抛出首个错误。
+   */
+  async #sendToAllSessions(data, raw) {
+    const sessionIds = await this.getSessionIds();
+    if (sessionIds.length === 0) {
+      const err = new Error(`Target user ${this.#userId} is not online`);
+      err.code = "offline";
+      throw err;
+    }
+    const results = await Promise.allSettled(
+      sessionIds.map((sid) => this.send(sid, data, raw)),
+    );
+    const delivered = results.filter((r) => r.status === "fulfilled").length;
+    if (delivered === 0) {
+      throw (
+        results.find((r) => r.status === "rejected")?.reason ||
+        new Error("Broadcast to all sessions failed")
+      );
+    }
+    return {
+      status: "ok",
+      via: "broadcast",
+      delivered,
+      total: sessionIds.length,
+    };
   }
 
   // ───── 用户间 Ping / Pong ─────
@@ -819,8 +855,27 @@ export class RemoteUser extends BaseUser {
     // 对端不在线（服务器查不到任何 session）
     if (targets.offline) {
       if (queue) {
-        // 离线队列：等对端恢复后补投（_flushQueue 由重连/服务上线/退避定时器触发）
         const message = this.#buildAppMessage(appId, data);
+        // 优先服务端离线收件箱：对端重连即达，且不受本端刷新影响。
+        // queue === "local" 跳过服务端存储；服务器旧版本（不支持
+        // store_if_offline）或收件箱已满时同样回退本地队列
+        if (queue !== "local" && (await this.#tryStoreOnServer(message))) {
+          const item = {
+            status: "queued",
+            via: "server",
+            appId,
+            msgId: message.__env.msgId,
+          };
+          if (deliverOpts.ackTimeout > 0) {
+            // 对端上线收到补投后核心层会回 __ack；离线期间正常超时
+            defineHidden(
+              item,
+              "acked",
+              this.#awaitMessageAck(message, [], deliverOpts),
+            );
+          }
+          return [item];
+        }
         return [this.#enqueueMessage(message, appId, null, deliverOpts)];
       }
       return [{ status: "offline" }];
@@ -856,14 +911,43 @@ export class RemoteUser extends BaseUser {
       return { sessions: [...cached.sessions] };
     }
 
-    const sessionIds = await this.getSessionIds();
-    if (sessionIds.length === 0) {
+    // 一次 queryUserOnline 同时拿到「全部 session」和「服务端注册表中的公开服务」
+    // （sessionInfo[].services 来自对端 update_services 上报，仅含 exposeToServer 服务）
+    const urls = this.#localUser.server.connectedUrls;
+    const infos = await Promise.allSettled(
+      urls.map((url) => this.#localUser.server.queryUserOnline(url, this.#userId)),
+    );
+
+    const sessionIds = new Set();
+    const registryMatched = new Set();
+    for (const r of infos) {
+      if (r.status !== "fulfilled" || !r.value?.online) continue;
+      for (const info of r.value.sessionInfo || []) {
+        if (!info?.sessionId) continue;
+        sessionIds.add(info.sessionId);
+        if (Array.isArray(info.services) && info.services.includes(appId)) {
+          registryMatched.add(info.sessionId);
+        }
+      }
+    }
+
+    if (sessionIds.size === 0) {
       // 完全离线；清空该 appId 缓存
       this.#serviceSessionCache.delete(appId);
       return { sessions: [], offline: true };
     }
 
-    // 通过 __service_query 询问每个 session 是否注册了 appId
+    // 服务端注册表正命中（exposeToServer 服务）：权威结果，无需 P2P 逐个查询
+    if (registryMatched.size > 0) {
+      const sessions = [...registryMatched];
+      this.#serviceSessionCache.set(appId, {
+        sessions,
+        timestamp: Date.now(),
+      });
+      return { sessions };
+    }
+
+    // P2P 查询（覆盖私密服务：服务端注册表看不到它们）
     const { matched, responded } = await this.#queryServiceSessions(appId);
     const sessions = matched.map((x) => x.sessionId);
 
@@ -878,7 +962,7 @@ export class RemoteUser extends BaseUser {
       // 服务器尚未清理）。不误报 no_receiver，回退为向原 session 列表
       // 投递——死 session 会按 offline 分类进入离线队列，活 session 会
       // 回明确的 no_handler ack。注意：此回退结果不写入缓存。
-      return { sessions: sessionIds, stale: true };
+      return { sessions: [...sessionIds], stale: true };
     }
 
     return { sessions };
@@ -893,6 +977,42 @@ export class RemoteUser extends BaseUser {
       __data: data,
       __env: { msgId: createMsgId(), seq: ++this.#msgSeq, ts: Date.now() },
     };
+  }
+
+  /**
+   * 尝试把消息存入服务端离线收件箱（对端完全离线时）。
+   * 逐个已连接服务器尝试，服务端回 `queued` 即成功；
+   * `inbox_full` 视为该服务器不可用（继续尝试下一台，全部失败则回退本地队列）；
+   * 旧版本服务端返回 error / 超时，同样回退本地队列。
+   * @param {Object} message - 带 __env 信封的 __app 消息
+   * @returns {Promise<boolean>} 是否已成功存入服务端
+   */
+  async #tryStoreOnServer(message) {
+    const urls = this.#localUser.server.connectedUrls;
+    if (urls.length === 0) return false;
+    // 与 send 路径保持单一序列化：加密可用时传密文（二进制帧），
+    // 否则传原始对象——不能用 #preparePayload 的字符串形态，
+    // 否则 JSON relay 会把它二次序列化，接收方拿到的是字符串套字符串
+    const encrypted = await tryEncryptBinary(
+      this.#localUser,
+      this.#userId,
+      message,
+    );
+    const payload = encrypted !== null ? encrypted : message;
+    for (const url of urls) {
+      try {
+        const result = await this.#localUser.server.relayStoreOffline(
+          url,
+          this.#userId,
+          payload,
+        );
+        if (result?.status === "queued") return true;
+        if (result?.status === "inbox_full") continue;
+      } catch {
+        // 该服务器失败（旧版本/离线），尝试下一台
+      }
+    }
+    return false;
   }
 
   /**

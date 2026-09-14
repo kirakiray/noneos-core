@@ -93,6 +93,8 @@ export class LocalUser extends BaseUser {
 
     // 服务器恢复连接时，冲刷所有 RemoteUser 的离线队列（可靠投递补投）
     this.bind("server_connected", () => {
+      // 重连后服务器侧会话是全新的，重新上报公开服务列表（exposeToServer）
+      this.#serviceRegistry._resyncToServer();
       for (const remoteUser of this.remoteUsers) {
         remoteUser._flushQueue().catch(() => {});
       }

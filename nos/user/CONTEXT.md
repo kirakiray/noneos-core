@@ -86,8 +86,8 @@ EventTarget
 
 | 方法 | 说明 |
 |------|------|
-| `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
-| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（默认 true）在对端离线时进入离线队列，返回 `{status:"queued", flushed}`，`{queue:false}` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError） |
+| `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链。`sessionId` 传 `null`/`undefined` 时为**身份寻址广播**：投递到对端全部 session，返回 `{status:"ok", via:"broadcast", delivered, total}`，全部失败抛错 |
+| `sendToService(appId, data, options)` | 默认精准投递：服务发现优先查**服务端注册表**（`queryUserOnline` 的 `sessionInfo[].services`，仅含对端 `exposeToServer:true` 的服务，正命中即精准投递、省去 P2P 逐 session 询问），私密服务回退 `__service_query` P2P 查询（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（三态，默认 `true`）：对端完全离线时——`true` 优先**服务端离线收件箱**（`server.relayStoreOffline`，返回 `{status:"queued", via:"server"}`，对端下次握手服务器自动补投，不受本端刷新影响），服务器旧版本或收件箱满时回退本地队列；`"local"` 跳过服务端直接本地队列（回执含 `flushed`）；`false` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError） |
 | `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发；队列上限 200 条、条目 TTL 10 分钟（内存态） |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（内部 `#queryServiceSessions` 额外返回应答统计 `responded`，供陈旧会话判定） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
@@ -104,6 +104,7 @@ EventTarget
 | `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries。**默认开启**（`baseDelay=1000`，间隔带 ±25% 抖动防惊群），仅 `disconnect(url)` 标记的主动断开不重连 |
 | `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |
+| `relayStoreOffline(url, targetUserId, data)` | 请求服务器把消息存入离线收件箱（`store_if_offline`，目标 session 留空）。响应 `queued`（已存储）/ `inbox_full`（收件箱满）/ `error`（旧版本服务器） |
 | `findBestServer(targetUserId)` | 返回**本端+对端组合延迟**最低的服务器 |
 | `#getSortedServerCandidates(targetUserId)` | 组合延迟排序，15s TTL 缓存 |
 | `testLatency(url)` | 三段式：`latency_test` → `latency_test_response` → `latency_report` |
@@ -115,7 +116,7 @@ EventTarget
 |--------|---------|
 | `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**凭证在线拉取**：`start()` 监听中继 `type:"cred"`（收到请求/响应时 `_ensureRemoteUser()`）；通用 API `requestRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串；connectUser → findSessionId → 经 `server.sendToUser` 强制服务器中转发请求（不走 RTC，见第 6 节），超时/失败自动重发 2 次，幂等，未命中 resolve null）与 `getRecord(fromUserId, key)`（DB 优先 → 网络拉取）、`getRecordByDB(key)`。响应校验记录与 key 一致后走 `importRecord` 统一导入（规范化验签 + signTime 竞争；profile 额外校验 subject === 发送方）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装。拉取读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
-| `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 向所有服务器发 `update_services`；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
+| `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 只上报**公开服务**（`getExposedServiceList()`，私密服务不让服务端感知）向所有已连接服务器发 `update_services`，连接不可用跳过（try/catch，同步接口）；`_resyncToServer()` 供 LocalUser 在 `server_connected` 时重上报（重连后服务器侧会话 services 为空）；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
 
 ### AdminUser（admin-user.js）
 
@@ -285,6 +286,8 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 - `retries > 0` 时 ACK 超时自动重发（复用同一 msgId），**仅当 `#peerSupportsAck`（对端曾回过 `__ack`）才允许**——旧版对端无去重，重发会重复执行 handler；
 - 对端离线（`code:"offline"` / `not open` / `not online` 类确定性离线错误；超时不入队——消息可能已送达）进入离线队列 `#sendQueue`，返回 `{status:"queued", flushed}`；补投触发点：`server_connected`（LocalUser 级遍历所有 RemoteUser）/ `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s 起 ×2，上限 30s）；补投复用原信封，队列上限 200 条（溢出丢最旧，`flushed` 结算 `dropped`）、条目 TTL 10 分钟（`expired`）；`dispose()` 时全部结算 `dropped` 并清理定时器。
 
+**服务端离线收件箱（阶段二，需服务端 ≥ inbox 支持版本）**：对端完全离线且 `queue !== false` 时，`#tryStoreOnServer` 优先把消息存入**服务端收件箱**（`relayStoreOffline`，文本为原始对象、加密可用时为密文二进制——注意不能复用 `#preparePayload` 的字符串形态，会被 JSON relay 二次序列化导致对端无法分发），返回 `{status:"queued", via:"server"}`；服务器在目标用户握手成功后自动补投，信封 msgId 完整保留，对端核心层照常去重与回 `__ack`（`acked` 依然可用）。服务器旧版本返回 error/超时 → 自动回退本地队列；`queue === "local"` 跳过服务端路径。
+
 **流量分类**：`__ack` 归入 `control` 类别（traffic.js `inferCategory`）。
 
 ## 六、客户端-服务端联动协议对应表
@@ -292,7 +295,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 | 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/handshake/CONTEXT.md） |
 |-----------|------|---------|----------------------------------------|
 | 握手应答 | WS 文本 | `handshake_challenge` → 签名回发 | `handle_connection` 验签注册 |
-| 中继发送 | WS 文本/二进制 | `relay` JSON / 二进制帧 | `relay` 分支 + `relay_deliver_and_finalize` |
+| 中继发送 | WS 文本/二进制 | `relay` JSON / 二进制帧 | `relay` 分支 + `relay_deliver_and_finalize`；携带 `store_if_offline` 且目标离线时存入收件箱回 `queued`，目标握手成功后补投 |
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
 | 凭证按 key 拉取 | 中继 | `cred` (request/response，raw 不做 E2EE) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |

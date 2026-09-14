@@ -14,17 +14,19 @@
 const results = await remote.sendToService("chat-v1", data, {
   ackTimeout: 5000,  // 等待对端 __ack 的超时（默认 5000ms，≤0 关闭跟踪）
   retries: 0,        // ACK 超时后的自动重发次数（默认 0；仅对已确认支持 __ack 的对端生效）
-  queue: true,       // 对端离线时进入离线队列（默认 true；false 保持旧行为返回 offline）
+  queue: true,       // 对端离线时：true 优先服务端收件箱（对端重连自动补投，跨刷新有效），
+                     // 服务器旧版本/收件箱满回退客户端本地队列；"local" 仅本地队列；false 关闭
 });
 const r = results[0];
 
 r.status;   // "ok" | "queued" | "no_receiver" | "offline" | "discovery_failed" | "error"
-r.msgId;    // 信封 ID（去重/重发/ACK 的唯一凭据）
-await r.acked;  // { confirmed: true } = 对端 handler 已执行完
+r.via;      // 仅 status="queued" 时："server"（服务端收件箱）| undefined（本地队列）
+r.msgId;    // 信封 ID（重发/去重/ACK 的唯一凭据）
+await r.acked;  // { confirmed: true } = 对端 handler 已执行完（服务端收件箱补投送达后同样会回 ACK）
                // { confirmed: false, reason: "timeout" } = 对端未确认（旧版对端或链路异常）
                // { confirmed: false, reason: "no_handler" } = 对端未注册该 appId（快速失败）
                // { confirmed: false, reason: "handler_error" } = 对端 handler 抛错
-await r.flushed; // 仅 status="queued" 时存在
+await r.flushed; // 仅本地队列（via 非 "server"）时存在
                // { status: "delivered", results } = 补投成功
                // { status: "expired" } = 队列 TTL（10 分钟）内对端未恢复
                // { status: "dropped" | "failed", ... }

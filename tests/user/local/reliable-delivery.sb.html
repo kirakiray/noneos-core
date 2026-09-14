@@ -220,10 +220,13 @@
           await new Promise((r) => setTimeout(r, 100));
         }
 
-        // A 发送：应进入离线队列而非返回 offline
-        const resultsR4 = await remoteR4B.sendToService("queue-app", {
-          text: "queued-hello",
-        });
+        // A 发送：应进入离线队列而非返回 offline。
+        // 用 queue:"local" 强制走本地队列路径（服务端收件箱由 server-inbox 用例覆盖）
+        const resultsR4 = await remoteR4B.sendToService(
+          "queue-app",
+          { text: "queued-hello" },
+          { queue: "local" },
+        );
         const firstR4 = resultsR4[0] || {};
         const queuedR4 = firstR4.status === "queued";
 
