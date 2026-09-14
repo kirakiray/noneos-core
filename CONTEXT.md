@@ -20,7 +20,7 @@
 | `nos/` | 核心能力层（fs/user/publish/storage/crypto/util/locale-text/n-icon，根证书 `root-cert.json`；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
-| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务） |
+| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
 | `server/client/` | 服务端管理前端（admin 页面） |
 | `nos-tool/` | 内置工具集（studio、file-explore、system-info、locale-text-tool、rtc-tool，安装/升级入口 `_install/`）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
@@ -96,8 +96,8 @@
 ### 已有 CONTEXT.md 的模块
 
 - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
-- [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
-- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
+- [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE、可靠投递/ACK 去重、离线收件箱、大 payload 拉取化）
+- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb、离线收件箱）
 - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
 - [nos/storage/CONTEXT.md](nos/storage/CONTEXT.md) - 官方键值存储（IndexedDB、类 localStorage、跨标签页同步、句柄序列化）
 - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）

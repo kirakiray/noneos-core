@@ -172,7 +172,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | 服务端处理 | 消息类型 | 客户端对应（见 nos/user/CONTEXT.md） |
 |-----------|---------|--------------------------------------|
 | `handle_connection` 验签 | `handshake_challenge` → 签名 | `ServerManager.connect` 握手应答 |
-| `relay` 分支 + `relay_deliver_and_finalize` | `relay` JSON / 二进制帧 | `ServerManager.sendToUser` 中继 |
+| `relay` 分支 + `relay_deliver_and_finalize` | `relay` JSON / 二进制帧 | `ServerManager.sendToUser` 中继；携带 `store_if_offline` 且目标离线时存入收件箱并回 `queued` |
 | 透传中继 | `rtc_signal` | `RTCManager` 信令 |
 | 透传中继 | `profile` | `CredentialManager` 个人资料交换 |
 | 透传中继 | `__cert_share` | `RemoteUser.shareCert` 凭证互传 |
