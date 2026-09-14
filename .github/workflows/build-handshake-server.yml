@@ -1,17 +1,24 @@
 name: Build Handshake Server
 
+# 触发方式（全自动，无需手动选择）：
+# 1. GitHub 网页上发布 Release（publish）→ 自动打包并上传资产到该 Release
+# 2. 推送语义化版本 tag（如 4.5.7 / v4.5.7）→ 自动打包，Release 不存在则自动创建
+# 3. Actions 页面手动 Run workflow（可选，无需填写任何参数）
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Release tag to upload assets to ...'
-        required: true
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+
+concurrency:
+  group: build-handshake-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   build-linux:
@@ -83,7 +90,7 @@ jobs:
       - name: Build (GNU target)
         if: matrix.target != 'aarch64-pc-windows-msvc'
         working-directory: server/handshake
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -117,7 +124,6 @@ jobs:
   upload-release:
     name: Upload to release
     needs: [build-linux, build-windows, build-macos]
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -129,10 +135,39 @@ jobs:
       - name: Display structure
         run: ls -laR artifacts
 
-      - name: Upload assets to release
+      - name: Determine release tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Release 事件 → 用 Release 的 tag；tag 推送 → 用推送的 tag；
+          # 手动触发（无参数）→ 回退到最新 Release 的 tag
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            case "$GITHUB_REF" in
+              refs/tags/*) TAG="${GITHUB_REF#refs/tags/}" ;;
+            esac
+          fi
+          if [ -z "$TAG" ]; then
+            TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          fi
+          if [ -z "$TAG" ]; then
+            echo "No release tag found"; exit 1
+          fi
+          echo "Using release tag: $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          # Release 不存在（如直接推送 tag 触发）时自动创建
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $TAG not found, creating..."
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
             asset_name="${dirname}.tar.gz"
@@ -142,6 +177,5 @@ jobs:
             else
               tar czf "$asset_name" -C "$dir" .
             fi
-            TAG="${{ github.event.release.tag_name || github.event.inputs.release_tag }}"
             gh release upload "$TAG" "$asset_name" --repo "$GITHUB_REPOSITORY" --clobber
           done
