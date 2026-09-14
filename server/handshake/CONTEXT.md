@@ -153,7 +153,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
 - **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝非 admin 新连接。
 - **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
-- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc `localtime_r` 获取，含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
+- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc 获取（Unix `localtime_r`/`tm_gmtoff`，Windows `localtime_s`/`gmtime_s` 字段差推算），含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 
 ### 4. 优雅关闭（main.rs）
@@ -230,7 +230,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `redb` | 嵌入式 KV 数据库 |
 | `bincode` | redb value 二进制序列化 |
 | `dashmap` | 并发 HashMap（用户会话表） |
-| `libc` | `localtime_r` 读取服务器本地时区偏移（流量额度重置日判定） |
+| `libc` | 读取服务器本地时区偏移（流量额度重置日判定）：Unix 走 `localtime_r` + `tm_gmtoff`；Windows 走 `localtime_s`/`gmtime_s` 字段差推算 |
 
 ## 九、构建与运行
 
