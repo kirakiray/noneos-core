@@ -1,8 +1,47 @@
-# 应用层可靠消息投递（ACK + 重发 + 去重）
+# 可靠消息投递（核心层 ACK + 重发 + 去重）
 
-> 适用于所有基于 `registerService` / `sendToService` 的应用通信。**这是使用规范，不是框架自带能力**——`nos/user` 只保证「尽力投递」，业务侧必须自己实现确认与重发。
+> **核心层已内置可靠投递**：`sendToService` 现在自动为每条消息生成 `__env` 信封（msgId/seq），接收端核心层在 handler 执行完毕后自动回 `__ack`，发送方可通过返回项的 `acked` Promise 等待终态，并可用 `retries` 让核心层自动重发（接收端按 msgId 去重，重发不会重复执行 handler）。对端离线时消息默认进入离线队列，恢复后自动补投。
+>
+> **本文的手工实现仅在以下场景需要**：
+> 1. 对端运行的是**旧版本 core**（不回 `__ack`、不去重）——此时核心层会明确返回 `acked: { confirmed: false, reason: "timeout", retriable: false }`，且不会自动重发（避免向无去重的对端重复投递），需要端到端确认的应用需退回手工方案；
+> 2. 需要**跨刷新/离线持久化**的去重与待发队列（核心层去重与离线队列都在内存，TTL 10 分钟，标签页刷新即失效）。
+>
+> 仍须遵守的硬约束：**单条消息 < 256KB**（服务端硬限制，建议 ≤128KB）与**同一目标串行发送**，见下文。
 
-## 为什么需要
+## 核心层能力速查（新版 core 之间通信）
+
+```javascript
+const results = await remote.sendToService("chat-v1", data, {
+  ackTimeout: 5000,  // 等待对端 __ack 的超时（默认 5000ms，≤0 关闭跟踪）
+  retries: 0,        // ACK 超时后的自动重发次数（默认 0；仅对已确认支持 __ack 的对端生效）
+  queue: true,       // 对端离线时进入离线队列（默认 true；false 保持旧行为返回 offline）
+});
+const r = results[0];
+
+r.status;   // "ok" | "queued" | "no_receiver" | "offline" | "discovery_failed" | "error"
+r.msgId;    // 信封 ID（去重/重发/ACK 的唯一凭据）
+await r.acked;  // { confirmed: true } = 对端 handler 已执行完
+               // { confirmed: false, reason: "timeout" } = 对端未确认（旧版对端或链路异常）
+               // { confirmed: false, reason: "no_handler" } = 对端未注册该 appId（快速失败）
+               // { confirmed: false, reason: "handler_error" } = 对端 handler 抛错
+await r.flushed; // 仅 status="queued" 时存在
+               // { status: "delivered", results } = 补投成功
+               // { status: "expired" } = 队列 TTL（10 分钟）内对端未恢复
+               // { status: "dropped" | "failed", ... }
+```
+
+行为要点：
+
+- **ACK 语义**：`confirmed: true` 表示对端核心层已执行完 handler（含 handler 返回的 Promise settle）——这正是应用层 ACK 想知道的事，现在默认就有。
+- **去重语义**：接收端按 `fromUserId|msgId` 去重（LRU 4096 条，内存态）。重复投递不再执行 handler，但**会补发 ACK**（正确处理"业务已执行但 ACK 丢失"的重发），这与手工方案的"ACK 先于判重"要点一致。
+- **重发安全**：`retries > 0` 的自动重发只在对端"曾回过 `__ack`"后才生效（`#peerSupportsAck`），确保对端具备去重能力，不会向旧版对端重复投递。
+- **离线队列**：对端完全离线时消息入队（上限 200 条、TTL 10 分钟），由「服务器恢复连接 / RTC 建立 / 对端服务上线推送 / 退避定时器（1.5s→30s）」触发补投；补投复用原 msgId，不会重复执行。**队列在内存**，本标签页刷新即丢，需要跨刷新持久化时仍要自己做（见下文第 8 点）。
+- **自动重连默认开启**：服务器静默断链（合盖/网络切换/NAT 超时）后自动指数退避重连（1s 起、±25% 抖动、上限 30s）；中继响应超时会主动重置疑似半开的连接加速恢复。旧行为 `setAutoReconnect({ enabled: false })` 可关。
+- **handler 尽量快**：ACK 在 handler（含其 Promise）完成后才回，长时间阻塞 handler 会把对端拖到 ackTimeout。
+
+## 以下为手工方案（旧版对端兼容 / 持久化场景）
+
+### 为什么需要（手工方案）
 
 `sendToService` 是一次性的单向投递，返回的 `status: "ok"` 只代表**本端成功把数据交给了传输通道**，不代表对端 handler 真的执行了。以下场景消息会静默丢失：
 

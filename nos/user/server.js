@@ -24,6 +24,9 @@ const DEFAULT_SERVERS = (() => {
 
 const CANDIDATE_CACHE_TTL = 15000; // 服务器候选排序缓存 15 秒过期
 
+// 重连间隔抖动：±25% 随机化，避免大量客户端同一时刻重连造成服务器惊群
+const jitterDelay = (ms) => Math.round(ms * (0.75 + Math.random() * 0.5));
+
 export class ServerManager {
   #wsMap = new Map();
   #serverVersions = new Map(); // url -> version
@@ -35,9 +38,12 @@ export class ServerManager {
   #latencyIntervalMs = 30000;
   #latencyCache = new Map();
   #serverCandidateCache = new Map(); // userId -> { candidates, timestamp }
+  // 自动重连默认开启：WebSocket 静默断链（合盖/网络切换/NAT 超时）后自动恢复，
+  // 无需应用逐个配置。disconnect() 标记的主动断开永不重连；如需旧行为
+  // 可 setAutoReconnect({ enabled: false }) 关闭。
   #autoReconnectConfig = {
-    enabled: false,
-    baseDelay: 2000,
+    enabled: true,
+    baseDelay: 1000,
     maxDelay: 30000,
     multiplier: 2,
     maxRetries: Infinity,
@@ -403,6 +409,9 @@ export class ServerManager {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       // 失败也记录一次尝试字节数
       this.#recordOutbound(url, data, false, "not_open");
+      // 连接不可用：立即调度自动重连（若已开启且非主动断开）。
+      // 半开/静默断链时 socket 不会触发 onclose，这是唯一的恢复触发点。
+      this.#scheduleReconnect(url);
       throw new Error(`Connection to ${url} is not open`);
     }
     ws.send(data);
@@ -806,6 +815,23 @@ export class ServerManager {
   }
 
   /**
+   * 重置疑似半开的服务器连接。
+   * socket 的 readyState 仍为 OPEN 但链路实际已死（合盖唤醒、NAT 静默失效）时，
+   * 主动 close 触发 onclose → #scheduleReconnect，尽快恢复而非等心跳超时。
+   * @param {string} url
+   */
+  #resetStaleConnection(url) {
+    const ws = this.#wsMap.get(url);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.close();
+      } catch {
+        // 关闭异常忽略，交由后续 onclose/超时路径处理
+      }
+    }
+  }
+
+  /**
    * 自动查找目标用户在线且延迟最低的服务器，通过该服务器转发数据
    * @param {string} targetUserId - 目标用户 ID
    * @param {string} targetSessionId - 目标会话 ID
@@ -843,6 +869,11 @@ export class ServerManager {
           lastError.code = "offline";
         } catch (err) {
           lastError = err;
+          // 中继响应超时很可能是半开连接（链路已死但 readyState 仍为 OPEN）：
+          // 主动关闭该 socket 触发 onclose → 自动重连，避免后续发送持续超时
+          if (String(err?.message || "").includes("timed out")) {
+            this.#resetStaleConnection(candidate.url);
+          }
         }
       }
     }
@@ -1057,10 +1088,10 @@ export class ServerManager {
   }
 
   /**
-   * 配置自动重连行为
+   * 配置自动重连行为（默认开启：baseDelay 1000ms 指数退避 + 抖动，无上限重试）
    * @param {Object} options
-   * @param {boolean} [options.enabled=false] - 是否启用自动重连
-   * @param {number} [options.baseDelay=2000] - 首次重连间隔（毫秒）
+   * @param {boolean} [options.enabled=true] - 是否启用自动重连
+   * @param {number} [options.baseDelay=1000] - 首次重连间隔（毫秒），实际间隔带 ±25% 抖动
    * @param {number} [options.maxDelay=30000] - 最大重连间隔（毫秒）
    * @param {number} [options.multiplier=2] - 指数退避乘数
    * @param {number} [options.maxRetries=Infinity] - 最大重试次数
@@ -1102,11 +1133,14 @@ export class ServerManager {
     if (this.#reconnectTasks.has(url)) return;
 
     const { baseDelay } = this.#autoReconnectConfig;
-    const nextRetryAt = Date.now() + baseDelay;
+    const nextRetryAt = Date.now() + jitterDelay(baseDelay);
     const task = {
       attempt: 1,
       nextRetryAt,
-      timer: setTimeout(() => this.#runReconnect(url, task), baseDelay),
+      timer: setTimeout(
+        () => this.#runReconnect(url, task),
+        jitterDelay(baseDelay),
+      ),
     };
     this.#reconnectTasks.set(url, task);
 
@@ -1142,9 +1176,11 @@ export class ServerManager {
       }
 
       const { baseDelay, maxDelay, multiplier } = this.#autoReconnectConfig;
-      const delay = Math.min(
-        baseDelay * Math.pow(multiplier, nextAttempt - 1),
-        maxDelay,
+      const delay = jitterDelay(
+        Math.min(
+          baseDelay * Math.pow(multiplier, nextAttempt - 1),
+          maxDelay,
+        ),
       );
       const nextRetryAt = Date.now() + delay;
 

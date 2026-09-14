@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>可靠投递测试（信封 / ACK / 去重 / 离线队列）</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>可靠投递 — ACK 终态 / 核心层去重 / 离线队列 / 自动重发</h1>
+
+  <!-- Test 1: ACK 终态 —— handler 执行完后对端核心层回 __ack，acked resolve confirmed:true -->
+  <sb-test name="sendToService receipt acked resolves confirmed after handler runs">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR1A = "reliable-1-a";
+        const nsR1B = "reliable-1-b";
+        const urlR1 = "ws://localhost:8081";
+
+        const userR1A = new LocalUser(nsR1A);
+        const userR1B = new LocalUser(nsR1B);
+        await Promise.all([userR1A.ready(), userR1B.ready()]);
+        await Promise.all([
+          userR1A.server.connect(urlR1),
+          userR1B.server.connect(urlR1),
+        ]);
+
+        let handledR1 = 0;
+        userR1B.registerService("ack-app", {
+          onMessage() { handledR1++; },
+        });
+
+        const remoteR1B = await userR1A.connectUser(userR1B.userId);
+        const resultsR1 = await remoteR1B.sendToService("ack-app", { n: 1 });
+
+        // acked 应在 handler 执行完成后 resolve 为 confirmed:true
+        const ackR1 = await resultsR1[0].acked;
+
+        userR1A.server.disconnectAll();
+        userR1B.server.disconnectAll();
+
+        const passR1 =
+          resultsR1[0].delivered === true &&
+          typeof resultsR1[0].msgId === "string" &&
+          ackR1.confirmed === true &&
+          handledR1 === 1;
+
+        return {
+          assert: passR1,
+          content: {
+            message: passR1
+              ? "ACK 终态正常：handler 执行后 acked confirmed"
+              : "ACK 终态异常",
+            results: resultsR1,
+            ack: ackR1,
+            handled: handledR1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 核心层去重 —— 同 msgId 重发，handler 只执行一次 -->
+  <sb-test name="duplicate delivery with same msgId executes handler only once">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR2A = "reliable-2-a";
+        const nsR2B = "reliable-2-b";
+        const urlR2 = "ws://localhost:8081";
+
+        const userR2A = new LocalUser(nsR2A);
+        const userR2B = new LocalUser(nsR2B);
+        await Promise.all([userR2A.ready(), userR2B.ready()]);
+        await Promise.all([
+          userR2A.server.connect(urlR2),
+          userR2B.server.connect(urlR2),
+        ]);
+
+        let handledR2 = 0;
+        userR2B.registerService("dedup-app", {
+          onMessage() { handledR2++; },
+        });
+
+        const remoteR2B = await userR2A.connectUser(userR2B.userId);
+
+        // 手工构造同一信封的消息，连续发送两次（模拟 ACK 丢失后的重发）
+        const messageR2 = {
+          __app: "dedup-app",
+          __data: { n: 42 },
+          __env: { msgId: "test-fixed-msg-id-r2", seq: 1, ts: Date.now() },
+        };
+        await remoteR2B.send(userR2B.sessionId, messageR2);
+        await remoteR2B.send(userR2B.sessionId, messageR2);
+
+        // 等消息全部到达，并多等一会儿确认没有第三次执行
+        await new Promise((r) => setTimeout(r, 600));
+
+        userR2A.server.disconnectAll();
+        userR2B.server.disconnectAll();
+
+        const passR2 = handledR2 === 1;
+        return {
+          assert: passR2,
+          content: {
+            message: passR2
+              ? "同一 msgId 重发被核心层去重，handler 只执行一次"
+              : `去重失败，handler 执行了 ${handledR2} 次`,
+            handled: handledR2,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 3: no_handler 快速失败 —— 未注册 appId 时 acked resolve no_handler -->
+  <sb-test name="acked resolves no_handler when appId is not registered on peer">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR3A = "reliable-3-a";
+        const nsR3B = "reliable-3-b";
+        const urlR3 = "ws://localhost:8081";
+
+        const userR3A = new LocalUser(nsR3A);
+        const userR3B = new LocalUser(nsR3B);
+        await Promise.all([userR3A.ready(), userR3B.ready()]);
+        await Promise.all([
+          userR3A.server.connect(urlR3),
+          userR3B.server.connect(urlR3),
+        ]);
+
+        const unhandledR3 = [];
+        userR3B.bind("unhandled_service_message", (e) => {
+          unhandledR3.push(e.detail);
+        });
+
+        const remoteR3B = await userR3A.connectUser(userR3B.userId);
+        const resultsR3 = await remoteR3B.sendToService(
+          "ghost-app",
+          { text: "hi" },
+          { sessionId: userR3B.sessionId },
+        );
+        const ackR3 = await resultsR3[0].acked;
+
+        userR3A.server.disconnectAll();
+        userR3B.server.disconnectAll();
+
+        const passR3 =
+          ackR3.confirmed === false &&
+          ackR3.reason === "no_handler" &&
+          unhandledR3.length === 1;
+
+        return {
+          assert: passR3,
+          content: {
+            message: passR3
+              ? "未注册 appId 时 acked 快速返回 no_handler"
+              : "no_handler 快速失败未生效",
+            ack: ackR3,
+            unhandled: unhandledR3,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: 离线队列 —— 对端离线时入队，恢复后自动补投 -->
+  <sb-test name="offline peer queues message and flushes after reconnect">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR4A = "reliable-4-a";
+        const nsR4B = "reliable-4-b";
+        const urlR4 = "ws://localhost:8081";
+
+        const userR4A = new LocalUser(nsR4A);
+        const userR4B = new LocalUser(nsR4B);
+        await Promise.all([userR4A.ready(), userR4B.ready()]);
+        await Promise.all([
+          userR4A.server.connect(urlR4),
+          userR4B.server.connect(urlR4),
+        ]);
+
+        let gotR4 = null;
+        userR4B.registerService("queue-app", {
+          onMessage(data) { gotR4 = data; },
+        });
+
+        // 先建立 RemoteUser（不触发任何消息，避免污染服务发现缓存）
+        const remoteR4B = await userR4A.connectUser(userR4B.userId);
+
+        // B 断开所有服务器 → 对 A 来说 B 完全离线
+        userR4B.server.disconnectAll();
+
+        // 等服务器的会话表确认 B 已下线
+        let offlineR4 = false;
+        for (let i = 0; i < 30; i++) {
+          offlineR4 = !(await userR4A.isRemoteUserOnline(userR4B.userId));
+          if (offlineR4) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // A 发送：应进入离线队列而非返回 offline
+        const resultsR4 = await remoteR4B.sendToService("queue-app", {
+          text: "queued-hello",
+        });
+        const queuedR4 =
+          resultsR4.length === 1 && resultsR4[0].status === "queued";
+
+        // B 重连 → A 侧退避补投应自动送达
+        userR4B.server.connect(urlR4).catch(() => {});
+
+        let flushedR4 = null;
+        for (let i = 0; i < 150; i++) {
+          flushedR4 = await Promise.race([
+            resultsR4[0].flushed.then((v) => ({ v })),
+            new Promise((r) => setTimeout(() => r(null), 100)),
+          ]);
+          if (flushedR4) break;
+        }
+
+        // 等待 handler 执行
+        for (let i = 0; i < 30; i++) {
+          if (gotR4 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userR4A.server.disconnectAll();
+        userR4B.server.disconnectAll();
+
+        const deliveredR4 = flushedR4?.v?.status === "delivered";
+        const dataOkR4 = gotR4?.text === "queued-hello";
+        const passR4 = offlineR4 && queuedR4 && deliveredR4 && dataOkR4;
+
+        return {
+          assert: passR4,
+          content: {
+            message: passR4
+              ? "离线消息入队，对端恢复后自动补投成功"
+              : "离线队列补投失败",
+            offline: offlineR4,
+            results: resultsR4,
+            flushed: flushedR4?.v ?? null,
+            got: gotR4,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 5: queue:false 逃生口 —— 关闭队列后保持旧行为返回 offline -->
+  <sb-test name="queue:false keeps legacy offline status">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR5A = "reliable-5-a";
+        const nsR5B = "reliable-5-b";
+        const urlR5 = "ws://localhost:8081";
+
+        const userR5A = new LocalUser(nsR5A);
+        const userR5B = new LocalUser(nsR5B);
+        await Promise.all([userR5A.ready(), userR5B.ready()]);
+        await Promise.all([
+          userR5A.server.connect(urlR5),
+          userR5B.server.connect(urlR5),
+        ]);
+
+        userR5B.registerService("noqueue-app", { onMessage() {} });
+        const remoteR5B = await userR5A.connectUser(userR5B.userId);
+
+        userR5B.server.disconnectAll();
+        let offlineR5 = false;
+        for (let i = 0; i < 30; i++) {
+          offlineR5 = !(await userR5A.isRemoteUserOnline(userR5B.userId));
+          if (offlineR5) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const resultsR5 = await remoteR5B.sendToService(
+          "noqueue-app",
+          { n: 1 },
+          { queue: false },
+        );
+
+        userR5A.server.disconnectAll();
+        userR5B.server.disconnectAll();
+
+        const passR5 =
+          offlineR5 &&
+          resultsR5.length === 1 &&
+          resultsR5[0].status === "offline";
+
+        return {
+          assert: passR5,
+          content: {
+            message: passR5
+              ? "queue:false 保持旧行为返回 offline"
+              : "queue:false 未保持旧行为",
+            results: resultsR5,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 6: 自动重发 + 去重 —— ACK 超时重发，handler 仍只执行一次 -->
+  <sb-test name="ack timeout triggers resend and receiver dedups execution">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsR6A = "reliable-6-a";
+        const nsR6B = "reliable-6-b";
+        const urlR6 = "ws://localhost:8081";
+
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+        const userR6A = new LocalUser(nsR6A);
+        const userR6B = new LocalUser(nsR6B);
+        await Promise.all([userR6A.ready(), userR6B.ready()]);
+        await Promise.all([
+          userR6A.server.connect(urlR6),
+          userR6B.server.connect(urlR6),
+        ]);
+
+        const handledR6 = [];
+        userR6B.registerService("retry-app", {
+          async onMessage(data) {
+            if (data.slow) await sleep(600); // 拖慢 handler，制造首次 ACK 超时
+            handledR6.push(data.id);
+          },
+        });
+
+        const remoteR6B = await userR6A.connectUser(userR6B.userId);
+
+        // 预热：先正常收发一条，让 A 确认 B 支持 __ack（此后自动重发才被允许）
+        const warmR6 = await remoteR6B.sendToService("retry-app", { id: "warm" });
+        const warmAckR6 = await warmR6[0].acked;
+
+        // 慢 handler + 极短 ackTimeout + 允许重发 → 必然触发一次超时重发
+        const resultsR6 = await remoteR6B.sendToService(
+          "retry-app",
+          { id: "slow-one", slow: true },
+          { ackTimeout: 200, retries: 2 },
+        );
+        const ackR6 = await resultsR6[0].acked;
+
+        // 等慢 handler 真正执行完
+        await sleep(700);
+
+        userR6A.server.disconnectAll();
+        userR6B.server.disconnectAll();
+
+        const warmOkR6 = warmAckR6.confirmed === true;
+        const ackOkR6 = ackR6.confirmed === true;
+        const onceR6 =
+          handledR6.filter((id) => id === "slow-one").length === 1;
+
+        const passR6 = warmOkR6 && ackOkR6 && onceR6;
+
+        return {
+          assert: passR6,
+          content: {
+            message: passR6
+              ? "ACK 超时自动重发，接收端去重保证 handler 只执行一次"
+              : "自动重发/去重异常",
+            warmAck: warmAckR6,
+            ack: ackR6,
+            handled: handledR6,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

@@ -31,6 +31,7 @@ nos/user/
 ├── rtc.js                   # RTCManager：WebRTC DataChannel P2P 连接
 ├── cred.js                  # CredentialManager：凭证统一管理（个人资料 profile + 证书）；统一存储（certs store）与导入路径；含资料在线交换协议
 ├── service-registry.js      # ServiceRegistry：应用级服务注册与路由
+├── reliable.js              # 可靠投递原语：createMsgId / DedupCache / AckWaiter
 ├── traffic.js               # TrafficLogger：客户端流量记录与查询
 ├── db.js                    # IndexedDB 持久化（data/certs/traffic_entries/traffic_agg_minute 四仓库；个人资料以 role="profile" 记录存于 certs）
 ├── README.md                # API 文档（人类阅读）
@@ -86,7 +87,8 @@ EventTarget
 | 方法 | 说明 |
 |------|------|
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
-| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/no_receiver/offline/discovery_failed/error}` 明确状态 |
+| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（默认 true）在对端离线时进入离线队列，返回 `{status:"queued", flushed}`，`{queue:false}` 保持旧行为返回 `offline` |
+| `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发；队列上限 200 条、条目 TTL 10 分钟（内存态） |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
@@ -99,7 +101,7 @@ EventTarget
 | 方法 | 说明 |
 |------|------|
 | `connect(url, optionsOrRetries?)` | 建立 WebSocket，自动执行握手挑战应答；第二个参数支持 `{ retries }` 或旧版的数字重试次数 |
-| `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries，默认关闭 |
+| `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries。**默认开启**（`baseDelay=1000`，间隔带 ±25% 抖动防惊群），仅 `disconnect(url)` 标记的主动断开不重连 |
 | `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |
 | `findBestServer(targetUserId)` | 返回**本端+对端组合延迟**最低的服务器 |
@@ -143,9 +145,10 @@ EventTarget
 
 ### 2. 自动重连（server.js）
 
-- 默认关闭，通过 `setAutoReconnect({ enabled: true, baseDelay, maxDelay, multiplier, maxRetries })` 开启。
+- **默认开启**：`{ enabled: true, baseDelay: 1000, maxDelay: 30000, multiplier: 2, maxRetries: Infinity }`，重连间隔带 ±25% 抖动（`jitterDelay`）防惊群；`setAutoReconnect({ enabled: false })` 可关闭。
 - 仅在**握手成功后的 `WebSocket.onclose`** 触发重连，握手阶段失败仍由 `connect()` 内部重试处理。
-- 指数退避：第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
+- **发送侧恢复触发**：`sendToServer` 发现连接不可用（`not_open`）时立即调度该 URL 的重连，不等下一次 onclose——半开/静默断链时这是唯一恢复点；`sendToUser` 中继响应超时视为疑似半开连接，主动 `close` 该 socket 触发 onclose → 重连（`#resetStaleConnection`）。
+- 指数退避：第 `n` 次重连间隔为 `jitter(min(baseDelay * multiplier^(n-1), maxDelay))`。
 - 同一 URL 的并发连接通过 `#connectPromises` 复用 Promise；`#reconnectTasks` 管理重连定时器，避免重复调度。
 - 调用 `disconnect(url)` 会标记该 URL 为“用户主动断开”，清除待执行重连任务，关闭后不再自动重连。
 - 显式调用 `connect(url)` 会解除“主动断开”标记并取消待执行重连。
@@ -266,6 +269,24 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 
 已删除：凭证交付统一走第 6 节的按 key 拉取协议（`cred.requestRecord`）。`RemoteUser.shareCert` 与 `__cert_share` 消息不再存在；拉取导入成功触发 `cert_received`（detail 与原 `__cert_share` 路径一致）。**信任边界**：接收端只验记录的密码学有效性，不判断 issuer 是否可信——「谁签发的证书算数」是应用层在 `query/has` 消费时的语义。
 
+### 12. 可靠投递（__env 信封 / __ack / 核心层去重 / 离线队列；reliable.js + user.js + remote-user.js）
+
+**信封**：`sendToService` 的消息自动包裹为 `{__app, __data, __env: {msgId, seq, ts}}`（`createMsgId()` 同标签页单调 + 随机后缀；seq 为 RemoteUser 内单调计数）。信封随 E2EE 整体加密，服务端不可见。
+
+**接收端（user.js `#dispatchToServiceApp`）**：
+
+- 携带 `__env` 的消息按 `fromUserId|msgId` 经 `DedupCache`（LRU 4096 条，内存态）去重：重复投递**不再执行 handler，但必须补发 ACK**（`{ok:true, duplicate:true}`，让发送方重试循环停下）；
+- handler 执行完毕（`onMessage` 返回的 Promise 会 await）后自动回 `__ack`（raw，不做 E2EE）：成功 `{ok:true}`；handler 抛错 `{ok:false, error:"handler_error"}`；未注册 appId `{ok:false, error:"no_handler"}` + `unhandled_service_message` 事件；
+- 未携带 `__env` 的消息（旧版对端）不参与去重与 ACK，行为与旧版完全一致。
+
+**发送端（remote-user.js）**：
+
+- 返回项携带 `msgId` 与 `acked` Promise（`AckWaiter` 按 msgId 挂起，带先到缓冲——ACK 早于 `wait()` 到达时暂存 `#recent` 立即结算）；`confirmed:true` = 任一目标 session 的核心层确认 handler 执行完毕；`no_handler`/`handler_error` 为确定性失败直接返回；
+- `retries > 0` 时 ACK 超时自动重发（复用同一 msgId），**仅当 `#peerSupportsAck`（对端曾回过 `__ack`）才允许**——旧版对端无去重，重发会重复执行 handler；
+- 对端离线（`code:"offline"` / `not open` / `not online` 类确定性离线错误；超时不入队——消息可能已送达）进入离线队列 `#sendQueue`，返回 `{status:"queued", flushed}`；补投触发点：`server_connected`（LocalUser 级遍历所有 RemoteUser）/ `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s 起 ×2，上限 30s）；补投复用原信封，队列上限 200 条（溢出丢最旧，`flushed` 结算 `dropped`）、条目 TTL 10 分钟（`expired`）；`dispose()` 时全部结算 `dropped` 并清理定时器。
+
+**流量分类**：`__ack` 归入 `control` 类别（traffic.js `inferCategory`）。
+
 ## 六、客户端-服务端联动协议对应表
 
 | 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/handshake/CONTEXT.md） |
@@ -275,6 +296,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 | RTC 信令 | 中继 | `rtc_signal` (offer/answer/ice) | 透传中继 |
 | 凭证按 key 拉取 | 中继 | `cred` (request/response，raw 不做 E2EE) | 透传中继 |
 | 服务发现 | 中继 | `__service_query`/`__service_response`/`__service_available`/`__service_unavailable` | 透传中继 |
+| 可靠投递确认 | 中继 | `__ack`（raw 不做 E2EE，随 `__env` 信封配对） | 透传中继 |
 | 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
 | 凭证互传 | —— | 已移除，统一走 `cred` 按 key 拉取 | —— |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |

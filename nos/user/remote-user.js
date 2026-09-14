@@ -1,6 +1,7 @@
 import { BaseUser } from "./base-user.js";
 import { tryEncryptBinary } from "../crypto/crypto-e2ee.js";
 import { inferCategory, measureSize } from "./traffic.js";
+import { createMsgId, AckWaiter } from "./reliable.js";
 
 /**
  * 远程用户类，代表通过服务器连接的另一个用户
@@ -38,6 +39,27 @@ export class RemoteUser extends BaseUser {
   #storageReqSeq = 0;
   // 单次共享存储请求的默认超时（毫秒）
   #STORAGE_REQ_TIMEOUT = 10000;
+
+  // ───── 可靠投递（信封 / ACK / 离线队列） ─────
+  // 信封序号：本 RemoteUser 内单调递增，随 __env 发出供观测
+  #msgSeq = 0;
+  // msgId -> 挂起的 ACK 等待（接收端核心层自动回 __ack）
+  #ackWaiter = new AckWaiter();
+  // 对端曾回过 __ack → 说明对端支持核心层去重，此后自动重发才安全
+  #peerSupportsAck = false;
+  // 离线队列：{ message, appId, sessionId, ackTimeout, retries, queuedAt, settle }
+  #sendQueue = [];
+  #flushing = false;
+  // 队列仍不可达时的重冲刷定时器（退避 1.5s → 30s）
+  #reflushTimer = null;
+  #reflushDelay = 1500;
+  #REFLUSH_BASE = 1500;
+  #REFLUSH_MAX = 30000;
+  // 离线队列容量上限与条目 TTL
+  #QUEUE_MAX = 200;
+  #QUEUE_TTL = 10 * 60 * 1000;
+  // 默认 ACK 等待超时（毫秒）；0 或负数 = 不跟踪 ACK
+  #DEFAULT_ACK_TIMEOUT = 5000;
 
   /**
    * @param {string} userId - 目标用户的 userId
@@ -337,6 +359,15 @@ export class RemoteUser extends BaseUser {
         this.#handlePong(parsed);
       } else if (parsed.type === "__storage_resp") {
         this.#handleStorageResponse(parsed);
+      } else if (parsed.type === "__ack") {
+        // 对端核心层确认（handler 已执行）：标记能力 + 结算挂起的 acked 等待
+        this.#peerSupportsAck = true;
+        if (parsed.msgId) {
+          this.#ackWaiter.resolve(parsed.msgId, {
+            duplicate: !!parsed.duplicate,
+            error: parsed.error || "",
+          });
+        }
       } else if (parsed.type === "cred") {
         // cred 协议只走服务器中转：对端 cred 处理器只监听 relay 消息，
         // 经 RTC 到达的 cred 消息不会有人处理。正常情况下不应出现，
@@ -550,6 +581,16 @@ export class RemoteUser extends BaseUser {
     }
     this.#pendingStorageReqs.clear();
     this.#storageProxies.clear();
+    // 清理可靠投递状态：ACK 等待、离线队列与退避定时器
+    this.#ackWaiter.clear();
+    if (this.#reflushTimer) {
+      clearTimeout(this.#reflushTimer);
+      this.#reflushTimer = null;
+    }
+    for (const entry of this.#sendQueue) {
+      entry.settle({ status: "dropped", reason: "disposed" });
+    }
+    this.#sendQueue = [];
     this.#pingSeq = 0;
   }
 
@@ -640,7 +681,9 @@ export class RemoteUser extends BaseUser {
   /**
    * 向对方的指定应用发送数据。
    *
-   * 数据会自动包裹 __app 字段，接收方 LocalUser 会据此路由到对应 handler。
+   * 数据会自动包裹 __app 字段与 __env 信封（msgId/seq/ts），接收方核心层据此
+   * 路由到对应 handler，并在 handler 执行完毕后自动回 __ack——发送方可通过
+   * 返回项上的 `acked` Promise 等待"对端确实处理完"的终态。
    * 服务端只看到加密后的二进制帧或普通 relay 数据，不感知 appId。
    *
    * 默认行为（未指定 sessionId）：
@@ -649,11 +692,20 @@ export class RemoteUser extends BaseUser {
    * 3. 若无 session 注册该 app：
    *    - `waitForService > 0` 时挂起等待，直到对端上线该服务或超时；
    *    - 否则立刻返回 `[{ status: "no_receiver", appId }]`。
-   * 4. 若对端完全离线，返回 `[{ status: "offline" }]`。
+   * 4. 若对端完全离线：默认进入离线队列，返回 `[{ status: "queued", flushed }]`，
+   *    对端恢复后自动补投（`{ queue: false }` 退回旧行为 `[{ status: "offline" }]`）。
    * 5. 服务发现本身失败（超时无响应），返回 `[{ status: "discovery_failed", appId }]`
    *    或在 `fallback: "broadcast"` 时退化为老式广播。
    *
-   * 指定 sessionId 时：直接发到该 session（若该 session 未注册此 app，接收方静默丢弃）。
+   * 指定 sessionId 时：直接发到该 session（不做服务发现）。
+   *
+   * 返回项字段：
+   * - `status`: "ok" | "queued" | "no_receiver" | "offline" | "discovery_failed" | "error"
+   * - `msgId`: 本条消息的信封 ID（重发/去重/ACK 均以它为凭据）
+   * - `acked`: Promise，resolve `{ confirmed, reason?, duplicate? }`；
+   *   confirmed=true 表示对端核心层已执行完 handler；
+   *   对端为旧版本（不回 __ack）时超时后 resolve `{ confirmed: false, reason: "timeout" }`
+   * - `flushed`: 仅 status="queued" 时存在，resolve `{ status: "delivered"|"expired"|"dropped"|"failed" }`
    *
    * @param {string} appId - 目标应用标识
    * @param {*} data - 要发送的数据（JSON 可序列化对象）
@@ -661,24 +713,42 @@ export class RemoteUser extends BaseUser {
    * @param {string} [options.sessionId] - 指定目标 sessionId（不传则精准投递到装了 appId 的所有 session）
    * @param {number} [options.waitForService=0] - 无接收者时等待对端上线的毫秒数
    * @param {"none"|"broadcast"} [options.fallback="none"] - 服务发现失败时的兜底策略
-   * @returns {Promise<Array<{ sessionId?: string, status: string, via?: string, appId?: string, delivered?: boolean, error?: string }>>}
+   * @param {number} [options.ackTimeout=5000] - 等待对端 __ack 的超时（毫秒）；≤0 关闭 acked 跟踪
+   * @param {number} [options.retries=0] - ACK 超时时的自动重发次数（仅对已确认支持
+   *          __ack 的对端生效，避免向旧版对端重发造成重复执行）
+   * @param {boolean} [options.queue=true] - 对端离线时是否进入离线队列等待补投
+   * @returns {Promise<Array<{ sessionId?: string, status: string, via?: string, appId?: string, delivered?: boolean, msgId?: string, acked?: Promise, flushed?: Promise, error?: string }>>}
    */
   async sendToService(appId, data, options = {}) {
     const {
       sessionId: targetSessionId,
       waitForService = 0,
       fallback = "none",
+      ackTimeout = this.#DEFAULT_ACK_TIMEOUT,
+      retries = 0,
+      queue = true,
     } = options || {};
+
+    const deliverOpts = { ackTimeout, retries, queue };
 
     if (targetSessionId) {
       // 显式定向：不做服务发现，交给对端自行判断
+      const message = this.#buildAppMessage(appId, data);
       try {
-        const result = await this.send(targetSessionId, {
-          __app: appId,
-          __data: data,
-        });
-        return [{ sessionId: targetSessionId, ...result }];
+        const result = await this.send(targetSessionId, message);
+        const item = {
+          sessionId: targetSessionId,
+          ...result,
+          msgId: message.__env.msgId,
+        };
+        if (ackTimeout > 0) {
+          item.acked = this.#awaitMessageAck(message, [targetSessionId], deliverOpts);
+        }
+        return [item];
       } catch (err) {
+        if (queue && this.#isOfflineError(err)) {
+          return [this.#enqueueMessage(message, appId, targetSessionId, deliverOpts)];
+        }
         return [{
           sessionId: targetSessionId,
           status: "error",
@@ -698,13 +768,18 @@ export class RemoteUser extends BaseUser {
     // 服务发现失败（超时未拿到任何响应，且无缓存兜底）
     if (targets === null) {
       if (fallback === "broadcast") {
-        return this.#broadcastToAllSessions(appId, data);
+        return this.#broadcastToAllSessions(appId, data, deliverOpts);
       }
       return [{ status: "discovery_failed", appId }];
     }
 
     // 对端不在线（服务器查不到任何 session）
     if (targets.offline) {
+      if (queue) {
+        // 离线队列：等对端恢复后补投（_flushQueue 由重连/服务上线/退避定时器触发）
+        const message = this.#buildAppMessage(appId, data);
+        return [this.#enqueueMessage(message, appId, null, deliverOpts)];
+      }
       return [{ status: "offline" }];
     }
 
@@ -713,13 +788,13 @@ export class RemoteUser extends BaseUser {
       if (waitForService > 0) {
         const waited = await this.#waitForServiceAvailable(appId, waitForService);
         if (waited.length > 0) {
-          return this.#deliverToSessions(appId, data, waited);
+          return this.#deliverToSessions(appId, data, waited, deliverOpts);
         }
       }
       return [{ status: "no_receiver", appId }];
     }
 
-    return this.#deliverToSessions(appId, data, targets.sessions);
+    return this.#deliverToSessions(appId, data, targets.sessions, deliverOpts);
   }
 
   /**
@@ -758,52 +833,230 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * 向解析好的 session 列表投递 __app 消息
+   * 构造带 __env 信封的 __app 消息（msgId 同一次投递内固定，重发复用）
    */
-  async #deliverToSessions(appId, data, sessionIds) {
+  #buildAppMessage(appId, data) {
+    return {
+      __app: appId,
+      __data: data,
+      __env: { msgId: createMsgId(), seq: ++this.#msgSeq, ts: Date.now() },
+    };
+  }
+
+  /**
+   * 构造后向解析好的 session 列表投递 __app 消息
+   */
+  async #deliverToSessions(appId, data, sessionIds, opts = {}) {
+    const message = this.#buildAppMessage(appId, data);
+    return this.#deliverMessage(message, sessionIds, opts);
+  }
+
+  /**
+   * 向 session 列表投递一条已构造好的 __app 消息（离线补投复用同一信封）
+   */
+  async #deliverMessage(message, sessionIds, opts = {}) {
+    const appId = message.__app;
+    const { ackTimeout = this.#DEFAULT_ACK_TIMEOUT, retries = 0, queue = true } = opts;
     const results = [];
+    const reachable = [];
+
     for (const sid of sessionIds) {
       try {
-        const result = await this.send(sid, {
-          __app: appId,
-          __data: data,
+        const result = await this.send(sid, message);
+        reachable.push(sid);
+        results.push({
+          sessionId: sid,
+          ...result,
+          delivered: true,
+          msgId: message.__env.msgId,
         });
-        results.push({ sessionId: sid, ...result, delivered: true });
       } catch (err) {
         // send 失败通常意味着该 session 已离线，主动使缓存失效
         this.#invalidateServiceSession(appId, sid);
+        if (queue && this.#isOfflineError(err)) {
+          results.push(this.#enqueueMessage(message, appId, sid, opts));
+          continue;
+        }
         results.push({
           sessionId: sid,
           status: "error",
+          msgId: message.__env.msgId,
           error: err?.message || String(err),
         });
+      }
+    }
+
+    // 至少一条通道可达时挂起 ACK 等待；同一 msgId 的 acked 由所有投递项共享，
+    // 任一目标 session 的核心层回 __ack 即结算
+    if (reachable.length > 0 && ackTimeout > 0) {
+      const acked = this.#awaitMessageAck(message, reachable, opts);
+      for (const item of results) {
+        if (item.delivered) item.acked = acked;
       }
     }
     return results;
   }
 
   /**
-   * 兜底：向对端所有 session 广播（老行为，仅在 fallback: "broadcast" 时使用）
+   * 等待对端核心层 __ack，按需自动重发。
+   *
+   * 重发安全性：仅当对端曾回过 __ack（#peerSupportsAck，即对端具备核心层去重）
+   * 才自动重发——向旧版对端重发同一 msgId 会造成 handler 重复执行。
+   * no_handler / handler_error 是确定性失败，直接返回不重发。
    */
-  async #broadcastToAllSessions(appId, data) {
-    const sessionIds = await this.getSessionIds();
-    const results = [];
-    for (const sid of sessionIds) {
+  async #awaitMessageAck(message, sessionIds, opts) {
+    const { ackTimeout = this.#DEFAULT_ACK_TIMEOUT, retries = 0 } = opts;
+    const msgId = message.__env.msgId;
+    let attempt = 0;
+
+    while (true) {
+      const res = await this.#ackWaiter.wait(msgId, ackTimeout);
+      if (res.confirmed) return res;
+      if (res.reason && res.reason !== "timeout") return res;
+      if (!this.#peerSupportsAck) {
+        return { confirmed: false, reason: "timeout", retriable: false };
+      }
+      if (attempt >= retries) {
+        return { confirmed: false, reason: "timeout", attempts: attempt + 1 };
+      }
+      attempt++;
       try {
-        const result = await this.send(sid, {
-          __app: appId,
-          __data: data,
-        });
-        results.push({ sessionId: sid, ...result });
+        // 接收端按 msgId 去重，重发不会重复执行 handler
+        await Promise.allSettled(
+          sessionIds.map((sid) => this.send(sid, message)),
+        );
       } catch (err) {
-        results.push({
-          sessionId: sid,
-          status: "error",
-          error: err?.message || String(err),
-        });
+        return { confirmed: false, reason: "send_failed", error: err?.message };
       }
     }
-    return results;
+  }
+
+  /**
+   * 判断发送失败是否为"对端不可达"类瞬时离线（可进入离线队列等待补投）。
+   * 超时类错误不在此列：消息可能已送达，向旧版对端补投会重复执行。
+   */
+  #isOfflineError(err) {
+    if (!err) return false;
+    if (err.code === "offline") return true;
+    const msg = String(err?.message || "");
+    return msg.includes("is not online") || msg.includes("is not open");
+  }
+
+  /**
+   * 将消息放入离线队列，返回 queued 回执。
+   * 队列在服务器恢复连接 / 对端服务上线 / 退避定时器触发时经 _flushQueue 补投。
+   */
+  #enqueueMessage(message, appId, sessionId, opts = {}) {
+    const now = Date.now();
+    const entry = {
+      message,
+      appId,
+      sessionId,
+      ackTimeout: opts.ackTimeout ?? this.#DEFAULT_ACK_TIMEOUT,
+      retries: opts.retries ?? 0,
+      queuedAt: now,
+      settle: null,
+    };
+    const queued = {
+      status: "queued",
+      appId,
+      sessionId: sessionId || undefined,
+      msgId: message.__env.msgId,
+      queuedAt: now,
+    };
+    queued.flushed = new Promise((resolve) => {
+      entry.settle = resolve;
+    });
+
+    this.#sendQueue.push(entry);
+    while (this.#sendQueue.length > this.#QUEUE_MAX) {
+      const dropped = this.#sendQueue.shift();
+      dropped.settle({ status: "dropped", reason: "queue_overflow" });
+    }
+    this.#scheduleReflush();
+    return queued;
+  }
+
+  /**
+   * 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId，接收端去重兜底）。
+   * 由 server_connected / rtc_state(connected) / __service_available / 退避定时器触发。
+   */
+  async _flushQueue() {
+    if (this.#flushing) return;
+    if (this.#sendQueue.length === 0) return;
+    this.#flushing = true;
+    try {
+      while (this.#sendQueue.length > 0) {
+        const entry = this.#sendQueue[0];
+        if (Date.now() - entry.queuedAt > this.#QUEUE_TTL) {
+          this.#sendQueue.shift();
+          entry.settle({ status: "expired", reason: "queue_ttl" });
+          continue;
+        }
+
+        let sessions;
+        if (entry.sessionId) {
+          sessions = [entry.sessionId];
+        } else {
+          let targets = null;
+          try {
+            targets = await this.#resolveServiceTargets(entry.appId);
+          } catch {
+            targets = null;
+          }
+          if (!targets || targets.offline || targets.sessions.length === 0) {
+            // 对端仍不可达：安排退避重试，等待下一次触发
+            break;
+          }
+          sessions = targets.sessions;
+        }
+
+        this.#sendQueue.shift();
+        try {
+          const results = await this.#deliverMessage(entry.message, sessions, {
+            ackTimeout: entry.ackTimeout,
+            retries: entry.retries,
+            queue: false,
+          });
+          this.#reflushDelay = this.#REFLUSH_BASE;
+          entry.settle({ status: "delivered", results });
+        } catch (err) {
+          entry.settle({
+            status: "failed",
+            error: err?.message || String(err),
+          });
+        }
+      }
+    } finally {
+      this.#flushing = false;
+    }
+    // 队列仍有残留（对端不可达）时安排退避重试
+    if (this.#sendQueue.length > 0) {
+      this.#scheduleReflush();
+    }
+  }
+
+  /**
+   * 安排一次退避重冲刷（1.5s 起指数退避，上限 30s）
+   */
+  #scheduleReflush() {
+    if (this.#reflushTimer) return;
+    this.#reflushTimer = setTimeout(() => {
+      this.#reflushTimer = null;
+      this._flushQueue();
+    }, this.#reflushDelay);
+    this.#reflushDelay = Math.min(this.#reflushDelay * 2, this.#REFLUSH_MAX);
+  }
+
+  /**
+   * 兜底：向对端所有 session 广播（老行为，仅在 fallback: "broadcast" 时使用）
+   */
+  async #broadcastToAllSessions(appId, data, opts = {}) {
+    const sessionIds = await this.getSessionIds();
+    return this.#deliverToSessions(appId, data, sessionIds, {
+      ...opts,
+      queue: false,
+    });
   }
 
   /**
@@ -862,6 +1115,10 @@ export class RemoteUser extends BaseUser {
         for (const w of [...bucket]) {
           w.resolve(snapshot);
         }
+      }
+      // 对端服务上线：立即尝试补投离线队列中等待该服务的消息
+      if (this.#sendQueue.length > 0) {
+        this._flushQueue().catch(() => {});
       }
     }
   }

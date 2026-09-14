@@ -70,6 +70,13 @@ export function inferCategory(data, hint = {}) {
   if (type === "update_services") {
     return { category: "control", messageType: type, appId: "" };
   }
+  if (
+    type === "__ack" ||
+    type === "__storage_req" ||
+    type === "__storage_resp"
+  ) {
+    return { category: "control", messageType: type, appId: "" };
+  }
   if (type === "relay") {
     return { category: "relay", messageType: "relay", appId: "" };
   }
