@@ -125,8 +125,10 @@ export class AckWaiter {
    * @param {string} reason
    * @returns {boolean}
    */
-  resolveFailure(msgId, reason) {
-    return this.#settle(msgId, { confirmed: false, reason });
+  resolveFailure(msgId, reason, message) {
+    const result = { confirmed: false, reason };
+    if (message) result.message = String(message).slice(0, 300);
+    return this.#settle(msgId, result);
   }
 
   /**

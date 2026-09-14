@@ -555,6 +555,7 @@ export class DataPublisher {
             const bytes = toUint8Array(data);
             // 重新计算 SHA-256 匹配请求的 chunkHash
             const recalcHash = await getHash(bytes);
+            console.error(`[PUB-DEBUG] waiter hash: calc=${recalcHash.slice(0,10)} want=${chunkHash.slice(0,10)}`);
             if (recalcHash === chunkHash) {
               settled = true;
               clearTimeout(timer);
@@ -589,6 +590,8 @@ export class DataPublisher {
       });
 
       // 发送请求（走 remoteUser.send：RTC 就绪时优先直连，否则自动 server relay；raw=true 跳过 E2EE）
+      console.error(`[PUB-DEBUG] request_chunk via send()`);
+      try { (window.__pubDebug = window.__pubDebug || []).push(`request_chunk sent sid=${sid}`); } catch {}
       remoteUser
         .send(
           sid,
@@ -656,6 +659,7 @@ export class DataPublisher {
    * 处理 incoming 的 request_chunk：查 DB，回复二进制 chunk 或 not_found 错误
    */
   async #handleRequestChunk(chunkHash, fromUserId, fromSessionId, url) {
+    try { (window.__pubDebug = window.__pubDebug || []).push(`handleRequestChunk from=${fromUserId.slice(0, 8)} url=${url ?? "rtc"}`); } catch {}
     const chunkData = await getChunk(this.#user.namespace, chunkHash);
     try {
       if (chunkData) {

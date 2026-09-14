@@ -91,6 +91,8 @@ export class RemoteUser extends BaseUser {
   #QUEUE_TTL = 10 * 60 * 1000;
   // 默认 ACK 等待超时（毫秒）；0 或负数 = 不跟踪 ACK
   #DEFAULT_ACK_TIMEOUT = 5000;
+  // 大 payload 拉取化阈值（字节）：序列化体积超过即转「manifest + 拉取」
+  #LARGE_PAYLOAD_THRESHOLD = 64 * 1024;
 
   // ───── 端到端存活检测（阶段一第 4 步） ─────
   // 心跳只证明「我对服务器活着」，不证明「对端活着」。这里对已建立过
@@ -528,6 +530,7 @@ export class RemoteUser extends BaseUser {
             this.#ackWaiter.resolveFailure(
               parsed.msgId,
               parsed.error || "handler_error",
+              parsed.message,
             );
           } else {
             this.#ackWaiter.resolve(parsed.msgId, {
@@ -935,7 +938,7 @@ export class RemoteUser extends BaseUser {
 
     if (targetSessionId) {
       // 显式定向：不做服务发现，交给对端自行判断
-      const message = this.#buildAppMessage(appId, data);
+      const message = await this.#buildAppMessage(appId, data);
       try {
         const result = await this.send(targetSessionId, message);
         const item = {
@@ -982,7 +985,7 @@ export class RemoteUser extends BaseUser {
     // 对端不在线（服务器查不到任何 session）
     if (targets.offline) {
       if (queue) {
-        const message = this.#buildAppMessage(appId, data);
+        const message = await this.#buildAppMessage(appId, data);
         // 优先服务端离线收件箱：对端重连即达，且不受本端刷新影响。
         // queue === "local" 跳过服务端存储；服务器旧版本（不支持
         // store_if_offline）或收件箱已满时同样回退本地队列
@@ -1096,14 +1099,64 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * 构造带 __env 信封的 __app 消息（msgId 同一次投递内固定，重发复用）
+   * 构造带 __env 信封的 __app 消息（msgId 同一次投递内固定，重发复用）。
+   *
+   * 大 payload 拉取化（阶段三第 9 步）：序列化体积超过阈值的数据不再内联，
+   * 而是内容寻址发布（可 E2EE 加密后发布），消息只携带签名 manifest 与
+   * 拉取引用 `{__pull: {fileHash, encrypted}}`，接收方拉取组装后还原。
+   * 仅在对端支持核心层信封（#peerSupportsAck）时启用；发布失败回退内联。
    */
-  #buildAppMessage(appId, data) {
-    return {
+  async #buildAppMessage(appId, data) {
+    const message = {
       __app: appId,
       __data: data,
       __env: { msgId: createMsgId(), seq: ++this.#msgSeq, ts: Date.now() },
     };
+
+    if (
+      this.#peerSupportsAck &&
+      measureSize(data) > this.#LARGE_PAYLOAD_THRESHOLD
+    ) {
+      const ref = await this.#publishLargePayload(data).catch(() => null);
+      if (ref) {
+        message.__data = ref.manifest;
+        message.__pull = {
+          fileHash: ref.manifest.fileHash,
+          encrypted: ref.encrypted,
+        };
+      }
+    }
+    return message;
+  }
+
+  /**
+   * 内容寻址发布大 payload（供接收方按 chunk 拉取）。
+   * E2EE 凭证可用时先加密字节再发布——服务器与拉取方都拿不到明文。
+   * @returns {Promise<{manifest: Object, encrypted: boolean}|null>}
+   */
+  async #publishLargePayload(data) {
+    try {
+      // 0x00 前缀：加密后的分块对中间层而言必须是「不透明的二进制」。
+      // 若直接加密 JSON，接收端 #handleBinaryRelay 的 E2EE 解密尝试会
+      // 成功并把分块"还原"成对象分发，拉取方的二进制哈希匹配将永远失败。
+      const jsonBytes = new TextEncoder().encode(JSON.stringify(data));
+      let bytes = new Uint8Array(1 + jsonBytes.length);
+      bytes[0] = 0;
+      bytes.set(jsonBytes, 1);
+      let encrypted = false;
+      const { tryEncryptBytes } = await import("../crypto/crypto-e2ee.js");
+      const enc = await tryEncryptBytes(this.#localUser, this.#userId, bytes);
+      if (enc) {
+        bytes = enc;
+        encrypted = true;
+      }
+      const publisher = await this.#localUser._getDataPublisher();
+      const manifest = await publisher.publish(new Blob([bytes]));
+      return { manifest, encrypted };
+    } catch (err) {
+      console.warn("[RemoteUser] large payload publish failed:", err);
+      return null;
+    }
   }
 
   /**
@@ -1146,7 +1199,7 @@ export class RemoteUser extends BaseUser {
    * 构造后向解析好的 session 列表投递 __app 消息
    */
   async #deliverToSessions(appId, data, sessionIds, opts = {}) {
-    const message = this.#buildAppMessage(appId, data);
+    const message = await this.#buildAppMessage(appId, data);
     return this.#deliverMessage(message, sessionIds, opts);
   }
 

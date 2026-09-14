@@ -56,6 +56,8 @@ export class LocalUser extends BaseUser {
   #traffic;
   // 核心层消息去重：按 (fromUserId|msgId) 拦截重发，保证 __app handler 只执行一次
   #msgDedup = new DedupCache(4096);
+  // 惰性创建的大 payload 拉取发布器（阶段三第 9 步，见 _getDataPublisher）
+  #dataPublisher = null;
 
   /**
    * 构造函数
@@ -703,10 +705,32 @@ export class LocalUser extends BaseUser {
       remoteUser,
     };
 
+    // 大 payload 拉取化：去重之后、handler 之前，从发送方拉取分块并还原。
+    // 拉取失败回 pull_failed 的确定性 ACK，发送方立即失败而非等超时
+    let finalData = data;
+    if (messageData.__pull?.fileHash) {
+      try {
+        finalData = await this.#fetchLargePayload(fromUserId, messageData.__pull);
+      } catch (err) {
+        console.warn(
+          `[ServiceRegistry] Large payload pull failed for "${appId}":`,
+          err,
+        );
+        if (env?.msgId) {
+          await this.#sendServiceAck(fromUserId, fromSessionId, env.msgId, {
+            ok: false,
+            error: "pull_failed",
+            message: String(err?.message || err),
+          });
+        }
+        return;
+      }
+    }
+
     let handlerError = null;
     try {
       // 等待 handler 完成（含异步 Promise）——ACK 语义 = "handler 已执行完"
-      const returned = handler(data, ctx);
+      const returned = handler(finalData, ctx);
       if (returned && typeof returned.then === "function") {
         await returned;
       }
@@ -725,6 +749,53 @@ export class LocalUser extends BaseUser {
           : { ok: true },
       );
     }
+  }
+
+  /**
+   * 获取（惰性创建并启动的）大 payload 拉取发布器。
+   * 复用 nos/publish 的内容寻址分块机制：发送方 publish，接收方 fetchFile。
+   * 动态导入避免 nos/user ↔ nos/publish 循环依赖。
+   * @returns {Promise<import("../publish/data-publisher.js").DataPublisher>}
+   */
+  async _getDataPublisher() {
+    if (!this.#dataPublisher) {
+      const { DataPublisher } = await import("../publish/data-publisher.js");
+      this.#dataPublisher = new DataPublisher(this);
+      this.#dataPublisher.start();
+    }
+    return this.#dataPublisher;
+  }
+
+  /**
+   * 拉取大 payload 并还原为原始数据（接收端，阶段三第 9 步）。
+   *
+   * 发送方超过阈值的 __app 数据不再内联在消息里，而是内容寻址发布后
+   * 在消息中携带 `{__pull: {fileHash, encrypted}}`；本方法用 DataPublisher
+   * 从发送方拉取分块、组装、（可选）解密，再 JSON.parse 还原。
+   *
+   * @param {string} fromUserId - 发送方 userId（拉取对端）
+   * @param {{fileHash: string, encrypted?: boolean}} pull - 拉取引用
+   * @returns {Promise<*>} 还原后的原始数据
+   */
+  async #fetchLargePayload(fromUserId, pull) {
+    const publisher = await this._getDataPublisher();
+    const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+    // fetchFile 返回 { blob, fileName, fileSize }
+    const result = await publisher.fetchFile(remoteUser, pull.fileHash);
+    let bytes = new Uint8Array(await result.blob.arrayBuffer());
+    if (pull.encrypted) {
+      const { tryDecryptBytes } = await import("../crypto/crypto-e2ee.js");
+      const plain = await tryDecryptBytes(this, fromUserId, bytes);
+      if (!plain) {
+        throw new Error("large payload decrypt failed");
+      }
+      bytes = plain;
+    }
+    // 剥掉发布时的 0x00 标记前缀（明文/密文均有，见 remote-user.js #publishLargePayload）
+    if (bytes[0] === 0) {
+      bytes = bytes.slice(1);
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
   }
 
   /**

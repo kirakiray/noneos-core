@@ -555,6 +555,11 @@ export class RTCManager {
   #setupDataChannel(dc, userId, sessionId) {
     const key = this.#key(userId, sessionId);
 
+    // RTC 二进制默认以 Blob 到达，而整个分发链路（E2EE 解密尝试、
+    // 二进制中继帧解析、大 payload 分块匹配）都只处理 ArrayBuffer/
+    // TypedArray——不设置此项，加密消息经 RTC 直连将静默无法分发。
+    dc.binaryType = "arraybuffer";
+
     dc.onopen = () => {
       const peer = this.#peers.get(key);
       if (peer) peer.state = "connected";
