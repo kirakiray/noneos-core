@@ -94,7 +94,7 @@ export class AckWaiter {
     const recent = this.#recent.get(msgId);
     if (recent) {
       this.#recent.delete(msgId);
-      return Promise.resolve({ confirmed: true, ...recent });
+      return Promise.resolve(recent);
     }
     return new Promise((resolve) => {
       const entry = {
@@ -109,20 +109,38 @@ export class AckWaiter {
   }
 
   /**
-   * 结算某条消息的 ACK；无挂起等待时暂存进先到缓冲并返回 false
+   * 结算某条消息的 ACK 成功；无挂起等待时暂存进先到缓冲并返回 false
    * @param {string} msgId
    * @param {Object} [payload]
    * @returns {boolean} 是否结算了挂起中的等待
    */
   resolve(msgId, payload = {}) {
+    return this.#settle(msgId, { confirmed: true, ...payload });
+  }
+
+  /**
+   * 结算确定性失败（对端回 ok:false：no_handler / handler_error 等）：
+   * 结算为 { confirmed: false, reason }，发送方据此立即失败而不重发。
+   * @param {string} msgId
+   * @param {string} reason
+   * @returns {boolean}
+   */
+  resolveFailure(msgId, reason) {
+    return this.#settle(msgId, { confirmed: false, reason });
+  }
+
+  /**
+   * 内部统一结算：优先结算挂起等待，否则进入先到缓冲
+   */
+  #settle(msgId, result) {
     const entry = this.#pending.get(msgId);
     if (entry) {
       clearTimeout(entry.timer);
       this.#pending.delete(msgId);
-      entry.resolve({ confirmed: true, ...payload });
+      entry.resolve(result);
       return true;
     }
-    this.#recent.set(msgId, payload);
+    this.#recent.set(msgId, result);
     if (this.#recent.size > this.#RECENT_MAX) {
       const oldest = this.#recent.keys().next().value;
       this.#recent.delete(oldest);

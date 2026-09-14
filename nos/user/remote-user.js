@@ -4,6 +4,22 @@ import { inferCategory, measureSize } from "./traffic.js";
 import { createMsgId, AckWaiter } from "./reliable.js";
 
 /**
+ * 以非枚举方式挂载属性。
+ *
+ * acked / flushed 是活的 Promise：必须可显式访问（results[0].acked），
+ * 但不可被结构化克隆 / JSON 序列化枚举到——否则任何把结果对象
+ * postMessage 外传的消费者（测试框架、Worker 等）都会 DataCloneError。
+ */
+function defineHidden(obj, key, value) {
+  Object.defineProperty(obj, key, {
+    value,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+}
+
+/**
  * 远程用户类，代表通过服务器连接的另一个用户
  * 提供查询对方在线状态、发送数据、接收消息的能力
  *
@@ -360,13 +376,21 @@ export class RemoteUser extends BaseUser {
       } else if (parsed.type === "__storage_resp") {
         this.#handleStorageResponse(parsed);
       } else if (parsed.type === "__ack") {
-        // 对端核心层确认（handler 已执行）：标记能力 + 结算挂起的 acked 等待
+        // 对端核心层确认：标记能力 + 结算挂起的 acked 等待
         this.#peerSupportsAck = true;
         if (parsed.msgId) {
-          this.#ackWaiter.resolve(parsed.msgId, {
-            duplicate: !!parsed.duplicate,
-            error: parsed.error || "",
-          });
+          if (parsed.ok === false) {
+            // 确定性失败：对端 handler 未执行（no_handler / handler_error），
+            // 结算为 confirmed:false 让发送方立即失败而非等超时
+            this.#ackWaiter.resolveFailure(
+              parsed.msgId,
+              parsed.error || "handler_error",
+            );
+          } else {
+            this.#ackWaiter.resolve(parsed.msgId, {
+              duplicate: !!parsed.duplicate,
+            });
+          }
         }
       } else if (parsed.type === "cred") {
         // cred 协议只走服务器中转：对端 cred 处理器只监听 relay 消息，
@@ -629,12 +653,26 @@ export class RemoteUser extends BaseUser {
    * @returns {Promise<Array<{ sessionId: string }>>} 匹配的 session 列表
    */
   async getServiceSessions(appId, timeout = 3000) {
+    const { matched } = await this.#queryServiceSessions(appId, timeout);
+    return matched;
+  }
+
+  /**
+   * 服务查询内部实现：额外返回应答统计，供陈旧会话判定使用。
+   * - matched: 注册了 appId 的 session 列表
+   * - queried: 本次查询的全部 session
+   * - responded: 实际应答了查询的 session 集合
+   */
+  async #queryServiceSessions(appId, timeout = 3000) {
     const sessionIds = await this.getSessionIds();
-    if (sessionIds.length === 0) return [];
+    if (sessionIds.length === 0) {
+      return { matched: [], queried: [], responded: new Set() };
+    }
 
     const queryId = `sq_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const remaining = new Set(sessionIds);
     const matched = [];
+    const responded = new Set();
 
     return new Promise((resolve) => {
       const handler = (event) => {
@@ -651,12 +689,13 @@ export class RemoteUser extends BaseUser {
         if (!parsed || typeof parsed !== "object") return;
         if (parsed.type === "__service_response" && parsed.id === queryId) {
           remaining.delete(event.detail.fromSessionId);
+          responded.add(event.detail.fromSessionId);
           if (parsed.services.includes(appId)) {
             matched.push({ sessionId: event.detail.fromSessionId });
           }
           if (remaining.size === 0) {
             unbind();
-            resolve(matched);
+            resolve({ matched, queried: sessionIds, responded });
           }
         }
       };
@@ -673,7 +712,7 @@ export class RemoteUser extends BaseUser {
       // 超时保护
       setTimeout(() => {
         unbind();
-        resolve(matched);
+        resolve({ matched, queried: sessionIds, responded });
       }, timeout);
     });
   }
@@ -742,7 +781,11 @@ export class RemoteUser extends BaseUser {
           msgId: message.__env.msgId,
         };
         if (ackTimeout > 0) {
-          item.acked = this.#awaitMessageAck(message, [targetSessionId], deliverOpts);
+          defineHidden(
+            item,
+            "acked",
+            this.#awaitMessageAck(message, [targetSessionId], deliverOpts),
+          );
         }
         return [item];
       } catch (err) {
@@ -821,14 +864,23 @@ export class RemoteUser extends BaseUser {
     }
 
     // 通过 __service_query 询问每个 session 是否注册了 appId
-    const found = await this.getServiceSessions(appId);
-    const sessions = found.map((x) => x.sessionId);
+    const { matched, responded } = await this.#queryServiceSessions(appId);
+    const sessions = matched.map((x) => x.sessionId);
 
     // 记录新的缓存（即使 sessions 为空也缓存，避免频繁询问）
     this.#serviceSessionCache.set(appId, {
       sessions,
       timestamp: Date.now(),
     });
+
+    if (sessions.length === 0 && responded.size === 0) {
+      // 列出了 session 但全部无应答：极可能是陈旧会话（对端已断开，
+      // 服务器尚未清理）。不误报 no_receiver，回退为向原 session 列表
+      // 投递——死 session 会按 offline 分类进入离线队列，活 session 会
+      // 回明确的 no_handler ack。注意：此回退结果不写入缓存。
+      return { sessions: sessionIds, stale: true };
+    }
+
     return { sessions };
   }
 
@@ -891,7 +943,7 @@ export class RemoteUser extends BaseUser {
     if (reachable.length > 0 && ackTimeout > 0) {
       const acked = this.#awaitMessageAck(message, reachable, opts);
       for (const item of results) {
-        if (item.delivered) item.acked = acked;
+        if (item.delivered) defineHidden(item, "acked", acked);
       }
     }
     return results;
@@ -964,9 +1016,13 @@ export class RemoteUser extends BaseUser {
       msgId: message.__env.msgId,
       queuedAt: now,
     };
-    queued.flushed = new Promise((resolve) => {
-      entry.settle = resolve;
-    });
+    defineHidden(
+      queued,
+      "flushed",
+      new Promise((resolve) => {
+        entry.settle = resolve;
+      }),
+    );
 
     this.#sendQueue.push(entry);
     while (this.#sendQueue.length > this.#QUEUE_MAX) {
@@ -994,22 +1050,19 @@ export class RemoteUser extends BaseUser {
           continue;
         }
 
-        let sessions;
-        if (entry.sessionId) {
-          sessions = [entry.sessionId];
-        } else {
-          let targets = null;
-          try {
-            targets = await this.#resolveServiceTargets(entry.appId);
-          } catch {
-            targets = null;
-          }
-          if (!targets || targets.offline || targets.sessions.length === 0) {
-            // 对端仍不可达：安排退避重试，等待下一次触发
-            break;
-          }
-          sessions = targets.sessions;
+        // 始终按 appId 重新发现目标：补投钉死在原 session 上没有意义
+        //（原 session 可能已死），应用在哪个 session 活着就投到哪
+        let targets = null;
+        try {
+          targets = await this.#resolveServiceTargets(entry.appId);
+        } catch {
+          targets = null;
         }
+        if (!targets || targets.offline || targets.sessions.length === 0) {
+          // 对端仍不可达：安排退避重试，等待下一次触发
+          break;
+        }
+        const sessions = targets.sessions;
 
         this.#sendQueue.shift();
         try {

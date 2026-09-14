@@ -113,7 +113,7 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 |---|---|
 | `"ok"` + `delivered:true` | 成功送达（含 `sessionId` / `via`） |
 | `"queued"` | 对端离线，消息已进入离线队列等待补投（含 `flushed` Promise；`{queue:false}` 可关闭） |
-| `"no_receiver"` | 对端在线，但没有 session 注册该 `appId` |
+| `"no_receiver"` | 对端在线（有 session 应答了服务查询）但没有 session 注册该 `appId`。若服务器仍列出对端 session 但查询全部无应答（对端已断开、服务器未清理的陈旧会话），不会误报此状态，而是回退向原 session 投递：死 session 进入离线队列，活 session 回 `no_handler` ack |
 | `"offline"` | 对端所有 session 都不在线（仅 `{queue:false}` 时返回） |
 | `"discovery_failed"` | 服务发现流程超时（可用 `fallback:"broadcast"` 兜底） |
 | `"error"` | 底层 `send` 失败（如 session 中途离线） |

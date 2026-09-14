@@ -55,7 +55,8 @@
             message: passR1
               ? "ACK 终态正常：handler 执行后 acked confirmed"
               : "ACK 终态异常",
-            results: resultsR1,
+            status: resultsR1[0].status,
+            msgId: resultsR1[0].msgId,
             ack: ackR1,
             handled: handledR1,
           },
@@ -184,6 +185,17 @@
         const userR4A = new LocalUser(nsR4A);
         const userR4B = new LocalUser(nsR4B);
         await Promise.all([userR4A.ready(), userR4B.ready()]);
+
+        // 本用例依赖「B 完全离线」的确定性：ready() 的 connectAll 会顺带连上
+        // ws2 与线上服务器，线上服务器的会话在断开后要等心跳超时才清理，
+        // 会留下幽灵会话干扰离线判定。先把所有默认服务器标记为主动断开，
+        // 再把双方钉死在 ws1 上。
+        for (const u of await userR4A.server.getServers()) {
+          userR4A.server.disconnect(u);
+        }
+        for (const u of await userR4B.server.getServers()) {
+          userR4B.server.disconnect(u);
+        }
         await Promise.all([
           userR4A.server.connect(urlR4),
           userR4B.server.connect(urlR4),
@@ -200,9 +212,9 @@
         // B 断开所有服务器 → 对 A 来说 B 完全离线
         userR4B.server.disconnectAll();
 
-        // 等服务器的会话表确认 B 已下线
+        // 等服务器的会话表确认 B 已下线（服务器清理可能滞后，放宽到 15s）
         let offlineR4 = false;
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 150; i++) {
           offlineR4 = !(await userR4A.isRemoteUserOnline(userR4B.userId));
           if (offlineR4) break;
           await new Promise((r) => setTimeout(r, 100));
@@ -212,19 +224,21 @@
         const resultsR4 = await remoteR4B.sendToService("queue-app", {
           text: "queued-hello",
         });
-        const queuedR4 =
-          resultsR4.length === 1 && resultsR4[0].status === "queued";
+        const firstR4 = resultsR4[0] || {};
+        const queuedR4 = firstR4.status === "queued";
 
         // B 重连 → A 侧退避补投应自动送达
         userR4B.server.connect(urlR4).catch(() => {});
 
         let flushedR4 = null;
-        for (let i = 0; i < 150; i++) {
-          flushedR4 = await Promise.race([
-            resultsR4[0].flushed.then((v) => ({ v })),
-            new Promise((r) => setTimeout(() => r(null), 100)),
-          ]);
-          if (flushedR4) break;
+        if (queuedR4) {
+          for (let i = 0; i < 150; i++) {
+            flushedR4 = await Promise.race([
+              firstR4.flushed.then((v) => ({ v })),
+              new Promise((r) => setTimeout(() => r(null), 100)),
+            ]);
+            if (flushedR4) break;
+          }
         }
 
         // 等待 handler 执行
@@ -247,8 +261,12 @@
               ? "离线消息入队，对端恢复后自动补投成功"
               : "离线队列补投失败",
             offline: offlineR4,
-            results: resultsR4,
-            flushed: flushedR4?.v ?? null,
+            status: firstR4.status,
+            msgId: firstR4.msgId,
+            flushedStatus: flushedR4?.v?.status ?? null,
+            flushedResultStatuses: (flushedR4?.v?.results || []).map(
+              (r) => r.status,
+            ),
             got: gotR4,
           },
         };
@@ -269,6 +287,14 @@
         const userR5A = new LocalUser(nsR5A);
         const userR5B = new LocalUser(nsR5B);
         await Promise.all([userR5A.ready(), userR5B.ready()]);
+
+        // 同 test 4：钉死在 ws1，排除线上服务器幽灵会话对离线判定的干扰
+        for (const u of await userR5A.server.getServers()) {
+          userR5A.server.disconnect(u);
+        }
+        for (const u of await userR5B.server.getServers()) {
+          userR5B.server.disconnect(u);
+        }
         await Promise.all([
           userR5A.server.connect(urlR5),
           userR5B.server.connect(urlR5),

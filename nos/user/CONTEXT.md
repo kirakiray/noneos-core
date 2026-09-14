@@ -87,9 +87,9 @@ EventTarget
 | 方法 | 说明 |
 |------|------|
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链 |
-| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（默认 true）在对端离线时进入离线队列，返回 `{status:"queued", flushed}`，`{queue:false}` 保持旧行为返回 `offline` |
+| `sendToService(appId, data, options)` | 默认精准投递：先服务发现（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（默认 true）在对端离线时进入离线队列，返回 `{status:"queued", flushed}`，`{queue:false}` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError） |
 | `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发；队列上限 200 条、条目 TTL 10 分钟（内存态） |
-| `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（sendToService 内部使用） |
+| `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（内部 `#queryServiceSessions` 额外返回应答统计 `responded`，供陈旧会话判定） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
 | `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
