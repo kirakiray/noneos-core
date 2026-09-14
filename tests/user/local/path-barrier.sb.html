@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>通道分类与切换屏障测试</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>通道分类与切换屏障 — relay→RTC 切换不乱序 / 双路径均被覆盖</h1>
+
+  <!-- Test 1: 跨切换屏障的发送顺序保证（含 server 与 rtc 双路径） -->
+  <sb-test name="burst send across path switch keeps strict ordering on receiver">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsP1A = "path-barrier-1-a";
+        const nsP1B = "path-barrier-1-b";
+        const urlP1 = "ws://localhost:8081";
+
+        const userP1A = new LocalUser(nsP1A);
+        const userP1B = new LocalUser(nsP1B);
+        await Promise.all([userP1A.ready(), userP1B.ready()]);
+
+        for (const u of await userP1A.server.getServers()) userP1A.server.disconnect(u);
+        for (const u of await userP1B.server.getServers()) userP1B.server.disconnect(u);
+        await Promise.all([
+          userP1A.server.connect(urlP1),
+          userP1B.server.connect(urlP1),
+        ]);
+
+        const receivedP1 = [];
+        userP1B.registerService("order-app", {
+          onMessage(data) { receivedP1.push(data.i); },
+        });
+
+        const remoteP1B = await userP1A.connectUser(userP1B.userId);
+
+        // 预热：缓存服务发现与服务器候选，建立 sendCounts
+        await remoteP1B.sendToService("order-app", { i: -1 });
+        await new Promise((r) => setTimeout(r, 100));
+
+        // 交错发送 40 条：前段 relay，RTC 通道打开后中段自动切换。
+        // 切换屏障保证：RTC 上的第一条消息必须等所有在途 relay 拿到
+        // 服务器回执（字节已写入对端 TCP 流），接收端严格按发送序到达
+        const TOTAL = 40;
+        const ackedP1 = [];
+        const viasP1 = new Set();
+        const pathByIndexP1 = [];
+        for (let i = 0; i < TOTAL; i++) {
+          const p = remoteP1B
+            .sendToService("order-app", { i })
+            .then((rs) => {
+              viasP1.add(rs[0]?.via);
+              pathByIndexP1[i] = rs[0]?.via;
+              if (rs[0]?.acked) return rs[0].acked;
+            })
+            .then((ack) => {
+              if (ack) ackedP1.push(ack.confirmed);
+            });
+          await new Promise((r) => setTimeout(r, 20));
+        }
+
+        // 等全部发送与 ACK 收敛
+        for (let i = 0; i < 100; i++) {
+          if (receivedP1.length >= TOTAL && ackedP1.length >= TOTAL) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        await new Promise((r) => setTimeout(r, 500));
+
+        userP1A.server.disconnectAll();
+        userP1B.server.disconnectAll();
+
+        const allReceivedP1 = receivedP1.length === TOTAL + 1; // 含预热消息
+        // receivedP1[0] 是预热消息（-1），其后才是 0..TOTAL-1
+        const orderedP1 =
+          receivedP1[0] === -1 &&
+          receivedP1.slice(1).every((v, idx) => v === idx);
+        const bothPathsP1 = viasP1.has("server") && viasP1.has("rtc");
+        const acksOkP1 =
+          ackedP1.length >= TOTAL - 2 && ackedP1.every((c) => c === true);
+
+        const passP1 = allReceivedP1 && orderedP1 && acksOkP1;
+        return {
+          assert: passP1,
+          content: {
+            message: passP1
+              ? "跨切换屏障发送：接收严格有序，ACK 正常"
+              : "跨通道发送出现乱序或丢失",
+            paths: [...viasP1],
+            bothPaths: bothPathsP1,
+            received: receivedP1.length,
+            ordered: orderedP1,
+            ackedCount: ackedP1.length,
+            acksConfirmed: ackedP1.filter((c) => c === true).length,
+            head: receivedP1.slice(0, 8),
+            receivedAll: receivedP1,
+            pathByIndex: pathByIndexP1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

@@ -94,6 +94,7 @@ EventTarget
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
 | `getLiveness(sessionId)` | 最近一次端到端存活检测结果：`true` 存活 / `false` 死亡 / `null` 未检测 |
 | `_checkLiveness()` | 执行一轮存活检测（内部，`livenessTimer` 每 25s 调用；测试可直调） |
+| `_checkLiveness()` | 执行一轮存活检测（内部，`livenessTimer` 每 25s 调用；测试可直调） |
 | `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
 | `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
 | `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
@@ -298,6 +299,12 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 - 监视器**惰性启动**（首次成功发送时开启），`dispose()` 时清理；`#disposed` 防止销毁后事件外泄。
 - **死亡转换动作**：主动失效该 session 在所有 `serviceSessionCache` 中的条目（防幽灵投递），并触发 LocalUser 级 `liveness_change` 事件（detail: `{userId, sessionId, alive}`）；复活同样触发事件。
 - `getLiveness(sessionId)` 暴露最近一次结果（true/false/null），供应用展示「对方连接异常」。
+
+### 14. 通道分类与切换屏障（阶段三第 8 步；remote-user.js）
+
+- **控制类消息永远走服务器中继**（TCP 可靠，通道切换期间不丢）：`cred` / `__ack` / `__service_query` / `__service_response` / `__service_available` / `__service_unavailable` / `__storage_req` / `__storage_resp`（`CONTROL_RELAY_ONLY_TYPES`）。`send()` 与 `#sendRaw` 的 RTC 分支均跳过控制类消息。`__ping__`/`__pong__` 例外——它们负责测量 RTC 路径质量，必须允许走 RTC。
+- **relay→RTC 切换屏障**：`#relayInFlight`（per-session 在途 relay 计数，以服务器 `relay_response` 回执为界，`#trackRelaySend` 登记）+ `#waitRelayDrained`。当同 session 还有在途 relay（或上一条走的是 relay）时，RTC 分支先等排空（字节已写入对端 TCP 流）再上 DataChannel，消除 relay→RTC 切换瞬间的跨通道乱序；等待期间通道关闭则回落中继。RTC→relay 方向不需要屏障（通道关闭时在途数据本就会丢，由应用层重试 + 去重兜底）。
+- `dispose()` 清理屏障状态。
 
 ## 六、客户端-服务端联动协议对应表
 

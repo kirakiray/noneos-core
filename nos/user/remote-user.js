@@ -4,6 +4,21 @@ import { inferCategory, measureSize } from "./traffic.js";
 import { createMsgId, AckWaiter } from "./reliable.js";
 
 /**
+ * 控制类消息：永远走服务器中继（TCP 可靠、通道切换期间不丢）。
+ * __ping__/__pong__ 除外——它们负责测量 RTC 路径质量，必须允许走 RTC。
+ */
+const CONTROL_RELAY_ONLY_TYPES = new Set([
+  "cred",
+  "__ack",
+  "__service_query",
+  "__service_response",
+  "__service_available",
+  "__service_unavailable",
+  "__storage_req",
+  "__storage_resp",
+]);
+
+/**
  * 以非枚举方式挂载属性。
  *
  * acked / flushed 是活的 Promise：必须可显式访问（results[0].acked），
@@ -86,6 +101,12 @@ export class RemoteUser extends BaseUser {
   // sessionId -> 最近一次检测结果（true/false），用于死亡/复活转换判定
   #lastLiveness = new Map();
   #disposed = false;
+
+  // ───── 通道分类与切换屏障（阶段三第 8 步） ─────
+  // 每个 session 的在途 relay 发送计数（以服务器 relay_response 回执为界）
+  #relayInFlight = new Map(); // sessionId -> count
+  #relayDrain = new Map(); // sessionId -> drain promise
+  #relayDrainRelease = new Map(); // sessionId -> release fn
 
   /**
    * @param {string} userId - 目标用户的 userId
@@ -321,8 +342,29 @@ export class RemoteUser extends BaseUser {
       return this.#sendToAllSessions(data, raw);
     }
 
-    // 优先走 RTC DataChannel
-    const dc = this.#localUser.rtc.getChannel(this.#userId, sessionId);
+    // 控制类消息永远走服务器中继（TCP 可靠，通道切换期间不丢）
+    const forceRelay = this.#isControlMessage(data);
+
+    // 优先走 RTC DataChannel（控制类消息除外）
+    let dc = forceRelay
+      ? null
+      : this.#localUser.rtc.getChannel(this.#userId, sessionId);
+    if (dc?.readyState === "open") {
+      // 切换屏障：同 session 还有在途 relay（或上一条走的是 relay）时，
+      // 先等它们拿到服务器回执（字节已写入对端 TCP 流）再切 RTC，
+      // 消除 relay→RTC 切换瞬间的跨通道乱序窗口
+      if (
+        this.#relayInFlight.get(sessionId) ||
+        this.#lastSendVia.get(sessionId)?.via === "server"
+      ) {
+        await this.#waitRelayDrained(sessionId);
+        // 等待期间通道可能又关闭了，回落服务器中继
+        if (dc.readyState !== "open") {
+          dc = null;
+        }
+      }
+    }
+
     if (dc?.readyState === "open") {
       const payload = await this.#preparePayload(data, raw);
       dc.send(payload);
@@ -361,10 +403,65 @@ export class RemoteUser extends BaseUser {
       }
     }
 
-    // RTC 未就绪，走服务器中转
-    const { result, url } = await this.#sendViaServer(sessionId, data, raw);
+    // RTC 未就绪，走服务器中转（计入切换屏障的在途统计）
+    const relayPromise = this.#sendViaServer(sessionId, data, raw);
+    this.#trackRelaySend(sessionId, relayPromise);
+    const { result, url } = await relayPromise;
     this.#onSendComplete(sessionId, "server", url);
     return { status: "ok", via: "server", url, result };
+  }
+
+  /**
+   * 判断是否为控制类消息（永远走服务器中继）
+   */
+  #isControlMessage(payload) {
+    return !!(
+      payload &&
+      typeof payload === "object" &&
+      !ArrayBuffer.isView(payload) &&
+      CONTROL_RELAY_ONLY_TYPES.has(payload.type)
+    );
+  }
+
+  /**
+   * 记录一次在途 relay 发送：以服务器 relay_response 回执为界，
+   * 供同 session 的 relay→RTC 切换屏障等待排空
+   */
+  #trackRelaySend(sessionId, promise) {
+    this.#relayInFlight.set(
+      sessionId,
+      (this.#relayInFlight.get(sessionId) || 0) + 1,
+    );
+    const release = () => {
+      const left = (this.#relayInFlight.get(sessionId) || 1) - 1;
+      if (left <= 0) {
+        this.#relayInFlight.delete(sessionId);
+        const releaseFn = this.#relayDrainRelease.get(sessionId);
+        if (releaseFn) {
+          this.#relayDrainRelease.delete(sessionId);
+          this.#relayDrain.delete(sessionId);
+          releaseFn();
+        }
+      } else {
+        this.#relayInFlight.set(sessionId, left);
+      }
+    };
+    promise.then(release, release);
+  }
+
+  /**
+   * 等待指定 session 的在途 relay 全部拿到服务器回执
+   */
+  #waitRelayDrained(sessionId) {
+    if (!this.#relayInFlight.get(sessionId)) return Promise.resolve();
+    let drain = this.#relayDrain.get(sessionId);
+    if (!drain) {
+      drain = new Promise((resolve) =>
+        this.#relayDrainRelease.set(sessionId, resolve),
+      );
+      this.#relayDrain.set(sessionId, drain);
+    }
+    return drain;
   }
 
   /**
@@ -480,11 +577,14 @@ export class RemoteUser extends BaseUser {
 
   /**
    * 底层直接发送 payload（不走 E2EE、不计数、不触发 RTC 连接）。
-   * 优先走 RTC DataChannel，否则走服务器中转。
+   * 控制类消息永远走服务器中转（通道切换期间不丢）；
+   * 其余优先走 RTC DataChannel，否则走服务器中转。
    * @returns {Promise<{status: string, via: string}>}
    */
   async #sendRaw(sessionId, payload) {
-    const dc = this.#localUser.rtc.getChannel(this.#userId, sessionId);
+    const dc = this.#isControlMessage(payload)
+      ? null
+      : this.#localUser.rtc.getChannel(this.#userId, sessionId);
     if (dc?.readyState === "open") {
       const wire = JSON.stringify(payload);
       dc.send(wire);
@@ -492,7 +592,13 @@ export class RemoteUser extends BaseUser {
       this.#lastSendVia.set(sessionId, { via: "rtc" });
       return { status: "ok", via: "rtc" };
     }
-    const { url } = await this.#localUser.server.sendToUser(this.#userId, sessionId, payload);
+    const relayPromise = this.#localUser.server.sendToUser(
+      this.#userId,
+      sessionId,
+      payload,
+    );
+    this.#trackRelaySend(sessionId, relayPromise);
+    const { url } = await relayPromise;
     this.#lastSendVia.set(sessionId, { via: "server", url });
     return { status: "ok", via: "server", url };
   }
@@ -668,6 +774,10 @@ export class RemoteUser extends BaseUser {
     }
     this.#lastLiveness.clear();
     this.#disposed = true;
+    // 切换屏障状态
+    this.#relayInFlight.clear();
+    this.#relayDrain.clear();
+    this.#relayDrainRelease.clear();
     this.#pingSeq = 0;
   }
 
