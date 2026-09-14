@@ -970,9 +970,19 @@ pub async fn handle_connection(
                                                 continue;
                                             }
 
-                                            // 截断日志输出，避免打印超长消息
+                                            // 截断日志输出，避免打印超长消息。
+                                            // 截点必须回退到 UTF-8 字符边界：
+                                            // 多字节字符（中文/emoji）落在
+                                            // 第 500 字节处时，直接切片会让
+                                            // 整个连接任务 panic——连接静默
+                                            // 死亡，挂起的中继命令既无响应
+                                            // 也无转发，客户端只见到超时
                                             let log_text = if text.len() > 500 {
-                                                format!("{}... ({} bytes total)", &text[..500], text.len())
+                                                let mut end = 500;
+                                                while end > 0 && !text.is_char_boundary(end) {
+                                                    end -= 1;
+                                                }
+                                                format!("{}... ({} bytes total)", &text[..end], text.len())
                                             } else {
                                                 text.clone()
                                             };
