@@ -77,6 +77,16 @@ export class RemoteUser extends BaseUser {
   // 默认 ACK 等待超时（毫秒）；0 或负数 = 不跟踪 ACK
   #DEFAULT_ACK_TIMEOUT = 5000;
 
+  // ───── 端到端存活检测（阶段一第 4 步） ─────
+  // 心跳只证明「我对服务器活着」，不证明「对端活着」。这里对已建立过
+  // 通信的 session 周期性做全路径 echo（A→server→B→server→A），
+  // 间隔 25s（低于常见 NAT 超时），死亡转换时主动失效服务发现缓存。
+  #livenessTimer = null;
+  #LIVENESS_INTERVAL = 25000;
+  // sessionId -> 最近一次检测结果（true/false），用于死亡/复活转换判定
+  #lastLiveness = new Map();
+  #disposed = false;
+
   /**
    * @param {string} userId - 目标用户的 userId
    * @param {import("./user.js").LocalUser} localUser - 本地用户实例
@@ -651,6 +661,13 @@ export class RemoteUser extends BaseUser {
       entry.settle({ status: "dropped", reason: "disposed" });
     }
     this.#sendQueue = [];
+    // 存活监视与检测结果
+    if (this.#livenessTimer) {
+      clearInterval(this.#livenessTimer);
+      this.#livenessTimer = null;
+    }
+    this.#lastLiveness.clear();
+    this.#disposed = true;
     this.#pingSeq = 0;
   }
 
@@ -1334,15 +1351,79 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
-   * send 完成后调用：记录本次 via 和 url，若路径发生变化则自动触发 ping
+   * send 完成后调用：记录本次 via 和 url，若路径发生变化则自动触发 ping；
+   * 同时惰性启动端到端存活监视（首次通信后才需要关心对端是否还活着）
    */
   #onSendComplete(sessionId, via, url) {
+    this.#ensureLivenessMonitor();
     const lastVia = this.#lastSendVia.get(sessionId);
     if (lastVia && lastVia.via !== via) {
       // 传输路径变化（server ↔ rtc），重新测量 RTT
       this.recalcRTT(sessionId);
     }
     this.#lastSendVia.set(sessionId, { via, url });
+  }
+
+  // ───── 端到端存活检测 ─────
+
+  /**
+   * 惰性启动存活监视：首次成功发送后开启，每 25s 检查一轮
+   */
+  #ensureLivenessMonitor() {
+    if (this.#livenessTimer || this.#disposed) return;
+    this.#livenessTimer = setInterval(() => {
+      this._checkLiveness().catch(() => {});
+    }, this.#LIVENESS_INTERVAL);
+  }
+
+  /**
+   * 执行一轮存活检测（内部接口，供测试与定时器调用）：
+   * 对已建立过通信的 session 逐个 ping（全路径 echo），
+   * 检测死亡/复活转换：
+   * - 死亡：主动失效该 session 的服务发现缓存（防幽灵投递）；
+   * - 转换时触发 LocalUser 级 `liveness_change` 事件。
+   */
+  async _checkLiveness() {
+    if (this.#disposed) return;
+    // 只检测已建立过通信的 session（sendCounts 的键），避免为陌生用户空转
+    const known = [...this.#sendCounts.keys()];
+    for (const sessionId of known) {
+      if (this.#disposed) return;
+      let alive = false;
+      try {
+        await this.ping(sessionId);
+        alive = true;
+      } catch {
+        alive = false;
+      }
+      const prev = this.#lastLiveness.get(sessionId);
+      if (prev === alive) continue;
+
+      this.#lastLiveness.set(sessionId, alive);
+      if (!alive) {
+        // 主动失效该 session 的服务发现缓存，让服务发现重新查询，
+        // 而不是把消息投给一个可能已死的会话
+        for (const [appId, cached] of this.#serviceSessionCache) {
+          if (cached.sessions.includes(sessionId)) {
+            this.#invalidateServiceSession(appId, sessionId);
+          }
+        }
+      }
+      this.#localUser._trigger("liveness_change", {
+        userId: this.#userId,
+        sessionId,
+        alive,
+      });
+    }
+  }
+
+  /**
+   * 查询指定 session 的最近一次端到端存活检测结果。
+   * @param {string} sessionId
+   * @returns {boolean|null} true=存活 / false=死亡 / null=尚未检测
+   */
+  getLiveness(sessionId) {
+    return this.#lastLiveness.get(sessionId) ?? null;
   }
 
   /**

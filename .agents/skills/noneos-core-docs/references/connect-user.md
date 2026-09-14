@@ -406,6 +406,22 @@ const unknown = remoteB.getRTT("nonexistent-session");
 console.log(unknown); // null
 ```
 
+### 端到端存活检测
+
+心跳只证明「本端对服务器活着」，不证明「对端活着」。core 内置存活监视：对已建立过通信的 session 每 25 秒做一次全路径 echo（A→server→B→server→A 或 RTC 直连），死亡/复活转换时：
+
+- 触发 `liveness_change` 事件（LocalUser 级）：`{ userId, sessionId, alive }`
+- 死亡时主动失效该 session 的服务发现缓存，避免后续投递命中幽灵会话
+
+```javascript
+userA.bind("liveness_change", (e) => {
+  console.log(e.detail.userId, e.detail.alive ? "存活" : "连接异常");
+});
+
+// 主动查询最近一次检测结果
+const alive = remoteB.getLiveness(userB.sessionId); // true / false / null
+```
+
 ### RTT 更新事件
 
 ```javascript

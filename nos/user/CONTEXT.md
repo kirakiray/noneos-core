@@ -92,6 +92,8 @@ EventTarget
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（内部 `#queryServiceSessions` 额外返回应答统计 `responded`，供陈旧会话判定） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
+| `getLiveness(sessionId)` | 最近一次端到端存活检测结果：`true` 存活 / `false` 死亡 / `null` 未检测 |
+| `_checkLiveness()` | 执行一轮存活检测（内部，`livenessTimer` 每 25s 调用；测试可直调） |
 | `getStorage(name, options?)` | 远端共享存储只读代理：`name` 必须 `share:` 开头（本地预校验抛错），同一 `(userId, name)` 缓存复用；代理方法 `getItem/has/key/length/keys/entries` 走 `__storage_req`（单次尝试默认 10s 超时，`options.timeout` 可调；超时/发送失败自动重发，默认 `options.retries=1`，对端明确回传的错误不重试），`setItem/removeItem/clear` 调用即抛错；失败 Error 带 `code`（`offline/timeout` 本地判定，其余为对端回传错误码，含 `too_large`） |
 | `#storageProxies` / `#pendingStorageReqs` | `Map<name, proxy>` 代理缓存；`Map<reqId, {resolve, reject, timeoutId}>` 挂起请求，`__storage_resp` 按 reqId 结算，`dispose()` 清理 |
 | `#pendingPings` | `Map<pingId, {sessionId, resolve, reject, timeoutId}>`，Ping/Pong RTT 测量 + 超时清理 |
@@ -290,6 +292,13 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 
 **流量分类**：`__ack` 归入 `control` 类别（traffic.js `inferCategory`）。
 
+### 13. 端到端存活检测（阶段一第 4 步；remote-user.js）
+
+- 心跳只证明「本端对服务器活着」，本机制补上「对端活着」：对已建立过通信的 session（`#sendCounts` 的键）周期性 `ping`（复用 `__ping__`/`__pong__` 全路径 echo：A→server→B→server→A 或 RTC DataChannel），间隔 25s（低于常见 NAT 超时）。
+- 监视器**惰性启动**（首次成功发送时开启），`dispose()` 时清理；`#disposed` 防止销毁后事件外泄。
+- **死亡转换动作**：主动失效该 session 在所有 `serviceSessionCache` 中的条目（防幽灵投递），并触发 LocalUser 级 `liveness_change` 事件（detail: `{userId, sessionId, alive}`）；复活同样触发事件。
+- `getLiveness(sessionId)` 暴露最近一次结果（true/false/null），供应用展示「对方连接异常」。
+
 ## 六、客户端-服务端联动协议对应表
 
 | 客户端行为 | 传输 | 消息类型 | 服务端处理（见 server/handshake/CONTEXT.md） |
@@ -330,6 +339,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 | `message` | 收到中继消息（解密后） |
 | `close` | 连接关闭 |
 | `latency_test` / `latency_monitor` / `rtt_update` | 延迟测速与监控 |
+| `liveness_change` | 端到端存活检测结果发生转换（死亡/复活，见第 13 节）。detail: `{ userId, sessionId, alive }` |
 | `rtc_state` | RTC 连接状态变化 |
 | `profile_received` | 收到对端个人资料（请求响应）。detail: `{ userId, profile, saved }` |
 | `cert_received` | 按 key 拉取到非 profile 凭证并验证入库（cred 协议）。detail: `{ cert, saved, fromUserId }`，`saved=false` 表示本地已有更新的同 id 记录 |

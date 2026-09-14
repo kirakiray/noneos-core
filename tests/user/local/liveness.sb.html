@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>端到端存活检测测试（liveness）</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>端到端存活检测 — 全路径 echo / 死亡转换 / 服务缓存失效</h1>
+
+  <!-- Test 1: 存活路径 —— 通信建立后检测应判定 alive 并触发事件 -->
+  <sb-test name="liveness check reports alive after communication established">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsL1A = "liveness-1-a";
+        const nsL1B = "liveness-1-b";
+        const urlL1 = "ws://localhost:8081";
+
+        const userL1A = new LocalUser(nsL1A);
+        const userL1B = new LocalUser(nsL1B);
+        await Promise.all([userL1A.ready(), userL1B.ready()]);
+
+        for (const u of await userL1A.server.getServers()) userL1A.server.disconnect(u);
+        for (const u of await userL1B.server.getServers()) userL1B.server.disconnect(u);
+        await Promise.all([
+          userL1A.server.connect(urlL1),
+          userL1B.server.connect(urlL1),
+        ]);
+
+        userL1B.registerService("live-app", { onMessage() {} });
+        const remoteL1B = await userL1A.connectUser(userL1B.userId);
+
+        // 首次通信：启动存活监视并建立 sendCounts
+        await remoteL1B.send(userL1B.sessionId, { probe: 1 });
+
+        const eventsL1 = [];
+        userL1A.bind("liveness_change", (e) => eventsL1.push(e.detail));
+
+        // 手动触发一轮检测（定时器 25s 一轮，测试直接调用内部接口）
+        await remoteL1B._checkLiveness();
+
+        const lastL1 = eventsL1[eventsL1.length - 1];
+        const passL1 =
+          lastL1?.alive === true &&
+          lastL1?.userId === userL1B.userId &&
+          lastL1?.sessionId === userL1B.sessionId &&
+          remoteL1B.getLiveness(userL1B.sessionId) === true;
+
+        userL1A.server.disconnectAll();
+        userL1B.server.disconnectAll();
+
+        return {
+          assert: passL1,
+          content: {
+            message: passL1 ? "存活检测：对端在线判定 alive" : "存活检测 alive 判定失败",
+            events: eventsL1,
+            liveness: remoteL1B.getLiveness(userL1B.sessionId),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 死亡路径 —— 对端断开后检测判定死亡，事件 + 缓存失效 -->
+  <sb-test name="liveness check reports dead after peer disconnect">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsL2A = "liveness-2-a";
+        const nsL2B = "liveness-2-b";
+        const urlL2 = "ws://localhost:8081";
+
+        const userL2A = new LocalUser(nsL2A);
+        const userL2B = new LocalUser(nsL2B);
+        await Promise.all([userL2A.ready(), userL2B.ready()]);
+
+        for (const u of await userL2A.server.getServers()) userL2A.server.disconnect(u);
+        for (const u of await userL2B.server.getServers()) userL2B.server.disconnect(u);
+        await Promise.all([
+          userL2A.server.connect(urlL2),
+          userL2B.server.connect(urlL2),
+        ]);
+
+        userL2B.registerService("live-app", { onMessage() {} });
+        const remoteL2B = await userL2A.connectUser(userL2B.userId);
+        await remoteL2B.send(userL2B.sessionId, { probe: 1 });
+
+        const eventsL2 = [];
+        userL2A.bind("liveness_change", (e) => eventsL2.push(e.detail));
+        await remoteL2B._checkLiveness(); // alive
+        const aliveOkL2 = remoteL2B.getLiveness(userL2B.sessionId) === true;
+
+        // B 断开，等服务器清理会话
+        userL2B.server.disconnectAll();
+        let offlineL2 = false;
+        for (let i = 0; i < 150; i++) {
+          offlineL2 = !(await userL2A.isRemoteUserOnline(userL2B.userId));
+          if (offlineL2) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        await remoteL2B._checkLiveness(); // dead
+
+        const deadEventsL2 = eventsL2.filter((e) => e.alive === false);
+        const passL2 =
+          aliveOkL2 &&
+          offlineL2 &&
+          deadEventsL2.some((e) => e.sessionId === userL2B.sessionId) &&
+          remoteL2B.getLiveness(userL2B.sessionId) === false;
+
+        userL2A.server.disconnectAll();
+
+        return {
+          assert: passL2,
+          content: {
+            message: passL2 ? "存活检测：对端断开判定死亡并触发事件" : "存活检测 dead 判定失败",
+            offline: offlineL2,
+            events: eventsL2,
+            liveness: remoteL2B.getLiveness(userL2B.sessionId),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
