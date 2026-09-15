@@ -1,0 +1,102 @@
+name: 'Browser test environment & run'
+description: >
+  Build and start local handshake servers (8081/8082), install browser
+  dependencies, then run sb-test on port 3002. On port 3002 DEFAULT_SERVERS
+  contains local servers only, so test users never hit production servers
+  (see nos/user/server.js).
+
+inputs:
+  browsers:
+    description: 'Comma-separated list of browsers to test (webkit, chrome, firefox)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust build
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: server/handshake
+
+    - name: Build handshake server
+      working-directory: server/handshake
+      shell: bash
+      run: cargo build
+
+    - name: Start handshake server 8081
+      working-directory: server/handshake
+      shell: bash
+      run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
+
+    - name: Start handshake server 8082
+      working-directory: server/handshake
+      shell: bash
+      run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
+
+    - name: Wait for handshake servers
+      shell: bash
+      run: |
+        for i in {1..30}; do
+          if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
+            echo "Handshake servers are ready"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Handshake servers did not start in time"
+        exit 1
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Install Playwright browsers
+      shell: bash
+      run: |
+        PLAYWRIGHT_BROWSERS=""
+        if echo "${{ inputs.browsers }}" | grep -q "webkit"; then
+          PLAYWRIGHT_BROWSERS="$PLAYWRIGHT_BROWSERS webkit"
+        fi
+        if echo "${{ inputs.browsers }}" | grep -q "chrome"; then
+          PLAYWRIGHT_BROWSERS="$PLAYWRIGHT_BROWSERS chromium"
+        fi
+        if [ -n "$PLAYWRIGHT_BROWSERS" ]; then
+          npx playwright install --with-deps $PLAYWRIGHT_BROWSERS
+        fi
+
+    # Firefox runs via Selenium (system Firefox + geckodriver): Playwright's
+    # custom Firefox build has incomplete Service Worker support, so it is
+    # not suitable for the SW-related test cases.
+    - name: Install Firefox
+      if: runner.os == 'Linux' && contains(inputs.browsers, 'firefox')
+      uses: browser-actions/setup-firefox@latest
+
+    - name: Install geckodriver
+      if: runner.os == 'Linux' && contains(inputs.browsers, 'firefox')
+      shell: bash
+      run: |
+        set -euo pipefail
+        GECKO_VER=v0.37.0
+        curl -fSL --retry 5 --retry-delay 15 --retry-all-errors \
+          -o /tmp/geckodriver.tar.gz \
+          "https://github.com/mozilla/geckodriver/releases/download/${GECKO_VER}/geckodriver-${GECKO_VER}-linux64.tar.gz"
+        sudo tar -C /usr/local/bin -xzf /tmp/geckodriver.tar.gz
+        rm -f /tmp/geckodriver.tar.gz
+        geckodriver --version
+
+    - name: Run tests
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" = "Linux" ]; then
+          xvfb-run npx sb-test -p 3002 --browsers ${{ inputs.browsers }}
+        else
+          npx sb-test -p 3002 --browsers ${{ inputs.browsers }}
+        fi

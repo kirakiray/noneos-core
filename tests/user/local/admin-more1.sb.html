@@ -382,9 +382,10 @@
           await tdUser.server.connect(tdUrl);
 
           // 等待 tdUser 上线并注册到服务器
-          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试
+          // WebKit 下偶发 query_response 超时，需容忍单次超时并继续重试；
+          // CI 2 核机器满载时握手/query 更慢，预算放宽到 30 次（仅慢时才多耗时）
           let tdSession;
-          for (let i = 0; i < 10; i++) {
+          for (let i = 0; i < 30; i++) {
             let q;
             try {
               q = await tdAdmin.server.queryUserOnline(tdUrl, tdUser.userId);

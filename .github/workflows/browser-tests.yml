@@ -10,165 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/browser-test
         with:
-          workspaces: server/handshake
-
-      - name: Build handshake server
-        working-directory: server/handshake
-        run: cargo build
-
-      - name: Start handshake server 8081
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
-
-      - name: Start handshake server 8082
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
-
-      - name: Wait for handshake servers
-        run: |
-          for i in {1..30}; do
-            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
-              echo "Handshake servers are ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Handshake servers did not start in time"
-          exit 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      # 测试固定跑在 3002 端口：该端口下 DEFAULT_SERVERS 只含本地握手服务器，
-      # 测试用户不会去连生产服务器（CI 突发连接生产端易被限流，产生偶发
-      # "WebSocket connection failed"）。详见 nos/user/server.js。
-      - name: Run tests (port 3002, local servers only)
-        run: xvfb-run npx sb-test -p 3002 --browsers chrome
+          browsers: chrome
 
   test-firefox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/browser-test
         with:
-          workspaces: server/handshake
-
-      - name: Build handshake server
-        working-directory: server/handshake
-        run: cargo build
-
-      - name: Start handshake server 8081
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
-
-      - name: Start handshake server 8082
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
-
-      - name: Wait for handshake servers
-        run: |
-          for i in {1..30}; do
-            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
-              echo "Handshake servers are ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Handshake servers did not start in time"
-          exit 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Firefox
-        uses: browser-actions/setup-firefox@latest
-
-      - name: Install geckodriver
-        run: |
-          set -euo pipefail
-          GECKO_VER=v0.37.0
-          curl -fSL --retry 5 --retry-delay 15 --retry-all-errors \
-            -o /tmp/geckodriver.tar.gz \
-            "https://github.com/mozilla/geckodriver/releases/download/${GECKO_VER}/geckodriver-${GECKO_VER}-linux64.tar.gz"
-          sudo tar -C /usr/local/bin -xzf /tmp/geckodriver.tar.gz
-          rm -f /tmp/geckodriver.tar.gz
-          geckodriver --version
-
-      - name: Run tests (port 3002, local servers only)
-        run: xvfb-run npx sb-test -p 3002 --browsers firefox
+          browsers: firefox
 
   test-webkit:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/browser-test
         with:
-          workspaces: server/handshake
-
-      - name: Build handshake server
-        working-directory: server/handshake
-        run: cargo build
-
-      - name: Start handshake server 8081
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
-
-      - name: Start handshake server 8082
-        working-directory: server/handshake
-        run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
-
-      - name: Wait for handshake servers
-        run: |
-          for i in {1..30}; do
-            if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
-              echo "Handshake servers are ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Handshake servers did not start in time"
-          exit 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright WebKit
-        run: npx playwright install --with-deps webkit
-
-      - name: Run tests (port 3002, local servers only)
-        run: npx sb-test -p 3002 --browsers webkit
+          browsers: webkit
