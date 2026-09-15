@@ -173,6 +173,113 @@
     </template>
   </sb-test>
 
+  <!-- Test 3: 目标用户不存在 → 服务器拒存回 unknown_target（防伪造目标灌盘） -->
+  <sb-test name="store to nonexistent user rejected with unknown_target">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsI3A = "server-inbox-3-a";
+        const urlI3 = "ws://localhost:8081";
+
+        const userI3A = new LocalUser(nsI3A);
+        await userI3A.ready();
+
+        for (const u of await userI3A.server.getServers()) {
+          userI3A.server.disconnect(u);
+        }
+        await userI3A.server.connect(urlI3);
+
+        // 构造一个从未握手注册过的 userId（64 位 hex，避免撞上真实用户）
+        const bytesI3 = new Uint8Array(32);
+        crypto.getRandomValues(bytesI3);
+        const fakeUserIdI3 = [...bytesI3].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+        const respI3 = await userI3A.server.relayStoreOffline(
+          urlI3,
+          fakeUserIdI3,
+          { text: "should-not-be-stored" },
+        );
+
+        userI3A.server.disconnectAll();
+
+        const passI3 = respI3?.status === "unknown_target";
+
+        return {
+          assert: passI3,
+          content: {
+            message: passI3
+              ? "不存在的目标用户被服务端拒存（unknown_target）"
+              : "不存在的目标用户未被正确拒存",
+            status: respI3?.status,
+            messageText: respI3?.message,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 4: 超过服务端单条入箱上限（默认 64KB）→ 回 inbox_entry_too_large -->
+  <sb-test name="oversized offline message rejected with inbox_entry_too_large">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsI4A = "server-inbox-4-a";
+        const nsI4B = "server-inbox-4-b";
+        const urlI4 = "ws://localhost:8081";
+
+        const userI4A = new LocalUser(nsI4A);
+        const userI4B = new LocalUser(nsI4B);
+        await Promise.all([userI4A.ready(), userI4B.ready()]);
+
+        for (const u of await userI4A.server.getServers()) {
+          userI4A.server.disconnect(u);
+        }
+        for (const u of await userI4B.server.getServers()) {
+          userI4B.server.disconnect(u);
+        }
+        await Promise.all([
+          userI4A.server.connect(urlI4),
+          userI4B.server.connect(urlI4), // B 至少握手一次，USERS 表里有记录
+        ]);
+
+        // B 下线（否则消息直接送达，不会走进入箱分支）
+        userI4B.server.disconnectAll();
+        let offlineI4 = false;
+        for (let i = 0; i < 150; i++) {
+          offlineI4 = !(await userI4A.isRemoteUserOnline(userI4B.userId));
+          if (offlineI4) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 100KB 文本：< 256KB 文本消息上限、> 64KB 入箱单条上限
+        const bigTextI4 = "x".repeat(100 * 1024);
+        const respI4 = await userI4A.server.relayStoreOffline(
+          urlI4,
+          userI4B.userId,
+          { text: bigTextI4 },
+        );
+
+        userI4A.server.disconnectAll();
+
+        const passI4 = offlineI4 && respI4?.status === "inbox_entry_too_large";
+
+        return {
+          assert: passI4,
+          content: {
+            message: passI4
+              ? "超大离线消息被服务端拒存（inbox_entry_too_large）"
+              : "超大离线消息未被正确拒存",
+            offline: offlineI4,
+            status: respI4?.status,
+            messageText: respI4?.message,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
 </body>
 
 </html>
