@@ -4,65 +4,93 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>All Tests</title>
-    <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test-suite.mjs"></script>
+    <!-- suite 组件从本地 sibyl-test 包加载：exclusive 编排能力需要 1.1.0，
+         而 CDN 的 @latest 尚未同步（仓库未打 v1.1.0 tag），故暂不引用 CDN -->
+    <script type="module" src="/node_modules/sibyl-test/components/sb-test-suite.mjs"></script>
   </head>
   <body>
-    <sb-test-suite>
-      <include src="./ncomp/user-name/user-name.sb.html"></include>
-      <include src="./ncomp/user-status/user-status.sb.html"></include>
+    <!--
+      手动编排说明（CLI 同步会保留本文件的手动编辑）：
+      1. user-name、user-status 依次独占（exclusive）先跑：前者要在干净状态下做真实网络握手，
+         后者通过 register.js 注册正式 sw.js，
+         后续依赖 SW 代理虚拟路径（/gh/、/$目录）的测试（get-gh、fetch、mount、zip、unzip）依赖它。
+      2. 中间用例彼此隔离（独立 LocalUser 命名空间 / 独立 OPFS 目录 / 纯计算），
+         以 parallel="4" 并发执行。并发度不能盲目调高：6 并发时多个连接密集型文件
+         同时开数十条 WS 会在 Firefox 下触发成批 "WebSocket connection failed"。
+      3. 尾部独占收尾：connect-server 内含 3 秒超时的原始 WS 握手用例，需低负载；
+         sw/ 下两个用例会注销并替换整个 origin 的 Service Worker，不能与任何其他用例并发；
+         host-cache 最后运行并在结束时注销全部 SW，保证跑完留下干净状态。
+    -->
+    <sb-test-suite parallel="4">
+      <!-- ===== 独占首跑：user-name 干净状态握手 + user-status 注册 SW ===== -->
+      <include src="./ncomp/user-name/user-name.sb.html" exclusive></include>
+      <include src="./ncomp/user-status/user-status.sb.html" exclusive></include>
+
+      <!-- ===== 纯计算：crypto / hash / zip ===== -->
       <include src="./tests/crypto/crypto-ecdsa.sb.html"></include>
       <include src="./tests/crypto/crypto-rsa.sb.html"></include>
+      <include src="./tests/util/hash/get-hash.sb.html"></include>
+      <include src="./tests/util/zip/zip.sb.html"></include>
+      <include src="./tests/util/zip/unzip.sb.html"></include>
+
+      <!-- ===== fs 文件系统（各用独立目录） ===== -->
       <include src="./tests/fs/get-gh.sb.html"></include>
-      <include src="./tests/fs/handle/copy-to.sb.html"></include>
-      <include src="./tests/fs/handle/fetch.sb.html"></include>
-      <include src="./tests/fs/handle/flat.sb.html"></include>
-      <include src="./tests/fs/handle/mount.sb.html"></include>
-      <include src="./tests/fs/handle/move-to.sb.html"></include>
       <include src="./tests/fs/handle/normal.sb.html"></include>
-      <include src="./tests/fs/handle/observe-tabs.sb.html"></include>
+      <include src="./tests/fs/handle/copy-to.sb.html"></include>
+      <include src="./tests/fs/handle/flat.sb.html"></include>
+      <include src="./tests/fs/handle/move-to.sb.html"></include>
       <include src="./tests/fs/handle/observe.sb.html"></include>
+      <include src="./tests/fs/handle/observe-tabs.sb.html"></include>
       <include src="./tests/fs/handle/remove.sb.html"></include>
       <include src="./tests/fs/handle/some.sb.html"></include>
       <include src="./tests/fs/handle/values.sb.html"></include>
       <include src="./tests/fs/handle/write-and-get.sb.html"></include>
+      <include src="./tests/fs/handle/fetch.sb.html"></include>
+      <include src="./tests/fs/handle/mount.sb.html"></include>
+
+      <!-- ===== locale / publish / storage ===== -->
       <include src="./tests/locale-text/locale-text.sb.html"></include>
       <include src="./tests/publish/data-publisher.sb.html"></include>
       <include src="./tests/storage/storage.sb.html"></include>
-      <include src="./tests/sw/host-cache.sb.html"></include>
-      <include src="./tests/sw/ncomp-cache.sb.html"></include>
+
+      <!-- ===== user 本地用户与服务器联机（各用独立命名空间） ===== -->
       <include src="./tests/user/base-user.sb.html"></include>
+      <include src="./tests/user/local/local-user.sb.html"></include>
+      <include src="./tests/user/local/local-user-info.sb.html"></include>
+      <include src="./tests/user/local/local-user-cert.sb.html"></include>
+      <include src="./tests/user/local/user-storage.sb.html"></include>
+      <include src="./tests/user/local/user-shared-storage.sb.html"></include>
+      <include src="./tests/user/local/user-export-import.sb.html"></include>
+      <include src="./tests/user/local/connect-server-default.sb.html"></include>
+      <include src="./tests/user/local/connect-user.sb.html"></include>
+      <include src="./tests/user/local/connect-user-roundtrip.sb.html"></include>
+      <include src="./tests/user/local/service.sb.html"></include>
+      <include src="./tests/user/local/service-roundtrip.sb.html"></include>
+      <include src="./tests/user/local/service-delivery.sb.html"></include>
+      <include src="./tests/user/local/reliable-delivery.sb.html"></include>
+      <include src="./tests/user/local/server-inbox.sb.html"></include>
+      <include src="./tests/user/local/queue-persistence.sb.html"></include>
+      <include src="./tests/user/local/liveness.sb.html"></include>
+      <include src="./tests/user/local/rtc-glare.sb.html"></include>
+      <include src="./tests/user/local/large-payload.sb.html"></include>
+      <include src="./tests/user/local/path-barrier.sb.html"></include>
+      <include src="./tests/user/local/registry-discovery.sb.html"></include>
+      <include src="./tests/user/local/traffic-logger.sb.html"></include>
+      <include src="./tests/user/local/cert-card-unified.sb.html"></include>
+      <include src="./tests/user/local/cert-expire.sb.html"></include>
+      <include src="./tests/user/local/cert-pagination.sb.html"></include>
       <include src="./tests/user/local/admin-connect-server.sb.html"></include>
       <include src="./tests/user/local/admin-more1.sb.html"></include>
       <include src="./tests/user/local/admin-more2.sb.html"></include>
       <include src="./tests/user/local/admin-system-info.sb.html"></include>
-      <include src="./tests/user/local/cert-card-unified.sb.html"></include>
-      <include src="./tests/user/local/cert-expire.sb.html"></include>
-      <include src="./tests/user/local/cert-pagination.sb.html"></include>
-      <include src="./tests/user/local/connect-server-default.sb.html"></include>
-      <include src="./tests/user/local/connect-server.sb.html"></include>
-      <include src="./tests/user/local/connect-user-roundtrip.sb.html"></include>
-      <include src="./tests/user/local/connect-user.sb.html"></include>
-      <include src="./tests/user/local/large-payload.sb.html"></include>
-      <include src="./tests/user/local/liveness.sb.html"></include>
-      <include src="./tests/user/local/local-user-cert.sb.html"></include>
-      <include src="./tests/user/local/local-user-info.sb.html"></include>
-      <include src="./tests/user/local/local-user.sb.html"></include>
-      <include src="./tests/user/local/path-barrier.sb.html"></include>
-      <include src="./tests/user/local/queue-persistence.sb.html"></include>
-      <include src="./tests/user/local/registry-discovery.sb.html"></include>
-      <include src="./tests/user/local/reliable-delivery.sb.html"></include>
-      <include src="./tests/user/local/rtc-glare.sb.html"></include>
-      <include src="./tests/user/local/server-inbox.sb.html"></include>
-      <include src="./tests/user/local/service-delivery.sb.html"></include>
-      <include src="./tests/user/local/service-roundtrip.sb.html"></include>
-      <include src="./tests/user/local/service.sb.html"></include>
-      <include src="./tests/user/local/traffic-logger.sb.html"></include>
-      <include src="./tests/user/local/user-export-import.sb.html"></include>
-      <include src="./tests/user/local/user-shared-storage.sb.html"></include>
-      <include src="./tests/user/local/user-storage.sb.html"></include>
-      <include src="./tests/util/hash/get-hash.sb.html"></include>
-      <include src="./tests/util/zip/unzip.sb.html"></include>
-      <include src="./tests/util/zip/zip.sb.html"></include>
+
+      <!-- connect-server 内含 3 秒超时的原始 WebSocket 篡改握手用例，
+           并发负载下服务器响应会超时，需独占低负载执行 -->
+      <include src="./tests/user/local/connect-server.sb.html" exclusive></include>
+
+      <!-- ===== SW 缓存（独占收尾：会替换/注销全 origin 的 SW） ===== -->
+      <include src="./tests/sw/ncomp-cache.sb.html" exclusive></include>
+      <include src="./tests/sw/host-cache.sb.html" exclusive></include>
     </sb-test-suite>
   </body>
 </html>
