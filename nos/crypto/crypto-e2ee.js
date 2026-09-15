@@ -124,7 +124,7 @@ async function decrypt(payload, aesKey) {
  *
  * @param {Object} localUser - LocalUser 实例
  * @param {string} remoteUserId - 目标用户 ID
- * @param {*} data - 要加密的 JSON 可序列化数据
+ * @param {*} data - JSON 可序列化数据
  * @returns {Promise<Uint8Array|null>} [iv(12B)+ciphertext] 或 null
  */
 export async function tryEncryptBinary(localUser, remoteUserId, data) {
@@ -144,6 +144,80 @@ export async function tryEncryptBinary(localUser, remoteUserId, data) {
     console.warn("[E2EE] Encryption failed:", err);
     return null;
   }
+}
+
+/**
+ * 尝试加密任意字节（供大 payload 拉取化等场景使用，不限定 JSON）
+ *
+ * @param {Object} localUser - LocalUser 实例
+ * @param {string} remoteUserId - 目标用户 ID
+ * @param {Uint8Array} bytes - 原始字节
+ * @returns {Promise<Uint8Array|null>} [iv(12B)+ciphertext] 或 null（无资料/加密失败）
+ */
+export async function tryEncryptBytes(localUser, remoteUserId, bytes) {
+  const privateKey = localUser._getPrivateKey();
+  if (!privateKey) return null;
+
+  const remoteProfile = await localUser.cred.getProfileByDB(remoteUserId);
+  if (!remoteProfile || !remoteProfile.publicKey) return null;
+
+  try {
+    const aesKey = await getOrDeriveKey(
+      privateKey, remoteProfile.publicKey,
+      localUser.userId, remoteUserId
+    );
+    return encryptBytes(bytes, aesKey);
+  } catch (err) {
+    console.warn("[E2EE] Bytes encryption failed:", err);
+    return null;
+  }
+}
+
+/**
+ * 尝试解密字节载荷（tryEncryptBytes 的逆操作）
+ *
+ * @param {Object} localUser - LocalUser 实例
+ * @param {string} fromUserId - 发送方用户 ID
+ * @param {Uint8Array} payload - [iv(12B)+ciphertext]
+ * @returns {Promise<Uint8Array|null>} 解密后的原始字节，或 null（认证失败/无资料）
+ */
+export async function tryDecryptBytes(localUser, fromUserId, payload) {
+  if (payload.byteLength <= 12) return null;
+
+  const privateKey = localUser._getPrivateKey();
+  if (!privateKey) return null;
+
+  const remoteProfile = await localUser.cred.getProfileByDB(fromUserId);
+  if (!remoteProfile || !remoteProfile.publicKey) return null;
+
+  try {
+    const aesKey = await getOrDeriveKey(
+      privateKey, remoteProfile.publicKey,
+      localUser.userId, fromUserId
+    );
+    const iv = payload.slice(0, 12);
+    const ciphertext = payload.slice(12);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv }, aesKey, ciphertext
+    );
+    return new Uint8Array(plain);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 加密原始字节为 [iv(12B)][ciphertext]
+ */
+async function encryptBytes(bytes, aesKey) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, aesKey, bytes
+  );
+  const result = new Uint8Array(12 + ciphertext.byteLength);
+  result.set(iv, 0);
+  result.set(new Uint8Array(ciphertext), 12);
+  return result;
 }
 
 /**

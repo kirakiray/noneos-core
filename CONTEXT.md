@@ -20,7 +20,7 @@
 | `nos/` | 核心能力层（fs/user/publish/storage/crypto/util/locale-text/n-icon，根证书 `root-cert.json`；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
 | `ncomp/` | 基于 nos 的公共 UI 组件（`<n-user-name>` / `<n-user-status>` 等） |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
-| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务） |
+| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
 | `server/client/` | 服务端管理前端（admin 页面） |
 | `nos-tool/` | 内置工具集（studio、file-explore、system-info、locale-text-tool、rtc-tool，安装/升级入口 `_install/`）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
@@ -84,7 +84,7 @@
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出会被 `nos.json` 消费） |
 | `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
-| `npm test` | 运行 sibyl-test 测试套件（`sb-test`；自定义多浏览器运行器见 `scripts/run-tests.js`） |
+| `npm test` | 运行 sibyl-test 测试套件（`sb-test -p 3002`；自定义多浏览器运行器见 `scripts/run-tests.js`）。固定跑 3002 端口：该端口下 `DEFAULT_SERVERS` 只含本地握手服务器，测试用户不连生产服务器。CLI 会先同步根目录测试清单 `test-index.html`（查漏补缺，手动编辑的顺序 / `skip` / `exclusive` 会被保留），再按清单执行。清单内的并发编排有讲究：suite 用 `parallel="4"` 并发跑隔离良好的用例；`user-name`/`user-status` 独占首跑（干净状态握手 + SW 注册），`connect-server`、`sw/*` 独占收尾（低负载握手 / 注销全 origin 的 SW），详见清单头部注释 |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
 > **重要**：修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`（或开发期使用 `npm run watch:sw`），否则线上 SW 不会生效。
@@ -96,8 +96,8 @@
 ### 已有 CONTEXT.md 的模块
 
 - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
-- [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE）
-- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb）
+- [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE、可靠投递/ACK 去重、离线收件箱、大 payload 拉取化）
+- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb、离线收件箱）
 - [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
 - [nos/storage/CONTEXT.md](nos/storage/CONTEXT.md) - 官方键值存储（IndexedDB、类 localStorage、跨标签页同步、句柄序列化）
 - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）

@@ -927,7 +927,14 @@ await remoteUser.sendToService("chat-v1", { text: "你好" }, {
 });
 ```
 
-**返回值：** 数组，每个元素包含 `{ sessionId, status, via?, error? }`。
+**返回值：** 数组，每个元素包含 `{ sessionId, status, via?, msgId?, acked?, flushed?, error? }`。
+
+- `status`：`"ok"` / `"queued"` / `"no_receiver"` / `"offline"` / `"discovery_failed"` / `"error"`
+- `msgId`：信封 ID。核心层自动为每条消息生成信封，接收端按 `msgId` 去重（重发不重复执行 handler），并在 handler 执行完毕后自动回 `__ack`
+- `acked`：Promise，`await results[0].acked` 得到 `{ confirmed }` —— `confirmed: true` 表示对端已执行完 handler（服务端收件箱补投送达后同样会确认）
+- `flushed`：仅 `status: "queued"` 且走客户端本地队列时存在；`via: "server"` 表示消息已存入服务端离线收件箱（对端重连即自动补投，跨刷新有效）
+
+大 payload（序列化 > 64KB）自动转为「内容寻址发布 + 拉取」：消息只携带签名 manifest 引用，接收方拉取分块组装后交给 handler，应用无感。
 
 ### 发现对方应用
 

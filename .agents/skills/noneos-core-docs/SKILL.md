@@ -117,7 +117,7 @@ await remoteUser.sendToService("chat-v1", {
 });
 ```
 
-> ⚠️ **可靠投递规范**：`sendToService` 只保证「尽力投递」，返回 `ok` 不代表对端 handler 已执行（RTC 通道切换、对端刷新、服务发现缓存过期等都会导致静默丢失）。**每个应用的发送操作都应做到：消息带唯一 msgId + 对方限时回 ACK + 超时重发 + 接收方按 msgId 去重 + 单条消息小于 256KB（服务端硬限制）+ 同一目标串行发送（收到 ACK 后才发下一条）**。完整实现见：[应用层可靠消息投递](references/reliable-messaging.md)
+> ⚠️ **可靠投递**：`sendToService` 现已内置可靠投递——消息自动携带信封（msgId），接收端核心层在 handler 执行完毕后自动回 `__ack`，发送方通过返回项的 `acked` Promise 等待终态（`confirmed:true` = 对端已处理完），可用 `retries` 选项自动重发（接收端按 msgId 去重，不会重复执行），对端离线时默认进入离线队列自动补投（`queue:false` 关闭）。**仍须遵守：单条消息小于 256KB（服务端硬限制）+ 同一目标串行发送**。对端为旧版本 core 时不回 ack、不去重，需要端到端确认的应用退回手工方案。完整说明见：[应用层可靠消息投递](references/reliable-messaging.md)
 
 ### 查看已连接的远程用户与状态事件
 

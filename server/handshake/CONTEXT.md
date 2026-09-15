@@ -25,6 +25,7 @@ server/handshake/
     ├── main.rs             # 入口：解析参数 → 加载配置 → 打开 redb → 启动 AppState → flush 定时器 → accept 循环 + 优雅关闭
     ├── config.rs           # Args(clap) + Config(TOML) + 各项默认值
     ├── handler.rs          # 核心：UserSession/AppState + 连接生命周期 + 消息分发 + 中继/配额/防滥用
+    ├── inbox.rs            # 离线收件箱：store_if_offline 暂存（写路径顺带 GC 过期条目）+ 握手补投 + 后台定期清扫（read-and-delete + TTL + 每用户上限）
     ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集
     ├── crypto.rs           # ECDSA P-256 验签（p256 crate，Base64 SPKI 公钥 + 64B raw 签名）
     └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 计费周期用量（含重置日历法计算与单元测试） + 系统快照 + 用户持久化
@@ -89,7 +90,7 @@ server/handshake/
 1. `check_relay_quota`：admin 全放；服务器整体月度配额超限或用户配额超限时，仅放 ≤ `relay_small_message_max_bytes`；否则放行。
 2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递；`silent: bool` 参数控制成功是否返回 `relay_response`。
 3. **成功**才记录流量（`traffic.add_relay_forwarded` + `state.record_relay_usage`），并 `reset_relay_failure` 重置失败计数；**失败不记录流量**。
-4. 失败累加 `relay_fail_count`，达 `relay_fail_limit`/`relay_fail_window_secs` 踢出。
+4. 失败时的离线收件箱路径：请求携带 `store_if_offline: true`（文本 relay 的命令字段 / 二进制帧 header 字段，此时目标 sessionId 允许为空）且 `inbox_enabled` 时，依次做两道前置检查——**单条大小上限**（payload 超过 `inbox_max_entry_bytes` 回 `status: "inbox_entry_too_large"`）与**目标用户存在性**（USERS 表查无此人回 `status: "unknown_target"`，拒绝为不存在的 userId 制造无人认领的收件箱）——都通过后才把完整转发消息存入收件箱（`inbox::store`），回 `status: "queued"`；收件箱满回 `status: "inbox_full"`（拒存不淘汰）。两个前置检查与存储成功均**不计入 relay 失败计数**；存储成功**按发送方额度计费**。检查未过或存储出错时走原有 `error` + 失败计数路径（`unknown_target`/`inbox_entry_too_large` 为明确回执，客户端按非 `queued` 处理回退本地队列）。
 
 ### 二进制中继帧解析
 
@@ -98,6 +99,14 @@ server/handshake/
 ```
 
 header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接透传不参与 JSON 序列化。
+
+### 离线收件箱（inbox.rs）
+
+- **表结构**：redb 表 `inbox`，key = `(userId, stored_at_ms, seq)`（seq 为进程内单调计数），value = bincode(`InboxEntry`: from_user_id / from_session_id / is_binary / payload / stored_at_ms)。payload 为「完整转发消息」：文本 JSON 字节或完整二进制帧，补投时原样下发（E2EE 场景为密文，服务器不可读）。
+- **TTL 双通道清理**：`store` 写路径顺带 GC（计数时把该用户已过期/损坏条目一并删除，**容量只按存活条目计算**，死数据不占坑）；flush 定时器（`inbox_enabled` 时）周期调用 `sweep_expired` 全表清扫，让 TTL 成为真实磁盘上界——永不回来的用户条目也能被清除。读取补投（`load_and_clear`）时同样过滤过期条目。
+- **补投时机**：握手成功（`add_user` + 用户持久化之后）调用 `inbox::load_and_clear`，按存储顺序把积压消息经 `data_tx` 发给本会话（入站计 receiver outbound 流量）。**读取即删除**：积压投递给最先握手的那个会话，不做多会话重投。
+- **上限**：每用户 `inbox_max_per_user` 条，超出拒存（回 `inbox_full`），不静默淘汰；单条受 `inbox_max_entry_bytes` 限制（超出回 `inbox_entry_too_large`）。
+- 存储与补投均有单元测试（`cargo test`）。
 
 ### AdminCommand（admin.rs）
 
@@ -145,7 +154,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
 - **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝非 admin 新连接。
 - **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
-- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc `localtime_r` 获取，含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
+- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc 获取（Unix `localtime_r`/`tm_gmtoff`，Windows `localtime_s`/`gmtime_s` 字段差推算），含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 
 ### 4. 优雅关闭（main.rs）
@@ -164,7 +173,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | 服务端处理 | 消息类型 | 客户端对应（见 nos/user/CONTEXT.md） |
 |-----------|---------|--------------------------------------|
 | `handle_connection` 验签 | `handshake_challenge` → 签名 | `ServerManager.connect` 握手应答 |
-| `relay` 分支 + `relay_deliver_and_finalize` | `relay` JSON / 二进制帧 | `ServerManager.sendToUser` 中继 |
+| `relay` 分支 + `relay_deliver_and_finalize` | `relay` JSON / 二进制帧 | `ServerManager.sendToUser` 中继；携带 `store_if_offline` 且目标离线时存入收件箱并回 `queued` |
 | 透传中继 | `rtc_signal` | `RTCManager` 信令 |
 | 透传中继 | `profile` | `CredentialManager` 个人资料交换 |
 | 透传中继 | `__cert_share` | `RemoteUser.shareCert` 凭证互传 |
@@ -197,6 +206,10 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `traffic_flush_interval_secs` | 30 | 流量刷盘间隔 |
 | `heartbeat_interval_secs` | 15 | Ping 间隔 |
 | `heartbeat_timeout_secs` | 60 | 心跳超时 |
+| `inbox_enabled` | true | 离线收件箱开关（relay `store_if_offline` 暂存 + 握手补投） |
+| `inbox_max_per_user` | 100 | 每用户收件箱最大条目数，超出拒存（回 `inbox_full`） |
+| `inbox_ttl_secs` | 3600 | 收件箱条目 TTL（秒，默认 1 小时——热缓冲定位，非长期存储）。写路径 GC + 后台定时清扫 + 读取过滤三通道生效 |
+| `inbox_max_entry_bytes` | 65536 | 入箱单条消息大小上限（字节），超出拒存（回 `inbox_entry_too_large`） |
 | `admin_user_id` | 无默认（不配置则无管理员） | 管理员用户 ID（admin 命令鉴权） |
 
 启动：`-c/--config` 指定 TOML 配置文件覆盖默认值。
@@ -219,7 +232,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `redb` | 嵌入式 KV 数据库 |
 | `bincode` | redb value 二进制序列化 |
 | `dashmap` | 并发 HashMap（用户会话表） |
-| `libc` | `localtime_r` 读取服务器本地时区偏移（流量额度重置日判定） |
+| `libc` | 读取服务器本地时区偏移（流量额度重置日判定）：Unix 走 `localtime_r` + `tm_gmtoff`；Windows 走 `localtime_s`/`gmtime_s` 字段差推算 |
 
 ## 九、构建与运行
 

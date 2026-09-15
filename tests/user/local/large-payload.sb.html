@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>大 payload 拉取化测试（manifest + 分块拉取）</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>大 payload 拉取化 — 超阈值自动转内容寻址拉取 / E2EE 字节加密</h1>
+
+  <!-- Test 1: 明文路径 —— 超阈值数据自动转拉取，接收端还原原始对象 -->
+  <sb-test name="large payload auto-pulled via content addressing (plain)">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+
+        const nsB1A = "big-payload-1-a";
+        const nsB1B = "big-payload-1-b";
+        const urlB1 = "ws://localhost:8081";
+
+        const userB1A = new LocalUser(nsB1A);
+        const userB1B = new LocalUser(nsB1B);
+        await Promise.all([userB1A.ready(), userB1B.ready()]);
+
+        for (const u of await userB1A.server.getServers()) userB1A.server.disconnect(u);
+        for (const u of await userB1B.server.getServers()) userB1B.server.disconnect(u);
+        await Promise.all([
+          userB1A.server.connect(urlB1),
+          userB1B.server.connect(urlB1),
+        ]);
+
+        let gotB1 = null;
+        userB1B.registerService("big-app", {
+          onMessage(data) { gotB1 = data; },
+        });
+
+        const remoteB1B = await userB1A.connectUser(userB1B.userId);
+
+        // 预热小消息：确认对端支持核心层信封（拉取化的启用前提），等 ACK 回来
+        const warmB1 = await remoteB1B.sendToService("big-app", { warm: true });
+        await warmB1[0].acked;
+
+        // 超阈值（>64KB）大对象
+        const bigB1 = {
+          name: "big-payload",
+          pad: "x".repeat(100 * 1024),
+          list: Array.from({ length: 100 }, (_, i) => ({ i, v: `v${i}` })),
+        };
+
+        const resultsB1 = await remoteB1B.sendToService("big-app", bigB1, {
+          ackTimeout: 30000,
+        });
+        const ackB1 = await Promise.race([
+          resultsB1[0].acked,
+          new Promise((r) => setTimeout(() => r({ confirmed: false, reason: "test_timeout" }), 35000)),
+        ]);
+
+        // 等 handler 收到并完成
+        for (let i = 0; i < 100; i++) {
+          if (gotB1 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userB1A.server.disconnectAll();
+        userB1B.server.disconnectAll();
+
+        const dataOkB1 =
+          gotB1 !== null &&
+          gotB1.name === "big-payload" &&
+          gotB1.pad === bigB1.pad &&
+          JSON.stringify(gotB1.list) === JSON.stringify(bigB1.list);
+
+        const passB1 = dataOkB1 && ackB1.confirmed === true;
+        return {
+          assert: passB1,
+          content: {
+            message: passB1
+              ? "大 payload 经内容寻址拉取，接收端还原一致"
+              : "大 payload 拉取化失败",
+            status: resultsB1[0].status,
+            msgId: typeof resultsB1[0].msgId === "string",
+            ack: ackB1,
+            dataOk: dataOkB1,
+            receivedName: gotB1?.name ?? null,
+            receivedPadLen: gotB1?.pad?.length ?? 0,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: E2EE 路径 —— 互换 profile 后大 payload 加密发布，接收端解密还原 -->
+  <sb-test name="large payload encrypted bytes published and decrypted on receiver">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { getChunk } from "/nos/publish/db.js";
+
+        const nsB2A = "big-payload-2-a";
+        const nsB2B = "big-payload-2-b";
+        const urlB2 = "ws://localhost:8081";
+
+        const userB2A = new LocalUser(nsB2A);
+        const userB2B = new LocalUser(nsB2B);
+        await Promise.all([userB2A.ready(), userB2B.ready()]);
+
+        for (const u of await userB2A.server.getServers()) userB2A.server.disconnect(u);
+        for (const u of await userB2B.server.getServers()) userB2B.server.disconnect(u);
+        await Promise.all([
+          userB2A.server.connect(urlB2),
+          userB2B.server.connect(urlB2),
+        ]);
+
+        let gotB2 = null;
+        userB2B.registerService("big-secure-app", {
+          onMessage(data) { gotB2 = data; },
+        });
+
+        const remoteB2B = await userB2A.connectUser(userB2B.userId);
+
+        // 互换 profile：让 E2EE 字节加密可用
+        await userB2A.cred.requestProfile(userB2B.userId);
+        await userB2B.cred.requestProfile(userB2A.userId);
+
+        // 预热小消息（加密消息路径同时确认对端支持信封）
+        const warmB2 = await remoteB2B.sendToService("big-secure-app", { warm: true });
+        await warmB2[0].acked;
+
+        const bigB2 = {
+          name: "secure-big-payload",
+          secret: "s".repeat(90 * 1024),
+          meta: { count: 42, tags: ["a", "b", "c"] },
+        };
+
+        const resultsB2 = await remoteB2B.sendToService("big-secure-app", bigB2, {
+          ackTimeout: 30000,
+        });
+        const ackB2 = await Promise.race([
+          resultsB2[0].acked,
+          new Promise((r) => setTimeout(() => r({ confirmed: false, reason: "test_timeout" }), 35000)),
+        ]);
+
+        for (let i = 0; i < 100; i++) {
+          if (gotB2 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userB2A.server.disconnectAll();
+        userB2B.server.disconnectAll();
+
+        const dataOkB2 =
+          gotB2 !== null &&
+          gotB2.name === "secure-big-payload" &&
+          gotB2.secret === bigB2.secret &&
+          JSON.stringify(gotB2.meta) === JSON.stringify(bigB2.meta);
+
+        // 诊断：从超时错误提取 chunkHash，检查 A 侧 DB 是否真的存了块
+        let hasChunkB2 = null;
+        const hashMatchB2 = String(ackB2.message || "").match(/([0-9a-f]{64})/);
+        if (hashMatchB2) {
+          const chunk = await getChunk(nsB2A, hashMatchB2[1]);
+          hasChunkB2 = chunk ? chunk.byteLength : null;
+        }
+
+        const passB2 = dataOkB2 && ackB2.confirmed === true;
+        return {
+          assert: passB2,
+          content: {
+            message: passB2
+              ? "加密大 payload 经拉取解密，接收端还原一致"
+              : "E2EE 大 payload 拉取失败",
+            status: resultsB2[0].status,
+            ack: ackB2,
+            dataOk: dataOkB2,
+            receivedName: gotB2?.name ?? null,
+            receivedSecretLen: gotB2?.secret?.length ?? 0,
+            chunkOnSender: hasChunkB2,
+            pubDebug: (window.__pubDebug || []).slice(-12),
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>

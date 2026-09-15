@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>离线队列持久化测试（nos/storage 落盘 / 刷新恢复补投）</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>离线队列持久化 — 入队落盘 / 送达清理 / 跨会话恢复补投</h1>
+
+  <!-- Test 1: queue:"local" 入队即持久化，送达后持久化记录被清除 -->
+  <sb-test name="local queue entry persisted on enqueue and removed after delivery">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { getStorage } from "/nos/storage/main.js";
+
+        const nsQ1A = "queue-persist-1-a";
+        const nsQ1B = "queue-persist-1-b";
+        const urlQ1 = "ws://localhost:8081";
+
+        const userQ1A = new LocalUser(nsQ1A);
+        const userQ1B = new LocalUser(nsQ1B);
+        await Promise.all([userQ1A.ready(), userQ1B.ready()]);
+
+        for (const u of await userQ1A.server.getServers()) {
+          userQ1A.server.disconnect(u);
+        }
+        for (const u of await userQ1B.server.getServers()) {
+          userQ1B.server.disconnect(u);
+        }
+        await Promise.all([
+          userQ1A.server.connect(urlQ1),
+          userQ1B.server.connect(urlQ1),
+        ]);
+
+        let gotQ1 = null;
+        userQ1B.registerService("persist-app", {
+          onMessage(data) { gotQ1 = data; },
+        });
+        const remoteQ1B = await userQ1A.connectUser(userQ1B.userId);
+
+        // B 下线，A 走本地队列发送
+        userQ1B.server.disconnectAll();
+        let offlineQ1 = false;
+        for (let i = 0; i < 150; i++) {
+          offlineQ1 = !(await userQ1A.isRemoteUserOnline(userQ1B.userId));
+          if (offlineQ1) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        const resultsQ1 = await remoteQ1B.sendToService(
+          "persist-app",
+          { text: "persist-hello" },
+          { queue: "local" },
+        );
+        const firstQ1 = resultsQ1[0] || {};
+        const queuedQ1 = firstQ1.status === "queued" && firstQ1.via === undefined;
+
+        // 入队后持久化记录应存在（key = q:<userId>:<msgId>，写入为异步，轮询等待）
+        const storeQ1 = getStorage("nos-user-queue");
+        const keyQ1 = `q:${userQ1B.userId}:${firstQ1.msgId}`;
+        let persistedQ1 = false;
+        for (let i = 0; i < 30; i++) {
+          persistedQ1 = await storeQ1.has(keyQ1);
+          if (persistedQ1) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // B 重连 → 本地队列补投 →送达后持久化记录应被清除
+        userQ1B.server.connect(urlQ1).catch(() => {});
+        let flushedQ1 = { status: "not_awaited" };
+        if (firstQ1.flushed) {
+          flushedQ1 = await Promise.race([
+            firstQ1.flushed,
+            new Promise((r) => setTimeout(() => r({ status: "test_timeout" }), 20000)),
+          ]);
+        }
+        let cleanedQ1 = true;
+        for (let i = 0; i < 30; i++) {
+          cleanedQ1 = !(await storeQ1.has(keyQ1));
+          if (cleanedQ1) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userQ1A.server.disconnectAll();
+        userQ1B.server.disconnectAll();
+
+        const dataOkQ1 = gotQ1?.text === "persist-hello";
+        const passQ1 = offlineQ1 && queuedQ1 && persistedQ1 && cleanedQ1
+          && flushedQ1.status === "delivered" && dataOkQ1;
+
+        return {
+          assert: passQ1,
+          content: {
+            message: passQ1
+              ? "本地队列入队落盘、送达清理、补投成功"
+              : "本地队列持久化生命周期不完整",
+            offline: offlineQ1,
+            status: firstQ1.status,
+            persisted: persistedQ1,
+            flushed: flushedQ1.status,
+            cleaned: cleanedQ1,
+            got: gotQ1,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- Test 2: 预置持久化记录（模拟上次页面会话遗留），新 RemoteUser 实例恢复并补投 -->
+  <sb-test name="restored queue from previous session is flushed to peer service">
+    <template>
+      <script type="module">
+        import { LocalUser } from "/nos/user/user.js";
+        import { getStorage } from "/nos/storage/main.js";
+
+        const nsQ2A = "queue-persist-2-a";
+        const nsQ2B = "queue-persist-2-b";
+        const urlQ2 = "ws://localhost:8081";
+
+        const userQ2A = new LocalUser(nsQ2A);
+        const userQ2B = new LocalUser(nsQ2B);
+        await Promise.all([userQ2A.ready(), userQ2B.ready()]);
+
+        for (const u of await userQ2A.server.getServers()) {
+          userQ2A.server.disconnect(u);
+        }
+        for (const u of await userQ2B.server.getServers()) {
+          userQ2B.server.disconnect(u);
+        }
+        await Promise.all([
+          userQ2A.server.connect(urlQ2),
+          userQ2B.server.connect(urlQ2),
+        ]);
+
+        // 模拟上次页面会话遗留的离线队列条目（信封格式与 #buildAppMessage 一致）
+        const storeQ2 = getStorage("nos-user-queue");
+        const fakeMsgIdQ2 = `restore-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const keyQ2 = `q:${userQ2B.userId}:${fakeMsgIdQ2}`;
+        await storeQ2.setItem(keyQ2, {
+          message: {
+            __app: "restore-app",
+            __data: { text: "restored-hello" },
+            __env: { msgId: fakeMsgIdQ2, seq: 1, ts: Date.now() },
+          },
+          appId: "restore-app",
+          sessionId: null,
+          ackTimeout: 5000,
+          retries: 0,
+          queuedAt: Date.now(),
+        });
+
+        let gotQ2 = null;
+        userQ2B.registerService("restore-app", {
+          onMessage(data) { gotQ2 = data; },
+        });
+
+        // connectUser 构造新的 RemoteUser → 构造时恢复持久化队列 → 自动续投
+        const remoteQ2B = await userQ2A.connectUser(userQ2B.userId);
+
+        // 等恢复 + 补投送达（退避定时器首轮 1.5s，给足轮询窗口）
+        for (let i = 0; i < 100; i++) {
+          if (gotQ2 !== null) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        // 送达后持久化记录应被清除
+        let cleanedQ2 = true;
+        for (let i = 0; i < 30; i++) {
+          cleanedQ2 = !(await storeQ2.has(keyQ2));
+          if (cleanedQ2) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        userQ2A.server.disconnectAll();
+        userQ2B.server.disconnectAll();
+
+        const dataOkQ2 = gotQ2?.text === "restored-hello";
+        const passQ2 = dataOkQ2 && cleanedQ2;
+
+        return {
+          assert: passQ2,
+          content: {
+            message: passQ2
+              ? "持久化队列跨会话恢复并补投成功，送达后已清理"
+              : "持久化队列恢复补投失败",
+            got: gotQ2,
+            cleaned: cleanedQ2,
+          },
+        };
+      </script>
+    </template>
+  </sb-test>
+
+</body>
+
+</html>
