@@ -64,8 +64,8 @@
 - **客户端测试框架**：项目使用 `sibyl-test` 作为客户端测试框架，测试用例以 `.sb.html` 文件形式编写，位于 `tests/` 目录下。
 - **测试义务**：开发完功能或组件后，应在 `tests/` 目录下找到对应的位置，补充编写 `.sb.html` 测试文件。
 - **执行前确认**：写完测试文件后，不要急于自动执行测试，应先询问开发者是否让 AI 执行自动化测试并根据反馈自动修复模块。
-- **快速反馈**：开发者同意后，优先使用 `npx sb-test -f <目标测试文件>.sb.html --browsers chrome` 在 Chrome 中快速测试，根据结果动态修复代码。**注意：必须在仓库根目录运行**（即 `/Users/yao/Documents/GitHub/noneos-core`），否则无法解析 `sibyl-test` 与项目资源。
-- **运行测试**：执行 `npm test`（即 `sb-test`）可启动默认测试流程；`scripts/run-tests.js` 提供了基于 `sibyl-test` 的自定义多浏览器测试运行器。
+- **快速反馈**：开发者同意后，优先使用 `npx sb-test -p 3002 -f <目标测试文件>.sb.html --browsers chrome` 在 Chrome 中快速测试，根据结果动态修复代码。**注意：必须在仓库根目录运行**（即 `/Users/yao/Documents/GitHub/noneos-core`），否则无法解析 `sibyl-test` 与项目资源；**必须带 `-p 3002`**——该端口下 `DEFAULT_SERVERS` 只含本地握手服务器，测试用户不会去连生产服务器（否则 CI / 本地易出现偶发 `WebSocket connection failed`，见 `nos/user/server.js`）。
+- **运行测试**：执行 `npm test`（即 `sb-test -p 3002`）可启动默认测试流程；CI（`.github/workflows/browser-tests.yml`）同样以 3002 端口运行；`scripts/run-tests.js` 提供了基于 `sibyl-test` 的自定义多浏览器运行器。
 - **测试入口**：`tests/all.html` 汇总了部分核心测试用例，可在浏览器中手动打开运行（需先启动 `npm run static`）。
 - **查阅 Skill**：在编写、修改或调试 `.sb.html` 测试前，必须先查阅 `sibyl-test` Skill 文档。
 

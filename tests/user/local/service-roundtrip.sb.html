@@ -38,6 +38,18 @@
         const t1_remoteB = await t1_userA.connectUser(t1_userB.userId);
         await new Promise((r) => setTimeout(r, 300));
 
+        // 等待 RTC 通道就绪（最多 8 秒，超时则全程走服务器中继）：
+        // 单一路径下投递顺序才有强保证。若发送中途发生 relay→RTC 路径切换，
+        // 接收端在 CPU 紧张（如 CI 2 核机器）时两条通道的事件分发顺序可能倒挂。
+        for (let t1_i = 0; t1_i < 80; t1_i++) {
+          const t1_dc = t1_userA.rtc.getChannel(
+            t1_userB.userId,
+            t1_userB.sessionId,
+          );
+          if (t1_dc?.readyState === "open") break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
         // A 连续顺序发送 10 条
         for (let i = 0; i < t1_count; i++) {
           await t1_remoteB.sendToService("seq-delivery-app", { seq: i, payload: `msg-${i}` });

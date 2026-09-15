@@ -43,9 +43,22 @@ jobs:
           echo "Handshake servers did not start in time"
           exit 1
 
-      - uses: ofajs/sibyl-test@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          browsers: 'chrome'
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # 测试固定跑在 3002 端口：该端口下 DEFAULT_SERVERS 只含本地握手服务器，
+      # 测试用户不会去连生产服务器（CI 突发连接生产端易被限流，产生偶发
+      # "WebSocket connection failed"）。详见 nos/user/server.js。
+      - name: Run tests (port 3002, local servers only)
+        run: xvfb-run npx sb-test -p 3002 --browsers chrome
 
   test-firefox:
     runs-on: ubuntu-latest
@@ -84,9 +97,30 @@ jobs:
           echo "Handshake servers did not start in time"
           exit 1
 
-      - uses: ofajs/sibyl-test@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          browsers: 'firefox'
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firefox
+        uses: browser-actions/setup-firefox@latest
+
+      - name: Install geckodriver
+        run: |
+          set -euo pipefail
+          GECKO_VER=v0.37.0
+          curl -fSL --retry 5 --retry-delay 15 --retry-all-errors \
+            -o /tmp/geckodriver.tar.gz \
+            "https://github.com/mozilla/geckodriver/releases/download/${GECKO_VER}/geckodriver-${GECKO_VER}-linux64.tar.gz"
+          sudo tar -C /usr/local/bin -xzf /tmp/geckodriver.tar.gz
+          rm -f /tmp/geckodriver.tar.gz
+          geckodriver --version
+
+      - name: Run tests (port 3002, local servers only)
+        run: xvfb-run npx sb-test -p 3002 --browsers firefox
 
   test-webkit:
     runs-on: macos-latest
@@ -125,6 +159,16 @@ jobs:
           echo "Handshake servers did not start in time"
           exit 1
 
-      - uses: ofajs/sibyl-test@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          browsers: 'webkit'
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Run tests (port 3002, local servers only)
+        run: npx sb-test -p 3002 --browsers webkit

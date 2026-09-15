@@ -11,6 +11,8 @@
   <body>
     <!--
       手动编排说明（CLI 同步会保留本文件的手动编辑）：
+      0. 测试必须以 3002 端口运行（npm test / CI 均已带 -p 3002）：该端口下
+         DEFAULT_SERVERS 只含本地握手服务器，测试用户不会连生产服务器。
       1. user-name、user-status 依次独占（exclusive）先跑：前者要在干净状态下做真实网络握手，
          后者通过 register.js 注册正式 sw.js，
          后续依赖 SW 代理虚拟路径（/gh/、/$目录）的测试（get-gh、fetch、mount、zip、unzip）依赖它。
