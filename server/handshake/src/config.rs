@@ -128,10 +128,16 @@ pub struct Config {
     /// 默认 100
     #[serde(default = "default_inbox_max_per_user")]
     pub inbox_max_per_user: usize,
-    /// 收件箱条目 TTL（秒），过期条目在补投读取时惰性丢弃
-    /// 默认 86400（24 小时）
+    /// 收件箱条目 TTL（秒），过期条目由写路径 GC 与后台定时清扫删除，
+    /// 读取补投时同样过滤。默认 3600（1 小时）——收件箱定位是分钟级
+    /// 热缓冲而非长期存储，长离线的投递兜底由客户端本地队列负责
     #[serde(default = "default_inbox_ttl_secs")]
     pub inbox_ttl_secs: u64,
+    /// 入箱单条消息大小上限（字节），超出拒存（回 inbox_entry_too_large，
+    /// 客户端回退本地队列）。限制最坏磁盘占用 = max_per_user × max_entry_bytes。
+    /// 默认 65536（64KB）
+    #[serde(default = "default_inbox_max_entry_bytes")]
+    pub inbox_max_entry_bytes: usize,
 }
 
 /// 离线收件箱默认开启
@@ -144,9 +150,14 @@ fn default_inbox_max_per_user() -> usize {
     100
 }
 
-/// 收件箱条目默认 TTL：24 小时
+/// 收件箱条目默认 TTL：1 小时（热缓冲定位，非长期存储）
 fn default_inbox_ttl_secs() -> u64 {
-    86_400
+    3_600
+}
+
+/// 入箱单条消息默认大小上限：64KB
+fn default_inbox_max_entry_bytes() -> usize {
+    65_536
 }
 
 /// 默认流量落盘间隔
@@ -266,6 +277,7 @@ impl Default for Config {
             inbox_enabled: default_inbox_enabled(),
             inbox_max_per_user: default_inbox_max_per_user(),
             inbox_ttl_secs: default_inbox_ttl_secs(),
+            inbox_max_entry_bytes: default_inbox_max_entry_bytes(),
         }
     }
 }

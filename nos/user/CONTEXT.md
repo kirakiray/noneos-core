@@ -88,7 +88,7 @@ EventTarget
 |------|------|
 | `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链。`sessionId` 传 `null`/`undefined` 时为**身份寻址广播**：投递到对端全部 session，返回 `{status:"ok", via:"broadcast", delivered, total}`，全部失败抛错 |
 | `sendToService(appId, data, options)` | 默认精准投递：服务发现优先查**服务端注册表**（`queryUserOnline` 的 `sessionInfo[].services`，仅含对端 `exposeToServer:true` 的服务，正命中即精准投递、省去 P2P 逐 session 询问），私密服务回退 `__service_query` P2P 查询（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（三态，默认 `true`）：对端完全离线时——`true` 优先**服务端离线收件箱**（`server.relayStoreOffline`，返回 `{status:"queued", via:"server"}`，对端下次握手服务器自动补投，不受本端刷新影响），服务器旧版本或收件箱满时回退本地队列；`"local"` 跳过服务端直接本地队列（回执含 `flushed`）；`false` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError）。**大 payload 拉取化**（第 9 步，见第 15 节）：序列化体积 > 64KB 且对端支持信封时，数据不再内联，自动转「内容寻址发布 + `__pull` 引用」，接收方拉取组装并解密后交给 handler |
-| `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发；队列上限 200 条、条目 TTL 10 分钟（内存态） |
+| `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发，构造时也会在恢复持久化队列后续投；队列上限 200 条、条目 TTL 24 小时。**队列持久化**：入队/出队同步增删 `nos/storage`（独立空间 `nos-user-queue`，key = `q:<userId>:<msgId>`）记录，发送方刷新页面后新实例构造时自动恢复（按 msgId 去重、queuedAt 排序）并续投；存储不可用时降级纯内存队列。职责划分：服务器收件箱只兜 ≤1h 热缓冲，长离线投递兜底由本端持久化队列负责 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（内部 `#queryServiceSessions` 额外返回应答统计 `responded`，供陈旧会话判定） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
 | `getRTT(sessionId?)` | 返回 `{rtt, via, url}`，不传则返回所有会话中最优 |
@@ -107,7 +107,7 @@ EventTarget
 | `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries。**默认开启**（`baseDelay=1000`，间隔带 ±25% 抖动防惊群），仅 `disconnect(url)` 标记的主动断开不重连 |
 | `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |
-| `relayStoreOffline(url, targetUserId, data)` | 请求服务器把消息存入离线收件箱（`store_if_offline`，目标 session 留空）。响应 `queued`（已存储）/ `inbox_full`（收件箱满）/ `error`（旧版本服务器） |
+| `relayStoreOffline(url, targetUserId, data)` | 请求服务器把消息存入离线收件箱（`store_if_offline`，目标 session 留空）。响应 `queued`（已存储）/ `inbox_full`（收件箱满）/ `inbox_entry_too_large`（超过服务端单条上限）/ `unknown_target`（目标用户不存在）/ `error`（旧版本服务器）。非 `queued` 一律回退本地队列 |
 | `findBestServer(targetUserId)` | 返回**本端+对端组合延迟**最低的服务器 |
 | `#getSortedServerCandidates(targetUserId)` | 组合延迟排序，15s TTL 缓存 |
 | `testLatency(url)` | 三段式：`latency_test` → `latency_test_response` → `latency_report` |
@@ -287,7 +287,8 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 
 - 返回项携带 `msgId` 与 `acked` Promise（`AckWaiter` 按 msgId 挂起，带先到缓冲——ACK 早于 `wait()` 到达时暂存 `#recent` 立即结算）；`confirmed:true` = 任一目标 session 的核心层确认 handler 执行完毕；`no_handler`/`handler_error` 为确定性失败直接返回；
 - `retries > 0` 时 ACK 超时自动重发（复用同一 msgId），**仅当 `#peerSupportsAck`（对端曾回过 `__ack`）才允许**——旧版对端无去重，重发会重复执行 handler；
-- 对端离线（`code:"offline"` / `not open` / `not online` 类确定性离线错误；超时不入队——消息可能已送达）进入离线队列 `#sendQueue`，返回 `{status:"queued", flushed}`；补投触发点：`server_connected`（LocalUser 级遍历所有 RemoteUser）/ `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s 起 ×2，上限 30s）；补投复用原信封，队列上限 200 条（溢出丢最旧，`flushed` 结算 `dropped`）、条目 TTL 10 分钟（`expired`）；`dispose()` 时全部结算 `dropped` 并清理定时器。
+- 对端离线（`code:"offline"` / `not open` / `not online` 类确定性离线错误；超时不入队——消息可能已送达）进入离线队列 `#sendQueue`，返回 `{status:"queued", flushed}`；补投触发点：`server_connected`（LocalUser 级遍历所有 RemoteUser）/ `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s 起 ×2，上限 30s）/ 构造时持久化队列恢复完成；补投复用原信封，队列上限 200 条（溢出丢最旧，`flushed` 结算 `dropped`）、条目 TTL 24 小时（`expired`）；`dispose()` 时全部结算 `dropped` 并清理定时器与持久化记录。
+- **队列持久化**：入队写、出队删 `nos/storage`（`getStorage("nos-user-queue")`，key = `q:<userId>:<msgId>`，value 为剥离 `settle` 的条目字段）；RemoteUser 构造时异步恢复（entries() 前缀扫描 → msgId 去重 → queuedAt 排序 → 超限裁剪 → 有残留即安排续投），`_flushQueue` 会先 await 恢复完成避免误判空队列；持久化写入失败仅降级纯内存队列，不阻断发送。恢复期间已在内存的同 msgId 条目只跳过恢复、**保留其持久化记录**（否则刷新后丢消息）。
 
 **服务端离线收件箱（阶段二，需服务端 ≥ inbox 支持版本）**：对端完全离线且 `queue !== false` 时，`#tryStoreOnServer` 优先把消息存入**服务端收件箱**（`relayStoreOffline`，文本为原始对象、加密可用时为密文二进制——注意不能复用 `#preparePayload` 的字符串形态，会被 JSON relay 二次序列化导致对端无法分发），返回 `{status:"queued", via:"server"}`；服务器在目标用户握手成功后自动补投，信封 msgId 完整保留，对端核心层照常去重与回 `__ack`（`acked` 依然可用）。服务器旧版本返回 error/超时 → 自动回退本地队列；`queue === "local"` 跳过服务端路径。
 

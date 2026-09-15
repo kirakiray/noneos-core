@@ -115,7 +115,7 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 | status | 含义 |
 |---|---|
 | `"ok"` + `delivered:true` | 成功送达（含 `sessionId` / `via`） |
-| `"queued"` | 对端离线，消息进入离线队列等待补投（`{queue:false}` 可关闭）。`via:"server"` 表示已存入**服务端收件箱**（对端下次握手服务器自动补投，跨刷新有效）；无 `via` 为客户端本地队列（内存态，回执含 `flushed`） |
+| `"queued"` | 对端离线，消息进入离线队列等待补投（`{queue:false}` 可关闭）。`via:"server"` 表示已存入**服务端收件箱**（对端下次握手服务器自动补投，跨刷新有效）；无 `via` 为客户端本地队列（已持久化到 `nos/storage`，回执含 `flushed`，刷新后自动恢复补投） |
 | `"no_receiver"` | 对端在线（有 session 应答了服务查询）但没有 session 注册该 `appId`。若服务器仍列出对端 session 但查询全部无应答（对端已断开、服务器未清理的陈旧会话），不会误报此状态，而是回退向原 session 投递：死 session 进入离线队列，活 session 回 `no_handler` ack |
 | `"offline"` | 对端所有 session 都不在线（仅 `{queue:false}` 时返回） |
 | `"discovery_failed"` | 服务发现流程超时（可用 `fallback:"broadcast"` 兜底） |
@@ -145,7 +145,7 @@ if (ack.confirmed) {
 |---|---|---|
 | `ackTimeout` | `5000` | 等待对端 `__ack` 的超时（毫秒）；`≤0` 关闭 acked 跟踪 |
 | `retries` | `0` | ACK 超时后的自动重发次数。**仅对已确认支持 `__ack` 的对端生效**（对端具备核心层去重后重发才安全，向旧版对端重发会造成重复执行） |
-| `queue` | `true` | 对端离线时的策略：`true` 优先**服务端收件箱**（需服务端支持 `store_if_offline`，对端重连即自动补投，跨刷新有效），服务器旧版本或收件箱满时回退本地队列；`"local"` 仅用客户端本地队列（上限 200 条、TTL 10 分钟，内存态，由服务器恢复连接 / 对端服务上线 / 退避定时器 1.5s→30s 触发补投，补投复用原 `msgId` 不会重复执行）；`false` 保持旧行为返回 `offline` |
+| `queue` | `true` | 对端离线时的策略：`true` 优先**服务端收件箱**（需服务端支持 `store_if_offline`，对端重连即自动补投，跨刷新有效；服务端仅做 ≤1h 热缓冲：TTL 默认 1h、单条上限 64KB、每用户 100 条，目标用户不存在/超限/收件箱满时拒存），不可用时回退本地队列；`"local"` 仅用客户端本地队列（上限 200 条、条目 TTL 24 小时，已持久化到 `nos/storage`——刷新页面后新实例自动恢复并按原 msgId 续投，由服务器恢复连接 / 对端服务上线 / 退避定时器 1.5s→30s 触发补投，补投复用原 `msgId` 不会重复执行）；`false` 保持旧行为返回 `offline` |
 | `waitForService` | `0` | 无接收者时等待对端注册服务的毫秒数 |
 | `fallback` | `"none"` | 服务发现失败时的兜底策略（`"broadcast"`） |
 | `sessionId` | — | 指定目标 session，跳过服务发现 |

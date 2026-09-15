@@ -2,6 +2,7 @@ import { BaseUser } from "./base-user.js";
 import { tryEncryptBinary } from "../crypto/crypto-e2ee.js";
 import { inferCategory, measureSize } from "./traffic.js";
 import { createMsgId, AckWaiter } from "./reliable.js";
+import { getStorage } from "../storage/main.js";
 
 /**
  * 控制类消息：永远走服务器中继（TCP 可靠、通道切换期间不丢）。
@@ -81,14 +82,20 @@ export class RemoteUser extends BaseUser {
   // 离线队列：{ message, appId, sessionId, ackTimeout, retries, queuedAt, settle }
   #sendQueue = [];
   #flushing = false;
+  // 离线队列持久化（nos/storage，独立存储空间，key = q:<userId>:<msgId>）：
+  // 发送方刷新页面后队列可恢复，长离线场景的投递兜底由发送端负责
+  #queueStore = getStorage("nos-user-queue");
+  #queueRestorePromise = null;
   // 队列仍不可达时的重冲刷定时器（退避 1.5s → 30s）
   #reflushTimer = null;
   #reflushDelay = 1500;
   #REFLUSH_BASE = 1500;
   #REFLUSH_MAX = 30000;
-  // 离线队列容量上限与条目 TTL
+  // 离线队列容量上限与条目 TTL。
+  // 队列已持久化（nos/storage 落 IndexedDB），刷新页面不丢，
+  // 因此 TTL 可以覆盖「对端长期离线」的长窗口（服务器侧收件箱只兜 1h 热缓冲）
   #QUEUE_MAX = 200;
-  #QUEUE_TTL = 10 * 60 * 1000;
+  #QUEUE_TTL = 24 * 60 * 60 * 1000;
   // 默认 ACK 等待超时（毫秒）；0 或负数 = 不跟踪 ACK
   #DEFAULT_ACK_TIMEOUT = 5000;
   // 大 payload 拉取化阈值（字节）：序列化体积超过即转「manifest + 拉取」
@@ -122,6 +129,8 @@ export class RemoteUser extends BaseUser {
     this.#userId = userId;
     this.#localUser = localUser;
     this.#setupPingListener();
+    // 异步恢复上次会话遗留的离线队列（对端仍离线时由退避定时器续投）
+    this.#queueRestorePromise = this.#restoreQueue();
   }
 
   /**
@@ -768,6 +777,7 @@ export class RemoteUser extends BaseUser {
     }
     for (const entry of this.#sendQueue) {
       entry.settle({ status: "dropped", reason: "disposed" });
+      this.#unpersistEntry(entry);
     }
     this.#sendQueue = [];
     // 存活监视与检测结果
@@ -1295,8 +1305,96 @@ export class RemoteUser extends BaseUser {
   }
 
   /**
+   * 离线队列持久化 key：q:<userId>:<msgId>
+   */
+  #queueKey(msgId) {
+    return `q:${this.#userId}:${msgId}`;
+  }
+
+  /**
+   * 把入队条目写入持久化存储（剥离 settle 等不可序列化字段）。
+   * 写入失败不阻断投递流程，仅降级为纯内存队列。
+   */
+  #persistEntry(entry) {
+    const msgId = entry.message?.__env?.msgId;
+    if (!msgId) return;
+    this.#queueStore
+      .setItem(this.#queueKey(msgId), {
+        message: entry.message,
+        appId: entry.appId,
+        sessionId: entry.sessionId ?? null,
+        ackTimeout: entry.ackTimeout,
+        retries: entry.retries,
+        queuedAt: entry.queuedAt,
+      })
+      .catch(() => {});
+  }
+
+  /**
+   * 条目出队（投递/过期/丢弃/销毁）后移除持久化记录
+   */
+  #unpersistEntry(entry) {
+    const msgId = entry.message?.__env?.msgId;
+    if (!msgId) return;
+    this.#queueStore.removeItem(this.#queueKey(msgId)).catch(() => {});
+  }
+
+  /**
+   * 从持久化存储恢复上次会话遗留的离线队列。
+   * 恢复条目没有在途调用方，settle 为 no-op；
+   * 与恢复期间新入队的条目按 msgId 去重，按 queuedAt 排序并入。
+   */
+  async #restoreQueue() {
+    try {
+      const prefix = `q:${this.#userId}:`;
+      const restored = [];
+      for await (const [key, value] of this.#queueStore.entries()) {
+        if (!key.startsWith(prefix)) continue;
+        if (!value || typeof value !== "object" || !value.message) {
+          this.#queueStore.removeItem(key).catch(() => {});
+          continue;
+        }
+        restored.push({
+          message: value.message,
+          appId: value.appId,
+          sessionId: value.sessionId ?? null,
+          ackTimeout: value.ackTimeout ?? this.#DEFAULT_ACK_TIMEOUT,
+          retries: value.retries ?? 0,
+          queuedAt: value.queuedAt ?? Date.now(),
+          settle: () => {},
+        });
+      }
+      restored.sort((a, b) => a.queuedAt - b.queuedAt);
+      const liveIds = new Set(
+        this.#sendQueue.map((e) => e.message?.__env?.msgId).filter(Boolean),
+      );
+      for (const entry of restored) {
+        const msgId = entry.message?.__env?.msgId;
+        if (msgId && liveIds.has(msgId)) {
+          // 内存里已有同 msgId 的活条目（恢复期间新入队）：
+          // 只跳过重复恢复，保留其持久化记录，否则刷新后会丢这条
+          continue;
+        }
+        this.#sendQueue.push(entry);
+      }
+      while (this.#sendQueue.length > this.#QUEUE_MAX) {
+        const dropped = this.#sendQueue.shift();
+        dropped.settle({ status: "dropped", reason: "queue_overflow" });
+        this.#unpersistEntry(dropped);
+      }
+      // 恢复即尝试续投：对端在线则立即补投，离线则由退避定时器接力
+      if (this.#sendQueue.length > 0) {
+        this.#scheduleReflush();
+      }
+    } catch {
+      // 存储不可用（隐私模式/配额不足）：降级为纯内存队列，不影响发送
+    }
+  }
+
+  /**
    * 将消息放入离线队列，返回 queued 回执。
    * 队列在服务器恢复连接 / 对端服务上线 / 退避定时器触发时经 _flushQueue 补投。
+   * 入队即持久化到 nos/storage，出队（送达/过期/溢出/销毁）时移除。
    */
   #enqueueMessage(message, appId, sessionId, opts = {}) {
     const now = Date.now();
@@ -1325,9 +1423,11 @@ export class RemoteUser extends BaseUser {
     );
 
     this.#sendQueue.push(entry);
+    this.#persistEntry(entry);
     while (this.#sendQueue.length > this.#QUEUE_MAX) {
       const dropped = this.#sendQueue.shift();
       dropped.settle({ status: "dropped", reason: "queue_overflow" });
+      this.#unpersistEntry(dropped);
     }
     this.#scheduleReflush();
     return queued;
@@ -1339,6 +1439,13 @@ export class RemoteUser extends BaseUser {
    */
   async _flushQueue() {
     if (this.#flushing) return;
+    // 等持久化队列恢复完成，避免恢复前误判队列为空而跳过补投
+    try {
+      await this.#queueRestorePromise;
+    } catch {
+      // 恢复失败按当前内存队列处理
+    }
+    if (this.#flushing) return;
     if (this.#sendQueue.length === 0) return;
     this.#flushing = true;
     try {
@@ -1346,6 +1453,7 @@ export class RemoteUser extends BaseUser {
         const entry = this.#sendQueue[0];
         if (Date.now() - entry.queuedAt > this.#QUEUE_TTL) {
           this.#sendQueue.shift();
+          this.#unpersistEntry(entry);
           entry.settle({ status: "expired", reason: "queue_ttl" });
           continue;
         }
@@ -1365,6 +1473,7 @@ export class RemoteUser extends BaseUser {
         const sessions = targets.sessions;
 
         this.#sendQueue.shift();
+        this.#unpersistEntry(entry);
         try {
           const results = await this.#deliverMessage(entry.message, sessions, {
             ackTimeout: entry.ackTimeout,

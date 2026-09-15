@@ -374,14 +374,50 @@ async fn relay_deliver_and_finalize(
             Message::Binary(b) => (true, b.clone()),
             _ => (false, Vec::new()),
         };
-        let entry = inbox::InboxEntry {
-            from_user_id: user_id.to_string(),
-            from_session_id: session_id.to_string(),
-            is_binary,
-            payload,
-            stored_at_ms: traffic::now_ms(),
-        };
-        match inbox::store(&state.db, target_user, entry, state.config.inbox_max_per_user) {
+        // 入箱单条大小上限：超大 payload 拒存（客户端回退本地队列），
+        // 把每用户收件箱最坏磁盘占用压到 max_per_user × max_entry_bytes
+        if payload.len() > state.config.inbox_max_entry_bytes {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "inbox_entry_too_large",
+                "message": format!(
+                    "Inbox entry too large: {} bytes (max {} bytes)",
+                    payload.len(),
+                    state.config.inbox_max_entry_bytes
+                )
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            println!(
+                "Inbox entry too large: {}:{} -> {} ({} bytes)",
+                user_id, session_id, target_user, payload.len()
+            );
+        } else if !matches!(traffic::load_user(&state.db, target_user), Ok(Some(_))) {
+            // 目标用户必须真实存在（USERS 表中有握手记录）：
+            // 拒绝为不存在的 userId 制造无人认领的收件箱，堵死伪造目标灌盘
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "unknown_target",
+                "message": format!("Target user {} not found, message not stored", target_user)
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            println!("Inbox store rejected (unknown target): {}:{} -> {}", user_id, session_id, target_user);
+        } else {
+            let entry = inbox::InboxEntry {
+                from_user_id: user_id.to_string(),
+                from_session_id: session_id.to_string(),
+                is_binary,
+                payload,
+                stored_at_ms: traffic::now_ms(),
+            };
+            match inbox::store(
+                &state.db,
+                target_user,
+                entry,
+                state.config.inbox_max_per_user,
+                state.config.inbox_ttl_secs * 1000,
+            ) {
             Ok(true) => {
                 state.record_relay_usage(user_id, forward_size);
                 state.reset_relay_failure(conn_key);
@@ -419,6 +455,7 @@ async fn relay_deliver_and_finalize(
                     let _ = ws_sender.send(Message::Close(None)).await;
                     return Err("User kicked due to relay abuse".into());
                 }
+            }
             }
         }
     } else {
