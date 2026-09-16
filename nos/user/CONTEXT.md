@@ -86,8 +86,8 @@ EventTarget
 
 | 方法 | 说明 |
 |------|------|
-| `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链。**同 session 并发调用安全且保序**：发送闸门按调用顺序串行「准备→写线路」，配合 relay→RTC 切换屏障实现跨通道严格有序（见第 14 节）。`sessionId` 传 `null`/`undefined` 时为**身份寻址广播**：投递到对端全部 session，返回 `{status:"ok", via:"broadcast", delivered, total}`，全部失败抛错 |
-| `sendToService(appId, data, options)` | 默认精准投递：服务发现优先查**服务端注册表**（`queryUserOnline` 的 `sessionInfo[].services`，仅含对端 `exposeToServer:true` 的服务，正命中即精准投递、省去 P2P 逐 session 询问），私密服务回退 `__service_query` P2P 查询（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（三态，默认 `true`）：对端完全离线时——`true` 优先**服务端离线收件箱**（`server.relayStoreOffline`，返回 `{status:"queued", via:"server"}`，对端下次握手服务器自动补投，不受本端刷新影响），服务器旧版本或收件箱满时回退本地队列；`"local"` 跳过服务端直接本地队列（回执含 `flushed`）；`false` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError）。**大 payload 拉取化**（第 9 步，见第 15 节）：序列化体积 > 64KB 且对端支持信封时，数据不再内联，自动转「内容寻址发布 + `__pull` 引用」，接收方拉取组装并解密后交给 handler |
+| `send(sessionId, data, raw=false)` | RTC 优先、服务端中继兜底；普通对象走 E2EE；第 2 次发送触发 RTC 建链。**同 session 并发调用安全且线路写入有序**：发送闸门按调用顺序串行「准备→写线路」，配合 relay→RTC 切换屏障收窄跨通道乱序窗口（见第 14 节）。携带 `__env` 信封的消息（`sendToService` 通道）另由接收端 `__wseq` 重排保证**端到端严格有序**（见第 12 节）；裸载荷为数据报语义，不承诺跨路径到达有序。`sessionId` 传 `null`/`undefined` 时为**身份寻址广播**：投递到对端全部 session，返回 `{status:"ok", via:"broadcast", delivered, total}`，全部失败抛错 |
+| `sendToService(appId, data, options)` | 默认精准投递：服务发现优先查**服务端注册表**（`queryUserOnline` 的 `sessionInfo[].services`，仅含对端 `exposeToServer:true` 的服务，正命中即精准投递、省去 P2P 逐 session 询问），私密服务回退 `__service_query` P2P 查询（含 30s 缓存 + `__service_available` 推送）→ 只发到装了 appId 的 session。`waitForService` 允许挂起等待对端上线；`fallback:"broadcast"` 兜底老式广播。返回 `{ok/queued/no_receiver/offline/discovery_failed/error}` 明确状态。**陈旧会话兜底**：服务器仍列出对端 session 但查询全部无应答时（对端已断开、服务器未清理），不再误报 `no_receiver`，回退向原 session 列表投递（死 session 按 offline 分类进入离线队列；活 session 回明确 `no_handler` ack），回退结果不写入缓存。**可靠投递**：消息自动携带 `__env` 信封（msgId/seq/ts）与线路序号 `__wseq`（接收端按 session 重排，**端到端严格有序**，见第 12 节），返回项含 `msgId`；`acked` Promise 等待对端核心层 handler 执行完毕的 `__ack` 终态（`{ackTimeout=5000}` 可调，`≤0` 关闭）；`retries`（默认 0）在 ACK 超时后自动重发（仅对已确认支持 `__ack` 的对端生效，重发复用同一 msgId，接收端去重）；`queue`（三态，默认 `true`）：对端完全离线时——`true` 优先**服务端离线收件箱**（`server.relayStoreOffline`，返回 `{status:"queued", via:"server"}`，对端下次握手服务器自动补投，不受本端刷新影响），服务器旧版本或收件箱满时回退本地队列；`"local"` 跳过服务端直接本地队列（回执含 `flushed`）；`false` 保持旧行为返回 `offline`。`acked`/`flushed` 为**非枚举属性**（显式访问可用，结构化克隆/JSON 序列化跳过，避免 Promise 外泄导致 DataCloneError）。**大 payload 拉取化**（第 9 步，见第 15 节）：序列化体积 > 64KB 且对端支持信封时，数据不再内联，自动转「内容寻址发布 + `__pull` 引用」，接收方拉取组装并解密后交给 handler |
 | `_flushQueue()` | 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId）。由 `server_connected` / `rtc_state(connected)` / `__service_available` / 退避定时器（1.5s→30s）触发，构造时也会在恢复持久化队列后续投；队列上限 200 条、条目 TTL 24 小时。**队列持久化**：入队/出队同步增删 `nos/storage`（独立空间 `nos-user-queue`，key = `q:<userId>:<msgId>`）记录，发送方刷新页面后新实例构造时自动恢复（按 msgId 去重、queuedAt 排序）并续投；存储不可用时降级纯内存队列。职责划分：服务器收件箱只兜 ≤1h 热缓冲，长离线投递兜底由本端持久化队列负责 |
 | `getServiceSessions(appId)` | `__service_query`/`__service_response` 查询对端服务会话（内部 `#queryServiceSessions` 额外返回应答统计 `responded`，供陈旧会话判定） |
 | ~~`shareCert(cert)`~~ | 已删除：凭证交付统一走 `cred.requestRecord` 按 key 拉取（见「凭证按 key 拉取协议」小节） |
@@ -277,6 +277,8 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 
 **信封**：`sendToService` 的消息自动包裹为 `{__app, __data, __env: {msgId, seq, ts}}`（`createMsgId()` 同标签页单调 + 随机后缀；seq 为 RemoteUser 内单调计数）。信封随 E2EE 整体加密，服务端不可见。
 
+**接收端按序重排（`__wseq` 线路序号）**：`send()` 在发送闸门内为携带 `__env` 的消息按目标 session 分配线路序号 `__wseq`（浅拷贝注入信封顶层，分配序 = 线路写入序，跨 server/RTC 通道单调；离线补投重新走 `send()` 时分配新序号）。服务器 `relay_response` 只代表消息进入对端连接的**写队列**，且接收端两条通道的解析/解密管线各自异步，切换瞬间到达顺序结构性不可靠——发送闸门 + 切换屏障只能收窄窗口，接收端重排才是严格保序的最终依据。`LocalUser.#dispatchToRemote` 尾部按 `(fromUserId, fromSessionId)` 维护 `#orderStates`：序号连续立即按序分发，出现缺口暂存并限时（`#ORDER_HOLD_MS = 200ms`）等待在途消息补齐，超时按序放出并越过缺口（真丢失由离线队列补投 + msgId 去重兜底）；`__wseq` 在分发前剥离，应用不可见。状态表容量上限 512，超限清理空闲条目（重建时以首见序号为基线，不影响后续保序）。**保序与去重/ACK/离线队列同属 `__env` 信封能力集**：裸 `send()` 载荷不注入任何字段（应用可能对载荷整体签名，如 data_publish 的 manifest），保持数据报语义，不承诺跨路径到达有序。
+
 **接收端（user.js `#dispatchToServiceApp`）**：
 
 - 携带 `__env` 的消息按 `fromUserId|msgId` 经 `DedupCache`（LRU 4096 条，内存态）去重：重复投递**不再执行 handler，但必须补发 ACK**（`{ok:true, duplicate:true}`，让发送方重试循环停下）；
@@ -306,7 +308,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 
 - **控制类消息永远走服务器中继**（TCP 可靠，通道切换期间不丢）：`cred` / `__ack` / `__service_query` / `__service_response` / `__service_available` / `__service_unavailable` / `__storage_req` / `__storage_resp`（`CONTROL_RELAY_ONLY_TYPES`）。`send()` 与 `#sendRaw` 的 RTC 分支均跳过控制类消息。`__ping__`/`__pong__` 例外——它们负责测量 RTC 路径质量，必须允许走 RTC。
 - **同 session 发送闸门（`#wireGates`）**：`send()` 允许并发调用，但加密（`tryEncryptBinary`，异步 crypto.subtle）的**完成顺序**不等于调用顺序（Firefox native crypto 尤其明显），会让同通道发送乱序。闸门按调用顺序串行「载荷准备 → 写线路」段：前一条的载荷写进线路（WS 同步帧 / `dc.send`）后下一条才开始准备；`relay_response` 的等待在闸门外，不引入响应级队头阻塞。通道选择、切换屏障复核、relay 在途登记都在闸门内进行；每条无论成败都在 finally 放行下一条，`dispose()` 清表。
-- **relay→RTC 切换屏障**：`#relayInFlight`（per-session 在途 relay 计数，以服务器 `relay_response` 回执为界，`#trackRelaySend` 登记）+ `#waitRelayDrained`。当同 session 还有在途 relay（或上一条走的是 relay）时，RTC 分支先等排空（字节已写入对端 TCP 流）再上 DataChannel，消除 relay→RTC 切换瞬间的跨通道乱序；等待期间通道关闭则回落中继。屏障在发送闸门**内**复核——排队期间前序 relay 可能尚未上线。RTC→relay 方向不需要屏障（通道关闭时在途数据本就会丢，由应用层重试 + 去重兜底）。
+- **relay→RTC 切换屏障**：`#relayInFlight`（per-session 在途 relay 计数，以服务器 `relay_response` 回执为界，`#trackRelaySend` 登记）+ `#waitRelayDrained`。当同 session 还有在途 relay（或上一条走的是 relay）时，RTC 分支先等排空再上 DataChannel，**收窄** relay→RTC 切换瞬间的跨通道乱序窗口（`relay_response` 只代表消息进入对端连接写队列，对端实际写出由服务器的写任务异步完成，回执可能先于数据到达，屏障无法根除该竞态）；等待期间通道关闭则回落中继。屏障在发送闸门**内**复核——排队期间前序 relay 可能尚未上线。跨通道**严格**有序由接收端 `__wseq` 重排保证（见第 12 节），屏障用于减小重排缓冲与等待。RTC→relay 方向不需要屏障（通道关闭时在途数据本就会丢，由应用层重试 + 去重兜底）。
 - `dispose()` 清理屏障状态。
 
 ### 15. 大 payload 拉取化（阶段三第 9 步；remote-user.js + user.js + crypto-e2ee.js + nos/publish）
@@ -330,7 +332,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 | 共享存储读取 | 中继 | `__storage_req`/`__storage_resp`（只读） | 透传中继 |
 | 凭证互传 | —— | 已移除，统一走 `cred` 按 key 拉取 | —— |
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
-| 应用消息 | 中继 | `__app`/`__data` 包裹 | 透传中继 |
+| 应用消息 | 中继 | `__app`/`__data` 包裹；信封消息另携带线路序号 `__wseq`（发送闸门内按目标 session 分配，接收端重排后剥离，见第 12 节） | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
 | 管理命令 | HTTP | `/admin?...` | AdminCommand 路由（见 admin.rs） |
 | 心跳 | WS Ping | —— | 服务端 15s Ping / 60s 超时 |

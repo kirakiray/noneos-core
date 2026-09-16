@@ -56,6 +56,18 @@ export class LocalUser extends BaseUser {
   #traffic;
   // 核心层消息去重：按 (fromUserId|msgId) 拦截重发，保证 __app handler 只执行一次
   #msgDedup = new DedupCache(4096);
+  // ───── 接收端按序重排（与 RemoteUser 的 __wseq 线路序号配对）─────
+  // `${fromUserId}|${fromSessionId}` -> { fromUserId, fromSessionId,
+  //   next, buffer: Map<wseq, {messageData, viaServer}>, timer }
+  // 跨路径（中继→RTC 切换）时事件到达顺序不可靠，此处按发送端在
+  // 发送闸门内分配的 __wseq 恢复发送顺序后分发
+  #orderStates = new Map();
+  // 缺口等待上限：前序消息大概率仍在途（中继尾包），超时视为已随
+  // 断开的连接丢失（发送端离线队列补投携带新序号，且有 msgId 去重兜底）
+  #ORDER_HOLD_MS = 200;
+  // 状态表容量上限：超限先清理空闲条目（buffer 空且无定时器），
+  // 清理后该流下一条消息会以当前序号重建基线，不影响后续保序
+  #ORDER_STATES_MAX = 512;
   // 惰性创建的大 payload 拉取发布器（阶段三第 9 步，见 _getDataPublisher）
   #dataPublisher = null;
 
@@ -474,6 +486,127 @@ export class LocalUser extends BaseUser {
       return;
     }
 
+    // 3 / 4. 应用与数据消息：__env 信封消息（sendToService 通道）按 __wseq 重排后分发。
+    // 中继→RTC 切换瞬间，两条通道的消息可能交错到达（服务器回执只代表
+    // 消息进入对端写队列；接收端解析/解密管线也各自异步），到达顺序
+    // 不可靠。携带 __wseq 的消息按发送顺序恢复后分发；未携带的
+    // （旧版对端 / 裸 send() 数据报）保持原行为直发、不承诺跨路径有序。
+    const wseq =
+      messageData &&
+      typeof messageData === "object" &&
+      !Array.isArray(messageData)
+        ? messageData.__wseq
+        : undefined;
+    if (Number.isInteger(wseq)) {
+      delete messageData.__wseq; // 应用侧不可见
+      this.#reorderDispatch(fromUserId, fromSessionId, wseq, messageData, viaServer);
+      return;
+    }
+
+    this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+  }
+
+  /**
+   * 按 __wseq 重排分发：序号连续则立即按序分发；出现缺口时暂存并
+   * 限时等待在途消息补齐（#ORDER_HOLD_MS），超时按序放出已缓存消息
+   * 并越过缺口（缺口消息若真丢失，发送端离线队列会补投且被 msgId 去重）。
+   */
+  #reorderDispatch(fromUserId, fromSessionId, wseq, messageData, viaServer) {
+    const key = `${fromUserId}|${fromSessionId}`;
+    let st = this.#orderStates.get(key);
+    if (!st) {
+      st = {
+        fromUserId,
+        fromSessionId,
+        next: wseq, // 首见序号即基线（发送端序号从 1 起，旧消息不会早于首见）
+        buffer: new Map(),
+        timer: null,
+      };
+      this.#orderStates.set(key, st);
+      if (this.#orderStates.size > this.#ORDER_STATES_MAX) {
+        this.#pruneOrderStates();
+      }
+    }
+
+    if (wseq < st.next) {
+      // 缺口超时后迟到的在途消息：直接分发而非丢弃——它只是拥堵超过
+      // 了等待上限，仍在送达途中，丢弃等于静默丢数据。此处允许这一条
+      // 失序；重复执行由 __env 的 msgId 去重兜底
+      this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+      return;
+    }
+
+    if (wseq > st.next) {
+      // 前序消息仍在途：暂存等待补齐
+      st.buffer.set(wseq, { messageData, viaServer });
+      if (!st.timer) {
+        st.timer = setTimeout(() => {
+          st.timer = null;
+          this.#flushOrderBuffer(key);
+        }, this.#ORDER_HOLD_MS);
+      }
+      return;
+    }
+
+    this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+    st.next++;
+    // 连续段一次性放行
+    while (st.buffer.size > 0) {
+      const hit = st.buffer.get(st.next);
+      if (!hit) break;
+      st.buffer.delete(st.next);
+      st.next++;
+      this.#dispatchOrdered(
+        st.fromUserId,
+        st.fromSessionId,
+        hit.messageData,
+        hit.viaServer,
+      );
+    }
+    if (st.buffer.size === 0 && st.timer) {
+      clearTimeout(st.timer);
+      st.timer = null;
+    }
+  }
+
+  /**
+   * 缺口超时：按序号放出全部缓存消息并越过缺口。
+   * 触发条件是前序消息在时限内未到——大概率随断开的连接丢失；
+   * 发送端的离线队列补投会携带新的线路序号，并有 msgId 去重防重复执行。
+   */
+  #flushOrderBuffer(key) {
+    const st = this.#orderStates.get(key);
+    if (!st || st.buffer.size === 0) return;
+    const seqs = [...st.buffer.keys()].sort((a, b) => a - b);
+    for (const seq of seqs) {
+      if (seq < st.next) {
+        st.buffer.delete(seq);
+        continue;
+      }
+      const { messageData, viaServer } = st.buffer.get(seq);
+      st.buffer.delete(seq);
+      st.next = seq + 1;
+      this.#dispatchOrdered(st.fromUserId, st.fromSessionId, messageData, viaServer);
+    }
+  }
+
+  /**
+   * 状态表容量治理：清理空闲条目（无缓存消息且无等待定时器）。
+   * 清理后该流重建时以首见序号为基线，序号仍单调，不影响后续保序。
+   */
+  #pruneOrderStates() {
+    for (const [key, st] of this.#orderStates) {
+      if (st.buffer.size === 0 && !st.timer) {
+        this.#orderStates.delete(key);
+      }
+    }
+  }
+
+  /**
+   * 有序消息的实际分发：__app 服务消息路由到 ServiceRegistry，
+   * 其余派发给对应 RemoteUser 的 message 事件
+   */
+  #dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer) {
     // 3. 检查是否为 app 绑定消息
     if (
       messageData &&

@@ -120,6 +120,9 @@ export class RemoteUser extends BaseUser {
   // 避免加密等异步准备的完成顺序决定线路写入顺序（同通道乱序）。
   #wireGates = new Map();
   #relayDrainRelease = new Map(); // sessionId -> release fn
+  // sessionId -> 最后分配的线路序号。闸门内分配（分配序 = 线路写入序），
+  // 跨 server/RTC 路径单调，接收端据此重排，闭合切换瞬间的跨通道乱序
+  #wireSeq = new Map();
 
   /**
    * @param {string} userId - 目标用户的 userId
@@ -374,6 +377,12 @@ export class RemoteUser extends BaseUser {
     try {
       await prevTurn; // 等前一条的载荷写进线路
 
+      // 闸门内分配线路序号：分配顺序 == 线路写入顺序（跨 server/RTC 通道）。
+      // 服务器回执只代表"消息进入对端连接的写队列"，不代表对端已处理，
+      // 回执与对端实际收到之间存在结构性竞态——发送端屏障只能收窄窗口，
+      // 无法根除。接收端按 __wseq 重排才是严格保序的最终依据。
+      const wireData = this.#attachWireSeq(sessionId, data);
+
       // 闸门内重新确认通道：排队等待期间通道状态可能变化
       let dc = forceRelay
         ? null
@@ -381,7 +390,7 @@ export class RemoteUser extends BaseUser {
       if (dc?.readyState === "open") {
         // 切换屏障：同 session 还有在途 relay（或上一条走的是 relay）时，
         // 先等它们拿到服务器回执（字节已写入对端 TCP 流）再切 RTC，
-        // 消除 relay→RTC 切换瞬间的跨通道乱序窗口。
+        // 收窄 relay→RTC 切换瞬间的跨通道乱序窗口（减小接收端重排压力）。
         // 屏障必须在闸门内复核：排队期间前序 relay 可能尚未上线。
         if (
           this.#relayInFlight.get(sessionId) ||
@@ -396,13 +405,13 @@ export class RemoteUser extends BaseUser {
       }
 
       if (dc?.readyState === "open") {
-        const payload = await this.#preparePayload(data, raw);
+        const payload = await this.#preparePayload(wireData, raw);
         // 准备期间通道可能关闭，回落服务器中继
         if (dc.readyState !== "open") {
           dc = null;
         } else {
           dc.send(payload);
-          this.#recordRtcOutbound(sessionId, payload, data);
+          this.#recordRtcOutbound(sessionId, payload, wireData);
           this.#onSendComplete(sessionId, "rtc");
           return { status: "ok", via: "rtc" };
         }
@@ -432,19 +441,19 @@ export class RemoteUser extends BaseUser {
       }
 
       // RTC 未就绪，走服务器中转（计入切换屏障的在途统计）
-      let payload = data;
+      let payload = wireData;
       if (
         !raw &&
-        data &&
-        typeof data === "object" &&
-        !Array.isArray(data) &&
-        !ArrayBuffer.isView(data) &&
-        !(data instanceof Blob)
+        wireData &&
+        typeof wireData === "object" &&
+        !Array.isArray(wireData) &&
+        !ArrayBuffer.isView(wireData) &&
+        !(wireData instanceof Blob)
       ) {
         const encrypted = await tryEncryptBinary(
           this.#localUser,
           this.#userId,
-          data,
+          wireData,
         );
         if (encrypted !== null) {
           // 加密成功，以二进制帧形式发送，零 base64 开销
@@ -477,6 +486,33 @@ export class RemoteUser extends BaseUser {
       !ArrayBuffer.isView(payload) &&
       CONTROL_RELAY_ONLY_TYPES.has(payload.type)
     );
+  }
+
+  /**
+   * 为携带 __env 信封的消息（sendToService 通道）附加线路序号 __wseq。
+   *
+   * 保序与去重/ACK/离线队列同属 __env 信封的能力集，因此只作用于该通道：
+   * - 裸 send() 的载荷不注入任何字段——应用可能对载荷整体签名
+   *   （如 data_publish 的 manifest），注入会破坏验签；裸 send 保持
+   *   数据报语义，不承诺跨路径有序
+   * - 必须在发送闸门内调用：序号分配顺序即线路写入顺序，
+   *   这是接收端恢复发送顺序的唯一依据
+   */
+  #attachWireSeq(sessionId, data) {
+    if (
+      !data ||
+      typeof data !== "object" ||
+      Array.isArray(data) ||
+      ArrayBuffer.isView(data) ||
+      data instanceof Blob ||
+      !data.__env ||
+      typeof data.__env !== "object"
+    ) {
+      return data;
+    }
+    const seq = (this.#wireSeq.get(sessionId) || 0) + 1;
+    this.#wireSeq.set(sessionId, seq);
+    return { ...data, __wseq: seq };
   }
 
   /**
@@ -838,6 +874,7 @@ export class RemoteUser extends BaseUser {
     this.#relayDrainRelease.clear();
     // 发送闸门（在途条目由各自 finally 放行，清表仅释放引用）
     this.#wireGates.clear();
+    this.#wireSeq.clear();
     this.#pingSeq = 0;
   }
 
