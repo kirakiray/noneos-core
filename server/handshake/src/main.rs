@@ -2,6 +2,7 @@ mod admin;
 mod config;
 mod crypto;
 mod handler;
+mod inbox;
 mod traffic;
 
 use tokio::net::TcpListener;
@@ -220,6 +221,8 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
 
         // 在 spawn_blocking 中执行 redb 写入
         let db = state.db.clone();
+        let inbox_enabled = state.config.inbox_enabled;
+        let inbox_ttl_ms = state.config.inbox_ttl_secs * 1000;
         let _ = tokio::task::spawn_blocking(move || {
             if let Err(e) = traffic::perform_flush(
                 &db,
@@ -237,6 +240,16 @@ async fn handle_flush_timer(state: Arc<AppState>, flush_interval: Duration, shut
             // 写入系统快照
             if let Err(e) = traffic::write_system_stats(&db, ts_30s, cpu_percent, mem_percent) {
                 eprintln!("Redb system stats write error: {}", e);
+            }
+
+            // 后台清扫离线收件箱过期条目：让 TTL 真实约束磁盘占用，
+            // 而不是只在目标用户握手读取时惰性生效（永不回来用户的数据得以清除）
+            if inbox_enabled {
+                match inbox::sweep_expired(&db, inbox_ttl_ms) {
+                    Ok(0) => {}
+                    Ok(n) => println!("Inbox sweep: removed {} expired entries", n),
+                    Err(e) => eprintln!("Inbox sweep error: {}", e),
+                }
             }
         }).await;
     }

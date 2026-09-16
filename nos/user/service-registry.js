@@ -19,7 +19,7 @@
  */
 export class ServiceRegistry {
   #localUser;
-  #services; // Map<appId, { exposeToServer, onMessage }>
+  #services; // Map<appId, { exposeToServer, onMessage }>（appId 仅作 key，value 不重复存）
 
   /**
    * @param {import("./user.js").LocalUser} localUser - 本地用户实例
@@ -84,19 +84,38 @@ export class ServiceRegistry {
   }
 
   /**
-   * 将当前所有公开服务的 appId 列表同步给所有已连接服务器
+   * 将当前所有公开服务（exposeToServer=true）的 appId 列表同步给所有已连接服务器。
+   *
+   * 只同步公开服务：私密服务不应让服务端感知（exposeToServer 的文档语义）。
+   * 重连后服务器侧会话是全新的（services 为空），由 LocalUser 在
+   * server_connected 事件时调用 _resync() 重新上报。
    */
   #syncToServer() {
-    const services = this.getServiceList();
+    const services = this.getExposedServiceList();
     for (const url of this.#localUser.server.connectedUrls) {
-      this.#localUser.server.sendToServer(
-        url,
-        JSON.stringify({
-          type: "update_services",
-          services,
-        }),
-      ).catch(() => {});
+      try {
+        // sendToServer 是同步接口：连接不可用时会抛错（不返回 Promise），
+        // 单台服务器失败不影响其余服务器的上报
+        this.#localUser.server.sendToServer(
+          url,
+          JSON.stringify({
+            type: "update_services",
+            services,
+          }),
+        );
+      } catch {
+        // 该服务器不可用，跳过
+      }
     }
+  }
+
+  /**
+   * 内部：服务器（重新）连接成功后重新上报公开服务列表。
+   * 由 LocalUser 的 server_connected 监听器调用。
+   */
+  _resyncToServer() {
+    // 无公开服务时也同步（清空服务器侧残留列表）
+    this.#syncToServer();
   }
 
   /**
@@ -125,9 +144,10 @@ export class ServiceRegistry {
    * @returns {string[]}
    */
   getExposedServiceList() {
-    return [...this.#services.values()]
-      .filter((r) => r.exposeToServer)
-      .map((r) => r.appId);
+    // appId 只存在于 Map 的 key 上（value 仅存 exposeToServer/onMessage）
+    return [...this.#services.entries()]
+      .filter(([, r]) => r.exposeToServer)
+      .map(([appId]) => appId);
   }
 
   /**

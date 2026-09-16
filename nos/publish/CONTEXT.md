@@ -159,6 +159,7 @@ LocalUser.message 事件（server relay）              LocalUser.rtc_message �
 
 | 本模块行为 | 调用方向 | 对端模块 |
 |-----------|---------|---------|
+| 大 payload 拉取化被消费 | <- `LocalUser._getDataPublisher()`（惰性创建/启动）+ `RemoteUser.#publishLargePayload`（publish）+ `#fetchLargePayload`（fetchFile） | nos/user `sendToService` 超过 64KB 的数据自动转「发布 + `__pull` 引用拉取」 |
 | 签名 manifest | -> `LocalUser._sign` | nos/user |
 | 验签 manifest | -> `verifyData` | nos/crypto |
 | 请求发起 | -> `remoteUser.send(raw=true)`（内部选择 RTC / server relay） | nos/user |

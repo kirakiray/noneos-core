@@ -17,6 +17,7 @@ import { RemoteUser } from "./remote-user.js";
 import { RTCManager } from "./rtc.js";
 import { ServiceRegistry } from "./service-registry.js";
 import { TrafficLogger, inferCategory, measureSize } from "./traffic.js";
+import { DedupCache } from "./reliable.js";
 
 // 全局初始化 Promise 缓存，防止同一 namespace 并发初始化
 const initPromises = new Map();
@@ -53,6 +54,22 @@ export class LocalUser extends BaseUser {
   #remoteUserCache = new Map(); // userId -> Promise<RemoteUser> | RemoteUser
   #serviceRegistry;
   #traffic;
+  // 核心层消息去重：按 (fromUserId|msgId) 拦截重发，保证 __app handler 只执行一次
+  #msgDedup = new DedupCache(4096);
+  // ───── 接收端按序重排（与 RemoteUser 的 __wseq 线路序号配对）─────
+  // `${fromUserId}|${fromSessionId}` -> { fromUserId, fromSessionId,
+  //   next, buffer: Map<wseq, {messageData, viaServer}>, timer }
+  // 跨路径（中继→RTC 切换）时事件到达顺序不可靠，此处按发送端在
+  // 发送闸门内分配的 __wseq 恢复发送顺序后分发
+  #orderStates = new Map();
+  // 缺口等待上限：前序消息大概率仍在途（中继尾包），超时视为已随
+  // 断开的连接丢失（发送端离线队列补投携带新序号，且有 msgId 去重兜底）
+  #ORDER_HOLD_MS = 200;
+  // 状态表容量上限：超限先清理空闲条目（buffer 空且无定时器），
+  // 清理后该流下一条消息会以当前序号重建基线，不影响后续保序
+  #ORDER_STATES_MAX = 512;
+  // 惰性创建的大 payload 拉取发布器（阶段三第 9 步，见 _getDataPublisher）
+  #dataPublisher = null;
 
   /**
    * 构造函数
@@ -87,6 +104,15 @@ export class LocalUser extends BaseUser {
     this.#setupRelayDispatch();
     // 监听 RTC 建立/断开事件，触发对应 RemoteUser 重新测量 RTT
     this.#setupRTCStateListener();
+
+    // 服务器恢复连接时，冲刷所有 RemoteUser 的离线队列（可靠投递补投）
+    this.bind("server_connected", () => {
+      // 重连后服务器侧会话是全新的，重新上报公开服务列表（exposeToServer）
+      this.#serviceRegistry._resyncToServer();
+      for (const remoteUser of this.remoteUsers) {
+        remoteUser._flushQueue().catch(() => {});
+      }
+    });
   }
 
   /**
@@ -348,6 +374,10 @@ export class LocalUser extends BaseUser {
           if (state === "disconnected") {
             remoteUser._handleRTCStateChange(sessionId, "disconnected");
           }
+          if (state === "connected") {
+            // RTC 通道建立：尝试补投该对端的离线队列
+            remoteUser._flushQueue().catch(() => {});
+          }
           // connected / disconnected 都重测 RTT：
           // connected → 测新路径；disconnected → ping 自动回落到 server 路径
           remoteUser.recalcRTT(sessionId);
@@ -456,6 +486,127 @@ export class LocalUser extends BaseUser {
       return;
     }
 
+    // 3 / 4. 应用与数据消息：__env 信封消息（sendToService 通道）按 __wseq 重排后分发。
+    // 中继→RTC 切换瞬间，两条通道的消息可能交错到达（服务器回执只代表
+    // 消息进入对端写队列；接收端解析/解密管线也各自异步），到达顺序
+    // 不可靠。携带 __wseq 的消息按发送顺序恢复后分发；未携带的
+    // （旧版对端 / 裸 send() 数据报）保持原行为直发、不承诺跨路径有序。
+    const wseq =
+      messageData &&
+      typeof messageData === "object" &&
+      !Array.isArray(messageData)
+        ? messageData.__wseq
+        : undefined;
+    if (Number.isInteger(wseq)) {
+      delete messageData.__wseq; // 应用侧不可见
+      this.#reorderDispatch(fromUserId, fromSessionId, wseq, messageData, viaServer);
+      return;
+    }
+
+    this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+  }
+
+  /**
+   * 按 __wseq 重排分发：序号连续则立即按序分发；出现缺口时暂存并
+   * 限时等待在途消息补齐（#ORDER_HOLD_MS），超时按序放出已缓存消息
+   * 并越过缺口（缺口消息若真丢失，发送端离线队列会补投且被 msgId 去重）。
+   */
+  #reorderDispatch(fromUserId, fromSessionId, wseq, messageData, viaServer) {
+    const key = `${fromUserId}|${fromSessionId}`;
+    let st = this.#orderStates.get(key);
+    if (!st) {
+      st = {
+        fromUserId,
+        fromSessionId,
+        next: wseq, // 首见序号即基线（发送端序号从 1 起，旧消息不会早于首见）
+        buffer: new Map(),
+        timer: null,
+      };
+      this.#orderStates.set(key, st);
+      if (this.#orderStates.size > this.#ORDER_STATES_MAX) {
+        this.#pruneOrderStates();
+      }
+    }
+
+    if (wseq < st.next) {
+      // 缺口超时后迟到的在途消息：直接分发而非丢弃——它只是拥堵超过
+      // 了等待上限，仍在送达途中，丢弃等于静默丢数据。此处允许这一条
+      // 失序；重复执行由 __env 的 msgId 去重兜底
+      this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+      return;
+    }
+
+    if (wseq > st.next) {
+      // 前序消息仍在途：暂存等待补齐
+      st.buffer.set(wseq, { messageData, viaServer });
+      if (!st.timer) {
+        st.timer = setTimeout(() => {
+          st.timer = null;
+          this.#flushOrderBuffer(key);
+        }, this.#ORDER_HOLD_MS);
+      }
+      return;
+    }
+
+    this.#dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer);
+    st.next++;
+    // 连续段一次性放行
+    while (st.buffer.size > 0) {
+      const hit = st.buffer.get(st.next);
+      if (!hit) break;
+      st.buffer.delete(st.next);
+      st.next++;
+      this.#dispatchOrdered(
+        st.fromUserId,
+        st.fromSessionId,
+        hit.messageData,
+        hit.viaServer,
+      );
+    }
+    if (st.buffer.size === 0 && st.timer) {
+      clearTimeout(st.timer);
+      st.timer = null;
+    }
+  }
+
+  /**
+   * 缺口超时：按序号放出全部缓存消息并越过缺口。
+   * 触发条件是前序消息在时限内未到——大概率随断开的连接丢失；
+   * 发送端的离线队列补投会携带新的线路序号，并有 msgId 去重防重复执行。
+   */
+  #flushOrderBuffer(key) {
+    const st = this.#orderStates.get(key);
+    if (!st || st.buffer.size === 0) return;
+    const seqs = [...st.buffer.keys()].sort((a, b) => a - b);
+    for (const seq of seqs) {
+      if (seq < st.next) {
+        st.buffer.delete(seq);
+        continue;
+      }
+      const { messageData, viaServer } = st.buffer.get(seq);
+      st.buffer.delete(seq);
+      st.next = seq + 1;
+      this.#dispatchOrdered(st.fromUserId, st.fromSessionId, messageData, viaServer);
+    }
+  }
+
+  /**
+   * 状态表容量治理：清理空闲条目（无缓存消息且无等待定时器）。
+   * 清理后该流重建时以首见序号为基线，序号仍单调，不影响后续保序。
+   */
+  #pruneOrderStates() {
+    for (const [key, st] of this.#orderStates) {
+      if (st.buffer.size === 0 && !st.timer) {
+        this.#orderStates.delete(key);
+      }
+    }
+  }
+
+  /**
+   * 有序消息的实际分发：__app 服务消息路由到 ServiceRegistry，
+   * 其余派发给对应 RemoteUser 的 message 事件
+   */
+  #dispatchOrdered(fromUserId, fromSessionId, messageData, viaServer) {
     // 3. 检查是否为 app 绑定消息
     if (
       messageData &&
@@ -635,13 +786,32 @@ export class LocalUser extends BaseUser {
   /**
    * 将 __app 消息分发给 ServiceRegistry 中注册的 handler
    *
+   * 携带 __env 信封的消息（新版对端发出）由核心层处理可靠投递：
+   * - 按 (fromUserId|msgId) 去重，重发不会重复执行 handler，但会补发 ACK；
+   * - handler 执行完毕（含返回的 Promise settle）后自动回 __ack；
+   * - 未注册 appId 时回 error: "no_handler" 的 ACK，让发送方立刻失败而非干等超时。
+   *
+   * 未携带 __env 的消息（旧版对端发出）保持原行为：去重与 ACK 均不参与。
+   *
    * 未注册对应 appId 时不会直接丢弃业务信息，而是触发本地
    * `unhandled_service_message` 事件供调试/兜底逻辑使用。
    */
   async #dispatchToServiceApp(fromUserId, fromSessionId, messageData) {
     const appId = messageData.__app;
     const data = messageData.__data;
+    const env = messageData.__env;
     const handler = this.#serviceRegistry.getHandler(appId);
+
+    // 核心层去重：重复投递（发送方重发且原 ACK 丢失）不再执行 handler，
+    // 但必须补发 ACK，让发送方的重试循环停下来
+    if (env?.msgId && !this.#msgDedup.check(`${fromUserId}|${env.msgId}`)) {
+      await this.#sendServiceAck(fromUserId, fromSessionId, env.msgId, {
+        ok: true,
+        duplicate: true,
+      });
+      return;
+    }
+
     if (!handler) {
       // 触发本地事件，便于观测并支持业务侧兜底处理
       this._trigger("unhandled_service_message", {
@@ -650,6 +820,12 @@ export class LocalUser extends BaseUser {
         fromSessionId,
         data,
       });
+      if (env?.msgId) {
+        await this.#sendServiceAck(fromUserId, fromSessionId, env.msgId, {
+          ok: false,
+          error: "no_handler",
+        });
+      }
       return;
     }
 
@@ -662,10 +838,113 @@ export class LocalUser extends BaseUser {
       remoteUser,
     };
 
+    // 大 payload 拉取化：去重之后、handler 之前，从发送方拉取分块并还原。
+    // 拉取失败回 pull_failed 的确定性 ACK，发送方立即失败而非等超时
+    let finalData = data;
+    if (messageData.__pull?.fileHash) {
+      try {
+        finalData = await this.#fetchLargePayload(fromUserId, messageData.__pull);
+      } catch (err) {
+        console.warn(
+          `[ServiceRegistry] Large payload pull failed for "${appId}":`,
+          err,
+        );
+        if (env?.msgId) {
+          await this.#sendServiceAck(fromUserId, fromSessionId, env.msgId, {
+            ok: false,
+            error: "pull_failed",
+            message: String(err?.message || err),
+          });
+        }
+        return;
+      }
+    }
+
+    let handlerError = null;
     try {
-      handler(data, ctx);
+      // 等待 handler 完成（含异步 Promise）——ACK 语义 = "handler 已执行完"
+      const returned = handler(finalData, ctx);
+      if (returned && typeof returned.then === "function") {
+        await returned;
+      }
     } catch (err) {
+      handlerError = err;
       console.warn(`[ServiceRegistry] Handler error for "${appId}":`, err);
+    }
+
+    if (env?.msgId) {
+      await this.#sendServiceAck(
+        fromUserId,
+        fromSessionId,
+        env.msgId,
+        handlerError
+          ? { ok: false, error: "handler_error" }
+          : { ok: true },
+      );
+    }
+  }
+
+  /**
+   * 获取（惰性创建并启动的）大 payload 拉取发布器。
+   * 复用 nos/publish 的内容寻址分块机制：发送方 publish，接收方 fetchFile。
+   * 动态导入避免 nos/user ↔ nos/publish 循环依赖。
+   * @returns {Promise<import("../publish/data-publisher.js").DataPublisher>}
+   */
+  async _getDataPublisher() {
+    if (!this.#dataPublisher) {
+      const { DataPublisher } = await import("../publish/data-publisher.js");
+      this.#dataPublisher = new DataPublisher(this);
+      this.#dataPublisher.start();
+    }
+    return this.#dataPublisher;
+  }
+
+  /**
+   * 拉取大 payload 并还原为原始数据（接收端，阶段三第 9 步）。
+   *
+   * 发送方超过阈值的 __app 数据不再内联在消息里，而是内容寻址发布后
+   * 在消息中携带 `{__pull: {fileHash, encrypted}}`；本方法用 DataPublisher
+   * 从发送方拉取分块、组装、（可选）解密，再 JSON.parse 还原。
+   *
+   * @param {string} fromUserId - 发送方 userId（拉取对端）
+   * @param {{fileHash: string, encrypted?: boolean}} pull - 拉取引用
+   * @returns {Promise<*>} 还原后的原始数据
+   */
+  async #fetchLargePayload(fromUserId, pull) {
+    const publisher = await this._getDataPublisher();
+    const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+    // fetchFile 返回 { blob, fileName, fileSize }
+    const result = await publisher.fetchFile(remoteUser, pull.fileHash);
+    let bytes = new Uint8Array(await result.blob.arrayBuffer());
+    if (pull.encrypted) {
+      const { tryDecryptBytes } = await import("../crypto/crypto-e2ee.js");
+      const plain = await tryDecryptBytes(this, fromUserId, bytes);
+      if (!plain) {
+        throw new Error("large payload decrypt failed");
+      }
+      bytes = plain;
+    }
+    // 剥掉发布时的 0x00 标记前缀（明文/密文均有，见 remote-user.js #publishLargePayload）
+    if (bytes[0] === 0) {
+      bytes = bytes.slice(1);
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  /**
+   * 回发 __ack（raw，不做 E2EE）：告知发送方 msgId 的处理结果。
+   * 回发失败静默——发送方会走 ACK 超时路径。
+   */
+  async #sendServiceAck(fromUserId, fromSessionId, msgId, payload) {
+    try {
+      const remoteUser = await this.#ensureRemoteUser(fromUserId, "remote");
+      await remoteUser.send(
+        fromSessionId,
+        { type: "__ack", msgId, ...payload },
+        true,
+      );
+    } catch {
+      // 对端不可达时静默丢弃
     }
   }
 

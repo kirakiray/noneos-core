@@ -492,17 +492,50 @@ pub fn now_ms() -> u64 {
 
 /// 读取服务器本地时区相对 UTC 的偏移秒数（含夏令时）
 ///
-/// 通过 libc 的 `localtime_r` 获取，等价于 `date +%z` 的结果。
-/// 失败时回退 0（按 UTC 处理）。
+/// Unix 通过 libc 的 `localtime_r` 获取，等价于 `date +%z` 的结果；
+/// Windows 没有 `localtime_r`/`tm_gmtoff`，改用 `localtime_s` 与 `gmtime_s`
+/// 的字段差推算偏移。失败时回退 0（按 UTC 处理）。
 fn local_utc_offset_secs(ts_ms: u64) -> i64 {
     let t = (ts_ms / 1000) as libc::time_t;
-    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    // SAFETY: 传入合法的 time_t 与已零初始化的 tm 结构体；localtime_r 是线程安全版本
-    let res = unsafe { libc::localtime_r(&t, &mut tm) };
-    if res.is_null() {
-        return 0;
+
+    #[cfg(unix)]
+    {
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        // SAFETY: 传入合法的 time_t 与已零初始化的 tm 结构体；localtime_r 是线程安全版本
+        let res = unsafe { libc::localtime_r(&t, &mut tm) };
+        if res.is_null() {
+            return 0;
+        }
+        tm.tm_gmtoff as i64
     }
-    tm.tm_gmtoff as i64
+
+    #[cfg(windows)]
+    {
+        let mut local_tm: libc::tm = unsafe { std::mem::zeroed() };
+        let mut utc_tm: libc::tm = unsafe { std::mem::zeroed() };
+        // SAFETY: 合法 time_t 与零初始化 tm；_s 系列是 Windows CRT 的安全版本
+        if unsafe { libc::localtime_s(&mut local_tm, &t) } != 0 {
+            return 0;
+        }
+        if unsafe { libc::gmtime_s(&mut utc_tm, &t) } != 0 {
+            return 0;
+        }
+        // 偏移 = 本地「伪 epoch」- UTC epoch；跨日由天数差自然抵消秒差符号
+        let days =
+            |tm: &libc::tm| -> i64 {
+                days_from_civil(tm.tm_year as i64 + 1900, tm.tm_mon as u32 + 1, tm.tm_mday as u32)
+            };
+        let secs_of = |tm: &libc::tm| -> i64 {
+            tm.tm_hour as i64 * 3600 + tm.tm_min as i64 * 60 + tm.tm_sec as i64
+        };
+        (days(&local_tm) - days(&utc_tm)) * 86400 + (secs_of(&local_tm) - secs_of(&utc_tm))
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = t;
+        0
+    }
 }
 
 /// 由「1970-01-01 起的天数」反推公历年月日

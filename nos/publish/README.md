@@ -105,7 +105,7 @@ URL.revokeObjectURL(url);
 
 #### `start()`
 
-启动监听，绑定 `localUser` 的 `message` 事件，开始响应 incoming 的 manifest/chunk 请求。重复调用安全（幂等）。
+启动监听，同时绑定 `localUser` 的 `message` 事件（server relay）与 `rtc_message` 事件（DataChannel），两条入站通道归一处理 incoming 的 manifest/chunk 请求。重复调用安全（幂等）。
 
 #### `stop()`
 
@@ -219,7 +219,7 @@ URL.revokeObjectURL(url);
 
 ### 应答方 → 请求方
 
-通过 `server.relayToUserViaServer(url, fromUserId, fromSessionId, data)` 回复。
+按请求来源**镜像通道**回复：请求经 server relay 到达（`url` 非空）时通过 `server.relayToUserViaServer(url, fromUserId, fromSessionId, data)` 回复；请求经 RTC 直连到达（`url` 为空）时通过 `remoteUser.send(sid, data, true)` 沿 DataChannel 回复。
 
 **回复 manifest（存在）：** 直接发送 manifest 对象（不带 `type`/`action`，接收方通过结构特征识别）
 
@@ -253,7 +253,7 @@ URL.revokeObjectURL(url);
 
 ## 数据库设计
 
-DataPublisher 使用独立的 IndexedDB 数据库 `nos_publish_data_${namespace}`（版本 2，按 namespace 隔离），不依赖 `nos/user/db.js`。
+DataPublisher 使用独立的 IndexedDB 数据库 `nos_publish_data_${namespace}`（DB_VERSION 4，按 namespace 隔离），不依赖 `nos/user/db.js`。
 
 ### 对象仓库
 

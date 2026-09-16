@@ -31,13 +31,35 @@
               iframe.onload = resolve;
             });
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            // 等 iframe 明确完成（写完会挂 data-testid="all-test-completed"），
+            // 而非固定时长等待——慢速环境下 OPFS + Worker 写入可能超过等待窗口，
+            // 导致提前 unobserve 而漏收全部事件
+            let markerSeen = false;
+            await new Promise((resolve) => {
+              const started = Date.now();
+              const timer = setInterval(() => {
+                try {
+                  markerSeen = !!iframe.contentDocument?.querySelector(
+                    '[data-testid="all-test-completed"]',
+                  );
+                } catch {
+                  // 跨源异常忽略（同源 iframe 正常不会）
+                }
+                if (markerSeen || Date.now() - started > 10000) {
+                  clearInterval(timer);
+                  resolve();
+                }
+              }, 50);
+            });
+
+            // 少量余量：BroadcastChannel 投递是异步任务
+            await new Promise((resolve) => setTimeout(resolve, 200));
 
             unobserve();
 
             return {
               assert: events.length > 0,
-              content: `Received ${events.length} events from other tab:\n${events
+              content: `Received ${events.length} events (markerSeen: ${markerSeen}):\n${events
                 .map((e) => `- Type: ${e.type}, Path: ${e.path}`)
                 .join("\n")}`,
             };

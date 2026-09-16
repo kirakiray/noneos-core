@@ -13,8 +13,17 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use crate::admin;
+use crate::inbox;
 use redb::Database;
+
+/// 全局连接代号：每个完成注册的连接唯一。
+/// 同一 conn_key（userId:sessionId）重连时新旧连接共存于极短窗口，
+/// 旧连接迟到的清理必须凭它判断「map 里这条还是不是我的」，防止把
+/// 新连接刚注册的 session 删掉（客户端连接健康、服务端却查无此
+/// session 的僵尸态，查询/relay 永远不可见且不会自愈）。
+static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
 /// WebSocket 发送端类型别名，用于简化函数签名
 type WsSender = futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, Message>;
@@ -42,6 +51,8 @@ pub(crate) struct UserSession {
     pub(crate) relay_fail_window_start: u64,
     /// 该 session 公开注册的应用服务列表（exposeToServer 模式）
     pub(crate) services: Vec<String>,
+    /// 注册本会话的连接代号（见 NEXT_CONN_ID）
+    pub(crate) conn_id: u64,
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -146,9 +157,10 @@ impl AppState {
     /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换（重连，不增加计数）
     /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
     ///   （仅对全新连接检查，同 key 重连不受限制）
-    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
+    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, conn_id: u64, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
         // 解析 userId
         let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+        let prefix = format!("{}:", user_id);
 
         // 判断是否为同 key 重连（不增加计数，不受 max_sessions 限制）
         let is_reconnect = self.users.contains_key(conn_key);
@@ -187,23 +199,31 @@ impl AppState {
             relay_fail_count: 0,
             relay_fail_window_start: now,
             services: Vec::new(),
+            conn_id,
         });
         
-        // 只有全新连接才增加计数；重连不改变计数
-        if !is_reconnect {
-            self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
-        }
-        
+        // 以注册表实况校正该用户的 session 计数：is_reconnect 判断与
+        // 旧连接迟到的清理可能交错（旧清理减掉刚顶替的计数），直接
+        // 重算一次消除漂移
+        let actual = self.users.iter().filter(|r| r.key().starts_with(&prefix)).count();
+        self.user_session_counts.insert(user_id.clone(), actual);
+
         Ok(())
     }
 
-    pub fn remove_user(&self, conn_key: &str) -> Option<UserSession> {
-        if let Some((_, session)) = self.users.remove(conn_key) {
-            let user_id = conn_key.split(':').next().unwrap_or(conn_key);
-            self.user_session_counts.entry(user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
-            Some(session)
+    /// 仅当 conn_key 当前注册的会话仍属于 conn_id 对应的连接时才移除。
+    /// 同 key 重连后，旧连接迟到的清理凭此不误删新连接的会话（也不动计数）。
+    /// 返回是否真的移除了。
+    pub fn remove_user_if_current(&self, conn_key: &str, conn_id: u64) -> bool {
+        if let Some((_, session)) = self.users.remove_if(conn_key, |_, v| v.conn_id == conn_id) {
+            let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+            self.user_session_counts
+                .entry(user_id)
+                .and_modify(|c| *c = c.saturating_sub(1));
+            drop(session);
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -306,6 +326,8 @@ struct HandshakeResponse {
 /// 公共 relay 投递逻辑：检查配额、发送到目标 session、记录流量、处理失败/风暴防护
 /// 返回 Ok(()) 表示正常完成；返回 Err 表示需要踢出当前连接（由调用方退出循环）
 /// `success_label` 用于日志输出，如 "Relay" 或 "Binary relay"
+/// `store_if_offline`：目标离线时把消息存入离线收件箱（目标用户下次握手补投），
+/// 回 `queued` 回执且不计入 relay 失败计数
 async fn relay_deliver_and_finalize(
     ws_sender: &mut WsSender,
     state: &AppState,
@@ -318,6 +340,7 @@ async fn relay_deliver_and_finalize(
     message: Message,
     success_label: &str,
     silent: bool,
+    store_if_offline: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 检查转发额度
     if !state.check_relay_quota(user_id, forward_size) {
@@ -334,8 +357,9 @@ async fn relay_deliver_and_finalize(
         return Ok(());
     }
 
+    let mut pending = Some(message);
     let delivered = if let Some(tx) = state.get_session_data_tx(target_user, target_session) {
-        tx.send(message).is_ok()
+        tx.send(pending.take().unwrap()).is_ok()
     } else {
         false
     };
@@ -345,7 +369,7 @@ async fn relay_deliver_and_finalize(
             state.traffic.add_relay_forwarded(conn_key, forward_size, traffic::now_ms(), user_id, target_user);
         }
         state.record_relay_usage(user_id, forward_size);
-        
+
         // 只有在非静默模式下才返回成功响应
         if !silent {
             let resp = serde_json::json!({
@@ -356,9 +380,103 @@ async fn relay_deliver_and_finalize(
             });
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
         }
-        
+
         println!("{}: {}:{} -> {}:{}", success_label, user_id, session_id, target_user, target_session);
         state.reset_relay_failure(conn_key);
+    } else if store_if_offline && state.config.inbox_enabled {
+        // 目标离线 + 请求离线存储：暂存收件箱，目标用户下次握手成功后补投。
+        // 存储按发送方额度计费（record_relay_usage），不计入 relay 失败计数——
+        // 这是有意行为，不是打不存在目标的滥用。
+        let message = pending.take().unwrap_or_else(|| Message::Text(String::new()));
+        let (is_binary, payload) = match &message {
+            Message::Text(t) => (false, t.as_bytes().to_vec()),
+            Message::Binary(b) => (true, b.clone()),
+            _ => (false, Vec::new()),
+        };
+        // 入箱单条大小上限：超大 payload 拒存（客户端回退本地队列），
+        // 把每用户收件箱最坏磁盘占用压到 max_per_user × max_entry_bytes
+        if payload.len() > state.config.inbox_max_entry_bytes {
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "inbox_entry_too_large",
+                "message": format!(
+                    "Inbox entry too large: {} bytes (max {} bytes)",
+                    payload.len(),
+                    state.config.inbox_max_entry_bytes
+                )
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            println!(
+                "Inbox entry too large: {}:{} -> {} ({} bytes)",
+                user_id, session_id, target_user, payload.len()
+            );
+        } else if !matches!(traffic::load_user(&state.db, target_user), Ok(Some(_))) {
+            // 目标用户必须真实存在（USERS 表中有握手记录）：
+            // 拒绝为不存在的 userId 制造无人认领的收件箱，堵死伪造目标灌盘
+            let resp = serde_json::json!({
+                "type": "relay_response",
+                "action": "send_data",
+                "status": "unknown_target",
+                "message": format!("Target user {} not found, message not stored", target_user)
+            });
+            ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+            println!("Inbox store rejected (unknown target): {}:{} -> {}", user_id, session_id, target_user);
+        } else {
+            let entry = inbox::InboxEntry {
+                from_user_id: user_id.to_string(),
+                from_session_id: session_id.to_string(),
+                is_binary,
+                payload,
+                stored_at_ms: traffic::now_ms(),
+            };
+            match inbox::store(
+                &state.db,
+                target_user,
+                entry,
+                state.config.inbox_max_per_user,
+                state.config.inbox_ttl_secs * 1000,
+            ) {
+            Ok(true) => {
+                state.record_relay_usage(user_id, forward_size);
+                state.reset_relay_failure(conn_key);
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "queued",
+                    "message": "Target offline, message stored in inbox for delivery on next handshake"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                println!("Inbox stored: {}:{} -> {} ({} bytes)", user_id, session_id, target_user, forward_size);
+            }
+            Ok(false) => {
+                // 收件箱已满：明确拒存（不静默淘汰旧条目），客户端可回退本地策略
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "inbox_full",
+                    "message": format!("Inbox full for target user (max {} entries)", state.config.inbox_max_per_user)
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                println!("Inbox full: {}:{} -> {}", user_id, session_id, target_user);
+            }
+            Err(e) => {
+                println!("Inbox store failed: {}:{} -> {}: {}", user_id, session_id, target_user, e);
+                let resp = serde_json::json!({
+                    "type": "relay_response",
+                    "action": "send_data",
+                    "status": "error",
+                    "message": "Target session not found or offline"
+                });
+                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
+                let should_kick = state.handle_relay_failure(user_id, session_id);
+                if should_kick {
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    return Err("User kicked due to relay abuse".into());
+                }
+            }
+            }
+        }
     } else {
         println!("Relay failed (target offline): {}:{} -> {}:{}", user_id, session_id, target_user, target_session);
         let resp = serde_json::json!({
@@ -405,8 +523,13 @@ async fn handle_relay_send_data_text(
     let target_session = cmd.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
     let relay_data = cmd.get("data");
     let silent = cmd.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+    let store_if_offline = cmd.get("store_if_offline").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    if target_user.is_empty() || target_session.is_empty() || relay_data.is_none() {
+    // store_if_offline 模式下目标 session 可为空（按 userId 整体暂存）
+    if target_user.is_empty()
+        || relay_data.is_none()
+        || (target_session.is_empty() && !store_if_offline)
+    {
         let resp = serde_json::json!({
             "type": "relay_response",
             "action": "send_data",
@@ -433,6 +556,7 @@ async fn handle_relay_send_data_text(
         Message::Text(forward_text),
         "Relay",
         silent,
+        store_if_offline,
     ).await
 }
 
@@ -486,8 +610,10 @@ async fn handle_relay_send_data_binary(
     let target_user = header.get("target_user_id").and_then(|v| v.as_str()).unwrap_or("");
     let target_session = header.get("target_session_id").and_then(|v| v.as_str()).unwrap_or("");
     let silent = header.get("silent").and_then(|v| v.as_bool()).unwrap_or(false);
+    let store_if_offline = header.get("store_if_offline").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    if target_user.is_empty() || target_session.is_empty() {
+    // store_if_offline 模式下目标 session 可为空（按 userId 整体暂存）
+    if target_user.is_empty() || (target_session.is_empty() && !store_if_offline) {
         let resp = serde_json::json!({
             "type": "relay_response",
             "action": "send_data",
@@ -531,6 +657,7 @@ async fn handle_relay_send_data_binary(
         Message::Binary(forward_frame),
         "Binary relay",
         silent,
+        store_if_offline,
     ).await
 }
 
@@ -867,7 +994,11 @@ pub async fn handle_connection(
             // 创建 disconnect 通道 and data 转发通道并注册用户（以 userId:sessionId 为 key）
             let (disconnect_tx, mut disconnect_rx) = oneshot::channel::<()>();
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
-            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
+            // 收件箱补投用的发送端克隆（data_tx 本体移入 add_user 注册表）
+            let inbox_tx = data_tx.clone();
+            // 本连接的唯一代号：收尾清理时凭它判断「map 里的会话还是不是我的」
+            let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
+            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, conn_id, disconnect_tx, data_tx) {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
                     status: "error".to_string(),
@@ -912,6 +1043,29 @@ pub async fn handle_connection(
 
             let role_str = if is_admin { " (ADMIN)" } else { "" };
             println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
+
+            // 离线收件箱补投：把该用户离线期间暂存的消息按存储顺序投递给本会话。
+            // 消息先入 data_tx 通道缓冲，客户端收到 handshake success 后立即收到积压。
+            if state.config.inbox_enabled {
+                match inbox::load_and_clear(&state.db, &user_id, state.config.inbox_ttl_secs * 1000) {
+                    Ok(entries) if !entries.is_empty() => {
+                        println!("Inbox flush: {} entries for {}:{}", entries.len(), user_id, session_id);
+                        for entry in entries {
+                            let size = entry.payload.len() as u64;
+                            let msg = if entry.is_binary {
+                                Message::Binary(entry.payload)
+                            } else {
+                                Message::Text(String::from_utf8_lossy(&entry.payload).to_string())
+                            };
+                            if inbox_tx.send(msg).is_ok() {
+                                state.traffic.add_outbound(&conn_key, size, traffic::now_ms());
+                            }
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => eprintln!("Inbox flush failed for {}: {}", user_id, e),
+                }
+            }
 
             let resp = HandshakeResponse {
                 msg_type: "handshake".to_string(),
@@ -970,9 +1124,19 @@ pub async fn handle_connection(
                                                 continue;
                                             }
 
-                                            // 截断日志输出，避免打印超长消息
+                                            // 截断日志输出，避免打印超长消息。
+                                            // 截点必须回退到 UTF-8 字符边界：
+                                            // 多字节字符（中文/emoji）落在
+                                            // 第 500 字节处时，直接切片会让
+                                            // 整个连接任务 panic——连接静默
+                                            // 死亡，挂起的中继命令既无响应
+                                            // 也无转发，客户端只见到超时
                                             let log_text = if text.len() > 500 {
-                                                format!("{}... ({} bytes total)", &text[..500], text.len())
+                                                let mut end = 500;
+                                                while end > 0 && !text.is_char_boundary(end) {
+                                                    end -= 1;
+                                                }
+                                                format!("{}... ({} bytes total)", &text[..end], text.len())
                                             } else {
                                                 text.clone()
                                             };
@@ -1070,36 +1234,40 @@ pub async fn handle_connection(
 
             // 9. 无论通信循环是否出错，始终执行清理
             {
-                // 移除此用户 session
-                state.remove_user(&conn_key);
-                // 移除 session 流量统计
-                state.traffic.remove_session(&conn_key);
+                // 移除此用户 session —— 仅当 map 里登记的仍是本连接的会话。
+                // 同 key 重连时新连接可能已完成注册，旧连接迟到的清理
+                // 不得误删新会话（否则该用户在服务端"隐身"，查询/relay
+                // 永远不可见且客户端不会自愈）
+                if state.remove_user_if_current(&conn_key, conn_id) {
+                    // 移除 session 流量统计
+                    state.traffic.remove_session(&conn_key);
 
-                // 检查该用户是否所有 session 都已断开
-                let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
-                if session_count == 0 {
-                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
-                    let now = traffic::now_ms();
-                    let ts_30s = now / 30_000;
+                    // 检查该用户是否所有 session 都已断开
+                    let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+                    if session_count == 0 {
+                        // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
+                        let now = traffic::now_ms();
+                        let ts_30s = now / 30_000;
 
-                    // 取出该用户在当前窗口内的转发分布条目
-                    let entries = state.traffic.take_user_relay_entries(&user_id);
-                    if !entries.is_empty() {
-                        if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
-                            eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                        // 取出该用户在当前窗口内的转发分布条目
+                        let entries = state.traffic.take_user_relay_entries(&user_id);
+                        if !entries.is_empty() {
+                            if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
+                                eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                            }
                         }
-                    }
 
-                    // 持久化用户信息（包含配额用量）并从内存缓存中移除
-                    if let Some(quota) = state.user_quotas.get(&user_id) {
-                        let mut record = quota.clone();
-                        record.last_seen_at = now;
-                        if let Err(e) = traffic::save_user(&state.db, &record) {
-                            eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                        // 持久化用户信息（包含配额用量）并从内存缓存中移除
+                        if let Some(quota) = state.user_quotas.get(&user_id) {
+                            let mut record = quota.clone();
+                            record.last_seen_at = now;
+                            if let Err(e) = traffic::save_user(&state.db, &record) {
+                                eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                            }
                         }
+                        // 从内存配额缓存中移除，避免长期运行泄漏
+                        state.user_quotas.remove(&user_id);
                     }
-                    // 从内存配额缓存中移除，避免长期运行泄漏
-                    state.user_quotas.remove(&user_id);
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);

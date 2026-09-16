@@ -75,7 +75,9 @@ const sessionIds = await remoteB.getSessionIds();
 
 ## 应用服务通信（sendToService）
 
-`sendToService` 用于向对端**注册了指定 `appId` 的所有 session** 发送消息，底层自动完成服务发现、精准投递与失败反馈。
+`sendToService` 用于向对端**注册了指定 `appId` 的所有 session** 发送消息，底层自动完成服务发现、精准投递、可靠投递（信封/ACK/去重）与失败反馈。
+
+每条消息自动携带 `__env` 信封（`msgId`/`seq`/`ts`）：接收端核心层按 `msgId` 去重（重发不重复执行 handler），并在 handler 执行完毕后自动回 `__ack`。
 
 ### 注册服务
 
@@ -100,8 +102,11 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 
 底层步骤：
 1. 命中 `serviceSessionCache`（TTL 30s，或对端主动推送刷新）→ 直接投递
-2. 未命中缓存 → 查询对端所有 session，再发起 `__service_query` 询问归属并写入缓存
-3. 只发到装了 `chat-v1` 的 session，不再盲广播
+2. 未命中缓存 → 查**服务端注册表**（对端 `exposeToServer: true` 的服务，正命中即精准投递，无需逐 session 询问）
+3. 注册表未命中（私密服务）→ 发起 `__service_query` P2P 询问归属并写入缓存
+4. 只发到装了 `chat-v1` 的 session，不再盲广播
+
+> 隐私语义：只有显式声明 `exposeToServer: true` 的服务会被服务端感知并参与快速发现；私密服务始终走 P2P 查询，服务端不可见。公开服务在重连后会自动重新上报注册表。
 
 ### 返回值语义
 
@@ -110,10 +115,40 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 | status | 含义 |
 |---|---|
 | `"ok"` + `delivered:true` | 成功送达（含 `sessionId` / `via`） |
-| `"no_receiver"` | 对端在线，但没有 session 注册该 `appId` |
-| `"offline"` | 对端所有 session 都不在线 |
+| `"queued"` | 对端离线，消息进入离线队列等待补投（`{queue:false}` 可关闭）。`via:"server"` 表示已存入**服务端收件箱**（对端下次握手服务器自动补投，跨刷新有效）；无 `via` 为客户端本地队列（已持久化到 `nos/storage`，回执含 `flushed`，刷新后自动恢复补投） |
+| `"no_receiver"` | 对端在线（有 session 应答了服务查询）但没有 session 注册该 `appId`。若服务器仍列出对端 session 但查询全部无应答（对端已断开、服务器未清理的陈旧会话），不会误报此状态，而是回退向原 session 投递：死 session 进入离线队列，活 session 回 `no_handler` ack |
+| `"offline"` | 对端所有 session 都不在线（仅 `{queue:false}` 时返回） |
 | `"discovery_failed"` | 服务发现流程超时（可用 `fallback:"broadcast"` 兜底） |
 | `"error"` | 底层 `send` 失败（如 session 中途离线） |
+
+### 投递回执（msgId / acked / flushed）
+
+每个返回项除 `status` 外还携带：
+
+| 字段 | 说明 |
+|---|---|
+| `msgId` | 信封 ID，去重/重发/ACK 的唯一凭据 |
+| `acked` | Promise，resolve `{ confirmed, reason?, duplicate?, attempts? }`。`confirmed:true` 表示**对端核心层已执行完 handler**；`reason: "no_handler"`（未注册 appId）/ `"handler_error"`（handler 抛错）为快速确定性失败；`reason: "timeout"` 为未确认（对端旧版本不回 ack，或链路异常） |
+| `flushed` | 仅 `status:"queued"` 时存在，Promise resolve `{ status: "delivered" \| "expired" \| "dropped" \| "failed", reason?, results? }`，表示补投结果。`delivered` 以**对端 `__ack` 确认**为准（对端 handler 已执行）；旧版本对端不回 `__ack` 时退化为传输层成功即 `delivered`；`failed` 携带对端确定性失败原因（`no_handler`/`handler_error` 等）。补投在结论明确前保留持久化记录：全部投递失败或 ACK 超时（对端支持信封时）会自动塞回队首按退避重投，直至送达或 TTL 过期 |
+
+```javascript
+const results = await remoteB.sendToService("chat-v1", { text: "hi" });
+const ack = await results[0].acked;
+if (ack.confirmed) {
+  console.log("对端已处理完毕");
+}
+```
+
+### 可靠投递选项
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `ackTimeout` | `5000` | 等待对端 `__ack` 的超时（毫秒）；`≤0` 关闭 acked 跟踪 |
+| `retries` | `0` | ACK 超时后的自动重发次数。**仅对已确认支持 `__ack` 的对端生效**（对端具备核心层去重后重发才安全，向旧版对端重发会造成重复执行） |
+| `queue` | `true` | 对端离线时的策略：`true` 优先**服务端收件箱**（需服务端支持 `store_if_offline`，对端重连即自动补投，跨刷新有效；服务端仅做 ≤1h 热缓冲：TTL 默认 1h、单条上限 64KB、每用户 100 条，目标用户不存在/超限/收件箱满时拒存），不可用时回退本地队列；`"local"` 仅用客户端本地队列（上限 200 条、条目 TTL 24 小时，已持久化到 `nos/storage`——刷新页面后新实例自动恢复并按原 msgId 续投，由服务器恢复连接 / 对端服务上线 / 退避定时器 1.5s→30s 触发补投，补投复用原 `msgId` 不会重复执行）；`false` 保持旧行为返回 `offline` |
+| `waitForService` | `0` | 无接收者时等待对端注册服务的毫秒数 |
+| `fallback` | `"none"` | 服务发现失败时的兜底策略（`"broadcast"`） |
+| `sessionId` | — | 指定目标 session，跳过服务发现 |
 
 ```javascript
 const results = await remoteB.sendToService("chat-v1", data);
@@ -173,20 +208,15 @@ userB.bind("unhandled_service_message", (event) => {
 
 可用于调试、兜底路由或应用启动窗口的补偿处理。
 
-### 可靠投递（ACK + 重发 + 去重 + 限流）
+### 可靠投递（核心层已内置，应用层手工方案仅限旧版兼容）
 
-`status: "ok"` 只代表数据已交给传输通道，**不代表对端 handler 已执行**。RTC 通道切换、对端标签页刷新、`serviceSessionCache` 未及时失效等情况都会造成静默丢失。
+新版 core 之间的 `sendToService` 已内置可靠投递：`__env` 信封 + 接收端自动 `__ack` + 按 `msgId` 去重 + 可选自动重发（`retries`）+ 离线队列补投（`queue`）。上面的 `acked` 回执就是"对端 handler 已执行完"的终态。
 
-因此每个应用的发送操作都应遵循：
+仍需注意：
 
-1. 消息携带唯一 `msgId`
-2. 接收方限时回 ACK
-3. 发送方超时重发（复用同一 `msgId`）
-4. 接收方按 `msgId` 去重
-5. 单条消息小于 **256KB**（服务端 `text_message_max_size` / `binary_payload_max_size` 硬限制，建议控制在 128KB 内）
-6. 同一目标**串行发送**，上一条收到 ACK 后才发下一条
-
-完整实现与注意事项见：[应用层可靠消息投递](reliable-messaging.md)
+- `status: "ok"` 本身依然只代表**数据已交给传输通道**，请以 `await results[0].acked` 的 `confirmed` 为准；
+- 对端是**旧版本 core**（不回 `__ack`、不去重）时，`acked` 会以 `reason: "timeout"` 结束且不会自动重发——需要端到端确认的应用此时退回手工方案；
+- 手工方案完整实现（msgId + ACK + 重发 + 去重 + 串行 + 256KB 限制）见：[应用层可靠消息投递](reliable-messaging.md)。
 
 ### 服务注册状态事件
 
@@ -208,6 +238,10 @@ userB.bind("service_unregistered", (e) => {
 ```javascript
 await remoteB.send(userB.sessionId, "hello");           // 字符串
 await remoteB.send(userB.sessionId, { text: "hi" });    // 对象
+
+// 身份寻址广播：省略 sessionId，投递到对端当前所有 session（每个标签页各一份）
+const r = await remoteB.send(undefined, { text: "hi" });
+// r = { status: "ok", via: "broadcast", delivered: 2, total: 2 }
 ```
 
 ### 发送二进制数据
@@ -370,6 +404,22 @@ console.log(best.via);
 // 未测量过的 session 返回 null
 const unknown = remoteB.getRTT("nonexistent-session");
 console.log(unknown); // null
+```
+
+### 端到端存活检测
+
+心跳只证明「本端对服务器活着」，不证明「对端活着」。core 内置存活监视：对已建立过通信的 session 每 25 秒做一次全路径 echo（A→server→B→server→A 或 RTC 直连），死亡/复活转换时：
+
+- 触发 `liveness_change` 事件（LocalUser 级）：`{ userId, sessionId, alive }`
+- 死亡时主动失效该 session 的服务发现缓存，避免后续投递命中幽灵会话
+
+```javascript
+userA.bind("liveness_change", (e) => {
+  console.log(e.detail.userId, e.detail.alive ? "存活" : "连接异常");
+});
+
+// 主动查询最近一次检测结果
+const alive = remoteB.getLiveness(userB.sessionId); // true / false / null
 ```
 
 ### RTT 更新事件
