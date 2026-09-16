@@ -1,7 +1,7 @@
 ---
 name: "noneos-core-docs"
 description: "提供 NoneOS Core 文件系统与用户管理文档，涵盖安装、文件系统挂载、用户联机与服务通信。当用户询问 NoneOS Core 使用方法、挂载静态文件或实现应用联机功能时调用。"
-version: "4.5.6"
+version: "4.5.7"
 ---
 
 # NoneOS Core 核心文档

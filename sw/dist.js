@@ -1,4 +1,4 @@
-/* noneos-core version: 4.5.6 */
+/* noneos-core version: 4.5.7 */
 (function () {
   'use strict';
 
@@ -969,7 +969,7 @@
     return configReadyPromise;
   };
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.5.6";
+  const NONEOS_CORE_VERSION = "noneos-core@4.5.7";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
