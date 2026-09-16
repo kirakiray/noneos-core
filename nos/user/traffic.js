@@ -866,6 +866,12 @@ export class TrafficLogger {
    * @returns {Promise<void>}
    */
   async clearAll() {
+    // 先等在途刷盘落库：#writeBatch 从 splice 队列到事务提交之间存在
+    // await 间隙，若不等待，清空事务可能与在途写入交错，导致已清数据
+    // 迟到落库"复活"。等它写完再统一清，时序确定
+    if (this.#flushingPromise) {
+      await this.#flushingPromise.catch(() => {});
+    }
     // 丢弃未刷盘队列
     this.#queue = [];
     if (this.#flushTimer) {

@@ -240,7 +240,7 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 - **字段**：`ts / direction / peerUserId / sessionId / via / serverUrl / size / category / messageType / appId / success / errorCode`。
 - **category 枚举**：`app / service / profile / rtc_signal / handshake / latency / control / relay / other`。
 - **失败记录**：`success: false`，`size` 为尝试发送字节，`errorCode` 记原因（如 `not_open`）。
-- **批量刷盘**：默认 500ms 或积累 50 条触发；`deleteBefore`/`delete` 之前会 `flush()`；**`clearAll()` 则直接丢弃未刷盘队列**（不调用 flush）。
+- **批量刷盘**：默认 500ms 或积累 50 条触发；`deleteBefore`/`delete` 之前会 `flush()`；**`clearAll()` 会先等在途刷盘落库（防清空事务与在途写入交错导致数据"复活"），再丢弃未刷盘队列**（不调用 flush）。
 - **聚合桶**：`peerUserId × via × serverUrl × category`，按分钟对齐。**不含 appId 维度**，按 app 查询走明细表 `by_app_ts` 索引。
 - **主要 API**：`record / flush / query / summary / getPeerTotals / getServerTotals / getTimeline / getTotalStats / count / getStorageInfo / deleteBefore / delete / clearAll / setEnabled / configure`。
 - **数据保留**：默认永久保留，通过 `deleteBefore(ts)` / `delete(filter)` / `clearAll()` 由上层清理应用管理。

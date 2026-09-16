@@ -688,9 +688,16 @@
         const tl11_userN = new LocalUser(tl11_nsN);
         await tl11_userN.ready();
 
+        // 等初始自动连接落定（ready() 不阻塞 connectAll）：慢速环境下
+        // 握手流量可能晚于 clearAll 入库，污染下面的精确计数
+        for (let i = 0; i < 100 && tl11_userN.server.connectedUrls.length === 0; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+        }
         // 停掉自动连接产生的流量，避免污染测试
         tl11_userN.server.disconnectAll();
         await new Promise((resolve) => setTimeout(resolve, 200));
+        // 排干断开残余的队列流量，防止清空事务后迟到落库
+        await tl11_userN.traffic.flush();
         await tl11_userN.traffic.clearAll();
 
         // 造几条记录
