@@ -129,7 +129,7 @@ const results = await remoteB.sendToService("chat-v1", { text: "hi" });
 |---|---|
 | `msgId` | 信封 ID，去重/重发/ACK 的唯一凭据 |
 | `acked` | Promise，resolve `{ confirmed, reason?, duplicate?, attempts? }`。`confirmed:true` 表示**对端核心层已执行完 handler**；`reason: "no_handler"`（未注册 appId）/ `"handler_error"`（handler 抛错）为快速确定性失败；`reason: "timeout"` 为未确认（对端旧版本不回 ack，或链路异常） |
-| `flushed` | 仅 `status:"queued"` 时存在，Promise resolve `{ status: "delivered" \| "expired" \| "dropped" \| "failed", results? }`，表示补投结果 |
+| `flushed` | 仅 `status:"queued"` 时存在，Promise resolve `{ status: "delivered" \| "expired" \| "dropped" \| "failed", reason?, results? }`，表示补投结果。`delivered` 以**对端 `__ack` 确认**为准（对端 handler 已执行）；旧版本对端不回 `__ack` 时退化为传输层成功即 `delivered`；`failed` 携带对端确定性失败原因（`no_handler`/`handler_error` 等）。补投在结论明确前保留持久化记录：全部投递失败或 ACK 超时（对端支持信封时）会自动塞回队首按退避重投，直至送达或 TTL 过期 |
 
 ```javascript
 const results = await remoteB.sendToService("chat-v1", { text: "hi" });

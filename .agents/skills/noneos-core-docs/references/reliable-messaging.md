@@ -27,9 +27,10 @@ await r.acked;  // { confirmed: true } = 对端 handler 已执行完（服务端
                // { confirmed: false, reason: "no_handler" } = 对端未注册该 appId（快速失败）
                // { confirmed: false, reason: "handler_error" } = 对端 handler 抛错
 await r.flushed; // 仅本地队列（via 非 "server"）时存在
-               // { status: "delivered", results } = 补投成功
+               // { status: "delivered", results } = 补投成功（对端已回 __ack 确认 handler 执行完；
+               //   旧版本对端不回 __ack 时退化为传输层成功即 delivered）
                // { status: "expired" } = 队列 TTL（24 小时）内对端未恢复
-               // { status: "dropped" | "failed", ... }
+               // { status: "dropped" | "failed", reason?, ... }
 ```
 
 行为要点：
@@ -37,7 +38,7 @@ await r.flushed; // 仅本地队列（via 非 "server"）时存在
 - **ACK 语义**：`confirmed: true` 表示对端核心层已执行完 handler（含 handler 返回的 Promise settle）——这正是应用层 ACK 想知道的事，现在默认就有。
 - **去重语义**：接收端按 `fromUserId|msgId` 去重（LRU 4096 条，内存态）。重复投递不再执行 handler，但**会补发 ACK**（正确处理"业务已执行但 ACK 丢失"的重发），这与手工方案的"ACK 先于判重"要点一致。
 - **重发安全**：`retries > 0` 的自动重发只在对端"曾回过 `__ack`"后才生效（`#peerSupportsAck`），确保对端具备去重能力，不会向旧版对端重复投递。
-- **离线队列**：对端完全离线时消息入队（上限 200 条、条目 TTL 24 小时），由「服务器恢复连接 / RTC 建立 / 对端服务上线推送 / 退避定时器（1.5s→30s）/ 构造时恢复持久化队列」触发补投；补投复用原 msgId，不会重复执行。**队列已持久化**（`nos/storage` 独立空间 `nos-user-queue`，key = `q:<userId>:<msgId>`），本标签页刷新后新实例构造时自动恢复并续投，跨刷新不丢；存储不可用时自动降级纯内存队列。职责划分：服务端收件箱只做 ≤1 小时的热缓冲（TTL 默认 1h、单条上限 64KB、每用户 100 条，过期由写路径 GC + 后台清扫真实删除，且拒绝为不存在的用户入箱），长离线的投递兜底由发送端持久化队列负责。
+- **离线队列**：对端完全离线时消息入队（上限 200 条、条目 TTL 24 小时），由「服务器恢复连接 / RTC 建立 / 对端服务上线推送 / 退避定时器（1.5s→30s）/ 构造时恢复持久化队列」触发补投；补投复用原 msgId，不会重复执行。**队列已持久化**（`nos/storage` 独立空间 `nos-user-queue`，key = `q:<userId>:<msgId>`），本标签页刷新后新实例构造时自动恢复并续投，跨刷新不丢；存储不可用时自动降级纯内存队列。**补投结算以对端确认为准**：全部目标投递失败或 ACK 超时（对端支持信封时）不消费条目，塞回队首按退避重投（对端去重保证安全），直至送达、确定性失败（`failed`）或 TTL 过期；持久化记录随结算同步删增。职责划分：服务端收件箱只做 ≤1 小时的热缓冲（TTL 默认 1h、单条上限 64KB、每用户 100 条，过期由写路径 GC + 后台清扫真实删除，且拒绝为不存在的用户入箱），长离线的投递兜底由发送端持久化队列负责。
 - **自动重连默认开启**：服务器静默断链（合盖/网络切换/NAT 超时）后自动指数退避重连（1s 起、±25% 抖动、上限 30s）；中继响应超时会主动重置疑似半开的连接加速恢复。旧行为 `setAutoReconnect({ enabled: false })` 可关。
 - **handler 尽量快**：ACK 在 handler（含其 Promise）完成后才回，长时间阻塞 handler 会把对端拖到 ackTimeout。
 

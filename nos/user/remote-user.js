@@ -920,7 +920,9 @@ export class RemoteUser extends BaseUser {
    * - `acked`: Promise，resolve `{ confirmed, reason?, duplicate? }`；
    *   confirmed=true 表示对端核心层已执行完 handler；
    *   对端为旧版本（不回 __ack）时超时后 resolve `{ confirmed: false, reason: "timeout" }`
-   * - `flushed`: 仅 status="queued" 时存在，resolve `{ status: "delivered"|"expired"|"dropped"|"failed" }`
+   * - `flushed`: 仅 status="queued" 时存在，resolve `{ status: "delivered"|"expired"|"dropped"|"failed", reason?, results? }`；
+   *   delivered 表示对端核心层已回 __ack 确认执行（旧版本对端无 __ack，
+   *   退化为传输层成功即 delivered）；failed 携带对端确定性失败原因
    *
    * @param {string} appId - 目标应用标识
    * @param {*} data - 要发送的数据（JSON 可序列化对象）
@@ -1436,6 +1438,13 @@ export class RemoteUser extends BaseUser {
   /**
    * 冲刷离线队列：逐条重新解析目标并补投（复用原信封 msgId，接收端去重兜底）。
    * 由 server_connected / rtc_state(connected) / __service_available / 退避定时器触发。
+   *
+   * 条目在"投递结论明确"后才算消费完成：
+   * - delivered：对端核心层回 __ack 确认（handler 已执行）；旧版本对端不回
+   *   __ack，退化为传输层成功即 delivered；
+   * - failed：对端回确定性失败（no_handler / handler_error 等）；
+   * - 传输层全部失败或 ack 超时（对端支持信封时）：塞回队首按退避重投，
+   *   持久化记录保留，直至送达或 TTL 过期。
    */
   async _flushQueue() {
     if (this.#flushing) return;
@@ -1472,21 +1481,58 @@ export class RemoteUser extends BaseUser {
         }
         const sessions = targets.sessions;
 
+        // 出队但暂不删持久化记录：投递结论明确前消息必须可恢复
         this.#sendQueue.shift();
-        this.#unpersistEntry(entry);
+        const requeue = () => {
+          this.#sendQueue.unshift(entry);
+        };
         try {
           const results = await this.#deliverMessage(entry.message, sessions, {
             ackTimeout: entry.ackTimeout,
             retries: entry.retries,
             queue: false,
           });
-          this.#reflushDelay = this.#REFLUSH_BASE;
-          entry.settle({ status: "delivered", results });
-        } catch (err) {
-          entry.settle({
-            status: "failed",
-            error: err?.message || String(err),
-          });
+
+          const settleDelivered = () => {
+            this.#unpersistEntry(entry);
+            this.#reflushDelay = this.#REFLUSH_BASE;
+            entry.settle({ status: "delivered", results });
+          };
+
+          if (!results.some((r) => r?.delivered === true)) {
+            // 全部目标投递失败（多为陈旧会话）：塞回队首等待下一次补投
+            requeue();
+            break;
+          }
+
+          const acked = results.map((r) => r?.acked).find(Boolean);
+          if (!acked || !(entry.ackTimeout > 0)) {
+            // 对端无 acked 跟踪（ackTimeout≤0 关闭）：按传输层成功结算
+            settleDelivered();
+            continue;
+          }
+
+          const ack = await acked;
+          if (ack.confirmed) {
+            // 对端核心层已执行完 handler，投递终态成立
+            settleDelivered();
+          } else if (ack.reason && ack.reason !== "timeout") {
+            // 确定性失败（no_handler / handler_error / pull_failed）：重投无益
+            this.#unpersistEntry(entry);
+            entry.settle({ status: "failed", reason: ack.reason, results });
+          } else if (this.#peerSupportsAck) {
+            // 对端支持信封却未在超时内确认：消息可能已丢（半开 RTC 等），
+            // 塞回队首重投——对端按 msgId 去重，重复投递安全
+            requeue();
+            break;
+          } else {
+            // 旧版本对端不回 __ack：无法进一步确认，按传输层成功结算
+            settleDelivered();
+          }
+        } catch {
+          // 投递过程异常：塞回队首按退避重试，TTL 兜底
+          requeue();
+          break;
         }
       }
     } finally {
