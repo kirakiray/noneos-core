@@ -13,9 +13,17 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use crate::admin;
 use crate::inbox;
 use redb::Database;
+
+/// 全局连接代号：每个完成注册的连接唯一。
+/// 同一 conn_key（userId:sessionId）重连时新旧连接共存于极短窗口，
+/// 旧连接迟到的清理必须凭它判断「map 里这条还是不是我的」，防止把
+/// 新连接刚注册的 session 删掉（客户端连接健康、服务端却查无此
+/// session 的僵尸态，查询/relay 永远不可见且不会自愈）。
+static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
 
 /// WebSocket 发送端类型别名，用于简化函数签名
 type WsSender = futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, Message>;
@@ -43,6 +51,8 @@ pub(crate) struct UserSession {
     pub(crate) relay_fail_window_start: u64,
     /// 该 session 公开注册的应用服务列表（exposeToServer 模式）
     pub(crate) services: Vec<String>,
+    /// 注册本会话的连接代号（见 NEXT_CONN_ID）
+    pub(crate) conn_id: u64,
 }
 
 /// 应用共享状态，存储所有已连接用户和管理员配置
@@ -147,9 +157,10 @@ impl AppState {
     /// - 如果相同的 conn_key 已存在，踢掉旧连接再替换（重连，不增加计数）
     /// - 如果该 userId 的 session 数已达 max_sessions_per_user 上限，返回 Err
     ///   （仅对全新连接检查，同 key 重连不受限制）
-    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
+    pub fn add_user(&self, conn_key: &str, username: &str, host: &str, addr: SocketAddr, conn_id: u64, disconnect_tx: oneshot::Sender<()>, data_tx: mpsc::UnboundedSender<Message>) -> Result<(), String> {
         // 解析 userId
         let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+        let prefix = format!("{}:", user_id);
 
         // 判断是否为同 key 重连（不增加计数，不受 max_sessions 限制）
         let is_reconnect = self.users.contains_key(conn_key);
@@ -188,23 +199,31 @@ impl AppState {
             relay_fail_count: 0,
             relay_fail_window_start: now,
             services: Vec::new(),
+            conn_id,
         });
         
-        // 只有全新连接才增加计数；重连不改变计数
-        if !is_reconnect {
-            self.user_session_counts.entry(user_id).and_modify(|c| *c += 1).or_insert(1);
-        }
-        
+        // 以注册表实况校正该用户的 session 计数：is_reconnect 判断与
+        // 旧连接迟到的清理可能交错（旧清理减掉刚顶替的计数），直接
+        // 重算一次消除漂移
+        let actual = self.users.iter().filter(|r| r.key().starts_with(&prefix)).count();
+        self.user_session_counts.insert(user_id.clone(), actual);
+
         Ok(())
     }
 
-    pub fn remove_user(&self, conn_key: &str) -> Option<UserSession> {
-        if let Some((_, session)) = self.users.remove(conn_key) {
-            let user_id = conn_key.split(':').next().unwrap_or(conn_key);
-            self.user_session_counts.entry(user_id.to_string()).and_modify(|c| *c = c.saturating_sub(1));
-            Some(session)
+    /// 仅当 conn_key 当前注册的会话仍属于 conn_id 对应的连接时才移除。
+    /// 同 key 重连后，旧连接迟到的清理凭此不误删新连接的会话（也不动计数）。
+    /// 返回是否真的移除了。
+    pub fn remove_user_if_current(&self, conn_key: &str, conn_id: u64) -> bool {
+        if let Some((_, session)) = self.users.remove_if(conn_key, |_, v| v.conn_id == conn_id) {
+            let user_id = conn_key.split(':').next().unwrap_or(conn_key).to_string();
+            self.user_session_counts
+                .entry(user_id)
+                .and_modify(|c| *c = c.saturating_sub(1));
+            drop(session);
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -977,7 +996,9 @@ pub async fn handle_connection(
             let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Message>();
             // 收件箱补投用的发送端克隆（data_tx 本体移入 add_user 注册表）
             let inbox_tx = data_tx.clone();
-            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, disconnect_tx, data_tx) {
+            // 本连接的唯一代号：收尾清理时凭它判断「map 里的会话还是不是我的」
+            let conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::Relaxed);
+            if let Err(e) = state.add_user(&conn_key, &username, &client_origin, addr, conn_id, disconnect_tx, data_tx) {
                 let resp = HandshakeResponse {
                     msg_type: "handshake".to_string(),
                     status: "error".to_string(),
@@ -1213,36 +1234,40 @@ pub async fn handle_connection(
 
             // 9. 无论通信循环是否出错，始终执行清理
             {
-                // 移除此用户 session
-                state.remove_user(&conn_key);
-                // 移除 session 流量统计
-                state.traffic.remove_session(&conn_key);
+                // 移除此用户 session —— 仅当 map 里登记的仍是本连接的会话。
+                // 同 key 重连时新连接可能已完成注册，旧连接迟到的清理
+                // 不得误删新会话（否则该用户在服务端"隐身"，查询/relay
+                // 永远不可见且客户端不会自愈）
+                if state.remove_user_if_current(&conn_key, conn_id) {
+                    // 移除 session 流量统计
+                    state.traffic.remove_session(&conn_key);
 
-                // 检查该用户是否所有 session 都已断开
-                let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
-                if session_count == 0 {
-                    // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
-                    let now = traffic::now_ms();
-                    let ts_30s = now / 30_000;
+                    // 检查该用户是否所有 session 都已断开
+                    let session_count = state.user_session_counts.get(&user_id).map(|c| *c).unwrap_or(0);
+                    if session_count == 0 {
+                        // 所有 session 关闭 → 写入用户流量分布记录 + 持久化配额 + 清理内存缓存
+                        let now = traffic::now_ms();
+                        let ts_30s = now / 30_000;
 
-                    // 取出该用户在当前窗口内的转发分布条目
-                    let entries = state.traffic.take_user_relay_entries(&user_id);
-                    if !entries.is_empty() {
-                        if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
-                            eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                        // 取出该用户在当前窗口内的转发分布条目
+                        let entries = state.traffic.take_user_relay_entries(&user_id);
+                        if !entries.is_empty() {
+                            if let Err(e) = traffic::write_single_user_traffic_entries(&state.db, ts_30s, &user_id, &entries) {
+                                eprintln!("Failed to flush user traffic dist for {} to redb: {}", user_id, e);
+                            }
                         }
-                    }
 
-                    // 持久化用户信息（包含配额用量）并从内存缓存中移除
-                    if let Some(quota) = state.user_quotas.get(&user_id) {
-                        let mut record = quota.clone();
-                        record.last_seen_at = now;
-                        if let Err(e) = traffic::save_user(&state.db, &record) {
-                            eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                        // 持久化用户信息（包含配额用量）并从内存缓存中移除
+                        if let Some(quota) = state.user_quotas.get(&user_id) {
+                            let mut record = quota.clone();
+                            record.last_seen_at = now;
+                            if let Err(e) = traffic::save_user(&state.db, &record) {
+                                eprintln!("Failed to persist user record for {} to redb: {}", user_id, e);
+                            }
                         }
+                        // 从内存配额缓存中移除，避免长期运行泄漏
+                        state.user_quotas.remove(&user_id);
                     }
-                    // 从内存配额缓存中移除，避免长期运行泄漏
-                    state.user_quotas.remove(&user_id);
                 }
             }
             println!("User {}:{} ({}) removed from state and traffic stats", user_id, session_id, username);

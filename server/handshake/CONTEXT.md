@@ -84,6 +84,8 @@ server/handshake/
      - `relay` —— 中继（文本/二进制）
      - `latency_test` / `latency_report` —— 延迟测速
 7. 退出循环 → 清理会话 → 最终 flush。
+   - **清理带连接代号守卫**：每个连接注册时领取全局自增 `conn_id`（存入 `UserSession.conn_id`），收尾走 `remove_user_if_current(conn_key, conn_id)`——仅当 map 里登记的仍是本连接的会话才删除（连带流量统计与 session 计数）。同 key 重连（客户端断开后立即重连、复用同一 sessionId）时旧连接迟到的 close 清理不会误删新连接刚注册的会话，否则该用户在服务端"隐身"（查询/relay 不可见）且客户端不会自愈。
+   - `add_user` 注册后按注册表实况重算该用户的 session 计数（`user_session_counts`），消除 is_reconnect 判断与旧清理交错造成的计数漂移。
 
 ### 中继流程（relay_deliver_and_finalize）
 
