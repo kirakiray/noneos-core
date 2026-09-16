@@ -96,7 +96,7 @@ runs:
       shell: bash
       run: |
         if [ "${{ runner.os }}" = "Linux" ]; then
-          xvfb-run npx sb-test -p 3002 --browsers ${{ inputs.browsers }}
+          xvfb-run npx sb-test -p 3002 -t 12 --browsers ${{ inputs.browsers }}
         else
-          npx sb-test -p 3002 --browsers ${{ inputs.browsers }}
+          npx sb-test -p 3002 -t 12 --browsers ${{ inputs.browsers }}
         fi
