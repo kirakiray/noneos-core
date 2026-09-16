@@ -19,7 +19,7 @@
  */
 export class ServiceRegistry {
   #localUser;
-  #services; // Map<appId, { exposeToServer, onMessage }>
+  #services; // Map<appId, { exposeToServer, onMessage }>（appId 仅作 key，value 不重复存）
 
   /**
    * @param {import("./user.js").LocalUser} localUser - 本地用户实例
@@ -144,9 +144,10 @@ export class ServiceRegistry {
    * @returns {string[]}
    */
   getExposedServiceList() {
-    return [...this.#services.values()]
-      .filter((r) => r.exposeToServer)
-      .map((r) => r.appId);
+    // appId 只存在于 Map 的 key 上（value 仅存 exposeToServer/onMessage）
+    return [...this.#services.entries()]
+      .filter(([, r]) => r.exposeToServer)
+      .map(([appId]) => appId);
   }
 
   /**

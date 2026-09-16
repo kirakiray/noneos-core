@@ -115,6 +115,10 @@ export class RemoteUser extends BaseUser {
   // 每个 session 的在途 relay 发送计数（以服务器 relay_response 回执为界）
   #relayInFlight = new Map(); // sessionId -> count
   #relayDrain = new Map(); // sessionId -> drain promise
+  // 同一 session 的发送闸门链：sessionId -> 最后一条在闸门中/已完成
+  // 「载荷准备 → 写线路」的 Promise。并发 send() 按调用顺序串行上线，
+  // 避免加密等异步准备的完成顺序决定线路写入顺序（同通道乱序）。
+  #wireGates = new Map();
   #relayDrainRelease = new Map(); // sessionId -> release fn
 
   /**
@@ -356,70 +360,111 @@ export class RemoteUser extends BaseUser {
     // 控制类消息永远走服务器中继（TCP 可靠，通道切换期间不丢）
     const forceRelay = this.#isControlMessage(data);
 
-    // 优先走 RTC DataChannel（控制类消息除外）
-    let dc = forceRelay
-      ? null
-      : this.#localUser.rtc.getChannel(this.#userId, sessionId);
-    if (dc?.readyState === "open") {
-      // 切换屏障：同 session 还有在途 relay（或上一条走的是 relay）时，
-      // 先等它们拿到服务器回执（字节已写入对端 TCP 流）再切 RTC，
-      // 消除 relay→RTC 切换瞬间的跨通道乱序窗口
-      if (
-        this.#relayInFlight.get(sessionId) ||
-        this.#lastSendVia.get(sessionId)?.via === "server"
-      ) {
-        await this.#waitRelayDrained(sessionId);
-        // 等待期间通道可能又关闭了，回落服务器中继
-        if (dc.readyState !== "open") {
-          dc = null;
+    // 同一 session 的发送闸门：send() 允许并发调用，但加密等异步准备
+    // 的完成顺序不等于调用顺序（Firefox 的 native crypto 尤其明显），
+    // 会造成同通道发送乱序。闸门按调用顺序放行——前一条的载荷写进线路
+    // （WS 同步帧 / dc.send）后下一条才开始准备。relay_response 的等待
+    // 在闸门外进行，不引入响应级队头阻塞。
+    const prevTurn = this.#wireGates.get(sessionId);
+    let releaseNext;
+    const released = new Promise((r) => (releaseNext = r));
+    const myTurn = prevTurn ? prevTurn.then(() => released) : released;
+    this.#wireGates.set(sessionId, myTurn);
+
+    try {
+      await prevTurn; // 等前一条的载荷写进线路
+
+      // 闸门内重新确认通道：排队等待期间通道状态可能变化
+      let dc = forceRelay
+        ? null
+        : this.#localUser.rtc.getChannel(this.#userId, sessionId);
+      if (dc?.readyState === "open") {
+        // 切换屏障：同 session 还有在途 relay（或上一条走的是 relay）时，
+        // 先等它们拿到服务器回执（字节已写入对端 TCP 流）再切 RTC，
+        // 消除 relay→RTC 切换瞬间的跨通道乱序窗口。
+        // 屏障必须在闸门内复核：排队期间前序 relay 可能尚未上线。
+        if (
+          this.#relayInFlight.get(sessionId) ||
+          this.#lastSendVia.get(sessionId)?.via === "server"
+        ) {
+          await this.#waitRelayDrained(sessionId);
+          // 等待期间通道可能又关闭了，回落服务器中继
+          if (dc.readyState !== "open") {
+            dc = null;
+          }
         }
       }
-    }
 
-    if (dc?.readyState === "open") {
-      const payload = await this.#preparePayload(data, raw);
-      dc.send(payload);
-      this.#recordRtcOutbound(sessionId, payload, data);
-      this.#onSendComplete(sessionId, "rtc");
-      return { status: "ok", via: "rtc" };
-    }
-
-    // 第一次 send 只走服务器中转，不触发 RTC，避免首次通信被信令干扰。
-    // 从第二次 send 开始，后台静默触发 RTC 配对（失败无感）。
-    const sentCount = this.#sendCounts.get(sessionId) || 0;
-    this.#sendCounts.set(sessionId, sentCount + 1);
-    if (sentCount >= 1 && !this.#rtcInitiated.has(sessionId)) {
-      // 冷却期内跳过：刚断开的 session 立即重连大概率再次失败，
-      // 且会造成 PC 风暴。冷却结束后下一次 send 会重新触发。
-      const cooldownUntil = this.#rtcCooldownUntil.get(sessionId);
-      const now = Date.now();
-      if (!cooldownUntil || now >= cooldownUntil) {
-        // console.log(
-        //   `[RemoteUser] send() triggering rtc.connect: userId=${this.#userId}, sessionId=${sessionId}, sentCount=${sentCount}`,
-        // );
-        this.#rtcInitiated.add(sessionId);
-        this.#rtcCooldownUntil.delete(sessionId);
-        this.#localUser.rtc
-          .connect(this.#userId, sessionId)
-          .catch((err) => {
-            console.warn(
-              `[RemoteUser] send() rtc.connect failed: userId=${this.#userId}, sessionId=${sessionId}`,
-              err,
-            );
-          });
-      } else {
-        // console.log(
-        //   `[RemoteUser] send() rtc.connect skipped (cooldown): userId=${this.#userId}, sessionId=${sessionId}, remainingMs=${cooldownUntil - now}`,
-        // );
+      if (dc?.readyState === "open") {
+        const payload = await this.#preparePayload(data, raw);
+        // 准备期间通道可能关闭，回落服务器中继
+        if (dc.readyState !== "open") {
+          dc = null;
+        } else {
+          dc.send(payload);
+          this.#recordRtcOutbound(sessionId, payload, data);
+          this.#onSendComplete(sessionId, "rtc");
+          return { status: "ok", via: "rtc" };
+        }
       }
-    }
 
-    // RTC 未就绪，走服务器中转（计入切换屏障的在途统计）
-    const relayPromise = this.#sendViaServer(sessionId, data, raw);
-    this.#trackRelaySend(sessionId, relayPromise);
-    const { result, url } = await relayPromise;
-    this.#onSendComplete(sessionId, "server", url);
-    return { status: "ok", via: "server", url, result };
+      // 第一次 send 只走服务器中转，不触发 RTC，避免首次通信被信令干扰。
+      // 从第二次 send 开始，后台静默触发 RTC 配对（失败无感）。
+      const sentCount = this.#sendCounts.get(sessionId) || 0;
+      this.#sendCounts.set(sessionId, sentCount + 1);
+      if (sentCount >= 1 && !this.#rtcInitiated.has(sessionId)) {
+        // 冷却期内跳过：刚断开的 session 立即重连大概率再次失败，
+        // 且会造成 PC 风暴。冷却结束后下一次 send 会重新触发。
+        const cooldownUntil = this.#rtcCooldownUntil.get(sessionId);
+        const now = Date.now();
+        if (!cooldownUntil || now >= cooldownUntil) {
+          this.#rtcInitiated.add(sessionId);
+          this.#rtcCooldownUntil.delete(sessionId);
+          this.#localUser.rtc
+            .connect(this.#userId, sessionId)
+            .catch((err) => {
+              console.warn(
+                `[RemoteUser] send() rtc.connect failed: userId=${this.#userId}, sessionId=${sessionId}`,
+                err,
+              );
+            });
+        }
+      }
+
+      // RTC 未就绪，走服务器中转（计入切换屏障的在途统计）
+      let payload = data;
+      if (
+        !raw &&
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        !ArrayBuffer.isView(data) &&
+        !(data instanceof Blob)
+      ) {
+        const encrypted = await tryEncryptBinary(
+          this.#localUser,
+          this.#userId,
+          data,
+        );
+        if (encrypted !== null) {
+          // 加密成功，以二进制帧形式发送，零 base64 开销
+          payload = encrypted;
+        }
+      }
+      const relayPromise = this.#localUser.server.sendToUser(
+        this.#userId,
+        sessionId,
+        payload,
+      );
+      // 闸门内登记在途 relay：排在本条之后的消息复核屏障时必须看到它
+      this.#trackRelaySend(sessionId, relayPromise);
+      const { result, url } = await relayPromise;
+      this.#onSendComplete(sessionId, "server", url);
+      return { status: "ok", via: "server", url, result };
+    } finally {
+      // 无论成败都放行下一条，防止队列卡死
+      releaseNext();
+    }
   }
 
   /**
@@ -791,6 +836,8 @@ export class RemoteUser extends BaseUser {
     this.#relayInFlight.clear();
     this.#relayDrain.clear();
     this.#relayDrainRelease.clear();
+    // 发送闸门（在途条目由各自 finally 放行，清表仅释放引用）
+    this.#wireGates.clear();
     this.#pingSeq = 0;
   }
 
@@ -1779,35 +1826,5 @@ export class RemoteUser extends BaseUser {
     }
 
     return data;
-  }
-
-  /**
-   * 通过服务器中转发送数据（保持原有 E2EE 与明文逻辑）
-   */
-  async #sendViaServer(sessionId, data, raw) {
-    // 仅对纯对象启用 E2EE 加密（跳过数组、Uint8Array 等二进制数据）
-    if (
-      !raw &&
-      data &&
-      typeof data === "object" &&
-      !Array.isArray(data) &&
-      !ArrayBuffer.isView(data) &&
-      !(data instanceof Blob)
-    ) {
-      const encrypted = await tryEncryptBinary(
-        this.#localUser,
-        this.#userId,
-        data,
-      );
-      if (encrypted !== null) {
-        // 加密成功，以二进制帧形式发送，零 base64 开销
-        return this.#localUser.server.sendToUser(
-          this.#userId,
-          sessionId,
-          encrypted,
-        );
-      }
-    }
-    return this.#localUser.server.sendToUser(this.#userId, sessionId, data);
   }
 }

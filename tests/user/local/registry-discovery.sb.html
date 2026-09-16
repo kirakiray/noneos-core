@@ -123,6 +123,29 @@
         });
         await new Promise((r) => setTimeout(r, 300));
 
+        // 等 B 的 session + 服务注册表在服务器可见（CI 负载下握手注册
+        // 可能晚于固定等待，轮询消除时序假设）
+        const waitVisibleG3 = async (needServices) => {
+          for (let i = 0; i < 50; i++) {
+            const st = await userG3A.server
+              .queryUserOnline(urlG3, userG3B.userId)
+              .catch(() => null);
+            const sessions = st?.sessionInfo || [];
+            const ok = st?.online && sessions.length > 0 &&
+              (!needServices ||
+                sessions.some((s) => s.services?.includes("resync-app")));
+            if (ok) return true;
+            await new Promise((r) => setTimeout(r, 200));
+          }
+          return false;
+        };
+        if (!(await waitVisibleG3(false))) {
+          return {
+            assert: false,
+            content: { message: "B 首次上线后服务器始终不可见（环境异常）" },
+          };
+        }
+
         const remoteG3B = await userG3A.connectUser(userG3B.userId);
 
         // B 断开重连：重连后是全新服务器会话（services 为空），
@@ -130,8 +153,16 @@
         userG3B.server.disconnectAll();
         await new Promise((r) => setTimeout(r, 300));
         await userG3B.server.connect(urlG3);
-        // 等 update_services 重上报到达服务器
-        await new Promise((r) => setTimeout(r, 500));
+        // 等 update_services 重上报到达服务器（断言点：重连后注册表仍含该服务）
+        if (!(await waitVisibleG3(true))) {
+          return {
+            assert: false,
+            content: {
+              message: "重连后服务器注册表未见 resync-app（重上报失效或超时）",
+              got: gotG3,
+            },
+          };
+        }
 
         const resultsG3 = await remoteG3B.sendToService("resync-app", { n: 3 });
         for (let i = 0; i < 20; i++) {
