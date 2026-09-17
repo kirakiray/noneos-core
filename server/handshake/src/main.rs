@@ -1,4 +1,5 @@
 mod admin;
+mod admin_http;
 mod config;
 mod crypto;
 mod handler;
@@ -67,8 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         period_data.period_start_ms
     );
 
-    // 5. 创建应用共享状态，存储已连接用户和管理员配置
-    let state = Arc::new(AppState::new(config.admin_user_id.clone(), config.clone(), db.clone()));
+    // 5. 创建应用共享状态，存储已连接用户
+    let state = Arc::new(AppState::new(config.clone(), db.clone()));
 
     // 将加载的全局数据写入 TrafficStats
     state.traffic.set_global(global_data);
@@ -94,13 +95,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         handle_flush_timer(flush_state, flush_interval, flush_shutdown).await;
     });
 
+    // 6.5 启动管理 HTTP 服务（配置了 admin_token 才启用）
+    if config.admin_token.is_some() {
+        let admin_state = Arc::clone(&state);
+        tokio::spawn(async move {
+            if let Err(e) = admin_http::run_admin_http(admin_state).await {
+                eprintln!("Admin HTTP server error: {}", e);
+            }
+        });
+    }
+
     // 7. 初始化网络监听
     let addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&addr).await?;
 
     println!("WebSocket server is successfully running on ws://{}", addr);
-    if let Some(ref admin_id) = config.admin_user_id {
-        println!("Admin user configured: {}", admin_id);
+    if config.admin_token.is_some() {
+        println!(
+            "Admin API enabled on http://{}:{}{}",
+            config.admin_http_host, config.admin_http_port, config.admin_base_path
+        );
+    } else {
+        println!("Admin API disabled (admin_token not configured)");
     }
     println!("Redb persistence enabled (flush interval: {}s)", config.traffic_flush_interval_secs);
     println!("Press Ctrl+C to stop the server gracefully.");

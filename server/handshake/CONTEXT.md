@@ -5,13 +5,13 @@
 
 ## 一、整体架构
 
-NoneOS Handshake Server 是一个基于 **Tokio + tokio-tungstenite** 的异步 WebSocket 服务，负责：身份验签握手、用户会话管理、消息中继（Relay）、流量统计与配额、管理命令、系统监控。持久化使用嵌入式 **redb** 数据库，并发会话使用 **DashMap**。
+NoneOS Handshake Server 是一个基于 **Tokio + tokio-tungstenite** 的异步 WebSocket 服务，负责：身份验签握手、用户会话管理、消息中继（Relay）、流量统计与配额、系统监控。管理功能通过**独立的 admin HTTP 接口**提供（`admin_http.rs`，Bearer Token 鉴权），与 WebSocket 用户面完全解耦。持久化使用嵌入式 **redb** 数据库，并发会话使用 **DashMap**。
 
 ### 核心设计
 
 1. **单文件全生命周期**：`handler.rs::handle_connection` 从 WebSocket 升级 → 挑战 → 验签 → 注册 → 消息循环 → 清理，串起整个连接生命期。
 2. **内存态会话 + 持久化统计**：在线会话全部驻留 `DashMap`，每 `traffic_flush_interval_secs`（默认 30s）将流量与系统快照刷入 redb。
-3. **配额与防滥用**：每用户默认 500MB 中继配额；另有服务器整体月度流量限额（`global_relay_quota_bytes`，默认 0 = 不限制）；任一超限后仅允许 ≤1KB 小消息；中继失败 10 次/60s 踢出；内存占用 ≥95% 拒绝非 admin 新连接。
+3. **配额与防滥用**：每用户默认 500MB 中继配额；另有服务器整体月度流量限额（`global_relay_quota_bytes`，默认 0 = 不限制）；任一超限后仅允许 ≤1KB 小消息；中继失败 10 次/60s 踢出；内存占用 ≥95% 拒绝新连接（admin HTTP 接口不受限，紧急情况仍可管理）。
 4. **二进制中继帧**：`[4B header_len BE][header JSON][payload]`，与客户端约定，避免大 payload JSON 序列化。
 5. **心跳**：服务端每 15s 发 Ping；若 60s 内未收到任何客户端消息则断开（活动判定不限于 Pong，任意客户端消息均更新 `last_activity_at`）。
 
@@ -26,7 +26,8 @@ server/handshake/
     ├── config.rs           # Args(clap) + Config(TOML) + 各项默认值
     ├── handler.rs          # 核心：UserSession/AppState + 连接生命周期 + 消息分发 + 中继/配额/防滥用
     ├── inbox.rs            # 离线收件箱：store_if_offline 暂存（写路径顺带 GC 过期条目）+ 握手补投 + 后台定期清扫（read-and-delete + TTL + 每用户上限）
-    ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集
+    ├── admin.rs            # AdminCommand/AdminResponse + 12 个管理动作 + 系统信息采集（被 admin_http.rs 调用）
+    ├── admin_http.rs       # 管理 HTTP 服务：独立端口 + 自定义路径 + Bearer Token + 全 POST + 按 IP 失败退避（不引第三方 HTTP 框架，手写极简 HTTP/1.1）
     ├── crypto.rs           # ECDSA P-256 验签（p256 crate，Base64 SPKI 公钥 + 64B raw 签名）
     └── traffic.rs          # redb 表定义 + TrafficStats 流量统计 + 计费周期用量（含重置日历法计算与单元测试） + 系统快照 + 用户持久化
 ```
@@ -37,8 +38,7 @@ server/handshake/
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `admin_user_id` | `Option<String>` | 管理员 userId（从 config 注入） |
-| `config` | `Config` | 全局配置 |
+| `config` | `Config` | 全局配置（含 admin_token 等） |
 | `traffic` | `TrafficStats` | 流量统计聚合体 |
 | `user_quotas` | `DashMap<String, traffic::UserRecord>` | 用户记录缓存（含 user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes） |
 | `db` | `Arc<redb::Database>` | 持久化句柄（Arc 共享） |
@@ -70,7 +70,7 @@ server/handshake/
 ### 连接生命周期（handle_connection）
 
 1. WebSocket 升级，捕获 `Origin` 头存入 `UserSession.host`。
-2. 内存过载保护检查（非 admin 且内存 ≥ `max_memory_usage_percent` 拒绝连接）。
+2. 内存过载保护检查（内存 ≥ `max_memory_usage_percent` 拒绝新连接；admin 走独立 HTTP 接口不受限）。
 3. **先发送** `handshake_challenge`（32 字节随机字符串），**再等待**客户端响应（超时 `handshake_timeout_secs`）。
 4. 收到签名 → `crypto::verify_signature` 验签 → 失败断开。
 5. `add_user` 注册：检查 `max_sessions_per_user`，重连时踢旧连接；调用 `traffic.register_session` + `traffic.add_handshake`；持久化用户到 redb（保留 used_bytes/quota_bytes）。
@@ -78,7 +78,6 @@ server/handshake/
    - `disconnect_rx` —— 接收踢出信号
    - `data_rx` —— 接收中继转发通道数据
    - WebSocket 消息按类型分发：
-     - `admin` —— 转发 admin 命令
      - `query` —— 查询（如在线状态）
      - `update_services` —— 更新会话服务列表
      - `relay` —— 中继（文本/二进制）
@@ -89,7 +88,7 @@ server/handshake/
 
 ### 中继流程（relay_deliver_and_finalize）
 
-1. `check_relay_quota`：admin 全放；服务器整体月度配额超限或用户配额超限时，仅放 ≤ `relay_small_message_max_bytes`；否则放行。
+1. `check_relay_quota`：服务器整体月度配额超限或用户配额超限时，仅放 ≤ `relay_small_message_max_bytes`；否则放行。
 2. 查找目标 `userId:sessionId` → 通过 `data_tx` 投递；`silent: bool` 参数控制成功是否返回 `relay_response`。
 3. **成功**才记录流量（`traffic.add_relay_forwarded` + `state.record_relay_usage`），并 `reset_relay_failure` 重置失败计数；**失败不记录流量**。
 4. 失败时的离线收件箱路径：请求携带 `store_if_offline: true`（文本 relay 的命令字段 / 二进制帧 header 字段，此时目标 sessionId 允许为空）且 `inbox_enabled` 时，依次做两道前置检查——**单条大小上限**（payload 超过 `inbox_max_entry_bytes` 回 `status: "inbox_entry_too_large"`）与**目标用户存在性**（USERS 表查无此人回 `status: "unknown_target"`，拒绝为不存在的 userId 制造无人认领的收件箱）——都通过后才把完整转发消息存入收件箱（`inbox::store`），回 `status: "queued"`；收件箱满回 `status: "inbox_full"`（拒存不淘汰）。两个前置检查与存储成功均**不计入 relay 失败计数**；存储成功**按发送方额度计费**。检查未过或存储出错时走原有 `error` + 失败计数路径（`unknown_target`/`inbox_entry_too_large` 为明确回执，客户端按非 `queued` 处理回退本地队列）。
@@ -109,6 +108,18 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **补投时机**：握手成功（`add_user` + 用户持久化之后）调用 `inbox::load_and_clear`，按存储顺序把积压消息经 `data_tx` 发给本会话（入站计 receiver outbound 流量）。**读取即删除**：积压投递给最先握手的那个会话，不做多会话重投。
 - **上限**：每用户 `inbox_max_per_user` 条，超出拒存（回 `inbox_full`），不静默淘汰；单条受 `inbox_max_entry_bytes` 限制（超出回 `inbox_entry_too_large`）。
 - 存储与补投均有单元测试（`cargo test`）。
+
+### 管理 HTTP 接口（admin_http.rs）
+
+与 WebSocket 主服务完全分离的极简 HTTP/1.1 服务（未引入 axum/hyper 等框架），配置了 `admin_token` 才启用：
+
+- **监听**：`admin_http_host`（默认 127.0.0.1，配合 nginx 反代对外提供 HTTPS）+ `admin_http_port`（默认 8082）。
+- **路径**：`admin_base_path`（默认 `/ctrl-9f2a`，部署时建议改为随机字符串防扫描）；路径错误 / 方法错误 / token 错误**一律 404**，不可区分。
+- **鉴权**：`Authorization: Bearer <admin_token>`；token 比较**先 SHA-256 再常量时间比较**（防时序侧信道）。
+- **交互**：所有命令统一 `POST`，body 为 JSON（`{action, ...}`，与 AdminCommand 同构）；响应 body 为 AdminResponse JSON（HTTP 200 + `status:"ok"/"error"`），非法 JSON 回 400。
+- **防暴力刷**：按来源 IP 记录鉴权失败次数（60s 窗口），失败越多响应前延迟越长（200ms × 次数，封顶 5s）。
+- **超时**：单请求读取限时 10s；头部 ≤8KB、body ≤64KB。
+- 握手协议不再含 `is_admin` 字段；WS 消息循环不再有 `admin` 分支。
 
 ### AdminCommand（admin.rs）
 
@@ -154,9 +165,9 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 
 - **会话数上限**：`max_sessions_per_user`（默认 10），重连踢旧。
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
-- **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝非 admin 新连接。
+- **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝新 WS 连接（admin HTTP 接口不受限）。
 - **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
-- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有非 admin 中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc 获取（Unix `localtime_r`/`tm_gmtoff`，Windows `localtime_s`/`gmtime_s` 字段差推算），含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
+- **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc 获取（Unix `localtime_r`/`tm_gmtoff`，Windows `localtime_s`/`gmtime_s` 字段差推算），含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 
 ### 4. 优雅关闭（main.rs）
@@ -183,7 +194,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `update_services` 分支 | `update_services` | `ServiceRegistry.#syncToServer` |
 | 透传中继 | `__app`/`__data` 包裹 | `RemoteUser.sendToService` |
 | `latency_test`/`latency_report` 分支 | `latency_test` → `latency_test_response` → `latency_report`（服务端回 `latency_report_ack`） | `ServerManager.testLatency` |
-| AdminCommand 路由 | WebSocket 消息 `{type:"admin", action, url, ...}` | `AdminUser.#adminCommand` |
+| admin HTTP 接口 | `POST {admin_base_path}` + Bearer Token（body: `{action, ...}`） | 管理前端 `server/client/admin-shared.js`（AdminHttpClient） |
 | Ping/Pong | WS Ping | 客户端自动响应 |
 
 ## 七、配置默认值（config.rs）
@@ -212,7 +223,10 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `inbox_max_per_user` | 100 | 每用户收件箱最大条目数，超出拒存（回 `inbox_full`） |
 | `inbox_ttl_secs` | 3600 | 收件箱条目 TTL（秒，默认 1 小时——热缓冲定位，非长期存储）。写路径 GC + 后台定时清扫 + 读取过滤三通道生效 |
 | `inbox_max_entry_bytes` | 65536 | 入箱单条消息大小上限（字节），超出拒存（回 `inbox_entry_too_large`） |
-| `admin_user_id` | 无默认（不配置则无管理员） | 管理员用户 ID（admin 命令鉴权） |
+| `admin_token` | 无默认（不配置则管理接口关闭） | 管理 HTTP 接口 Bearer Token（建议 `openssl rand -hex 32` 生成） |
+| `admin_http_host` | `127.0.0.1` | 管理 HTTP 监听地址（配合 nginx 反代） |
+| `admin_http_port` | `8082` | 管理 HTTP 监听端口 |
+| `admin_base_path` | `/ctrl-9f2a` | 管理 HTTP 路径前缀（部署时建议改为随机字符串防扫描） |
 
 启动：`-c/--config` 指定 TOML 配置文件覆盖默认值。
 

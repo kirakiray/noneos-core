@@ -25,10 +25,25 @@ pub struct Config {
     /// 如果配置文件中未指定，则使用 default_host() 返回的默认值 ""（空=监听全地址）
     #[serde(default = "default_host")]
     pub host: String,
-    /// 管理员用户的 userId，连接服务器后拥有管理权限
-    /// 如果配置文件中未指定，则没有管理员
+    // ===== 管理 HTTP 接口 =====
+    /// 管理员 Bearer Token（随机长字符串，如 64 位 hex）
+    /// 未设置时管理接口完全关闭；设置后通过独立的 HTTP 端口提供管理命令
+    /// 建议生成方式：openssl rand -hex 32
     #[serde(default)]
-    pub admin_user_id: Option<String>,
+    pub admin_token: Option<String>,
+    /// 管理 HTTP 接口监听地址
+    /// 默认 127.0.0.1（仅本机访问，配合 nginx 反向代理对外提供 HTTPS）
+    #[serde(default = "default_admin_http_host")]
+    pub admin_http_host: String,
+    /// 管理 HTTP 接口监听端口
+    /// 默认 8082（与 WebSocket 主端口 8081 分离）
+    #[serde(default = "default_admin_http_port")]
+    pub admin_http_port: u16,
+    /// 管理 HTTP 接口的自定义路径前缀
+    /// 建议部署时改成随机字符串（如 /ctrl-x7k2m9aq），降低公网扫描器命中管理面的概率
+    /// 路径错误与 token 错误同样返回 404，探测者无法区分
+    #[serde(default = "default_admin_base_path")]
+    pub admin_base_path: String,
     /// 握手超时时间（秒），客户端必须在此时间内完成 handshake_challenge
     /// 如果配置文件中未指定，默认为 5 秒
     #[serde(default = "default_handshake_timeout")]
@@ -186,6 +201,21 @@ fn default_handshake_timeout() -> u64 {
     5
 }
 
+/// 管理 HTTP 接口默认监听地址：仅本机（配合 nginx 反代）
+fn default_admin_http_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+/// 管理 HTTP 接口默认端口
+fn default_admin_http_port() -> u16 {
+    8082
+}
+
+/// 管理 HTTP 接口默认路径前缀（部署时建议改为随机字符串）
+fn default_admin_base_path() -> String {
+    "/ctrl-9f2a".to_string()
+}
+
 /// 默认握手响应大小：1KB
 fn default_handshake_max_size() -> usize {
     1024
@@ -257,7 +287,10 @@ impl Default for Config {
         Self {
             port: default_port(),
             host: default_host(),
-            admin_user_id: None,
+            admin_token: None,
+            admin_http_host: default_admin_http_host(),
+            admin_http_port: default_admin_http_port(),
+            admin_base_path: default_admin_base_path(),
             handshake_timeout_secs: default_handshake_timeout(),
             handshake_max_size: default_handshake_max_size(),
             text_message_max_size: default_text_message_max_size(),

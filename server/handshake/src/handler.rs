@@ -55,10 +55,9 @@ pub(crate) struct UserSession {
     pub(crate) conn_id: u64,
 }
 
-/// 应用共享状态，存储所有已连接用户和管理员配置
+/// 应用共享状态，存储所有已连接用户
 /// 用户以 "userId:sessionId" 为 key 存储，同一 userId 的不同 sessionId 可同时连接
 pub struct AppState {
-    pub admin_user_id: Option<String>,
     pub config: Config,
     pub traffic: traffic::TrafficStats,
     pub user_quotas: DashMap<String, traffic::UserRecord>,
@@ -69,9 +68,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(admin_user_id: Option<String>, config: Config, db: Arc<Database>) -> Self {
+    pub fn new(config: Config, db: Arc<Database>) -> Self {
         Self {
-            admin_user_id: admin_user_id.clone(),
             traffic: traffic::TrafficStats::new(60),
             config,
             users: DashMap::new(),
@@ -79,11 +77,6 @@ impl AppState {
             user_session_counts: DashMap::new(),
             db,
         }
-    }
-
-    /// 判断指定用户是否为管理员
-    pub fn is_admin(&self, user_id: &str) -> bool {
-        self.admin_user_id.as_deref() == Some(user_id)
     }
 
     /// 获取或创建用户的转发额度（内存中）
@@ -114,12 +107,9 @@ impl AppState {
     }
 
     /// 检查用户是否允许转发指定大小的消息。
-    /// 管理员始终允许；用户配额与服务器整体月度配额任一超限后，
+    /// 用户配额与服务器整体月度配额任一超限后，
     /// 均仅允许 <= small_message_max_bytes 的消息（保证 WebRTC 信令仍可通行）。
     pub fn check_relay_quota(&self, user_id: &str, msg_size: u64) -> bool {
-        if self.is_admin(user_id) {
-            return true;
-        }
         if self.is_global_quota_exceeded() {
             return msg_size <= self.config.relay_small_message_max_bytes;
         }
@@ -132,9 +122,6 @@ impl AppState {
 
     /// 记录用户转发用量
     pub fn record_relay_usage(&self, user_id: &str, bytes: u64) {
-        if self.is_admin(user_id) {
-            return;
-        }
         let now = traffic::now_ms();
         self.user_quotas
             .entry(user_id.to_string())
@@ -315,8 +302,6 @@ struct HandshakeResponse {
     msg_type: String,
     status: String,
     message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_admin: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
 }
@@ -504,7 +489,6 @@ async fn handle_relay_send_data_text(
     user_id: &str,
     session_id: &str,
     _username: &str,
-    _role_str: &str,
     cmd: &serde_json::Value,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let action = cmd.get("action").and_then(|v| v.as_str()).unwrap_or("");
@@ -824,7 +808,6 @@ pub async fn handle_connection(
                     msg_type: "handshake".to_string(),
                     status: "error".to_string(),
                     message: format!("Handshake data too large: {} bytes (max {} bytes)", text.len(), handshake_max_size),
-                    is_admin: None,
                     version: None,
                 };
                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -838,7 +821,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: "Expected text message during handshake".to_string(),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -851,7 +833,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: format!("Handshake timeout: no response within {} seconds", handshake_timeout_secs),
-                is_admin: None,
                 version: None,
             };
             let _ = ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await;
@@ -875,7 +856,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: "Invalid JSON format or not an object".to_string(),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -891,7 +871,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: "Missing 'challenge' field".to_string(),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -904,7 +883,6 @@ pub async fn handle_connection(
             msg_type: "handshake".to_string(),
             status: "error".to_string(),
             message: "Challenge mismatch".to_string(),
-            is_admin: None,
             version: None,
         };
         ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -919,7 +897,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: "Missing 'signature' field".to_string(),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -934,7 +911,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: "Missing 'publicKey' field".to_string(),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -965,11 +941,9 @@ pub async fn handle_connection(
 
     match verify_signature(&public_key, &signed_message, &signature) {
         Ok(_) => {
-            // 判断是否为管理员
-            let is_admin = state.admin_user_id.as_deref() == Some(&user_id);
-
-            // 内存过载保护：非管理员且内存使用率超过阈值时拒绝连接
-            if !is_admin {
+            // 内存过载保护：内存使用率超过阈值时拒绝新的用户连接
+            // （管理接口走独立的 admin HTTP 服务，不受此限制，紧急情况下仍可管理服务器）
+            {
                 let threshold = state.config.max_memory_usage_percent;
                 let mem_usage = admin::get_memory_usage_percent().await;
                 if mem_usage > threshold {
@@ -982,7 +956,6 @@ pub async fn handle_connection(
                         msg_type: "handshake".to_string(),
                         status: "error".to_string(),
                         message: msg,
-                        is_admin: None,
                         version: None,
                     };
                     ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -1003,7 +976,6 @@ pub async fn handle_connection(
                     msg_type: "handshake".to_string(),
                     status: "error".to_string(),
                     message: e.clone(),
-                    is_admin: None,
                     version: None,
                 };
                 ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -1041,8 +1013,7 @@ pub async fn handle_connection(
                 }
             }
 
-            let role_str = if is_admin { " (ADMIN)" } else { "" };
-            println!("Handshake: User {}:{} ({}) authenticated successfully{}", user_id, session_id, username, role_str);
+            println!("Handshake: User {}:{} ({}) authenticated successfully", user_id, session_id, username);
 
             // 离线收件箱补投：把该用户离线期间暂存的消息按存储顺序投递给本会话。
             // 消息先入 data_tx 通道缓冲，客户端收到 handshake success 后立即收到积压。
@@ -1071,7 +1042,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "success".to_string(),
                 message: "Authentication successful".to_string(),
-                is_admin: Some(is_admin),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
@@ -1140,7 +1110,7 @@ pub async fn handle_connection(
                                             } else {
                                                 text.clone()
                                             };
-                                            println!("Message from {}:{} ({}){}: {}", user_id, session_id, username, role_str, log_text);
+                                            println!("Message from {}:{} ({}): {}", user_id, session_id, username, log_text);
 
                                             // 统计入站流量
                                             {
@@ -1152,23 +1122,6 @@ pub async fn handle_connection(
                                                 let msg_type = cmd.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
                                                 match msg_type {
-                                                    "admin" => {
-                                                        if let Ok(admin_cmd) = serde_json::from_str::<admin::AdminCommand>(&text) {
-                                                            if !is_admin {
-                                                                let resp = admin::AdminResponse {
-                                                                    msg_type: "admin_response".to_string(),
-                                                                    action: admin_cmd.action,
-                                                                    status: "error".to_string(),
-                                                                    message: Some("Permission denied: not an admin".to_string()),
-                                                                    ..Default::default()
-                                                                };
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            } else {
-                                                                let resp = admin::handle_admin_command(&state, admin_cmd, &user_id, &session_id).await;
-                                                                ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;
-                                                            }
-                                                        }
-                                                    }
                                                     "query" => {
                                                         handle_query_message(&mut ws_sender, &state, &cmd).await?;
                                                     }
@@ -1176,7 +1129,7 @@ pub async fn handle_connection(
                                                         handle_update_services(&state, &user_id, &session_id, &cmd);
                                                     }
                                                     "relay" => {
-                                                        handle_relay_send_data_text(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, role_str, &cmd).await?;
+                                                        handle_relay_send_data_text(&mut ws_sender, &state, &conn_key, &user_id, &session_id, &username, &cmd).await?;
                                                     }
                                                     "latency_test" => {
                                                         handle_latency_test(&mut ws_sender, &cmd).await?;
@@ -1281,7 +1234,6 @@ pub async fn handle_connection(
                 msg_type: "handshake".to_string(),
                 status: "error".to_string(),
                 message: format!("Verification failed: {}", e),
-                is_admin: None,
                 version: None,
             };
             ws_sender.send(Message::Text(serde_json::to_string(&resp)?)).await?;

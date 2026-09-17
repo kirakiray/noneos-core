@@ -392,7 +392,7 @@ await deleteUser("my-namespace", { skipConfirm: true });
 
 | 事件名 | 触发时机 | `event.detail` |
 |--------|---------|----------------|
-| `handshake` | 服务器握手完成或失败 | `{ url, status: "success"|"error", isAdmin?, version?, message? }` |
+| `handshake` | 服务器握手完成或失败 | `{ url, status: "success"|"error", version?, message? }` |
 | `server_connected` | 服务器握手成功（首次或重连） | `{ url, version }` |
 | `server_disconnected` | 握手成功后连接断开 | `{ url, reason }` |
 | `server_reconnecting` | 已安排下一次自动重连 | `{ url, attempt, nextRetryAt }` |
@@ -851,7 +851,7 @@ await user.cred.import(fakeCert); // 抛出错误: "用户ID与公钥不匹配"
 - [用户导出导入测试](../../tests/user/local/user-export-import.sb.html)
 - [用户专属存储测试](../../tests/user/local/user-storage.sb.html)
 - [共享存储测试](../../tests/user/local/user-shared-storage.sb.html)（含 shareStorage 登记、__storage_req 协议与远端只读代理用例）
-- [管理员连接测试](../../tests/user/local/admin-connect-server.sb.html)
+- [管理 HTTP 接口测试](../../tests/user/local/admin-http.sb.html)
 
 ---
 

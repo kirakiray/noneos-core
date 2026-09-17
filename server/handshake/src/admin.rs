@@ -306,8 +306,6 @@ pub async fn collect_system_info() -> serde_json::Value {
 pub async fn handle_admin_command(
     state: &AppState,
     admin_cmd: AdminCommand,
-    user_id: &str,
-    session_id: &str,
 ) -> AdminResponse {
     match admin_cmd.action.as_str() {
         "list_users" => {
@@ -410,33 +408,23 @@ pub async fn handle_admin_command(
         }
         "disconnect_user" => {
             let target_id = admin_cmd.user_id.clone().unwrap_or_default();
-            if target_id == user_id {
+            let count = state.disconnect_user_by_id(&target_id);
+            if count > 0 {
+                println!("Admin API disconnected user {} ({} session(s))", target_id, count);
+                AdminResponse {
+                    msg_type: "admin_response".to_string(),
+                    action: "disconnect_user".to_string(),
+                    status: "ok".to_string(),
+                    message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
+                    ..Default::default()
+                }
+            } else {
                 AdminResponse {
                     msg_type: "admin_response".to_string(),
                     action: "disconnect_user".to_string(),
                     status: "error".to_string(),
-                    message: Some("Cannot disconnect yourself".to_string()),
+                    message: Some(format!("User {} not found", target_id)),
                     ..Default::default()
-                }
-            } else {
-                let count = state.disconnect_user_by_id(&target_id);
-                if count > 0 {
-                    println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
-                    AdminResponse {
-                        msg_type: "admin_response".to_string(),
-                        action: "disconnect_user".to_string(),
-                        status: "ok".to_string(),
-                        message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
-                        ..Default::default()
-                    }
-                } else {
-                    AdminResponse {
-                        msg_type: "admin_response".to_string(),
-                        action: "disconnect_user".to_string(),
-                        status: "error".to_string(),
-                        message: Some(format!("User {} not found", target_id)),
-                        ..Default::default()
-                    }
                 }
             }
         }
@@ -451,18 +439,10 @@ pub async fn handle_admin_command(
                     message: Some("Missing session_id".to_string()),
                     ..Default::default()
                 }
-            } else if target_user == user_id && target_session == session_id {
-                AdminResponse {
-                    msg_type: "admin_response".to_string(),
-                    action: "disconnect_session".to_string(),
-                    status: "error".to_string(),
-                    message: Some("Cannot disconnect yourself".to_string()),
-                    ..Default::default()
-                }
             } else {
                 let found = state.disconnect_session(&target_user, &target_session);
                 if found {
-                    println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
+                    println!("Admin API disconnected session {} of user {}", target_session, target_user);
                     AdminResponse {
                         msg_type: "admin_response".to_string(),
                         action: "disconnect_session".to_string(),
@@ -561,7 +541,7 @@ pub async fn handle_admin_command(
                 }
             } else if let Some(quota_bytes) = admin_cmd.quota_bytes {
                 let quota = state.set_user_relay_quota(&target_user, quota_bytes);
-                println!("Admin {} set user {} relay quota to {} bytes", user_id, target_user, quota_bytes);
+                println!("Admin API set user {} relay quota to {} bytes", target_user, quota_bytes);
                 AdminResponse {
                     msg_type: "admin_response".to_string(),
                     action: "set_user_relay_quota".to_string(),

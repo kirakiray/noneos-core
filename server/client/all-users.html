@@ -413,7 +413,6 @@
                 this.adminUserId = adminInfo.userId;
                 this.adminUsername = adminInfo.username;
               }
-              await this._adminUser.server.connect(WS_URL);
               this.connected = true;
               await this.refreshUsers();
             } catch (e) {

@@ -4,49 +4,133 @@ let _adminUser = null;
 let _adminInfo = null;
 let _promise = null;
 
-const ADMIN_JSON_URL = "/tests/user/local/admin.json";
-export const ADMIN_NS = "admin-shared-ns";
-export const DEFAULT_ACCOUNT_NS = "default";
-
-const ADMIN_ACCOUNT_KEY = "noneos-admin-account-ns";
-
-const DEFAULT_SERVER_URL = "ws://localhost:8081";
+const DEFAULT_SERVER_URL = "http://127.0.0.1:8082/ctrl-9f2a";
 const SERVER_URL_KEY = "noneos-admin-server-url";
 const SERVER_HISTORY_KEY = "noneos-admin-server-history";
+const TOKENS_KEY = "noneos-admin-tokens";
 const MAX_HISTORY = 10;
 
 /**
- * 获取当前使用的登录帐户命名空间
- * @returns {string} ADMIN_NS 或 DEFAULT_ACCOUNT_NS
+ * 管理员 HTTP 客户端
+ * 通过独立的 admin HTTP 接口（随机路径 + Bearer Token + 全 POST）与管理服务器交互，
+ * 不再依赖 nos/user 的 WebSocket 用户体系。
  */
-export function getAdminAccountNamespace() {
-  try {
-    const ns = localStorage.getItem(ADMIN_ACCOUNT_KEY);
-    if (ns === DEFAULT_ACCOUNT_NS) return DEFAULT_ACCOUNT_NS;
-  } catch {
-    // localStorage 不可用则回退管理员帐户
-  }
-  return ADMIN_NS;
-}
+class AdminHttpClient {
+  /** @type {string} 管理 API 基础地址（含路径前缀），如 https://example.com/ctrl-x7k2m9 */
+  #baseUrl = "";
+  /** @type {string} Bearer Token */
+  #token = "";
 
-/**
- * 设置登录帐户命名空间
- * @param {string} ns - ADMIN_NS 或 DEFAULT_ACCOUNT_NS
- */
-export function setAdminAccountNamespace(ns) {
-  try {
-    if (ns === DEFAULT_ACCOUNT_NS) {
-      localStorage.setItem(ADMIN_ACCOUNT_KEY, DEFAULT_ACCOUNT_NS);
-    } else {
-      localStorage.removeItem(ADMIN_ACCOUNT_KEY);
+  constructor(baseUrl, token) {
+    this.#baseUrl = baseUrl.replace(/\/+$/, "");
+    this.#token = token;
+  }
+
+  /**
+   * 发送管理命令并等待响应
+   * @param {string} action - 管理操作名称
+   * @param {Object} extra - 额外参数（snake_case）
+   * @returns {Promise<Object>} 管理命令响应（与原 admin_response 同构）
+   */
+  async #command(action, extra = {}) {
+    let resp;
+    try {
+      resp = await fetch(this.#baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.#token}`,
+        },
+        body: JSON.stringify({ action, ...extra }),
+      });
+    } catch (err) {
+      throw new Error(`无法连接管理接口（${this.#baseUrl}）：${err?.message || err}`);
     }
-  } catch {
-    // 忽略写入失败
+
+    if (resp.status === 404) {
+      throw new Error("管理接口返回 404：接口路径或 Token 不正确");
+    }
+    if (resp.status === 429) {
+      throw new Error("请求过于频繁，已被管理接口限流，请稍后重试");
+    }
+    if (!resp.ok) {
+      let message = `HTTP ${resp.status}`;
+      try {
+        const data = await resp.json();
+        if (data?.message) message = data.message;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+
+    return resp.json();
+  }
+
+  // ===== 与旧 AdminUser 保持兼容的方法签名（首参 url 被忽略）=====
+
+  async listUsers(_url, { page = 1, pageSize = 20 } = {}) {
+    return this.#command("list_users", { page, page_size: pageSize });
+  }
+
+  async listUserGroups(_url, { page = 1, pageSize = 20 } = {}) {
+    return this.#command("list_user_groups", { page, page_size: pageSize });
+  }
+
+  async listAllUsers(_url, { page = 1, pageSize = 20 } = {}) {
+    return this.#command("list_all_users", { page, page_size: pageSize });
+  }
+
+  async disconnectUser(_url, userId) {
+    return this.#command("disconnect_user", { user_id: userId });
+  }
+
+  async disconnectSession(_url, userId, sessionId) {
+    return this.#command("disconnect_session", { user_id: userId, session_id: sessionId });
+  }
+
+  async getSystemInfo(_url) {
+    return this.#command("get_system_info");
+  }
+
+  async getTrafficStats(_url, { limit } = {}) {
+    return this.#command("get_traffic_stats", { limit });
+  }
+
+  async getTrafficHistory(_url, { fromMs, userId, page = 1, pageSize = 20 } = {}) {
+    return this.#command("get_traffic_history", {
+      from_ms: fromMs,
+      page,
+      page_size: pageSize,
+      user_id: userId,
+    });
+  }
+
+  async getSystemStatsHistory(_url, { limit = 60 } = {}) {
+    return this.#command("get_system_stats_history", { limit });
+  }
+
+  async setUserRelayQuota(_url, userId, quotaBytes) {
+    return this.#command("set_user_relay_quota", {
+      user_id: userId,
+      quota_bytes: quotaBytes,
+    });
+  }
+
+  async getUserRelayQuota(_url, userId) {
+    if (Array.isArray(userId)) {
+      return this.#command("get_user_relay_quota", { user_ids: userId });
+    }
+    return this.#command("get_user_relay_quota", { user_id: userId });
+  }
+
+  async getGlobalRelayQuota(_url) {
+    return this.#command("get_global_relay_quota");
   }
 }
 
 /**
- * 获取当前管理员应用连接的服务器地址
+ * 获取当前管理应用连接的服务器地址（管理 API 基础地址，含路径前缀）
  * 优先从 localStorage 读取，否则返回默认值
  * @returns {string}
  */
@@ -61,7 +145,7 @@ export function getCurrentServerUrl() {
 }
 
 /**
- * 设置当前管理员应用连接的服务器地址
+ * 设置当前管理应用连接的服务器地址
  * @param {string} url
  */
 export function setCurrentServerUrl(url) {
@@ -73,7 +157,7 @@ export function setCurrentServerUrl(url) {
 }
 
 /**
- * 获取保存的服务器地址历史列表
+ * 获取已保存的服务器地址历史列表
  * @returns {string[]}
  */
 export function getServerHistory() {
@@ -106,16 +190,69 @@ export function addServerHistory(url) {
 }
 
 /**
- * 从历史列表中移除指定地址
+ * 从历史列表中移除指定地址（同时清理对应的 Token）
  * @param {string} url
  */
 export function removeServerHistory(url) {
   const list = getServerHistory().filter((u) => u !== url);
   try {
     localStorage.setItem(SERVER_HISTORY_KEY, JSON.stringify(list));
+    const tokens = getTokens();
+    if (tokens[url] !== undefined) {
+      delete tokens[url];
+      saveTokens(tokens);
+    }
   } catch {
     // 忽略写入失败
   }
+}
+
+// ===== Token 管理（按服务器地址分别保存）=====
+
+function getTokens() {
+  try {
+    const raw = localStorage.getItem(TOKENS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw);
+      if (map && typeof map === "object") return map;
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function saveTokens(map) {
+  try {
+    localStorage.setItem(TOKENS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * 获取指定服务器地址对应的 Token
+ * @param {string} url
+ * @returns {string}
+ */
+export function getServerToken(url) {
+  return getTokens()[url] || "";
+}
+
+/**
+ * 设置指定服务器地址对应的 Token
+ * @param {string} url
+ * @param {string} token
+ */
+export function setServerToken(url, token) {
+  if (!url) return;
+  const tokens = getTokens();
+  if (token) {
+    tokens[url] = token;
+  } else {
+    delete tokens[url];
+  }
+  saveTokens(tokens);
 }
 
 /**
@@ -132,96 +269,27 @@ export function showServerError(url, error) {
   });
 }
 
-function formatUserId(userId) {
-  if (!userId) return "";
-  if (userId.length <= 8) return userId;
-  return `${userId.slice(0, 4)}...${userId.slice(-4)}`;
-}
-
 /**
- * 获取两个登录帐户的摘要信息（用于弹窗展示）
- * @returns {Promise<Array<{namespace: string, label: string, userId: string, shortUserId: string}>>}
+ * 获取管理员 HTTP 客户端（单例）
+ * 需要先通过 getCurrentServerUrl / setServerToken 配置好服务器地址与 Token
+ * @returns {Promise<{adminUser: AdminHttpClient, adminInfo: {userId: string, username: string}}>}
  */
-export async function getAccountSummaries(load) {
-  const { getUserInfo } = await load("/nos/user/db.js");
-  const { getUser } = await load("/nos/user/main.js");
-
-  const summaries = [];
-
-  // 管理员帐户
-  try {
-    const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
-    const savedAdminInfo = await getUserInfo(ADMIN_NS);
-    const adminUserId = savedAdminInfo?.userId || adminData.info?.userId || "";
-    summaries.push({
-      namespace: ADMIN_NS,
-      label: "管理员（导入 key）",
-      userId: adminUserId,
-      shortUserId: formatUserId(adminUserId),
-    });
-  } catch (e) {
-    summaries.push({
-      namespace: ADMIN_NS,
-      label: "管理员（导入 key）",
-      userId: "",
-      shortUserId: "",
-    });
-  }
-
-  // 本地默认帐户（不存在时自动创建，以便展示 userId）
-  try {
-    const defaultUser = await getUser(DEFAULT_ACCOUNT_NS);
-    const defaultUserId = defaultUser.userId || "";
-    summaries.push({
-      namespace: DEFAULT_ACCOUNT_NS,
-      label: "本地默认用户",
-      userId: defaultUserId,
-      shortUserId: formatUserId(defaultUserId),
-    });
-  } catch (e) {
-    summaries.push({
-      namespace: DEFAULT_ACCOUNT_NS,
-      label: "本地默认用户",
-      userId: "",
-      shortUserId: "",
-    });
-  }
-
-  return summaries;
-}
-
-export async function getAdmin(load) {
+export async function getAdmin() {
   if (_adminUser) return { adminUser: _adminUser, adminInfo: _adminInfo };
   if (_promise) return _promise;
 
   _promise = (async () => {
-    const { AdminUser } = await load("/nos/user/admin-user.js");
-
-    const namespace = getAdminAccountNamespace();
-
-    if (namespace === ADMIN_NS) {
-      const { saveUserKeys, saveUserInfo } = await load("/nos/user/db.js");
-      const { deleteUser } = await load("/nos/user/main.js");
-
-      const adminData = await fetch(ADMIN_JSON_URL).then((r) => r.json());
-
-      try {
-        await deleteUser(ADMIN_NS, { skipConfirm: true });
-      } catch (e) {
-        /* ignore */
-      }
-      await saveUserKeys(ADMIN_NS, adminData.keys);
-      await saveUserInfo(ADMIN_NS, adminData.info);
+    const url = getCurrentServerUrl();
+    const token = getServerToken(url);
+    if (!token) {
+      _promise = null;
+      throw new Error(`未配置服务器 ${url} 的管理 Token，请点击左下角 🌐 修改配置`);
     }
 
-    const adminUser = new AdminUser(namespace);
-    await adminUser.ready();
-
-    _adminUser = adminUser;
-    const info = await adminUser.getInfo();
+    _adminUser = new AdminHttpClient(url, token);
     _adminInfo = {
-      userId: adminUser.userId,
-      username: info.username || "Admin",
+      userId: "",
+      username: "Admin",
     };
 
     return { adminUser: _adminUser, adminInfo: _adminInfo };
