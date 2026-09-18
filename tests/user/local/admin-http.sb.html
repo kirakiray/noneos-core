@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin HTTP API Test</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+
+  <body>
+    <h1>Admin HTTP API Tests</h1>
+
+    <!-- ============================================================ -->
+    <!-- Admin HTTP 使用说明                                          -->
+    <!-- ============================================================ -->
+    <!--
+    管理功能已从 WebSocket 用户体系剥离，改为独立的 HTTP 接口。
+
+    ## 1. 服务器配置（test-space/config.example.toml）
+
+        admin_token = "test-admin-token-0123456789abcdef"
+        admin_http_host = "127.0.0.1"
+        admin_http_port = 8091
+        admin_base_path = "/ctrl-test"
+
+    未设置 admin_token 时管理接口完全关闭。
+
+    ## 2. 交互方式
+
+    所有命令统一 POST 到 http://<host>:<port><admin_base_path>，
+    请求头携带 Authorization: Bearer <admin_token>，
+    body 为 JSON（含 action 字段与各命令参数，与原 admin 命令同构）。
+
+    响应 body 为 JSON（与原 admin_response 同构）。
+
+    路径错误 / 方法错误 / token 错误一律返回 404（不可区分）。
+    鉴权失败按来源 IP 递增延迟（防暴力刷）。
+
+    ## 3. 支持的 action
+
+    list_users / list_user_groups / list_all_users /
+    disconnect_user / disconnect_session /
+    get_system_info / get_traffic_stats / get_traffic_history（已废弃，返回空）/
+    get_system_stats_history /
+    set_user_relay_quota / get_user_relay_quota / get_global_relay_quota
+    -->
+
+    <sb-test name="Admin API rejects wrong path (no CORS, fetch unreadable)">
+      <template>
+        <script type="module">
+          // 错误路径的 404 不带 CORS 头：跨域 JS 无法读取响应，fetch 直接抛错。
+          // 这正是设计意图——错误路径的响应特征与不存在的路径完全一致。
+          let fetchRejected = false;
+          try {
+            await fetch("http://127.0.0.1:8091/ctrl-wrong", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer test-admin-token-0123456789abcdef",
+              },
+              body: JSON.stringify({ action: "list_users" }),
+            });
+          } catch (e) {
+            fetchRejected = true;
+          }
+
+          return {
+            assert: fetchRejected,
+            content: { fetchRejected },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API rejects GET method with 404">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "GET",
+            headers: { Authorization: "Bearer test-admin-token-0123456789abcdef" },
+          });
+
+          return {
+            assert: resp.status === 404,
+            content: { status: resp.status },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API rejects wrong token with 404">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer wrong-token",
+            },
+            body: JSON.stringify({ action: "list_users" }),
+          });
+
+          return {
+            assert: resp.status === 404,
+            content: { status: resp.status },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API list_users">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer test-admin-token-0123456789abcdef",
+            },
+            body: JSON.stringify({ action: "list_users", page: 1, page_size: 5 }),
+          });
+
+          const data = await resp.json();
+
+          return {
+            assert:
+              resp.status === 200 &&
+              data.type === "admin_response" &&
+              data.action === "list_users" &&
+              data.status === "ok" &&
+              Array.isArray(data.users),
+            content: { httpStatus: resp.status, response: data },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API get_system_info returns system metrics">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer test-admin-token-0123456789abcdef",
+            },
+            body: JSON.stringify({ action: "get_system_info" }),
+          });
+
+          const data = await resp.json();
+
+          const hasInfo =
+            data.status === "ok" &&
+            data.system_info &&
+            typeof data.system_info.memory === "object" &&
+            typeof data.system_info.cpu === "object";
+
+          return {
+            assert: resp.status === 200 && hasInfo,
+            content: { httpStatus: resp.status, status: data.status },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API get and set user relay quota">
+      <template>
+        <script type="module">
+          const headers = {
+            "Content-Type": "application/json",
+            Authorization: "Bearer test-admin-token-0123456789abcdef",
+          };
+          const base = "http://127.0.0.1:8091/ctrl-test";
+          const targetUserId = "quota-test-user-http";
+
+          // 设置额度
+          const setResp = await (await fetch(base, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              action: "set_user_relay_quota",
+              user_id: targetUserId,
+              quota_bytes: 123456,
+            }),
+          })).json();
+
+          // 读取额度
+          const getResp = await (await fetch(base, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              action: "get_user_relay_quota",
+              user_id: targetUserId,
+            }),
+          })).json();
+
+          const ok =
+            setResp.status === "ok" &&
+            getResp.status === "ok" &&
+            getResp.quota &&
+            getResp.quota.quota_bytes === 123456;
+
+          // 清理：重置为跟随服务器默认
+          await fetch(base, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              action: "set_user_relay_quota",
+              user_id: targetUserId,
+              reset_to_default: true,
+            }),
+          });
+
+          return {
+            assert: ok,
+            content: { set: setResp.status, get: getResp.status, quota: getResp.quota },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API set and reset user relay quota follows server default">
+      <template>
+        <script type="module">
+          const headers = {
+            "Content-Type": "application/json",
+            Authorization: "Bearer test-admin-token-0123456789abcdef",
+          };
+          const base = "http://127.0.0.1:8091/ctrl-test";
+          const targetUserId = "quota-reset-test-user";
+
+          const call = (body) => fetch(base, { method: "POST", headers, body: JSON.stringify(body) }).then(r => r.json());
+
+          // 单独设置额度 → custom_quota = true，quota_bytes 为生效值
+          const setResp = await call({ action: "set_user_relay_quota", user_id: targetUserId, quota_bytes: 12345 });
+          // 重置为默认 → custom_quota = false，quota_bytes 为服务器默认值（>0）
+          const resetResp = await call({ action: "set_user_relay_quota", user_id: targetUserId, reset_to_default: true });
+
+          const ok =
+            setResp.status === "ok" &&
+            setResp.quota.custom_quota === true &&
+            setResp.quota.quota_bytes === 12345 &&
+            resetResp.status === "ok" &&
+            resetResp.quota.custom_quota === false &&
+            resetResp.quota.quota_bytes > 0;
+
+          return {
+            assert: ok,
+            content: { set: setResp.quota, reset: resetResp.quota },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API get_global_relay_quota">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer test-admin-token-0123456789abcdef",
+            },
+            body: JSON.stringify({ action: "get_global_relay_quota" }),
+          });
+
+          const data = await resp.json();
+
+          const ok =
+            data.status === "ok" &&
+            data.quota &&
+            typeof data.quota.quotaBytes === "number" &&
+            typeof data.quota.usedBytes === "number";
+
+          return {
+            assert: resp.status === 200 && ok,
+            content: { httpStatus: resp.status, quota: data.quota },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API unknown action returns error response">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer test-admin-token-0123456789abcdef",
+            },
+            body: JSON.stringify({ action: "no_such_action" }),
+          });
+
+          const data = await resp.json();
+
+          return {
+            assert: resp.status === 200 && data.status === "error",
+            content: { httpStatus: resp.status, response: data },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API invalid JSON returns 400">
+      <template>
+        <script type="module">
+          const resp = await fetch("http://127.0.0.1:8091/ctrl-test", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer test-admin-token-0123456789abcdef",
+            },
+            body: "not-json",
+          });
+
+          return {
+            assert: resp.status === 400,
+            content: { status: resp.status },
+          };
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

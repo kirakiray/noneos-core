@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use redb::{Database, ReadableTable, TableDefinition, ReadableDatabase};
+use redb::{Database, ReadableTable, ReadableTableMetadata, TableDefinition, ReadableDatabase};
 use std::sync::atomic::{AtomicU64, Ordering};
 use dashmap::DashMap;
 
@@ -9,6 +9,10 @@ use dashmap::DashMap;
 /// 用户信息表：userId -> bincode(UserRecord)
 /// 存储用户基础信息 + 转发额度，握手时写入，所有 session 关闭时更新用量
 const USERS: TableDefinition<&str, Vec<u8>> = TableDefinition::new("users");
+/// 用户「按最后活跃时间」索引：key = (u64::MAX - last_seen_at, userId)，
+/// 正向遍历即最新在前；配合 USERS 主表实现 list_all_users 的 redb 层分页，
+/// 避免每次翻页全量加载反序列化整张用户表
+const USERS_BY_SEEN: TableDefinition<(u64, &str), ()> = TableDefinition::new("users_by_seen");
 
 /// 用户流量时间分布（每30秒聚合）：(ts_30s, from_user, to_user) -> bytes
 /// 双路径写入：1) 每30秒定时 flush  2) 用户所有 session 关闭时即时写入
@@ -39,6 +43,11 @@ const KEY_PERIOD_START: &str = "period_start";
 // ===== 数据结构 =====
 
 /// 用户记录（合并用户信息 + 转发额度，存储在 redb users 表）
+///
+/// 额度语义：`custom_quota = false` 表示用户**未单独配置**，
+/// 生效额度动态跟随服务器配置 `default_relay_quota_bytes`（`effective_quota`）；
+/// `custom_quota = true` 表示管理员单独设置过，使用存储的 `quota_bytes`。
+/// 新用户不快照默认值，改配置即对全部未配置用户生效。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRecord {
     pub user_id: String,
@@ -46,8 +55,90 @@ pub struct UserRecord {
     pub public_key: String,
     pub first_seen_at: u64,
     pub last_seen_at: u64,
+    /// 单独设置的额度（仅 custom_quota = true 时生效）
     pub quota_bytes: u64,
     pub used_bytes: u64,
+    pub custom_quota: bool,
+}
+
+/// 旧版记录格式（quota_bytes 为快照的默认值，无 custom_quota 字段），
+/// 仅用于迁移反序列化
+#[derive(Debug, Deserialize)]
+struct OldUserRecord {
+    user_id: String,
+    username: String,
+    public_key: String,
+    first_seen_at: u64,
+    last_seen_at: u64,
+    quota_bytes: u64,
+    used_bytes: u64,
+}
+
+/// 生效额度：未单独配置时动态跟随服务器默认值
+pub fn effective_quota(record: &UserRecord, default_quota_bytes: u64) -> u64 {
+    if record.custom_quota {
+        record.quota_bytes
+    } else {
+        default_quota_bytes
+    }
+}
+
+/// 一次性迁移旧格式用户记录（无 custom_quota 字段 → 新格式）。
+/// 迁移规则：旧记录的 quota_bytes 与当前服务器默认值不同 → 视为曾单独配置（custom_quota = true）；
+/// 相同 → 视为快照的默认值（custom_quota = false，之后跟随配置动态变化）。
+pub fn migrate_users_if_needed(db: &Database, default_quota_bytes: u64) -> Result<usize, redb::Error> {
+    // 先探测是否存在旧格式记录，避免无谓的全表写
+    let has_old = {
+        let read_txn = db.begin_read()?;
+        let table = read_txn.open_table(USERS)?;
+        let mut found = false;
+        for entry in table.iter()? {
+            let (_, value) = entry?;
+            if bincode::deserialize::<UserRecord>(&value.value()).is_err() {
+                found = true;
+                break;
+            }
+        }
+        found
+    };
+    if !has_old {
+        return Ok(0);
+    }
+
+    let write_txn = db.begin_write()?;
+    let mut migrated = 0usize;
+    {
+        let read_txn = db.begin_read()?;
+        let users = read_txn.open_table(USERS)?;
+        let mut table = write_txn.open_table(USERS)?;
+        let mut index = write_txn.open_table(USERS_BY_SEEN)?;
+        for entry in users.iter()? {
+            let (key, value) = entry?;
+            let bytes = value.value();
+            if bincode::deserialize::<UserRecord>(&bytes).is_ok() {
+                continue; // 已是新格式
+            }
+            if let Ok(old) = bincode::deserialize::<OldUserRecord>(&bytes) {
+                let record = UserRecord {
+                    user_id: old.user_id,
+                    username: old.username,
+                    public_key: old.public_key,
+                    first_seen_at: old.first_seen_at,
+                    last_seen_at: old.last_seen_at,
+                    quota_bytes: old.quota_bytes,
+                    used_bytes: old.used_bytes,
+                    custom_quota: old.quota_bytes != default_quota_bytes,
+                };
+                // last_seen_at 未变，USERS_BY_SEEN 索引项原样保留
+                let encoded = bincode::serialize(&record).unwrap_or_default();
+                table.insert(key.value(), encoded)?;
+                migrated += 1;
+                let _ = &mut index;
+            }
+        }
+    }
+    write_txn.commit()?;
+    Ok(migrated)
 }
 
 /// 分钟级流量桶（用于 get_traffic_stats 响应）
@@ -636,11 +727,70 @@ pub fn save_user(db: &Database, record: &UserRecord) -> Result<(), redb::Error> 
     let write_txn = db.begin_write()?;
     {
         let mut table = write_txn.open_table(USERS)?;
+        let mut index = write_txn.open_table(USERS_BY_SEEN)?;
+        // last_seen_at 变化时先移除旧索引项，避免同一用户残留多个索引条目
+        let old = table.get(record.user_id.as_str())?
+            .and_then(|v| bincode::deserialize::<UserRecord>(&v.value()).ok());
+        if let Some(old) = old {
+            index.remove((u64::MAX - old.last_seen_at, old.user_id.as_str()))?;
+        }
         let encoded = bincode::serialize(record).unwrap_or_default();
         table.insert(record.user_id.as_str(), encoded)?;
+        index.insert((u64::MAX - record.last_seen_at, record.user_id.as_str()), ())?;
     }
     write_txn.commit()?;
     Ok(())
+}
+
+/// 启动时校验并重建 USERS_BY_SEEN 索引（两张表条目数不一致时全量重建，兼容旧库迁移）。
+/// 注意：写事务的 open_table 会自动创建缺失的表，因此先开写事务再读 USERS，
+/// 避免「读事务打开不存在的表」报错。
+pub fn rebuild_users_by_seen_if_needed(db: &Database) -> Result<usize, redb::Error> {
+    let write_txn = db.begin_write()?;
+    let mut rebuilt = 0usize;
+    {
+        let mut index = write_txn.open_table(USERS_BY_SEEN)?;
+        let users_len = write_txn.open_table(USERS)?.len()?;
+        let index_len = index.len()?;
+        if users_len == index_len {
+            drop(index);
+            write_txn.abort()?;
+            return Ok(0);
+        }
+        index.retain(|_, _| false)?;
+        let read_txn = db.begin_read()?;
+        let users = read_txn.open_table(USERS)?;
+        for entry in users.iter()? {
+            let (key, value) = entry?;
+            if let Ok(record) = bincode::deserialize::<UserRecord>(&value.value()) {
+                index.insert((u64::MAX - record.last_seen_at, key.value()), ())?;
+                rebuilt += 1;
+            }
+        }
+    }
+    write_txn.commit()?;
+    Ok(rebuilt)
+}
+
+/// redb 层分页查询用户（按 last_seen_at 降序，即最新在前）
+/// 返回 (当前页记录, 总用户数)；只反序列化当前页的记录
+pub fn list_users_page(db: &Database, start: usize, count: usize) -> Result<(Vec<UserRecord>, usize), redb::Error> {
+    let read_txn = db.begin_read()?;
+    let users = read_txn.open_table(USERS)?;
+    let index = read_txn.open_table(USERS_BY_SEEN)?;
+    let total = users.len()? as usize;
+
+    let mut records = Vec::with_capacity(count.min(1024));
+    for entry in index.iter()?.skip(start).take(count) {
+        let (key, _) = entry?;
+        let (_, user_id) = key.value();
+        if let Some(value) = users.get(user_id)? {
+            if let Ok(record) = bincode::deserialize::<UserRecord>(&value.value()) {
+                records.push(record);
+            }
+        }
+    }
+    Ok((records, total))
 }
 
 /// 从 redb 加载用户记录
@@ -658,6 +808,7 @@ pub fn load_user(db: &Database, user_id: &str) -> Result<Option<UserRecord>, red
                     first_seen_at: 0,
                     last_seen_at: 0,
                     quota_bytes: 0,
+                    custom_quota: false,
                     used_bytes: 0,
                 }
             });
@@ -668,6 +819,7 @@ pub fn load_user(db: &Database, user_id: &str) -> Result<Option<UserRecord>, red
 }
 
 /// 加载所有用户记录（供 list_all_users 管理命令使用）
+#[allow(dead_code)] // 保留用于运维/数据导出场景，管理接口已改用 list_users_page 分页查询
 pub fn load_all_users(db: &Database) -> Result<Vec<UserRecord>, redb::Error> {
     let read_txn = db.begin_read()?;
     let table = read_txn.open_table(USERS)?;

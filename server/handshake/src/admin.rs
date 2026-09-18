@@ -27,6 +27,9 @@ pub struct AdminCommand {
     /// 可选：设置用户转发额度（字节）
     #[serde(default)]
     pub quota_bytes: Option<u64>,
+    /// 可选：重置为跟随服务器默认额度（set_user_relay_quota 时生效，优先级高于 quota_bytes）
+    #[serde(default)]
+    pub reset_to_default: bool,
 }
 
 pub fn default_page() -> u32 { 1 }
@@ -67,16 +70,20 @@ pub struct AdminResponse {
     pub system_stats: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota: Option<serde_json::Value>,
+    /// 当前服务器的默认转发额度（list_all_users 携带，供前端区分「默认/自定义」额度）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_quota_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotas: Option<Vec<serde_json::Value>>,
 }
 
 impl AppState {
-    /// 设置用户转发额度（admin 用），并立即持久化到 redb
+    /// 设置用户转发额度（admin 用，标记为单独配置），并立即持久化到 redb
     pub fn set_user_relay_quota(&self, user_id: &str, quota_bytes: u64) -> traffic::UserRecord {
         let now = traffic::now_ms();
         let mut quota = self.get_or_create_user_quota(user_id);
         quota.quota_bytes = quota_bytes;
+        quota.custom_quota = true;
         quota.last_seen_at = now;
         self.user_quotas.insert(user_id.to_string(), quota.clone());
 
@@ -306,8 +313,6 @@ pub async fn collect_system_info() -> serde_json::Value {
 pub async fn handle_admin_command(
     state: &AppState,
     admin_cmd: AdminCommand,
-    user_id: &str,
-    session_id: &str,
 ) -> AdminResponse {
     match admin_cmd.action.as_str() {
         "list_users" => {
@@ -343,25 +348,23 @@ pub async fn handle_admin_command(
             }
         }
         "list_all_users" => {
-            // 从 redb 查询所有用户（包括离线的）
+            // redb 层分页查询（按 last_seen_at 降序，索引表 USERS_BY_SEEN），
+            // 只反序列化当前页记录，避免大用户表下每次翻页全量加载
             let db = state.db.clone();
             let page = admin_cmd.page;
             let page_size = admin_cmd.page_size;
-            
+
             let db_res = tokio::task::spawn_blocking(move || {
-                let all_users = traffic::load_all_users(&db)?;
-                let total = all_users.len() as u32;
-                Ok::<(Vec<traffic::UserRecord>, u32), redb::Error>((all_users, total))
+                let page = page.max(1) as usize;
+                let page_size = page_size.clamp(1, 100) as usize;
+                let start = (page - 1) * page_size;
+                traffic::list_users_page(&db, start, page_size)
             }).await;
 
             match db_res {
                 Ok(Ok((all_users, total))) => {
-                    // 分页
-                    let page = page.max(1) as usize;
-                    let page_size = page_size.clamp(1, 100) as usize;
-                    let start = (page - 1) * page_size;
-
-                    let users: Vec<serde_json::Value> = all_users.iter().skip(start).take(page_size).map(|u| {
+                    let default_quota = state.config.default_relay_quota_bytes;
+                    let users: Vec<serde_json::Value> = all_users.iter().map(|u| {
                         let prefix = format!("{}:", u.user_id);
                         let is_online = state.users.iter().any(|r| r.key().starts_with(&prefix));
                         serde_json::json!({
@@ -370,7 +373,9 @@ pub async fn handle_admin_command(
                             "publicKey": u.public_key,
                             "firstSeenAt": u.first_seen_at,
                             "lastSeenAt": u.last_seen_at,
-                            "quotaBytes": u.quota_bytes,
+                            // 生效额度（未单独配置时 = 当前服务器默认值）+ 是否单独配置
+                            "quotaBytes": traffic::effective_quota(u, default_quota),
+                            "customQuota": u.custom_quota,
                             "usedBytes": u.used_bytes,
                             "isOnline": is_online,
                         })
@@ -382,9 +387,10 @@ pub async fn handle_admin_command(
                         status: "ok".to_string(),
                         message: Some(format!("Found {} total user(s) in database", total)),
                         users: Some(users),
-                        total: Some(total),
+                        total: Some(total as u32),
                         page: Some(admin_cmd.page),
                         page_size: Some(admin_cmd.page_size),
+                        default_quota_bytes: Some(state.config.default_relay_quota_bytes),
                         ..Default::default()
                     }
                 }
@@ -410,33 +416,23 @@ pub async fn handle_admin_command(
         }
         "disconnect_user" => {
             let target_id = admin_cmd.user_id.clone().unwrap_or_default();
-            if target_id == user_id {
+            let count = state.disconnect_user_by_id(&target_id);
+            if count > 0 {
+                println!("Admin API disconnected user {} ({} session(s))", target_id, count);
+                AdminResponse {
+                    msg_type: "admin_response".to_string(),
+                    action: "disconnect_user".to_string(),
+                    status: "ok".to_string(),
+                    message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
+                    ..Default::default()
+                }
+            } else {
                 AdminResponse {
                     msg_type: "admin_response".to_string(),
                     action: "disconnect_user".to_string(),
                     status: "error".to_string(),
-                    message: Some("Cannot disconnect yourself".to_string()),
+                    message: Some(format!("User {} not found", target_id)),
                     ..Default::default()
-                }
-            } else {
-                let count = state.disconnect_user_by_id(&target_id);
-                if count > 0 {
-                    println!("Admin {} disconnected user {} ({} session(s))", user_id, target_id, count);
-                    AdminResponse {
-                        msg_type: "admin_response".to_string(),
-                        action: "disconnect_user".to_string(),
-                        status: "ok".to_string(),
-                        message: Some(format!("User {} disconnected ({} session(s))", target_id, count)),
-                        ..Default::default()
-                    }
-                } else {
-                    AdminResponse {
-                        msg_type: "admin_response".to_string(),
-                        action: "disconnect_user".to_string(),
-                        status: "error".to_string(),
-                        message: Some(format!("User {} not found", target_id)),
-                        ..Default::default()
-                    }
                 }
             }
         }
@@ -451,18 +447,10 @@ pub async fn handle_admin_command(
                     message: Some("Missing session_id".to_string()),
                     ..Default::default()
                 }
-            } else if target_user == user_id && target_session == session_id {
-                AdminResponse {
-                    msg_type: "admin_response".to_string(),
-                    action: "disconnect_session".to_string(),
-                    status: "error".to_string(),
-                    message: Some("Cannot disconnect yourself".to_string()),
-                    ..Default::default()
-                }
             } else {
                 let found = state.disconnect_session(&target_user, &target_session);
                 if found {
-                    println!("Admin {} disconnected session {} of user {}", user_id, target_session, target_user);
+                    println!("Admin API disconnected session {} of user {}", target_session, target_user);
                     AdminResponse {
                         msg_type: "admin_response".to_string(),
                         action: "disconnect_session".to_string(),
@@ -559,9 +547,35 @@ pub async fn handle_admin_command(
                     message: Some("Missing user_id".to_string()),
                     ..Default::default()
                 }
+            } else if admin_cmd.reset_to_default {
+                // 重置为跟随服务器默认额度（清除单独配置标记）
+                let mut quota = state.get_or_create_user_quota(&target_user);
+                quota.custom_quota = false;
+                quota.quota_bytes = 0;
+                quota.last_seen_at = traffic::now_ms();
+                state.user_quotas.insert(target_user.to_string(), quota.clone());
+                if let Err(e) = traffic::save_user(&state.db, &quota) {
+                    eprintln!("Failed to save user quota to redb: {}", e);
+                }
+                println!("Admin API reset user {} relay quota to default", target_user);
+                let effective = traffic::effective_quota(&quota, state.config.default_relay_quota_bytes);
+                AdminResponse {
+                    msg_type: "admin_response".to_string(),
+                    action: "set_user_relay_quota".to_string(),
+                    status: "ok".to_string(),
+                    message: Some(format!("User {} relay quota reset to server default", target_user)),
+                    quota: Some(serde_json::json!({
+                        "user_id": quota.user_id,
+                        "quota_bytes": effective,
+                        "custom_quota": quota.custom_quota,
+                        "used_bytes": quota.used_bytes,
+                        "last_seen_at": quota.last_seen_at,
+                    })),
+                    ..Default::default()
+                }
             } else if let Some(quota_bytes) = admin_cmd.quota_bytes {
                 let quota = state.set_user_relay_quota(&target_user, quota_bytes);
-                println!("Admin {} set user {} relay quota to {} bytes", user_id, target_user, quota_bytes);
+                println!("Admin API set user {} relay quota to {} bytes", target_user, quota_bytes);
                 AdminResponse {
                     msg_type: "admin_response".to_string(),
                     action: "set_user_relay_quota".to_string(),
@@ -581,11 +595,19 @@ pub async fn handle_admin_command(
             }
         }
         "get_user_relay_quota" => {
+            let default_quota = state.config.default_relay_quota_bytes;
+            let quota_json = |q: &traffic::UserRecord| serde_json::json!({
+                "user_id": q.user_id,
+                "quota_bytes": traffic::effective_quota(q, default_quota),
+                "custom_quota": q.custom_quota,
+                "used_bytes": q.used_bytes,
+                "last_seen_at": q.last_seen_at,
+            });
             if let Some(user_ids) = admin_cmd.user_ids {
                 let mut quotas = Vec::new();
                 for tid in user_ids {
                     let q = state.get_or_create_user_quota(&tid);
-                    quotas.push(serde_json::to_value(q).unwrap_or_default());
+                    quotas.push(quota_json(&q));
                 }
                 AdminResponse {
                     msg_type: "admin_response".to_string(),
@@ -612,7 +634,7 @@ pub async fn handle_admin_command(
                         action: "get_user_relay_quota".to_string(),
                         status: "ok".to_string(),
                         message: Some(format!("User {} relay quota", target_user)),
-                        quota: Some(serde_json::to_value(quota).unwrap_or_default()),
+                        quota: Some(quota_json(&quota)),
                         ..Default::default()
                     }
                 }

@@ -314,7 +314,6 @@ export class ServerManager {
               this.#user._trigger("handshake", {
                 url,
                 status: "success",
-                isAdmin: data.is_admin,
                 version,
               });
               this.#user._trigger("server_connected", { url, version });

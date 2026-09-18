@@ -88,18 +88,8 @@
         width: auto;
       }
     </style>
-    <span slot="headline">切换服务器与登录帐户</span>
+    <span slot="headline">切换管理服务器</span>
     <div class="dialog-body">
-      <div class="dialog-row">
-        <label>登录帐户</label>
-        <st-list>
-          <o-fill :value="accountSummaries">
-            <st-list-item button class:active="$host.currentAccount === $data.namespace" on:click="$host.switchAccount($data.namespace)">
-              <span>{{$data.label}}<span :style.display="$data.shortUserId ? '' : 'none'">（{{$data.shortUserId}}）</span></span>
-            </st-list-item>
-          </o-fill>
-        </st-list>
-      </div>
       <st-list>
         <o-fill :value="savedUrls">
           <st-list-item class:active="$host.currentUrl === $data">
@@ -111,11 +101,10 @@
         </o-fill>
       </st-list>
       <div class="dialog-row add-row">
-        <st-input placeholder="ws://localhost:8081" sync:value="newUrl">
-          <span slot="suffix">
-            <st-icon-button color="primary" style="font-size: 13px;" on:click="addNewServer">+</st-icon-button>
-          </span>
-        </st-input>
+        <label>添加服务器</label>
+        <st-input placeholder="地址，如 https://example.com/ctrl-x7k2m9" sync:value="newUrl"></st-input>
+        <st-input placeholder="管理 Token" sync:value="newToken" type="password"></st-input>
+        <st-button color="primary" on:click="addNewServer">添加并连接</st-button>
       </div>
     </div>
     <div slot="actions">
@@ -150,6 +139,7 @@
     </st-nav-bar>
 
   <script>
+    import toast from "https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/snackbar/toast.js";
     export default async ({ load }) => {
       const {
         getCurrentServerUrl,
@@ -157,9 +147,7 @@
         setCurrentServerUrl,
         addServerHistory,
         removeServerHistory,
-        getAdminAccountNamespace,
-        setAdminAccountNamespace,
-        getAccountSummaries,
+        setServerToken,
       } = await load("./admin-shared.js");
 
       return {
@@ -169,11 +157,10 @@
           activeSysInfo: false,
           activeTraffic: false,
           currentUrl: getCurrentServerUrl(),
-          currentAccount: getAdminAccountNamespace(),
-          accountSummaries: [],
           serverDialogOpen: false,
           savedUrls: getServerHistory(),
           newUrl: "",
+          newToken: "",
         },
         routerChange() {
           this.refreshActive();
@@ -203,11 +190,11 @@
           navigateToTraffic() {
             this.goto("./traffic.html");
           },
-          async openServerDialog() {
+          openServerDialog() {
             this.savedUrls = getServerHistory();
-            this.currentAccount = getAdminAccountNamespace();
-            this.accountSummaries = await getAccountSummaries(load);
+            this.currentUrl = getCurrentServerUrl();
             this.newUrl = "";
+            this.newToken = "";
             this.serverDialogOpen = true;
           },
           closeServerDialog() {
@@ -220,22 +207,26 @@
             this.serverDialogOpen = false;
             window.location.reload();
           },
-          switchAccount(ns) {
-            if (ns === this.currentAccount) return;
-            setAdminAccountNamespace(ns);
-            this.serverDialogOpen = false;
-            window.location.reload();
-          },
           addNewServer() {
             const url = (this.newUrl || "").trim();
-            if (!url) return;
-            if (!/^wss?:\/\//i.test(url)) {
-              alert("服务器地址必须以 ws:// 或 wss:// 开头");
+            const token = (this.newToken || "").trim();
+            if (!url) {
+              alert("请填写服务器地址");
               return;
             }
+            if (!/^https?:\/\//i.test(url)) {
+              alert("服务器地址必须以 http:// 或 https:// 开头");
+              return;
+            }
+            if (!token) {
+              alert("请填写管理 Token");
+              return;
+            }
+            setServerToken(url, token);
             addServerHistory(url);
-            this.savedUrls = getServerHistory();
-            this.newUrl = "";
+            setCurrentServerUrl(url);
+            this.serverDialogOpen = false;
+            window.location.reload();
           },
           removeServer(event, url) {
             event.stopPropagation();

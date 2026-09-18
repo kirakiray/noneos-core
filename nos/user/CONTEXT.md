@@ -9,12 +9,11 @@ NoneOS 用户系统基于 **ECDSA P-256** 公私钥对建立身份（`userId = h
 
 ### 核心设计
 
-1. **分层身份**：`BaseUser` 封装签名/验签能力；`LocalUser` 扩展出凭证（cred，个人资料 profile + 证书统一）、服务器、RTC、服务注册等管理器；`AdminUser` 增加管理命令；`RemoteUser` 代表对端用户。
+1. **分层身份**：`BaseUser` 封装签名/验签能力；`LocalUser` 扩展出凭证（cred，个人资料 profile + 证书统一）、服务器、RTC、服务注册等管理器；`RemoteUser` 代表对端用户。（服务器管理功能已移出用户体系，见 `server/client/` 管理 HTTP 前端）
 2. **多服务器多会话**：单个用户可同时连接多个服务器（dev/prod 多区域），每个浏览器标签页生成独立 `sessionId`，通过 `BroadcastChannel` 跨标签页发现。
 3. **三种传输路径**：
    - 服务器中继（文本 JSON / 二进制帧）—— 默认通道
    - WebRTC DataChannel（P2P 直连，ordered）—— 延迟敏感场景
-   - 服务端 admin HTTP 命令 —— 仅 AdminUser
 4. **E2EE 建链**：握手 → 资料交换（profile，含双方公钥签名）→ ECDH 派生密钥 → AES-GCM 加密 P2P 消息。
 5. **应用层路由**：通过 `__app`/`__data` 包裹业务消息，`ServiceRegistry` 在应用层（appId）维度路由；服务发现使用 `__service_query`/`__service_response`。
 
@@ -25,7 +24,6 @@ nos/user/
 ├── main.js                  # 入口：getUser/exportUser/importUser/deleteUser + 实例缓存
 ├── base-user.js             # BaseUser：签名/验签、事件分发
 ├── user.js                  # LocalUser：核心类，聚合所有管理器 + 中继/RTC 分发
-├── admin-user.js            # AdminUser extends LocalUser：管理命令封装
 ├── remote-user.js           # RemoteUser extends BaseUser：对端用户、send/RTT/服务查询
 ├── server.js                # ServerManager：WebSocket 连接、握手、延迟选路
 ├── rtc.js                   # RTCManager：WebRTC DataChannel P2P 连接
@@ -44,7 +42,6 @@ nos/user/
 EventTarget
   └── BaseUser (base-user.js)            ← #signer/#verifier/#userId/#privateKey/#publicKey
         ├── LocalUser (user.js)          ← 聚合 CredentialManager(cred)/ServerManager/RTCManager/ServiceRegistry/TrafficLogger
-        │     └── AdminUser (admin-user.js)  ← #adminCommand(url, action, extra)
         └── RemoteUser (remote-user.js)  ← #rttMap/#pendingPings/#serviceSessionCache/#serviceWaiters、E2EE 解密；Ping/Pong RTT、服务发现缓存
 ```
 
@@ -120,23 +117,6 @@ EventTarget
 | `CredentialManager` (cred.js，`user.cred`) | **凭证统一管理**：个人资料（profile，role="profile" 自签声明）与证书（他签授权）共用 certs store 与同一条导入路径。**签发与导入**：`issue`/`import`/`importRecord`（返回 `{cert, saved}`）/`saveIfNewer`；证书 ID = `${role}-${issuer}-${subject}`；导入校验：字段完整性、publicKey→issuer 哈希、**规范化排序序列化验签**（与 `_sign` 规则一致）、signTime 新旧替换、拒绝未来时间（`role="profile"` 例外——资料 signTime 仅是版本号，对端时钟偏快不至于卡旧资料）。**过期时间（expire）**：授权类证书的 `expire` 为绝对时间戳、进入签名载荷被签名保护；`issue` 不传默认签发后 30 天，传 `null` 表示永不过期（不携带该字段）；`importRecord` 校验 `expire` 为有效数字、晚于 `signTime` 且未过期（±5 分钟时钟容差），已过期证书拒绝导入，`saveIfNewer` 对过期记录兜底不写入；profile 无过期语义、不参与校验与过滤；无主动清理，惰性判断。`role="profile"` 为保留角色且强制 issuer === subject（自签声明不构成授权）。**查询**：`query`/`has`/`count`/`values`（无参含资料在内的全部记录，仅资料传 `{role:"profile"}`；`query`/`count`/`values` 默认过滤已过期记录，第二参传 `{includeExpired:true}` 才包含）；`query` 传 `{limit}` 即启用 **keyset 分页**，返回 `{items, nextCursor, hasMore}`，`nextCursor` 传回 `{after}` 续读下一页（只能顺序翻页，无 offset；总数需另调 `count()`），不传 `limit` 仍返回全量数组；`delete(id)` 按记录 id 删，`deleteProfile(userId)` 删某用户资料。**凭证在线拉取**：`start()` 监听中继 `type:"cred"`（收到请求/响应时 `_ensureRemoteUser()`）；通用 API `requestRecord(fromUserId, key)`（key 为 `{role, issuer, subject}` 或 id 字符串；connectUser → findSessionId → 经 `server.sendToUser` 强制服务器中转发请求（不走 RTC，见第 6 节），超时/失败自动重发 2 次，幂等，未命中 resolve null）与 `getRecord(fromUserId, key)`（DB 优先 → 网络拉取）、`getRecordByDB(key)`。响应校验记录与 key 一致后走 `importRecord` 统一导入（规范化验签 + signTime 竞争；profile 额外校验 subject === 发送方）。`getProfile`/`requestProfile`/`getProfileByDB` 是通用拉取的薄封装。拉取读回为**签名载荷视图**（剥离外层 `id`），可直接整体验签；完整记录走 `query` |
 | `RTCManager` (rtc.js) | 信令经中继 `rtc_signal`（offer/answer/ice）；默认 STUN 服务器（Google/Cloudflare），可通过 `setIceServers`/localStorage `noneos:rtc:ice_servers` 替换；DataChannel `"noneos"` ordered；**Perfect Negotiation**（polite/impolite 由 userId 字典序决定）解决 glare；ICE 候选缓冲（`pendingCandidates`）；`handleSignal` 错误不立即销毁 peer |
 | `ServiceRegistry` (service-registry.js) | `register(appId, {exposeToServer, onMessage})` 重复抛错；`#syncToServer()` 只上报**公开服务**（`getExposedServiceList()`，私密服务不让服务端感知）向所有已连接服务器发 `update_services`，连接不可用跳过（try/catch，同步接口）；`_resyncToServer()` 供 LocalUser 在 `server_connected` 时重上报（重连后服务器侧会话 services 为空）；`register/unregister` 时向 `localUser.remoteUsers` 广播 `__service_available`/`__service_unavailable`，并触发本地 `service_registered`/`service_unregistered` 事件 |
-
-### AdminUser（admin-user.js）
-
-所有方法都经 `#adminCommand(url, action, extra)` 发送 `{type:"admin", action, ...}` 并等待匹配 `action` 的 `admin_response`（失败自动重试一次）。
-
-| 方法 | 对应 action |
-|------|------------|
-| `listUsers(url, {page, pageSize})` | `list_users` |
-| `listUserGroups(url, {page, pageSize})` | `list_user_groups` |
-| `listAllUsers(url, {page, pageSize})` | `list_all_users` |
-| `disconnectUser(url, userId)` / `disconnectSession(url, userId, sessionId)` | `disconnect_user` / `disconnect_session` |
-| `getSystemInfo(url)` | `get_system_info` |
-| `getTrafficStats(url, {limit})` | `get_traffic_stats` |
-| `getTrafficHistory(url, {...})` | `get_traffic_history`（服务端已废弃，返回空数组） |
-| `getSystemStatsHistory(url, {limit})` | `get_system_stats_history` |
-| `setUserRelayQuota(url, userId, quotaBytes)` / `getUserRelayQuota(url, userId)` | `set_user_relay_quota` / `get_user_relay_quota`（后者传数组则批量查询，结果在 `quotas`） |
-| `getGlobalRelayQuota(url)` | `get_global_relay_quota` —— 服务器整体月度流量限额。响应 `quota` 含 `quotaBytes`(0=不限制)/`usedBytes`/`inboundBytes`/`outboundBytes`/`periodStartAt`/`periodResetDay`/`remainingBytes`/`unlimited`/`exceeded` |
 
 ## 五、关键实现细节
 
@@ -334,7 +314,6 @@ A.requestRecord(fromUserId, key)          # key = {role, issuer, subject} 或 id
 | 服务上报 | WS 文本 | `update_services` | `update_services` 分支，存入 UserSession.services |
 | 应用消息 | 中继 | `__app`/`__data` 包裹；信封消息另携带线路序号 `__wseq`（发送闸门内按目标 session 分配，接收端重排后剥离，见第 12 节） | 透传中继 |
 | 延迟测速 | WS 文本 | `latency_test` → `latency_test_response` → `latency_report` | `latency_test`/`latency_report` 分支 |
-| 管理命令 | HTTP | `/admin?...` | AdminCommand 路由（见 admin.rs） |
 | 心跳 | WS Ping | —— | 服务端 15s Ping / 60s 超时 |
 
 ## 七、依赖关系

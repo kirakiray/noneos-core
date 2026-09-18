@@ -654,7 +654,6 @@
                 this.adminUserId = adminInfo.userId;
                 this.adminUsername = adminInfo.username;
 
-                adminUser.addEventListener("close", () => this._onClose());
               }
 
               // 通过执行 list_users 验证管理员身份并获取初始数据（同时加载第一页）

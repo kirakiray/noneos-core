@@ -414,7 +414,6 @@
                 const { adminUser } = await getAdmin(load);
                 this._adminUser = adminUser;
 
-                adminUser.addEventListener("close", () => this._onClose());
               }
 
               // 通过获取系统信息验证连接

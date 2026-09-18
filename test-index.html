@@ -81,10 +81,6 @@
       <include src="./tests/user/local/cert-card-unified.sb.html"></include>
       <include src="./tests/user/local/cert-expire.sb.html"></include>
       <include src="./tests/user/local/cert-pagination.sb.html"></include>
-      <include src="./tests/user/local/admin-connect-server.sb.html"></include>
-      <include src="./tests/user/local/admin-more1.sb.html"></include>
-      <include src="./tests/user/local/admin-more2.sb.html"></include>
-      <include src="./tests/user/local/admin-system-info.sb.html"></include>
 
       <!-- connect-server 内含 3 秒超时的原始 WebSocket 篡改握手用例，
            并发负载下服务器响应会超时，需独占低负载执行 -->
@@ -93,6 +89,7 @@
       <!-- ===== SW 缓存（独占收尾：会替换/注销全 origin 的 SW） ===== -->
       <include src="./tests/sw/ncomp-cache.sb.html" exclusive></include>
       <include src="./tests/sw/host-cache.sb.html" exclusive></include>
+      <include src="./tests/user/local/admin-http.sb.html"></include>
     </sb-test-suite>
   </body>
 </html>
