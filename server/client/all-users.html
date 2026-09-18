@@ -132,6 +132,21 @@
       color: var(--md-sys-color-on-tertiary-container);
     }
 
+    .quota-default-hint {
+      font-size: 10px;
+      margin-left: 4px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .quota-custom-badge {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
     .card-details {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -304,7 +319,12 @@
                 <span>无限制</span>
               </o-if>
               <o-else-if :value="$data.quota">
-                <span>{{$host.getQuotaStatusText($data.quota)}}</span>
+                <o-if :value="$data.quotaCustom">
+                  <span>{{$host.getQuotaStatusText($data.quota)}}</span>
+                </o-if>
+                <o-else>
+                  <span :style.color="'var(--md-sys-color-on-surface-variant)'">跟随配置（{{$host.formatBytes($data.quota.quota_bytes)}}）</span>
+                </o-else>
               </o-else-if>
               <o-else>
                 <span>未设置</span>
@@ -313,7 +333,12 @@
             <div class="quota-values" :style.display="$data.isAdmin ? 'none' : ''">
               <o-if :value="$data.quota">
                 <span>已用: {{$host.formatBytes($data.quota.used_bytes)}}</span>
-                <span>总量: {{$host.formatBytes($data.quota.quota_bytes)}}</span>
+                <span :style.color="$data.quotaCustom ? 'var(--md-sys-color-primary)' : ''">
+                  总量: {{$host.formatBytes($data.quota.quota_bytes)}}
+                  <o-if :value="$data.quotaCustom">
+                    <span class="quota-custom-badge">自定义</span>
+                  </o-if>
+                </span>
               </o-if>
               <o-else>
                 <span>-</span>
@@ -374,6 +399,7 @@
       </div>
     </div>
     <div slot="actions">
+      <st-button variant="text" color="error" on:click="resetQuota" :style.display="dialogTarget?.quota?.custom_quota ? '' : 'none'">重置为默认</st-button>
       <st-button variant="outlined" on:click="dialogOpen = false">取消</st-button>
       <st-button color="primary" on:click="confirmQuota">保存设置</st-button>
     </div>
@@ -395,6 +421,7 @@
           currentPage: 1,
           pageSize: 12,
           totalUsers: 0,
+          serverDefaultQuota: null,
           totalPages: 0,
           _adminUser: null,
 
@@ -430,6 +457,7 @@
               });
 
               if (resp.status === "ok") {
+                this.serverDefaultQuota = resp.default_quota_bytes ?? null;
                 this.totalUsers = resp.total || 0;
                 this.totalPages = Math.ceil(this.totalUsers / this.pageSize);
                 
@@ -450,13 +478,16 @@
                 }
 
                 this.userList = (resp.users || []).map(u => {
+                  const quota = quotaMap[u.userId] || null;
                   return {
                     ...u,
                     avatar: (u.username || "?")[0].toUpperCase(),
                     isAdmin: u.userId === this.adminUserId,
                     firstSeenText: this.formatDate(u.firstSeenAt),
                     lastSeenText: this.formatDate(u.lastSeenAt),
-                    quota: quotaMap[u.userId] || null
+                    quota,
+                    // 额度是否被单独设置过（服务端 custom_quota 标记）
+                    quotaCustom: !!quota && quota.custom_quota === true
                   };
                 });
               }
@@ -507,12 +538,33 @@
 
           openQuotaDialog(user) {
             this.dialogTarget = user;
-            this.dialogQuotaBytes = user.quota ? user.quota.quota_bytes : 524288000; // 默认 500MB
+            this.dialogQuotaBytes = user.quota
+              ? user.quota.quota_bytes
+              : this.serverDefaultQuota || 524288000;
             this.dialogOpen = true;
           },
 
           setQuickQuota(val) {
             this.dialogQuotaBytes = val;
+          },
+
+          async resetQuota() {
+            if (!this._adminUser || !this.dialogTarget) return;
+            try {
+              const resp = await this._adminUser.resetUserRelayQuota(
+                WS_URL,
+                this.dialogTarget.userId
+              );
+              if (resp.status === "ok") {
+                toast("已重置为服务器默认额度");
+                this.dialogOpen = false;
+                this.refreshUsers();
+              } else {
+                toast("重置失败: " + resp.message);
+              }
+            } catch (e) {
+              toast("请求失败: " + e.message);
+            }
           },
 
           async confirmQuota() {

@@ -117,6 +117,16 @@ class AdminHttpClient {
     });
   }
 
+  /**
+   * 重置用户额度为跟随服务器默认值（清除单独配置标记）
+   */
+  async resetUserRelayQuota(_url, userId) {
+    return this.#command("set_user_relay_quota", {
+      user_id: userId,
+      reset_to_default: true,
+    });
+  }
+
   async getUserRelayQuota(_url, userId) {
     if (Array.isArray(userId)) {
       return this.#command("get_user_relay_quota", { user_ids: userId });

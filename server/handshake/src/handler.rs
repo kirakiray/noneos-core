@@ -92,8 +92,10 @@ impl AppState {
             public_key: String::new(),
             first_seen_at: now,
             last_seen_at: now,
-            quota_bytes: self.config.default_relay_quota_bytes,
+            // 新用户不快照默认额度：custom_quota = false，生效额度动态跟随配置
+            quota_bytes: 0,
             used_bytes: 0,
+            custom_quota: false,
         });
         self.user_quotas.insert(user_id.to_string(), record.clone());
         record
@@ -114,7 +116,8 @@ impl AppState {
             return msg_size <= self.config.relay_small_message_max_bytes;
         }
         let quota = self.get_or_create_user_quota(user_id);
-        if quota.used_bytes < quota.quota_bytes {
+        let effective = traffic::effective_quota(&quota, self.config.default_relay_quota_bytes);
+        if quota.used_bytes < effective {
             return true;
         }
         msg_size <= self.config.relay_small_message_max_bytes
@@ -135,8 +138,9 @@ impl AppState {
                 public_key: String::new(),
                 first_seen_at: now,
                 last_seen_at: now,
-                quota_bytes: self.config.default_relay_quota_bytes,
+                quota_bytes: 0,
                 used_bytes: bytes,
+                custom_quota: false,
             });
     }
 
@@ -991,13 +995,14 @@ pub async fn handle_connection(
             }
 
             // 持久化用户信息到 redb（单 key 写入，直接同步）
-            // 优先加载已有记录以保留 used_bytes 和 quota_bytes，避免每次重连重置配额
+            // 优先加载已有记录以保留 used_bytes / 单独配置的额度，避免每次重连重置；
+            // 新用户不快照默认额度（custom_quota = false，动态跟随配置）
             {
                 let now = traffic::now_ms();
                 let existing = traffic::load_user(&state.db, &user_id).ok().flatten();
-                let (existing_used, existing_quota, first_seen) = match existing {
-                    Some(ref r) => (r.used_bytes, r.quota_bytes, r.first_seen_at),
-                    None => (0, state.config.default_relay_quota_bytes, now),
+                let (existing_used, existing_quota, existing_custom, first_seen) = match existing {
+                    Some(ref r) => (r.used_bytes, r.quota_bytes, r.custom_quota, r.first_seen_at),
+                    None => (0, 0, false, now),
                 };
                 let record = traffic::UserRecord {
                     user_id: user_id.clone(),
@@ -1007,6 +1012,7 @@ pub async fn handle_connection(
                     last_seen_at: now,
                     quota_bytes: existing_quota,
                     used_bytes: existing_used,
+                    custom_quota: existing_custom,
                 };
                 if let Err(e) = traffic::save_user(&state.db, &record) {
                     eprintln!("Failed to persist user {} to redb: {}", user_id, e);

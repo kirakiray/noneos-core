@@ -164,11 +164,19 @@ fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|w| w == needle)
 }
 
-async fn write_response(stream: &mut TcpStream, status: u16, reason: &str, body: &str) -> std::io::Result<()> {
+/// CORS 响应头：管理端（ofa.js 应用）通常经 nginx 与接口同源部署，
+/// 本地开发/测试场景下页面与管理接口端口不同，需要放行跨域。
+/// 仅对命中 admin_base_path 的请求返回（错误路径的响应不带任何 CORS 特征，
+/// 与不存在的路径完全一致）；鉴权仍由 Bearer token 把关。
+const CORS_HEADERS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: POST, OPTIONS\r\nAccess-Control-Allow-Headers: Authorization, Content-Type\r\nAccess-Control-Max-Age: 86400\r\n";
+
+async fn write_response(stream: &mut TcpStream, status: u16, reason: &str, body: &str, cors: bool) -> std::io::Result<()> {
+    let cors_block = if cors { CORS_HEADERS } else { "" };
     let resp = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
         status,
         reason,
+        cors_block,
         body.len(),
         body
     );
@@ -182,32 +190,46 @@ async fn handle_admin_conn(mut stream: TcpStream, peer: SocketAddr, state: Arc<A
     let req = match tokio::time::timeout(Duration::from_secs(10), read_request(&mut stream)).await {
         Ok(Ok(Some(r))) => r,
         _ => {
-            let _ = write_response(&mut stream, 404, "Not Found", "{}").await;
+            let _ = write_response(&mut stream, 404, "Not Found", "{}", false).await;
             return;
         }
     };
 
     let ip = peer.ip().to_string();
 
-    // 统一 404：路径不符 / 方法不符 / token 错误不可区分
-    async fn not_found(s: &mut TcpStream) {
-        let _ = write_response(s, 404, "Not Found", "{}").await;
+    // 统一 404 响应体；路径命中后的 404（方法/Token 错）带 CORS 头，
+    // 路径未命中的 404 不带——响应特征与不存在的路径完全一致
+    async fn not_found(s: &mut TcpStream, cors: bool) {
+        let _ = write_response(s, 404, "Not Found", "{}", cors).await;
     }
 
-    // 1. 路径检查：必须精确匹配配置的 base path
+    // 1. 路径检查：必须精确匹配配置的 base path；未命中时与不存在的路径行为一致
+    //    （404 且不带 CORS 头），不泄露管理接口的位置
     let expected_path = &state.config.admin_base_path;
     if req.path != *expected_path {
-        not_found(&mut stream).await;
+        not_found(&mut stream, false).await;
         return;
     }
 
-    // 2. 方法检查：只接受 POST
+    // 2. OPTIONS 为跨域预检。预检不携带 Authorization 无法鉴权，回 204 + CORS 头；
+    //    真实命令仍需 POST 鉴权
+    if req.method == "OPTIONS" {
+        let resp = format!(
+            "HTTP/1.1 204 No Content\r\n{}Content-Length: 0\r\nConnection: close\r\n\r\n",
+            CORS_HEADERS
+        );
+        let _ = stream.write_all(resp.as_bytes()).await;
+        let _ = stream.flush().await;
+        return;
+    }
+
+    // 3. 方法检查：只接受 POST
     if req.method != "POST" {
-        not_found(&mut stream).await;
+        not_found(&mut stream, true).await;
         return;
     }
 
-    // 3. Bearer token 校验
+    // 4. Bearer token 校验
     let authorized = state
         .config
         .admin_token
@@ -224,12 +246,12 @@ async fn handle_admin_conn(mut stream: TcpStream, peer: SocketAddr, state: Arc<A
     if !authorized {
         let delay = fails.record_failure(&ip);
         tokio::time::sleep(delay).await;
-        not_found(&mut stream).await;
+        not_found(&mut stream, true).await;
         return;
     }
     fails.clear(&ip);
 
-    // 4. 解析 AdminCommand 并分发
+    // 5. 解析 AdminCommand 并分发
     let resp = match serde_json::from_slice::<AdminCommand>(&req.body) {
         Ok(cmd) => admin::handle_admin_command(&state, cmd).await,
         Err(e) => {
@@ -238,6 +260,7 @@ async fn handle_admin_conn(mut stream: TcpStream, peer: SocketAddr, state: Arc<A
                 400,
                 "Bad Request",
                 &format!("{{\"status\":\"error\",\"message\":\"Invalid JSON: {}\"}}", e),
+                true,
             )
             .await;
             return;
@@ -245,7 +268,7 @@ async fn handle_admin_conn(mut stream: TcpStream, peer: SocketAddr, state: Arc<A
     };
 
     let body = serde_json::to_string(&resp).unwrap_or_else(|_| "{}".to_string());
-    let _ = write_response(&mut stream, 200, "OK", &body).await;
+    let _ = write_response(&mut stream, 200, "OK", &body, true).await;
 }
 
 /// 启动管理 HTTP 服务（仅在配置了 admin_token 时由 main 调用）

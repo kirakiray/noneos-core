@@ -40,7 +40,7 @@ server/handshake/
 |------|------|------|
 | `config` | `Config` | 全局配置（含 admin_token 等） |
 | `traffic` | `TrafficStats` | 流量统计聚合体 |
-| `user_quotas` | `DashMap<String, traffic::UserRecord>` | 用户记录缓存（含 user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes） |
+| `user_quotas` | `DashMap<String, traffic::UserRecord>` | 用户记录缓存（含 user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes/custom_quota） |
 | `db` | `Arc<redb::Database>` | 持久化句柄（Arc 共享） |
 | `users` | `DashMap<String, UserSession>` | key = `userId:sessionId` |
 | `user_session_counts` | `DashMap<String, usize>` | 每用户会话计数，用于 `max_sessions_per_user` |
@@ -119,6 +119,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **交互**：所有命令统一 `POST`，body 为 JSON（`{action, ...}`，与 AdminCommand 同构）；响应 body 为 AdminResponse JSON（HTTP 200 + `status:"ok"/"error"`），非法 JSON 回 400。
 - **防暴力刷**：按来源 IP 记录鉴权失败次数（60s 窗口），失败越多响应前延迟越长（200ms × 次数，封顶 5s）。
 - **超时**：单请求读取限时 10s；头部 ≤8KB、body ≤64KB。
+- **CORS**：仅命中 `admin_base_path` 的响应携带 `Access-Control-Allow-Origin: *`（含该路径上的 404/400），OPTIONS 预检亦仅在该路径回 204；未命中路径的 404 不带任何 CORS 特征，与不存在的路径行为一致。生产经 nginx 同源部署用不到 CORS；本地开发/测试时管理页面与接口端口不同需要跨域。
 - 握手协议不再含 `is_admin` 字段；WS 消息循环不再有 `admin` 分支。
 
 ### AdminCommand（admin.rs）
@@ -127,13 +128,13 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 |--------|------|
 | `list_users` | 当前在线用户分页 |
 | `list_user_groups` | 按 userId 聚合 |
-| `list_all_users` | 含历史用户（redb `load_all_users`，按 last_seen_at desc） |
+| `list_all_users` | 含历史用户（redb 层分页，USERS_BY_SEEN 索引按 last_seen_at desc），响应附带 `default_quota_bytes`（当前服务器默认额度，供前端区分「默认/自定义」额度） |
 | `disconnect_user` / `disconnect_session` | 踢出 |
 | `get_system_info` | 内存/CPU 核数/磁盘 |
 | `get_traffic_stats` | 实时流量 |
 | `get_traffic_history` | **已废弃**，仅返回空数组与提示信息（数据需从 redb 文件导出分析） |
 | `get_system_stats_history` | 历史 CPU/内存 |
-| `set_user_relay_quota` / `get_user_relay_quota` | 配额管理 |
+| `set_user_relay_quota` / `get_user_relay_quota` | 配额管理。set 携带 `quota_bytes` 为单独设置（custom_quota=true）；携带 `reset_to_default: true` 则重置为跟随服务器默认（优先级高于 quota_bytes）。get 与 list_all_users 返回**生效额度**（quotaBytes）与 `customQuota`/`custom_quota` 标记 |
 | `get_global_relay_quota` | 查询服务器整体月度配额：`quota.quotaBytes` / `usedBytes` / `inboundBytes` / `outboundBytes` / `periodStartAt` / `periodResetDay` / `remainingBytes` / `unlimited` / `exceeded` |
 
 `get_memory_usage_percent` 带 1s 缓存，供 95% 过载拒绝使用。
@@ -150,7 +151,8 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 
 | 表 | Key | Value | 说明 |
 |----|-----|-------|------|
-| `USERS` | `&str`(userId) | bincode(`UserRecord`: user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes) | 用户持久化 |
+| `USERS` | `&str`(userId) | bincode(`UserRecord`: user_id/username/public_key/first_seen_at/last_seen_at/quota_bytes/used_bytes/custom_quota) | 用户持久化。**额度语义**：`custom_quota=false` = 未单独配置，生效额度动态跟随 `default_relay_quota_bytes`（`effective_quota`，新用户不再快照默认值）；`true` = 使用存储的 quota_bytes。旧格式记录启动时一次性迁移（与当时默认值相同 → false，不同 → true） |
+| `USERS_BY_SEEN` | `(u64::MAX - last_seen_at, &str)` | `()` | 用户按最后活跃时间索引：正向遍历即最新在前；`save_user` 维护（last_seen 变更时先删旧条目），启动时两表条目数不一致则全量重建（旧库自动迁移）；`list_all_users` 经它做 redb 层分页（`list_users_page`，只反序列化当前页） |
 | `USER_TRAFFIC_DIST` | `(ts_30s, from, to)` | bytes | 用户间流量分布 |
 | `GLOBAL_DATA` | `"total_inbound"` / `"total_outbound"` / `"total_relay"` / `"period_inbound"` / `"period_outbound"` / `"period_start"`（6 个独立字符串 key） | u64 | 全局累计流量 + 当前计费周期用量 |
 | `GLOBAL_TRAFFIC_DIST` | `ts_30s` | (in, out, relay) | 全局流量时间分布（累加） |
@@ -166,7 +168,7 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 - **会话数上限**：`max_sessions_per_user`（默认 10），重连踢旧。
 - **中继失败窗口**：`relay_fail_limit`(10) / `relay_fail_window_secs`(60) → 踢出。
 - **内存过载**：`max_memory_usage_percent`(95.0) → 拒绝新 WS 连接（admin HTTP 接口不受限）。
-- **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。
+- **配额**：`default_relay_quota_bytes`(500MB) + `relay_small_message_max_bytes`(1KB) 超额小消息豁免。未单独配置的用户（custom_quota=false）的额度**动态跟随** default_relay_quota_bytes，改配置重启即对全体此类用户生效；单独配置过的用户（custom_quota=true）使用其存储值，可经 reset_to_default 重置。
 - **服务器整体月度限额**：`global_relay_quota_bytes`(默认 0 = 不限制)，统计口径 = 当前计费周期的 `inbound + outbound`（贴近真实带宽账单）。超限后所有中继降级为仅放行小消息，WebRTC 信令/个人资料交换仍可通行，用户可继续走 P2P 直连。周期用量由 flush 定时器调用 `roll_period_if_needed` 在进入新周期时归零；周期边界由 `quota_period_reset_day`(默认 1，即每月几号) 决定，归零时刻为**服务器本地时区**当天 00:00（`period_start_ms(ts, reset_day)`，本地偏移经 libc 获取（Unix `localtime_r`/`tm_gmtoff`，Windows `localtime_s`/`gmtime_s` 字段差推算），含夏令时；月份天数不足时自动取当月最后一天）；`total_*` 永久累计数不受重置影响。
 - **心跳**：`heartbeat_interval_secs`(15) Ping / `heartbeat_timeout_secs`(60) 断开。
 

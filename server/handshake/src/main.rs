@@ -47,6 +47,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?);
     println!("Redb database opened at: {}", config.redb_path);
 
+    // 校验/重建 users_by_seen 索引（旧库首次升级到分页查询时全量建一次）
+    match traffic::rebuild_users_by_seen_if_needed(&db) {
+        Ok(0) => {}
+        Ok(n) => println!("Rebuilt users_by_seen index for {} user(s)", n),
+        Err(e) => eprintln!("Failed to rebuild users_by_seen index: {}", e),
+    }
+
+    // 一次性迁移旧格式用户记录（quota 快照语义 → custom_quota 动态语义）
+    match traffic::migrate_users_if_needed(&db, config.default_relay_quota_bytes) {
+        Ok(0) => {}
+        Ok(n) => println!("Migrated {} legacy user record(s) to custom_quota semantics", n),
+        Err(e) => eprintln!("Failed to migrate user records: {}", e),
+    }
+
     // 4. 从 redb 加载全局累计数据到内存
     let global_data = traffic::load_global_data(&db);
     println!(

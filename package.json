@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.6.1",
+  "version": "4.7.0",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -27,7 +27,7 @@
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "sb-test -p 3002"
+    "test": "sb-test -p 3002 -t 10"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",

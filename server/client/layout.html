@@ -101,19 +101,10 @@
         </o-fill>
       </st-list>
       <div class="dialog-row add-row">
-        <st-input placeholder="https://example.com/ctrl-x7k2m9" sync:value="newUrl">
-          <span slot="suffix">
-            <st-icon-button color="primary" style="font-size: 13px;" on:click="addNewServer">+</st-icon-button>
-          </span>
-        </st-input>
-      </div>
-      <div class="dialog-row">
-        <label>当前服务器的管理 Token</label>
-        <st-input placeholder="Bearer Token" sync:value="currentToken" type="password">
-          <span slot="suffix">
-            <st-icon-button color="primary" style="font-size: 13px;" on:click="saveToken">保存</st-icon-button>
-          </span>
-        </st-input>
+        <label>添加服务器</label>
+        <st-input placeholder="地址，如 https://example.com/ctrl-x7k2m9" sync:value="newUrl"></st-input>
+        <st-input placeholder="管理 Token" sync:value="newToken" type="password"></st-input>
+        <st-button color="primary" on:click="addNewServer">添加并连接</st-button>
       </div>
     </div>
     <div slot="actions">
@@ -156,7 +147,6 @@
         setCurrentServerUrl,
         addServerHistory,
         removeServerHistory,
-        getServerToken,
         setServerToken,
       } = await load("./admin-shared.js");
 
@@ -170,7 +160,7 @@
           serverDialogOpen: false,
           savedUrls: getServerHistory(),
           newUrl: "",
-          currentToken: "",
+          newToken: "",
         },
         routerChange() {
           this.refreshActive();
@@ -203,15 +193,9 @@
           openServerDialog() {
             this.savedUrls = getServerHistory();
             this.currentUrl = getCurrentServerUrl();
-            this.currentToken = getServerToken(this.currentUrl);
             this.newUrl = "";
+            this.newToken = "";
             this.serverDialogOpen = true;
-          },
-          saveToken() {
-            const url = this.currentUrl;
-            if (!url) return;
-            setServerToken(url, (this.currentToken || "").trim());
-            toast({ message: "Token 已保存", duration: 2000 });
           },
           closeServerDialog() {
             this.serverDialogOpen = false;
@@ -225,14 +209,24 @@
           },
           addNewServer() {
             const url = (this.newUrl || "").trim();
-            if (!url) return;
+            const token = (this.newToken || "").trim();
+            if (!url) {
+              alert("请填写服务器地址");
+              return;
+            }
             if (!/^https?:\/\//i.test(url)) {
               alert("服务器地址必须以 http:// 或 https:// 开头");
               return;
             }
+            if (!token) {
+              alert("请填写管理 Token");
+              return;
+            }
+            setServerToken(url, token);
             addServerHistory(url);
-            this.savedUrls = getServerHistory();
-            this.newUrl = "";
+            setCurrentServerUrl(url);
+            this.serverDialogOpen = false;
+            window.location.reload();
           },
           removeServer(event, url) {
             event.stopPropagation();

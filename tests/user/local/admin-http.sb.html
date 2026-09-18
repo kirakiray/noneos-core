@@ -48,21 +48,28 @@
     set_user_relay_quota / get_user_relay_quota / get_global_relay_quota
     -->
 
-    <sb-test name="Admin API rejects wrong path with 404">
+    <sb-test name="Admin API rejects wrong path (no CORS, fetch unreadable)">
       <template>
         <script type="module">
-          const resp = await fetch("http://127.0.0.1:8091/ctrl-wrong", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer test-admin-token-0123456789abcdef",
-            },
-            body: JSON.stringify({ action: "list_users" }),
-          });
+          // 错误路径的 404 不带 CORS 头：跨域 JS 无法读取响应，fetch 直接抛错。
+          // 这正是设计意图——错误路径的响应特征与不存在的路径完全一致。
+          let fetchRejected = false;
+          try {
+            await fetch("http://127.0.0.1:8091/ctrl-wrong", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer test-admin-token-0123456789abcdef",
+              },
+              body: JSON.stringify({ action: "list_users" }),
+            });
+          } catch (e) {
+            fetchRejected = true;
+          }
 
           return {
-            assert: resp.status === 404,
-            content: { status: resp.status },
+            assert: fetchRejected,
+            content: { fetchRejected },
           };
         </script>
       </template>
@@ -196,20 +203,53 @@
             getResp.quota &&
             getResp.quota.quota_bytes === 123456;
 
-          // 清理：重置为 0
+          // 清理：重置为跟随服务器默认
           await fetch(base, {
             method: "POST",
             headers,
             body: JSON.stringify({
               action: "set_user_relay_quota",
               user_id: targetUserId,
-              quota_bytes: 0,
+              reset_to_default: true,
             }),
           });
 
           return {
             assert: ok,
             content: { set: setResp.status, get: getResp.status, quota: getResp.quota },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="Admin API set and reset user relay quota follows server default">
+      <template>
+        <script type="module">
+          const headers = {
+            "Content-Type": "application/json",
+            Authorization: "Bearer test-admin-token-0123456789abcdef",
+          };
+          const base = "http://127.0.0.1:8091/ctrl-test";
+          const targetUserId = "quota-reset-test-user";
+
+          const call = (body) => fetch(base, { method: "POST", headers, body: JSON.stringify(body) }).then(r => r.json());
+
+          // 单独设置额度 → custom_quota = true，quota_bytes 为生效值
+          const setResp = await call({ action: "set_user_relay_quota", user_id: targetUserId, quota_bytes: 12345 });
+          // 重置为默认 → custom_quota = false，quota_bytes 为服务器默认值（>0）
+          const resetResp = await call({ action: "set_user_relay_quota", user_id: targetUserId, reset_to_default: true });
+
+          const ok =
+            setResp.status === "ok" &&
+            setResp.quota.custom_quota === true &&
+            setResp.quota.quota_bytes === 12345 &&
+            resetResp.status === "ok" &&
+            resetResp.quota.custom_quota === false &&
+            resetResp.quota.quota_bytes > 0;
+
+          return {
+            assert: ok,
+            content: { set: setResp.quota, reset: resetResp.quota },
           };
         </script>
       </template>
@@ -232,8 +272,8 @@
           const ok =
             data.status === "ok" &&
             data.quota &&
-            typeof data.quota.quota_bytes === "number" &&
-            typeof data.quota.used_bytes === "number";
+            typeof data.quota.quotaBytes === "number" &&
+            typeof data.quota.usedBytes === "number";
 
           return {
             assert: resp.status === 200 && ok,
