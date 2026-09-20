@@ -582,5 +582,150 @@
         </script>
       </template>
     </sb-test>
+    <sb-test name="In-Flight Connect Abort Test (Marked Error, No Unhandled Rejection)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const namespace9 = "test-abort-inflight";
+          const user9 = new LocalUser(namespace9);
+          await user9.ready();
+
+          // 用不在默认服务器列表中的端口，避免与 user.ready() 触发的后台
+          // connectAll 竞速（该 URL 只会有本用例发起的连接）
+          const deadUrl9 = "ws://localhost:9389";
+
+          // 监听 unhandledrejection：connect() 尾部 finally 派生的 promise
+          // 若未消化 rejection，会以 unhandledrejection 形式泄漏
+          const unhandled9 = [];
+          const onUnhandled9 = (e) => {
+            unhandled9.push(String(e.reason?.message ?? e.reason));
+          };
+          window.addEventListener("unhandledrejection", onUnhandled9);
+
+          // connect 尚未完成（挂在 getInfo 的 await 上）时同步调用 disconnect，
+          // 模拟宿主在握手进行中主动断开非首选中继
+          const connectPromise9 = user9.server.connect(deadUrl9, { retries: 1 });
+          user9.server.disconnect(deadUrl9);
+
+          let caught9;
+          try {
+            await connectPromise9;
+          } catch (e) {
+            caught9 = e;
+          }
+
+          // 等待潜在的 unhandledrejection 事件派发完毕
+          await new Promise((r) => setTimeout(r, 300));
+          window.removeEventListener("unhandledrejection", onUnhandled9);
+
+          user9.server.disconnectAll();
+
+          const isMarkedAbort9 =
+            caught9?.aborted === true &&
+            caught9.message.includes("aborted");
+          const noUnhandled9 = unhandled9.length === 0;
+
+          return {
+            assert: isMarkedAbort9 && noUnhandled9,
+            content: {
+              message:
+                isMarkedAbort9 && noUnhandled9
+                  ? "In-flight connect aborted with marked error and no unhandled rejection"
+                  : "Abort handling failed",
+              error: caught9 ? { message: caught9.message, aborted: caught9.aborted } : null,
+              unhandledRejections: unhandled9,
+              checks: {
+                rejected: !!caught9,
+                hasAbortedFlag: caught9?.aborted === true,
+                messageIncludesAborted: !!caught9?.message?.includes("aborted"),
+                noUnhandled9,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="connectAll Abort Silence Test (No Warn, No Unhandled Rejection)">
+      <template>
+        <script type="module">
+          import { LocalUser } from "/nos/user/user.js";
+
+          const namespace10 = "test-connectall-abort";
+          const user10 = new LocalUser(namespace10);
+          await user10.ready();
+
+          // 先取服务器列表并停掉延迟监测（其内部 testLatency 走非 auto 的
+          // connect，会清掉主动断开标记，破坏本用例的确定性）
+          const servers10 = await user10.server.getServers();
+          user10.server.stopLatencyMonitor();
+
+          // 模拟宿主「收敛到单一中继」的先发制人断开（包括仍在握手中的连接），
+          // 并等待 ready() 触发的后台 connectAll 在途连接全部结算
+          for (const url of servers10) {
+            user10.server.disconnect(url);
+          }
+          await new Promise((r) => setTimeout(r, 500));
+
+          const warns10 = [];
+          const origWarn10 = console.warn;
+          const spyWarn10 = (...args) => {
+            warns10.push(args.map((a) => String(a?.message ?? a)).join(" "));
+            origWarn10(...args);
+          };
+          const unhandled10 = [];
+          const onUnhandled10 = (e) => {
+            unhandled10.push(String(e.reason?.message ?? e.reason));
+          };
+
+          console.warn = spyWarn10;
+          window.addEventListener("unhandledrejection", onUnhandled10);
+
+          let connectAllSettled10 = false;
+          try {
+            // auto 连接不清除主动断开标记：所有连接都应被中止（aborted），
+            // connectAll 应将其作为正常取消静默处理
+            const connectAllPromise10 = user10.server.connectAll();
+            for (const url of servers10) {
+              user10.server.disconnect(url);
+            }
+            await connectAllPromise10;
+            connectAllSettled10 = true;
+
+            // 等待潜在的 unhandledrejection 事件派发完毕
+            await new Promise((r) => setTimeout(r, 300));
+          } finally {
+            console.warn = origWarn10;
+            window.removeEventListener("unhandledrejection", onUnhandled10);
+          }
+
+          // 主动断开导致的取消不应记为连接失败（warn），也不应泄漏 unhandled rejection
+          const autoConnectWarns10 = warns10.filter((w) =>
+            w.includes("Auto-connect"),
+          );
+          const noFailureWarn10 = autoConnectWarns10.length === 0;
+
+          return {
+            assert: connectAllSettled10 && noFailureWarn10 && unhandled10.length === 0,
+            content: {
+              message:
+                connectAllSettled10 && noFailureWarn10 && unhandled10.length === 0
+                  ? "connectAll treats intentional-disconnect aborts as silent cancellations"
+                  : "connectAll reported aborts as failures",
+              servers: servers10,
+              autoConnectWarns: autoConnectWarns10,
+              otherWarns: warns10.filter((w) => !w.includes("Auto-connect")),
+              unhandledRejections: unhandled10,
+              checks: {
+                connectAllSettled10,
+                noFailureWarn10,
+                noUnhandled: unhandled10.length === 0,
+              },
+            },
+          };
+        </script>
+      </template>
+    </sb-test>
   </body>
 </html>
