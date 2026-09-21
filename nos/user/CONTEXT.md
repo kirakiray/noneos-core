@@ -138,6 +138,7 @@ EventTarget
 - 显式调用 `connect(url)` 会解除“主动断开”标记并取消待执行重连。
 - **主动断开中止 vs 真实失败**：`disconnect` 中止进行中的连接时，`connect()` reject 的 Error 统一带 `aborted: true` 标记（`Connection to ${url} aborted`，共 4 个抛出点：重试轮前检查 ×2、`#connectOnce` 入口、握手成功时发现标记），且中止不消耗重试次数（内层 catch 遇 `aborted` 立即退出）；`connectAll` 对 aborted 仅 `console.debug`，真实失败才 warn。`connect()` 内部清理 `#connectPromises` 的派生 promise 先 `catch(() => {})` 再 `finally`，中止/失败都不会泄漏 unhandled rejection（对外的 reject 行为不变）。
 - `disconnectAll()` 只处理 `#wsMap` 中**已连接**的 URL，不会标记仍在握手中的并发连接（中止在途握手需逐 URL 调 `disconnect`）。
+- **内部机制用 auto 连接**：`testLatency`、`#sendJsonCommand`、`#sendBinaryRelayCommand` 内部的 `connect` 均为 `{ auto: true }`，不清除主动断开标记——否则 `disconnect(url)` 后仍在途的延迟测量/查询流程会把连接"复活"（高负载下曾导致 traffic-logger 测试偶发混入后台延迟流量）。代价是显式调用这些 API 时不会自动重连已主动断开的 URL（需先 `connect(url)` 恢复）。
 
 ### 3. 中继消息格式（user.js / server.js）
 

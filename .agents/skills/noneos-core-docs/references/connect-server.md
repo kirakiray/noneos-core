@@ -140,3 +140,4 @@ user.server.disconnect("ws://localhost:8081");
 - 再次调用 `connect(url)` 会解除该标记并恢复自动重连。
 - **握手进行中调用 `disconnect`**（如宿主初始化后收敛到单一中继、先发制人断开非首选服务器）：进行中的 `connect()` 会以带 `aborted: true` 标记的 `Error`（`Connection to ${url} aborted`）reject，属正常取消而非连接失败，可与真实失败（握手超时、WebSocket 错误等）区分；初始化时后台自动执行的 `connectAll()` 对此类取消静默处理，不会在控制台告警。
 - `disconnectAll()` 只断开已建立的连接，不会中止仍在握手中的并发连接（需要中止在途握手时逐 URL 调 `disconnect`）。
+- 对已主动断开的 URL，`testLatency` / `queryUserOnline` / 中继发送等内部机制**不会自动重连**（内部连接为 auto 模式，不解除主动断开标记）；如需恢复，先显式调用 `connect(url)`。

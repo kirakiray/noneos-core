@@ -543,7 +543,9 @@ export class ServerManager {
     responseAction,
     timeout = 15000,
   ) {
-    await this.connect(url);
+    // auto 连接：内部机制不清除主动断开标记，避免 disconnect 后
+    // 在途的延迟测量/查询流程把连接"复活"
+    await this.connect(url, { auto: true });
 
     return new Promise((resolve, reject) => {
       let resolved = false;
@@ -747,7 +749,8 @@ export class ServerManager {
    * @returns {Promise<Object>} 发送结果
    */
   async #sendBinaryRelayCommand(url, targetUserId, targetSessionId, data, extra = {}) {
-    await this.connect(url);
+    // 同 #sendJsonCommand：内部机制用 auto 连接，不清除主动断开标记
+    await this.connect(url, { auto: true });
 
     const payloadBytes = await this.#binaryToUint8Array(data);
 
@@ -949,8 +952,8 @@ export class ServerManager {
    * @returns {Promise<{rtt: number, oneWayLatency: number, clientTime: number, serverRecvTime: number, serverSendTime: number, clientRecvTime: number}>}
    */
   async testLatency(url, timeout = 15000) {
-    // 确保已连接
-    await this.connect(url);
+    // 确保已连接（auto：延迟监测属于后台机制，不清除主动断开标记）
+    await this.connect(url, { auto: true });
 
     // 步骤 1：发送延迟测试请求，精确记录发送时间
     const clientTime = Date.now();
