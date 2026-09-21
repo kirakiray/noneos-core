@@ -96,16 +96,16 @@ const connectedUrls = user.server.connectedUrls; // 已连接的服务器列表
 
 ```javascript
 user.server.setAutoReconnect({
-  enabled: true,        // 默认 false
-  baseDelay: 2000,      // 首次重连间隔 ms
+  enabled: true,        // 默认开启
+  baseDelay: 1000,      // 首次重连间隔 ms（带 ±25% 抖动防惊群）
   maxDelay: 30000,      // 最大重连间隔 ms
   multiplier: 2,        // 指数退避乘数
   maxRetries: Infinity, // 最大重试次数
 });
 ```
 
-- 默认关闭，不影响现有代码。
-- 仅在手**握手成功后的连接断开**时触发重连；握手阶段的失败仍由 `connect()` 内部重试处理。
+- **默认开启**；`setAutoReconnect({ enabled: false })` 可关闭。
+- 仅在**握手成功后的连接断开**时触发重连；握手阶段的失败仍由 `connect()` 内部重试处理。
 - 第 `n` 次重连间隔为 `min(baseDelay * multiplier^(n-1), maxDelay)`。
 - `setAutoReconnect({ enabled: false })` 会取消所有已排队但尚未执行的重连。
 
@@ -138,3 +138,6 @@ user.server.disconnect("ws://localhost:8081");
 
 - 调用 `disconnect(url)` 后，该 URL 会被标记为“用户主动断开”，即使开启了自动重连也不会再次尝试连接。
 - 再次调用 `connect(url)` 会解除该标记并恢复自动重连。
+- **握手进行中调用 `disconnect`**（如宿主初始化后收敛到单一中继、先发制人断开非首选服务器）：进行中的 `connect()` 会以带 `aborted: true` 标记的 `Error`（`Connection to ${url} aborted`）reject，属正常取消而非连接失败，可与真实失败（握手超时、WebSocket 错误等）区分；初始化时后台自动执行的 `connectAll()` 对此类取消静默处理，不会在控制台告警。
+- `disconnectAll()` 只断开已建立的连接，不会中止仍在握手中的并发连接（需要中止在途握手时逐 URL 调 `disconnect`）。
+- 对已主动断开的 URL，`testLatency` / `queryUserOnline` / 中继发送等内部机制**不会自动重连**（内部连接为 auto 模式，不解除主动断开标记）；如需恢复，先显式调用 `connect(url)`。

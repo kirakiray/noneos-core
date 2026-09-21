@@ -1,7 +1,7 @@
 {
-  "version": "4.7.0",
+  "version": "4.7.1",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1789745353004,
+  "signTime": 1790003121506,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -180,8 +180,8 @@
     },
     {
       "path": "user/CONTEXT.md",
-      "hash": "95f3fdaedfc0b3c28f271ac85490d300197021f31554b7979ec8addffe111714",
-      "size": 47425
+      "hash": "7626477f77aafc8db4e26e6c7874684510d2be240ef7e459cbb5e005a33f4038",
+      "size": 48791
     },
     {
       "path": "user/README.md",
@@ -225,8 +225,8 @@
     },
     {
       "path": "user/server.js",
-      "hash": "5d2fce0ca996d60e816d88fb12e65a85ea6de16af59e3d83a444b362e8fe496e",
-      "size": 39655
+      "hash": "55d07a324959ab9ca1028950b4a951ae1aa41e8bdb7a02eed9d6ce4515f81c46",
+      "size": 40830
     },
     {
       "path": "user/service-registry.js",
@@ -289,5 +289,5 @@
       "size": 2117
     }
   ],
-  "signature": "tZTEVt7u5MrtXih/PQwGNd8kCBn1ad28j4aKAeBvjTp1dM4pHi3jp7CCJLGxEkVLuKWsWmjOr+mu3FJl4BODRQ=="
+  "signature": "E9NQOetmrknY8j/oai9G9W61y3U0EB1GCsaFGvKJtIendWqAcToXwynjAGMXTfGEUtkzCIxgRFLHMC2e21i+Lw=="
 }
