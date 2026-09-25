@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Root Cert Trust Set Test</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
+</head>
+
+<body>
+  <h1>Root Cert Trust Set Tests</h1>
+
+  <!-- 测试 1：真实仓库根证书（信任集格式），全新安装（无缓存）通过 pin 校验 -->
+  <sb-test name="Real root cert passes pin check">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+
+        const rc_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+
+        try {
+          await verifyRootCert(rc_cert, undefined);
+          return { assert: true, content: { message: "pin 校验通过", generation: rc_cert.generation } };
+        } catch (rc_error) {
+          return { assert: false, content: { error: rc_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 2：篡改信任集内容后验签失败 -->
+  <sb-test name="Tampered cert fails verification">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+
+        const rc2_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        const rc2_tampered = {
+          ...rc2_cert,
+          signTime: rc2_cert.signTime + 1,
+        };
+
+        try {
+          await verifyRootCert(rc2_tampered, undefined);
+          return { assert: false, content: { message: "篡改的证书不应通过校验" } };
+        } catch (rc2_error) {
+          return { assert: true, content: { error: rc2_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 3：签名者不在信任集 active/grace 中时拒绝（retired 密钥不可签发） -->
+  <sb-test name="Signer not in trust set is rejected">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+
+        const rc3_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        // 伪造：把签名者从 keys 中标记为 retired
+        const rc3_fake = {
+          ...rc3_cert,
+          keys: rc3_cert.keys.map((rc3_key) => ({ ...rc3_key, status: "retired" })),
+        };
+
+        try {
+          await verifyRootCert(rc3_fake, undefined);
+          return { assert: false, content: { message: "retired 签名者不应通过校验" } };
+        } catch (rc3_error) {
+          return { assert: true, content: { error: rc3_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 4：generation 回滚被拒绝 -->
+  <sb-test name="Generation rollback is rejected">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+
+        const rc4_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        // 模拟本地缓存是一个更高 generation 的信任集
+        const rc4_cached = {
+          ...rc4_cert,
+          generation: rc4_cert.generation + 10,
+        };
+
+        try {
+          await verifyRootCert(rc4_cert, rc4_cached);
+          return { assert: false, content: { message: "generation 回滚不应通过校验" } };
+        } catch (rc4_error) {
+          return { assert: true, content: { error: rc4_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 5：链式信任——缓存信任集中的 grace 密钥签发的新信任集可以通过（无需 pin） -->
+  <sb-test name="Chain trust from cached grace key passes">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { generateKeyPair, createSigner } from "/nos/crypto/crypto-ecdsa.js";
+
+        const rc5_cached = await fetch("/nos/root-cert.json").then((e) => e.json());
+
+        // 生成新密钥，以 grace 状态加入缓存信任集（模拟 add 轮换后的本地缓存）
+        const rc5_pair = await generateKeyPair();
+        const rc5_cachedWithGrace = {
+          ...rc5_cached,
+          keys: [...rc5_cached.keys, { id: "test-grace", publicKey: rc5_pair.publicKey, status: "grace" }],
+        };
+
+        // 新信任集由 grace 新钥签发
+        const rc5_certData = {
+          type: "root",
+          name: rc5_cached.name,
+          generation: rc5_cached.generation + 1,
+          signTime: Date.now(),
+          publicKey: rc5_pair.publicKey,
+          keys: [
+            ...rc5_cachedWithGrace.keys.map((rc5_key) => ({ ...rc5_key })),
+          ],
+        };
+        const rc5_sign = await createSigner(rc5_pair.privateKey);
+        const rc5_newCert = {
+          ...rc5_certData,
+          signature: btoa(String.fromCharCode(...new Uint8Array(await rc5_sign(JSON.stringify(rc5_certData))))),
+        };
+
+        try {
+          await verifyRootCert(rc5_newCert, rc5_cachedWithGrace);
+          return { assert: true, content: { message: "链式信任通过", generation: rc5_newCert.generation } };
+        } catch (rc5_error) {
+          return { assert: false, content: { error: rc5_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 6：签名者不在缓存信任集中时，链式校验拒绝（未 pin 的全新密钥无法插入） -->
+  <sb-test name="Unknown signer rejected by cached trust set">
+    <template>
+      <script type="module">
+        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { generateKeyPair, createSigner } from "/nos/crypto/crypto-ecdsa.js";
+
+        const rc6_cached = await fetch("/nos/root-cert.json").then((e) => e.json());
+        const rc6_pair = await generateKeyPair();
+
+        // 攻击者自建信任集（签名者不在任何受信信任集中）
+        const rc6_certData = {
+          type: "root",
+          name: rc6_cached.name,
+          generation: rc6_cached.generation + 1,
+          signTime: Date.now(),
+          publicKey: rc6_pair.publicKey,
+          keys: [{ id: "attacker", publicKey: rc6_pair.publicKey, status: "active" }],
+        };
+        const rc6_sign = await createSigner(rc6_pair.privateKey);
+        const rc6_fakeCert = {
+          ...rc6_certData,
+          signature: btoa(String.fromCharCode(...new Uint8Array(await rc6_sign(JSON.stringify(rc6_certData))))),
+        };
+
+        try {
+          await verifyRootCert(rc6_fakeCert, rc6_cached);
+          return { assert: false, content: { message: "链外签名者不应通过校验" } };
+        } catch (rc6_error) {
+          return { assert: true, content: { error: rc6_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 7：getOnlineData 全流程——拉取真实 root-cert.json 与 nos.json 并完成校验 -->
+  <sb-test name="getOnlineData end-to-end">
+    <template>
+      <script type="module">
+        import { getOnlineData } from "/nos-tool/_install/util.js";
+
+        try {
+          const rc7_data = await getOnlineData();
+          const rc7_hasVersion = typeof rc7_data.onlineNosConfig.version === "string";
+          const rc7_hasHashes = Array.isArray(rc7_data.onlineNosConfig.hashes);
+          return {
+            assert: rc7_hasVersion && rc7_hasHashes,
+            content: {
+              version: rc7_data.onlineNosConfig.version,
+              checks: { rc7_hasVersion, rc7_hasHashes },
+            },
+          };
+        } catch (rc7_error) {
+          return { assert: false, content: { error: rc7_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+</body>
+
+</html>

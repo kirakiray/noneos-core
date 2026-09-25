@@ -89,6 +89,17 @@
 
 > **重要**：修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`（或开发期使用 `npm run watch:sw`），否则线上 SW 不会生效。
 
+### 根证书信任集与发布签名链
+
+发布完整性依赖两级签名：根证书信任集 `nos/root-cert.json` 是信任锚，`nos.json`（版本 + `hashes.json` 文件哈希清单）必须由信任集中 **active** 状态的密钥签发。客户端安装/更新时（`nos-tool/_install/util.js`）执行校验：
+
+1. `root-cert.json` 为信任集格式：`{ type, name, generation, signTime, publicKey, keys: [{ id, publicKey, status: active|grace|retired }], signature }`，`generation` 单调递增；
+2. 整体签名必须来自信任集中 active/grace 的密钥（`verifyData`）；
+3. 信任链二选一：全新安装（无本地缓存）时签名者公钥指纹必须命中代码内置的 `PINNED_ROOT_KEY_HASHES`；已有缓存时签名者必须属于上一份受信信任集的有效密钥，且 `generation` 不回滚（缓存放 `nos/storage` 的 `nos-root-trust` 空间）；
+4. `nos.json` 验签通过，且其 `publicKey` 属于信任集 active 密钥。
+
+密钥文件：根密钥 `rootkeys/root.json`（id 为 `root`，被 gitignore，**不入库**）；轮换新增密钥存 `rootkeys/keys/<id>.json`。轮换用 `scripts/rotate-root.js`（`init` / `add <id>`：新钥以 grace 加入、旧钥签名；`promote <id>`：新钥转 active、旧钥 retired、改由新钥签名；`retire <id>`：移除泄漏密钥；`pin-hash [id]`：输出用于内置 pin 的指纹）。发布流程：`npm run build:hashes`（计算 hashes → `sign-hashes.js` 按 active 密钥签发 `nos.json`）。泄漏应急轮换需将新信任集签发密钥的指纹加入 `PINNED_ROOT_KEY_HASHES` 并随客户端发版。
+
 ## 四、CONTEXT.md 模块清单
 
 各核心模块均提供 `CONTEXT.md` 供 AI 快速理解架构与实现，无需逐文件阅读源码。

@@ -28,7 +28,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
   });
 </script>
 ```
-参考：[nos-version 组件文档](references/nos-version.md)
+参考：[nos-version 组件文档](references/nos-version.md) | [根证书信任集与密钥轮换](references/root-cert.md)
 
 ---
 
@@ -257,6 +257,7 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 - [storage 存储模块](references/storage.md)
 - [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
+- [根证书信任集与密钥轮换 (root-cert)](references/root-cert.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
 - [公共组件文档 (ncomp)](references/ncomp.md)
 - [多语言模块 (locale-text)](references/locale-text.md)

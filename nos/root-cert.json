@@ -1,7 +1,15 @@
 {
   "type": "root",
   "name": "noneos-root",
-  "signTime": 1748261520193,
+  "generation": 1,
+  "signTime": 1790311656849,
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signature": "IJ5Nh22/DZ01DrinbENqqqHrckkdsPAhpADMntSsTbxr1E0gQewrxNb/+Dcb/+iv1JB1M9wfr+wUxtdjhQhrUQ=="
+  "keys": [
+    {
+      "id": "root",
+      "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
+      "status": "active"
+    }
+  ],
+  "signature": "x6E+xjXywVZAf0eml/juzNwsFcgpZXHaq0IjVMpsGuFX1Ornwrh4LFLitcictuXFeA5ERKdL7SrjIEY9qeXuqQ=="
 }

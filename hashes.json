@@ -1,0 +1,287 @@
+[
+  {
+    "path": "crypto/crypto-aes.js",
+    "hash": "88e0cfb98ae0af34e7795770a1e68c9d7878d5012c3c1457cdaaa1df491ddbc5",
+    "size": 2242
+  },
+  {
+    "path": "crypto/crypto-e2ee.js",
+    "hash": "e8a3d8d8baef2be3fc0e319b844fe7d80b52b44e6fb0c5265c74838e3f16606e",
+    "size": 7610
+  },
+  {
+    "path": "crypto/crypto-ecdsa.js",
+    "hash": "d1243d0aefa3b93b12c80a765d641574b920eeecff6ac9043f78593f3a9aeab4",
+    "size": 3985
+  },
+  {
+    "path": "crypto/crypto-rsa.js",
+    "hash": "67606d51037b8b6dc663c0f723e6d19384be351564f35830b9d06a828824846f",
+    "size": 3148
+  },
+  {
+    "path": "crypto/crypto-verify.js",
+    "hash": "6fa4f8d176b16ac4e0bdeedf1ecd8cc083f1cd6960a5afff328dc6c41b9985e1",
+    "size": 864
+  },
+  {
+    "path": "fs/CONTEXT.md",
+    "hash": "d61b693379b3d08af720972fd94e10c49c44c2766aae12b4a84499ef1e842f3a",
+    "size": 11532
+  },
+  {
+    "path": "fs/README.md",
+    "hash": "e325fa6ede3bab3c32b60ef236dfcbfea17bc38fe8d931b4fb0bb16cafc2e922",
+    "size": 12750
+  },
+  {
+    "path": "fs/download.js",
+    "hash": "34478570e74944b9d5c1d972011f0bf8b55181efd3290fb203d61cb2b1c9142e",
+    "size": 1613
+  },
+  {
+    "path": "fs/handle/base.js",
+    "hash": "64dc6bd2400addbf77908684d3c5ffa0f5719ab241489696e13472ceb7041d1f",
+    "size": 1529
+  },
+  {
+    "path": "fs/handle/dir.js",
+    "hash": "5587cbceabea15a036f78f6140e2393aede250e3d2252d9a4ddc7f1afc6be54f",
+    "size": 2264
+  },
+  {
+    "path": "fs/handle/file.js",
+    "hash": "84565b58015e75b6cbca0c29fce8d3afd57ee6285f5d0f46e4fd5c45d686fb9e",
+    "size": 2307
+  },
+  {
+    "path": "fs/handle/main.js",
+    "hash": "5ab4c55aa78dcb2a02671f1441bdc218ebaab4b84e9472c06c1f875b597b54ae",
+    "size": 1495
+  },
+  {
+    "path": "fs/handle/mount/db.js",
+    "hash": "ed6771648dd970bc37b3f2a0041a9e7fce0978e543cc6eb40f2b6bc0cd646e49",
+    "size": 2515
+  },
+  {
+    "path": "fs/handle/mount/mount.js",
+    "hash": "b71ef331166715b0c10737e220768237899f827ddbac96e97567fd4f8ce28896",
+    "size": 3628
+  },
+  {
+    "path": "fs/handle/write-worker.js",
+    "hash": "5668802cb055d7520ec41347911f7a8afbd609c0425afa3f669e159478e5d0f2",
+    "size": 1185
+  },
+  {
+    "path": "fs/main.js",
+    "hash": "22ec7f8b6e620ab21a383a1899178612021e7223860f1feadef1ad10dac838c5",
+    "size": 482
+  },
+  {
+    "path": "fs/public/base.js",
+    "hash": "62e6ec48bf1c27b0860ddc851ff8ccf345d222b78e1bd716196e21cdf3c78c6b",
+    "size": 5576
+  },
+  {
+    "path": "fs/public/dir.js",
+    "hash": "945be7b330a203d6b179729630b704cf5942c78a79a4c8427f248def7a3f5c33",
+    "size": 2081
+  },
+  {
+    "path": "fs/public/file.js",
+    "hash": "f16064c713a2024d1c20193faf55172289b47bacd655d950249b2828f681c68a",
+    "size": 1254
+  },
+  {
+    "path": "hybrid-data/dir/hybird-data.js",
+    "hash": "6e680824df173077f8b5e39e2a0fb20002fbb5e0140fb338fa35b18b410b7f37",
+    "size": 7592
+  },
+  {
+    "path": "hybrid-data/dir/public.js",
+    "hash": "4b35c70aa886a685bff959c4c30ef76bb2e97948138a685c20c96a7fe09ae8ac",
+    "size": 4685
+  },
+  {
+    "path": "hybrid-data/file.js",
+    "hash": "2fbfe5b7947f1a13c1b16ebed2f99a618551993a591ddce4193fbbbddcc9d5e8",
+    "size": 2529
+  },
+  {
+    "path": "hybrid-data/main.js",
+    "hash": "748fa563753f91cfe73bff0caee93259032ecd1b01de91a8a8e596782cd83066",
+    "size": 1765
+  },
+  {
+    "path": "locale-text/README.md",
+    "hash": "18cd455a22ac643199c7042391eedbd2f73747b2f1abdfdd1e1d7bc83ace746c",
+    "size": 14461
+  },
+  {
+    "path": "locale-text/get-locale-text.js",
+    "hash": "b213d2a2924cb2f5f58aa9cc2e6b554949e643cce64d18b221ba833aff6cd107",
+    "size": 4019
+  },
+  {
+    "path": "locale-text/locale-text.html",
+    "hash": "0fa6aa8ce2cbee817eaeb558f526560939862f12664645564af33261f7a396e5",
+    "size": 9071
+  },
+  {
+    "path": "n-icon/n-icon.html",
+    "hash": "10f59a01a118d8afd1bcd330ded4050ea5d7c583e7d04a16ad8a3b15aff1a6d3",
+    "size": 1623
+  },
+  {
+    "path": "publish/CONTEXT.md",
+    "hash": "dddd0eddab62c966f564e7a6d138fbc889af66779cc5d2c8e6c14f53679ffc84",
+    "size": 12612
+  },
+  {
+    "path": "publish/README.md",
+    "hash": "6b021ffc0b25618fac6d2402b28c640be6cd7d94eb22e3e73dbf2df56df7735a",
+    "size": 13825
+  },
+  {
+    "path": "publish/data-publisher.js",
+    "hash": "9775ffca1c45e4ab66e86007aa51712ab7e9ee9a4d46892e9b868fc2cdbe3673",
+    "size": 26011
+  },
+  {
+    "path": "publish/db.js",
+    "hash": "bcb2f62ab8f488324d7b78bc47d2cb0d16915f555e642cdf3bc63d01d8ddfc74",
+    "size": 6364
+  },
+  {
+    "path": "root-cert.json",
+    "hash": "60a75d32a682bacac7c428598231dbd7d2bde3e4c8e274bdee8f57c8e4c6a963",
+    "size": 565
+  },
+  {
+    "path": "storage/CONTEXT.md",
+    "hash": "883b23321552c66f443087df9b94a771bd92ab98d8a125ef728976beb32a89e5",
+    "size": 15193
+  },
+  {
+    "path": "storage/README.md",
+    "hash": "c45f42172a6006f7e30dda1fcf73db73394774e63be20a9dddb3be3fa79e85b7",
+    "size": 9646
+  },
+  {
+    "path": "storage/main.js",
+    "hash": "1aaf2ee404813a01817998287a1c9d11ed358eb0525d75688ec7555e53ce040e",
+    "size": 19615
+  },
+  {
+    "path": "user/CONTEXT.md",
+    "hash": "7626477f77aafc8db4e26e6c7874684510d2be240ef7e459cbb5e005a33f4038",
+    "size": 48791
+  },
+  {
+    "path": "user/README.md",
+    "hash": "30393281ccdcc97e89faeb9047f9a41f8baa31f8ca05a8775659bc398f1da3de",
+    "size": 34693
+  },
+  {
+    "path": "user/base-user.js",
+    "hash": "bff7411500e79328f40862a33c1ba013ee1fd7e60d4c70f08192201b96cd18ca",
+    "size": 5760
+  },
+  {
+    "path": "user/cred.js",
+    "hash": "ef736f5e500c24ffa4e0f24065173e2fc5e553064b4ce04d2a62a5f83dc2b5eb",
+    "size": 29923
+  },
+  {
+    "path": "user/db.js",
+    "hash": "e758a0ca9c63e6896418a2346e52696614501ae1a231d0c9a3db5aeeada1f30c",
+    "size": 25635
+  },
+  {
+    "path": "user/main.js",
+    "hash": "78c33c920ef71626b197f91a934abd02b1688a20c066a407fec9ca825200cd5a",
+    "size": 8121
+  },
+  {
+    "path": "user/reliable.js",
+    "hash": "d8a9ccd57d66961482f635969fd821d5f09bf27499f8476d4dd699f3d038547a",
+    "size": 4823
+  },
+  {
+    "path": "user/remote-user.js",
+    "hash": "65b69f47a2280ccb7d07f6fd732ab24120b049c43dba15343e1c0ae0fb5620b1",
+    "size": 68940
+  },
+  {
+    "path": "user/rtc.js",
+    "hash": "cbf11f26c320dbeac38fcc72cf489aefade69fdb4449d7053ec0540e92d98d5c",
+    "size": 24181
+  },
+  {
+    "path": "user/server.js",
+    "hash": "55d07a324959ab9ca1028950b4a951ae1aa41e8bdb7a02eed9d6ce4515f81c46",
+    "size": 40830
+  },
+  {
+    "path": "user/service-registry.js",
+    "hash": "f208fe4c4e344ab7f7280448933133eaa7c9d74f7f512ffd8266d3316ae493e5",
+    "size": 5427
+  },
+  {
+    "path": "user/traffic.js",
+    "hash": "027a6543646d436a61a0974118c38b5e42fe5e710bc3dc72b9e43e9c1642cb20",
+    "size": 27173
+  },
+  {
+    "path": "user/user.js",
+    "hash": "27612355c4ba3271e28cc475231961de25dbe6411aa160c5ba7400ddac08d71a",
+    "size": 46295
+  },
+  {
+    "path": "util/async-pool.js",
+    "hash": "849891bdc7295beace91fcdadf5b52581c1882af3fe8cfedb7145a8a175e8518",
+    "size": 1814
+  },
+  {
+    "path": "util/hash/get-file-chunk-hashes-async.js",
+    "hash": "0445693716070bb05950de44c8af2c9cf19ed6ba6db0ae88b8b7f9baf4b8b41b",
+    "size": 916
+  },
+  {
+    "path": "util/hash/get-file-chunk-hashes.js",
+    "hash": "c9d2b333e56cea29c125a29888abc5d0492d40e9615ddecc1eb7da59c6160ac6",
+    "size": 1661
+  },
+  {
+    "path": "util/hash/get-file-chunk-hashes.worker.js",
+    "hash": "c6f32d4d0f2797d1ba28b09aedaf569cbcbedf8bc05748afbd4a2128ee58dcea",
+    "size": 477
+  },
+  {
+    "path": "util/hash/get-file-hash.js",
+    "hash": "888eeb15c4253c19a8b3fe081c1fc40b286165f2520ada187be2c01156b417e3",
+    "size": 617
+  },
+  {
+    "path": "util/hash/get-hash.js",
+    "hash": "848759657cda5e7300194766a23378ac4fa70eeee8d693c55a186c75c4395c9a",
+    "size": 862
+  },
+  {
+    "path": "util/hash/main.js",
+    "hash": "7bef4367adb7d6f17e232c3ccce0e0b07eaea8f77da70580695b2309e9fb91e4",
+    "size": 232
+  },
+  {
+    "path": "util/rand-adj-noun.js",
+    "hash": "776e50fc9f8af8470226fd90cd08e03660a8bf47729cec4b2829d7961aa209ac",
+    "size": 1692
+  },
+  {
+    "path": "util/zip.js",
+    "hash": "acc9f083a840a8e727320484213a7518797d56ab8abe3f8bf503ede7d2121ce3",
+    "size": 2117
+  }
+]
