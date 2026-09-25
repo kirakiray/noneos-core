@@ -35,24 +35,48 @@ NoneOS Core 发布完整性依赖两级签名：根证书信任集 `nos/root-cer
 ## 密钥文件存放
 
 - 根密钥：`rootkeys/root.json`（id 固定为 `root`，被 gitignore，**不入库**）
+- 换根过渡期旧根密钥：`rootkeys/root-legacy.json`
 - 轮换新增密钥：`rootkeys/keys/<id>.json`
 
 ## 轮换操作（scripts/rotate-root.js）
 
 | 命令 | 作用 |
 |------|------|
+| `node scripts/rotate-root.js check` | 校验 `rootkeys/root.json` 公私钥配对并输出公钥指纹 |
 | `node scripts/rotate-root.js init` | 初始化 generation 1 信任集（仅根密钥 active） |
 | `node scripts/rotate-root.js add <id>` | 生成新密钥，以 grace 状态加入信任集（仍由旧钥签名，客户端平滑过渡） |
 | `node scripts/rotate-root.js promote <id>` | 新钥转 active、原 active 转 retired，改由新钥签名 |
+| `node scripts/rotate-root.js swap-root` | 手动换根（见下） |
 | `node scripts/rotate-root.js retire <id>` | 将指定密钥移出信任集（应急移除泄漏密钥） |
-| `node scripts/rotate-root.js pin-hash [id]` | 输出密钥公钥的 sha-256 指纹，用于写入客户端 `PINNED_ROOT_KEY_HASHES` |
+| `node scripts/rotate-root.js pin-hash [id]` | 输出密钥公钥的 sha-256 指纹 |
 
-常规轮换流程：
+所有变更命令（init / add / promote / swap-root / retire）都会自动：重写客户端 `PINNED_ROOT_KEY_HASHES`（信任集中所有未退役密钥的指纹）→ 重算 `hashes.json` → 由 active 密钥重签 `nos.json`。
+
+## 手动换根（swap-root）
+
+适用于定期更换根密钥。操作步骤：
+
+```bash
+# 1. 旧根密钥保留一份（swap-root 需要旧私钥给过渡版信任集签名）
+cp rootkeys/root.json rootkeys/root-legacy.json
+
+# 2. 手动用新密钥对替换 rootkeys/root.json（{"public": ..., "private": ...} 格式）
+
+# 3. 一条命令完成换根
+node scripts/rotate-root.js swap-root
+```
+
+`swap-root` 会：校验新钥配对 → 生成 generation+1 的新信任集（新钥 active、旧钥转 grace 为 `root-legacy`，整体仍由旧钥签名）→ 自动更新 pin → 重签 `nos.json`。部署后：
+
+- **已装机客户端**：本地缓存信任集中含旧钥，链式信任自动接受新证书，无需用户操作；
+- **全新安装客户端**：pin 中同时含新旧指纹，签名者（旧钥）命中即可；
+- 过渡期结束后执行 `node scripts/rotate-root.js retire root-legacy`，旧钥彻底退役、pin 移除旧指纹，再次部署即可。
+
+## 常规轮换流程（不换根密钥）
 
 ```bash
 node scripts/rotate-root.js add k2       # 新钥 grace 加入
 node scripts/rotate-root.js promote k2   # 新钥 active、旧钥 retired
-npm run build:hashes                     # 重算 hashes 并由 active 密钥签发 nos.json
 ```
 
 > `npm run build:hashes` 内部执行 `scripts/calculate-nos-hashes.js` + `scripts/sign-hashes.js`；后者自动选取信任集中唯一的 active 密钥（对应密钥文件须存在）。
