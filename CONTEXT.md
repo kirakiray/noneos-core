@@ -98,7 +98,9 @@
 3. 信任链二选一：全新安装（无本地缓存）时签名者公钥指纹必须命中代码内置的 `PINNED_ROOT_KEY_HASHES`；已有缓存时签名者必须属于上一份受信信任集的有效密钥，且 `generation` 不回滚（缓存放 `nos/storage` 的 `nos-root-trust` 空间）；
 4. `nos.json` 验签通过，且其 `publicKey` 属于信任集 active 密钥。
 
-密钥文件：根密钥 `rootkeys/root.json`（id 为 `root`，被 gitignore，**不入库**）；轮换新增密钥存 `rootkeys/keys/<id>.json`。轮换用 `scripts/rotate-root.js`（`check`：校验根密钥配对；`init` / `add <id>`：新钥以 grace 加入、旧钥签名；`promote <id>`：新钥转 active、旧钥 retired、改由新钥签名；`swap-root`：手动换根——新钥放 `rootkeys/root.json`、旧钥保留为 `rootkeys/root-legacy.json` 后执行，自动重签证书并把客户端 `PINNED_ROOT_KEY_HASHES` 重写为所有未退役密钥的指纹，随后过渡期满用 `retire root-legacy` 彻底退役；`retire <id>`：移除泄漏密钥；`pin-hash [id]`：输出指纹）。所有变更命令都会自动重写 pin 并重算 hashes、重签 `nos.json`。发布流程：`npm run build:hashes`（计算 hashes → `sign-hashes.js` 按 active 密钥签发 `nos.json`）。泄漏应急轮换需确保新信任集签发密钥的指纹在 `PINNED_ROOT_KEY_HASHES` 中并随客户端发版。
+密钥文件：根密钥 `rootkeys/root.json`（id 为 `root`，被 gitignore，**不入库**）；轮换新增密钥存 `rootkeys/keys/<id>.json`。轮换用 `scripts/rotate-root.js`（`check`：校验根密钥配对；`init` / `add <id>`：新钥以 grace 加入、旧钥签名；`promote <id>`：新钥转 active、旧钥 retired、改由新钥签名；`swap-root`：手动换根——新钥放 `rootkeys/root.json`、旧钥保留为 `rootkeys/root-legacy.json` 后执行，自动重签证书并把客户端 `PINNED_ROOT_KEY_HASHES` 重写为所有未退役密钥的指纹，随后过渡期满用 `retire root-legacy` 彻底退役；`revoke <id|指纹>`：吊销密钥；`pin-hash [id]`：输出指纹）。所有变更命令都会自动重写 pin 并重算 hashes、重签 `nos.json`。发布流程：`npm run build:hashes`（计算 hashes → `sign-hashes.js` 按 active 密钥签发 `nos.json`）。
+
+**泄漏保底机制（吊销）**：`nos/root-status.json`（`{ type, signTime, minGeneration, revokedKeyHashes }`）是独立于签名体系的域名信任根——其真实性由部署渠道（HTTPS + 域名控制权）保证，不需要签名。客户端更新时一并拉取（`no-store`，失败则降级用 `nos/storage` 缓存的最后一份；从未获取到则跳过）：证书 generation 低于 `minGeneration`，或信任集中任一密钥指纹命中 `revokedKeyHashes`，直接拒绝。主私钥泄漏后执行 `node scripts/rotate-root.js revoke root` 并部署，攻击者用泄漏钥签发的一切信任集立即失效，随后换钥重签恢复服务。该机制的前提是渠道未被攻破。
 
 ## 四、CONTEXT.md 模块清单
 

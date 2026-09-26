@@ -175,7 +175,72 @@
     </template>
   </sb-test>
 
-  <!-- 测试 7：getOnlineData 全流程——拉取真实 root-cert.json 与 nos.json 并完成校验 -->
+  <!-- 测试 7：吊销状态校验——干净状态通过 -->
+  <sb-test name="Root status clean passes">
+    <template>
+      <script type="module">
+        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+
+        const rs_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        const rs_status = await fetch("/nos/root-status.json").then((e) => e.json());
+
+        try {
+          const rs_ok = await verifyRootStatus(rs_cert, rs_status);
+          // null 状态（从未获取到）也应跳过检查
+          const rs_nullOk = await verifyRootStatus(rs_cert, null);
+          return { assert: rs_ok === true && rs_nullOk === true, content: { rs_ok, rs_nullOk } };
+        } catch (rs_error) {
+          return { assert: false, content: { error: rs_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 8：吊销状态校验——信任集中出现被吊销密钥时拒绝 -->
+  <sb-test name="Revoked key in trust set is rejected">
+    <template>
+      <script type="module">
+        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+        import { getHash } from "/nos/util/hash/get-hash.js";
+
+        const rs2_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        const rs2_rootHash = await getHash(rs2_cert.keys[0].publicKey);
+
+        try {
+          await verifyRootStatus(rs2_cert, {
+            minGeneration: 1,
+            revokedKeyHashes: [rs2_rootHash],
+          });
+          return { assert: false, content: { message: "被吊销密钥不应通过校验" } };
+        } catch (rs2_error) {
+          return { assert: true, content: { error: rs2_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 9：吊销状态校验——generation 低于 minGeneration 时拒绝 -->
+  <sb-test name="Generation below minGeneration is rejected">
+    <template>
+      <script type="module">
+        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+
+        const rs3_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
+
+        try {
+          await verifyRootStatus(rs3_cert, {
+            minGeneration: rs3_cert.generation + 5,
+            revokedKeyHashes: [],
+          });
+          return { assert: false, content: { message: "低于 minGeneration 的证书不应通过校验" } };
+        } catch (rs3_error) {
+          return { assert: true, content: { error: rs3_error.message } };
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 10：getOnlineData 全流程——拉取真实 root-cert.json 与 nos.json 并完成校验 -->
   <sb-test name="getOnlineData end-to-end">
     <template>
       <script type="module">

@@ -30,7 +30,7 @@
  *
  * 其他命令：
  *   node scripts/rotate-root.js check           # 校验 rootkeys/root.json 公私钥是否配对
- *   node scripts/rotate-root.js retire <id>     # 移除指定密钥（应急轮换）
+ *   node scripts/rotate-root.js revoke <id|指纹>  # 吊销密钥（泄漏保底机制，见 nos/root-status.json）
  *   node scripts/rotate-root.js pin-hash [id]   # 输出内置 pin 所需指纹
  */
 import { createRequire } from "node:module";
@@ -46,6 +46,7 @@ import { execSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const rootCertPath = join(repoRoot, "nos/root-cert.json");
+const rootStatusPath = join(repoRoot, "nos/root-status.json");
 const keysDir = join(repoRoot, "rootkeys/keys");
 
 const CERT_NAME = "noneos-root";
