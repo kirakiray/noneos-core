@@ -52,6 +52,7 @@
 | `/index.html` | 项目入口 HTML | 是（页面初始化逻辑） |
 | `/sw.js` | SW 注册桥接文件：`importScripts("/sw/dist.js")` | 仅 import 行（不要改成 dist.min.js） |
 | `/nos.json` | 在线版本与哈希清单（构建产物，由 `scripts/pack-nos.js` 生成） | 否（构建生成） |
+| `/root-status.json` | 根密钥吊销状态（泄漏保底机制，见 `scripts/rotate-root.js revoke`；效力来自域名信任根，不签名，永不入 OPFS） | 是（泄漏应急时手动/脚本更新） |
 | `/nos.zip` | 系统文件压缩包（构建产物） | 否（构建生成） |
 | `/404.html`、`/_redirects` | Cloud Pages 托管配置 | 视部署需求 |
 
@@ -100,7 +101,9 @@
 
 密钥文件：根密钥 `rootkeys/root.json`（id 为 `root`，被 gitignore，**不入库**）；轮换新增密钥存 `rootkeys/keys/<id>.json`。轮换用 `scripts/rotate-root.js`（`check`：校验根密钥配对；`init` / `add <id>`：新钥以 grace 加入、旧钥签名；`promote <id>`：新钥转 active、旧钥 retired、改由新钥签名；`swap-root`：手动换根——新钥放 `rootkeys/root.json`、旧钥保留为 `rootkeys/root-legacy.json` 后执行，自动重签证书并把客户端 `PINNED_ROOT_KEY_HASHES` 重写为所有未退役密钥的指纹，随后过渡期满用 `retire root-legacy` 彻底退役；`revoke <id|指纹>`：吊销密钥；`pin-hash [id]`：输出指纹）。所有变更命令都会自动重写 pin 并重算 hashes、重签 `nos.json`。发布流程：`npm run build:hashes`（计算 hashes → `sign-hashes.js` 按 active 密钥签发 `nos.json`）。
 
-**泄漏保底机制（吊销）**：`nos/root-status.json`（`{ type, signTime, minGeneration, revokedKeyHashes }`）是独立于签名体系的域名信任根——其真实性由部署渠道（HTTPS + 域名控制权）保证，不需要签名。客户端更新时一并拉取（`no-store`，失败则降级用 `nos/storage` 缓存的最后一份；从未获取到则跳过）：证书 generation 低于 `minGeneration`，或信任集中任一密钥指纹命中 `revokedKeyHashes`，直接拒绝。主私钥泄漏后执行 `node scripts/rotate-root.js revoke root` 并部署，攻击者用泄漏钥签发的一切信任集立即失效，随后换钥重签恢复服务。该机制的前提是渠道未被攻破。
+**泄漏保底机制（吊销）**：根目录 `root-status.json`（`{ type, signTime, minGeneration, revokedKeyHashes }`）是独立于签名体系的域名信任根——其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）。放在仓库根目录（`nos/` 之外），与 `nos.json` 一样不经过 SW 的 `/nos/` OPFS 代理，保证客户端永远读到线上版本。客户端更新时一并拉取（`no-store`，失败则降级用 `nos/storage` 缓存的最后一份；从未获取到则跳过）：证书 generation 低于 `minGeneration`，或信任集中任一密钥指纹命中 `revokedKeyHashes`，直接拒绝。主私钥泄漏后执行 `node scripts/rotate-root.js revoke root` 并部署，攻击者用泄漏钥签发的一切信任集立即失效，随后换钥重签恢复服务。该机制的前提是渠道未被攻破。
+
+> 根证书信任集 `nos/root-cert.json` 的 OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证）；但安装器校验链不信任任何本地副本——pin、链式信任、generation 与 `root-status.json` 吊销检查共同保证只认线上新签的信任集。
 
 ## 四、CONTEXT.md 模块清单
 

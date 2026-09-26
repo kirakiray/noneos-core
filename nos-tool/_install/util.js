@@ -149,7 +149,7 @@ export const getOnlineData = async () => {
 
   try {
     rootStatus = await fetch(
-      new URL("../../nos/root-status.json", import.meta.url).href,
+      new URL("../../root-status.json", import.meta.url).href,
       {
         cache: "no-store",
       }

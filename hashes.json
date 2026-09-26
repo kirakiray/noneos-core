@@ -160,11 +160,6 @@
     "size": 565
   },
   {
-    "path": "root-status.json",
-    "hash": "fbf342c0bd62caf445e9db3b8decba8669e78c60b853ca451139bfb5ed695c3a",
-    "size": 105
-  },
-  {
     "path": "storage/CONTEXT.md",
     "hash": "883b23321552c66f443087df9b94a771bd92ab98d8a125ef728976beb32a89e5",
     "size": 15193

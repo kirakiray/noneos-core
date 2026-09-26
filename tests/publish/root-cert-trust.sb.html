@@ -182,7 +182,7 @@
         import { verifyRootStatus } from "/nos-tool/_install/util.js";
 
         const rs_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
-        const rs_status = await fetch("/nos/root-status.json").then((e) => e.json());
+        const rs_status = await fetch("/root-status.json").then((e) => e.json());
 
         try {
           const rs_ok = await verifyRootStatus(rs_cert, rs_status);

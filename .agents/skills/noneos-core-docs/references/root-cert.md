@@ -75,7 +75,7 @@ node scripts/rotate-root.js swap-root
 
 ## 泄漏保底机制：吊销（root-status.json）
 
-`nos/root-status.json` 是独立于签名体系的**域名信任根**，其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不需要签名**：
+仓库根目录 `root-status.json`（与 `nos.json` 同级，在 `nos/` 之外，不进入 `nos.zip` 与 OPFS，也不经过 SW 的 `/nos/` 代理——保证客户端永远读到线上版本）是独立于签名体系的**域名信任根**，其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不需要签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）：
 
 ```json
 {
@@ -96,11 +96,15 @@ node scripts/rotate-root.js swap-root
 
 ```bash
 node scripts/rotate-root.js revoke root   # 吊销泄漏密钥，minGeneration 提到当前代之上
-# 立即部署 nos/root-status.json
+# 立即部署根目录 root-status.json
 # 然后换新钥（swap-root 或 add+promote）重签信任集与 nos.json，恢复日常签发
 ```
 
 吊销的效力来自域名控制权而非任何签名，因此不与攻击者进行 generation 竞赛：攻击者用泄漏钥签发的一切信任集，客户端一旦拉到新吊销状态即全部拒绝。注意该机制防不住「渠道与密钥同时失守」的场景。
+
+## 根证书的离线可用性
+
+`nos/root-cert.json` 正常打包进系统文件，OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证），断网时业务验签使用本地副本或 `nos/storage` 缓存的信任集均可。安装器校验链则不信任任何本地证书副本——pin、链式信任、generation 与吊销检查共同保证只认线上新签的信任集。
 
 ## 泄漏保底机制之外：常规轮换（不换根密钥）
 
