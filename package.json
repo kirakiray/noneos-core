@@ -1,6 +1,6 @@
 {
   "name": "noneos-core",
-  "version": "4.7.1",
+  "version": "4.8.0",
   "description": "As the core engine of the next generation of NoneOS",
   "homepage": "https://github.com/kirakiray/noneos-core#readme",
   "bugs": {
@@ -22,9 +22,9 @@
     "ws1": "cd server/handshake && cargo run -- --config test-space/config.example.toml",
     "ws2": "cd server/handshake && cargo run -- --config test-space/config2.toml",
     "bump": "node scripts/bump.js && npm i && npm run build",
-    "build": "npm run build:hashes && node scripts/pack-nos.js && npm run build:sw && npm run build:skill",
+    "build": "npm run build:hashes && npm run build:sw && npm run build:skill",
     "build:skill": "node scripts/build-skill.js noneos-core-docs",
-    "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json",
+    "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm hashes.json && node scripts/pack-nos.js && node scripts/verify-pack.js",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
     "test": "sb-test -p 3002 -t 10"

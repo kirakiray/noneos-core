@@ -47,7 +47,7 @@ export const get = async (path, options) => {
   }
 };
 
-// 初始化空间
+// 初始化空间（支持多段路径，如 init("nos/nos-config")，逐段创建）
 export const init = async (name) => {
   let opfsRoot = null;
 
@@ -58,7 +58,16 @@ export const init = async (name) => {
     throw err;
   }
 
-  const dir = await opfsRoot.getDirectoryHandle(name, { create: true });
+  const pathParts = name.split("/").filter(Boolean);
+
+  if (pathParts.length === 0) {
+    throw new Error("路径不能为空");
+  }
+
+  let dir = opfsRoot;
+  for (const part of pathParts) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
 
   return new DirHandle(dir);
 };

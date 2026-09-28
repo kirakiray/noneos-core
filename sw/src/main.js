@@ -4,14 +4,6 @@ import {
   handleNcompRequest,
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
-import {
-  handleHostCacheMessage,
-  handleHostCacheRequest,
-  handleHostCacheStatus,
-  initHostCache,
-  isHostCachedFile,
-  triggerHostCacheUpdate,
-} from "./modules/host-cache-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
 import { handleNosToolRequest } from "./modules/nostool-handle.js";
@@ -24,13 +16,25 @@ let systemConfig = {};
 // SW 冷启动时首个请求可能早于 OPFS 读取完成。
 let configReadyPromise = null;
 
-// 读取 OPFS 中的系统配置；失败（如 nos-config/system.json 不存在）时
+// 读取 OPFS 中的系统配置；失败（如配置文件不存在）时
 // 保留当前配置（初始为空对象）并正常 resolve，绝不 reject 或挂起
 const loadSystemConfig = async () => {
   try {
     const rootHandle = await navigator.storage.getDirectory();
-    const configHandle = await rootHandle.getDirectoryHandle("nos-config");
-    const configFileHandle = await configHandle.getFileHandle("system.json");
+
+    // 新版布局：nos/nos-config/system.json；兼容旧版安装的根目录 nos-config/
+    let configFileHandle;
+    try {
+      configFileHandle = await rootHandle
+        .getDirectoryHandle("nos")
+        .then((dir) => dir.getDirectoryHandle("nos-config"))
+        .then((dir) => dir.getFileHandle("system.json"));
+    } catch {
+      configFileHandle = await rootHandle
+        .getDirectoryHandle("nos-config")
+        .then((dir) => dir.getFileHandle("system.json"));
+    }
+
     const file = await configFileHandle.getFile();
     const content = await file.text();
 
@@ -50,7 +54,7 @@ const ensureConfigReady = () => {
   return configReadyPromise;
 };
 
-const NONEOS_CORE_VERSION = "noneos-core@4.7.1";
+const NONEOS_CORE_VERSION = "noneos-core@4.8.0";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -65,14 +69,6 @@ self.addEventListener("fetch", (event) => {
 
   if (pathname === "/__config") {
     return event.respondWith(reloadSystemConfig());
-  }
-
-  if (pathname === "/__host-cache" && globalThis.HOST_CACHE_CONFIG) {
-    return event.respondWith(handleHostCacheStatus());
-  }
-
-  if (pathname === "/__update-host-cache" && globalThis.HOST_CACHE_CONFIG) {
-    return event.respondWith(triggerHostCacheUpdate());
   }
 
   try {
@@ -148,16 +144,8 @@ self.addEventListener("fetch", (event) => {
       );
     }
 
-    // 宿主项目缓存 fallback：不匹配 noneos-core 路由的同域 GET 请求
-    if (
-      globalThis.HOST_CACHE_CONFIG &&
-      request.method === "GET" &&
-      isHostCachedFile(pathname)
-    ) {
-      return event.respondWith(
-        handleHostCacheRequest({ path: pathname, request }),
-      );
-    }
+    // 宿主项目的自有文件缓存不属于 noneos-core 职责，
+    // 未匹配路由的同域请求直接放行网络（宿主可在自己的 fetch 监听中处理）
   } catch (err) {
     return new Response(err.stack || err.toString(), {
       status: 400,
@@ -183,19 +171,6 @@ self.addEventListener("activate", () => {
   console.log("NoneOS server activation successful");
 });
 
-// 宿主项目缓存更新消息处理
-self.addEventListener("message", (event) => {
-  if (!globalThis.HOST_CACHE_CONFIG) return;
-  if (event.data?.type !== "host-cache-update") return;
-
-  handleHostCacheMessage(event.data).then((result) => {
-    event.source?.postMessage({
-      type: "host-cache-update-result",
-      ...result,
-    });
-  });
-});
-
 const reloadSystemConfig = async () => {
   // 重建加载 Promise：/__config 触发的重载结果对后续请求立即可见
   configReadyPromise = loadSystemConfig();
@@ -211,8 +186,3 @@ const reloadSystemConfig = async () => {
 
 // 模块加载即预热配置，尽早填好 systemConfig
 ensureConfigReady();
-
-// 初始化宿主项目缓存（仅在宿主项目配置了 HOST_CACHE_CONFIG 时生效）
-if (globalThis.HOST_CACHE_CONFIG) {
-  initHostCache();
-}

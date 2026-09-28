@@ -33,17 +33,14 @@
 
 | URL 前缀 | 实际映射目标 | 处理器（sw/src/modules/） |
 |----------|------------|---------------------------|
-| `/nos/...` | online 模式（默认）直接同域 fetch；local 模式映射到 OPFS `systemConfig.nosMapPath`（如 `nos-{version}/`）；dev 时 localhost:3002 直连、其他 localhost 端口先代理到 3002 | nos-handle.js |
+| `/nos/...` | online 模式（默认）直接同域 fetch；local 模式映射到 OPFS `systemConfig.nosMapPath`（如 `nos/nos-{version}/`，公共系统目录 `nos/` 内）；dev 时 localhost:3002 直连、其他 localhost 端口先代理到 3002 | nos-handle.js |
 | `/gh/{path}` | `https://cdn.jsdelivr.net/gh/{path}` | cache-handlers.js |
 | `/npm/{path}` | `https://cdn.jsdelivr.net/npm/{path}` | cache-handlers.js |
 | `/ncomp/{path}` | 生产：`https://core.noneos.com/ncomp/{path}`；dev：localhost:3002 优先 | cache-handlers.js |
 | `/nos-tool/{path}` | 生产：`https://core.noneos.com/nos-tool/{path}`；dev：localhost:3002 优先 | nostool-handle.js |
 | `/$mount-{id}>/{path}` | 本地挂载目录（IndexedDB 中持久化的 FileSystemHandle） | mount-handle.js |
 | `/$/{path}` | 本地 OPFS 系统目录文件 | file-handler.js |
-| `/__config` | 特殊路由：触发 SW 重载 `nos-config/system.json` 并返回版本信息 | main.js 内联 |
-| `/__host-cache` | 特殊路由：返回宿主项目离线缓存状态（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
-| `/__update-host-cache` | 特殊路由：触发宿主项目离线缓存更新（需 `HOST_CACHE_CONFIG`） | host-cache-handler.js |
-| (fallback) | 同域 GET 请求且路径在 host-cache manifest files 列表中时，从 OPFS 缓存返回 | host-cache-handler.js |
+| `/__config` | 特殊路由：触发 SW 重载 `nos/nos-config/system.json` 并返回版本信息 | main.js 内联 |
 
 ### 根目录运行时文件（部署/入口产物，**非源码**）
 
@@ -52,6 +49,7 @@
 | `/index.html` | 项目入口 HTML | 是（页面初始化逻辑） |
 | `/sw.js` | SW 注册桥接文件：`importScripts("/sw/dist.js")` | 仅 import 行（不要改成 dist.min.js） |
 | `/nos.json` | 在线版本与哈希清单（构建产物，由 `scripts/pack-nos.js` 生成） | 否（构建生成） |
+| `/root-status.json` | 根密钥吊销状态（泄漏保底机制，见 `scripts/rotate-root.js revoke`；效力来自域名信任根，不签名，永不入 OPFS） | 是（泄漏应急时手动/脚本更新） |
 | `/nos.zip` | 系统文件压缩包（构建产物） | 否（构建生成） |
 | `/404.html`、`/_redirects` | Cloud Pages 托管配置 | 视部署需求 |
 
@@ -80,14 +78,29 @@
 
 | 命令 | 作用 |
 |------|------|
-| `npm run build` | 完整构建 = `build:hashes` + `pack-nos.js` + `build:sw` + `build:skill` |
+| `npm run build` | 完整构建 = `build:hashes`（hash 计算 + 签名 + 重打包 + 一致性校验）+ `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
-| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出会被 `nos.json` 消费） |
+| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出 `nos.json`）→ 重打 `nos.zip` → `scripts/verify-pack.js` 校验 zip 与清单逐文件一致（hash/size 与安装器同算法）。**hash 清单与 zip 必须同源：改了 `nos/` 后必须重跑本命令**，只刷 hash 不重打包会让客户端安装校验失败 |
 | `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
 | `npm test` | 运行 sibyl-test 测试套件（`sb-test -p 3002`；自定义多浏览器运行器见 `scripts/run-tests.js`）。固定跑 3002 端口：该端口下 `DEFAULT_SERVERS` 只含本地握手服务器，测试用户不连生产服务器。CLI 会先同步根目录测试清单 `test-index.html`（查漏补缺，手动编辑的顺序 / `skip` / `exclusive` 会被保留），再按清单执行。清单内的并发编排有讲究：suite 用 `parallel="4"` 并发跑隔离良好的用例；`user-name`/`user-status` 独占首跑（干净状态握手 + SW 注册），`connect-server`、`sw/*` 独占收尾（低负载握手 / 注销全 origin 的 SW），详见清单头部注释 |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
 > **重要**：修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`（或开发期使用 `npm run watch:sw`），否则线上 SW 不会生效。
+
+### 根证书信任集与发布签名链
+
+发布完整性依赖两级签名：根证书信任集 `nos/root-cert.json` 是信任锚，`nos.json`（版本 + `hashes.json` 文件哈希清单）必须由信任集中 **active** 状态的密钥签发。客户端安装/更新时（`nos-tool/_install/util.js`）执行校验：
+
+1. `root-cert.json` 为信任集格式：`{ type, name, generation, signTime, publicKey, keys: [{ id, publicKey, status: active|grace|retired }], signature }`，`generation` 单调递增；
+2. 整体签名必须来自信任集中 active/grace 的密钥（`verifyData`）；
+3. 信任链二选一：全新安装（无本地缓存）时签名者公钥指纹必须命中代码内置的 `PINNED_ROOT_KEY_HASHES`；已有缓存时签名者必须属于上一份受信信任集的有效密钥，且 `generation` 不回滚（缓存放 `nos/storage` 的 `nos-root-trust` 空间）；
+4. `nos.json` 验签通过，且其 `publicKey` 属于信任集 active 密钥。
+
+密钥文件：根密钥 `rootkeys/root.json`（id 为 `root`，被 gitignore，**不入库**）；轮换新增密钥存 `rootkeys/keys/<id>.json`。轮换用 `scripts/rotate-root.js`（`check`：校验根密钥配对；`init` / `add <id>`：新钥以 grace 加入、旧钥签名；`promote <id>`：新钥转 active、旧钥 retired、改由新钥签名；`swap-root`：手动换根——新钥放 `rootkeys/root.json`、旧钥保留为 `rootkeys/root-legacy.json` 后执行，自动重签证书并把客户端 `PINNED_ROOT_KEY_HASHES` 重写为所有未退役密钥的指纹，随后过渡期满用 `retire root-legacy` 彻底退役；`revoke <id|指纹>`：吊销密钥；`pin-hash [id]`：输出指纹）。所有变更命令都会自动重写 pin 并重算 hashes、重签 `nos.json`、重打 `nos.zip`（经 `build:hashes` 全链）。发布流程：`npm run build:hashes`（计算 hashes → `sign-hashes.js` 按 active 密钥签发 `nos.json` → `pack-nos.js` 重打 `nos.zip` → `verify-pack.js` 校验 zip 与清单一致）。
+
+**泄漏保底机制（吊销）**：根目录 `root-status.json`（`{ type, signTime, minGeneration, revokedKeyHashes }`）是独立于签名体系的域名信任根——其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）。放在仓库根目录（`nos/` 之外），与 `nos.json` 一样不经过 SW 的 `/nos/` OPFS 代理，保证客户端永远读到线上版本。客户端更新时一并拉取（`no-store`，失败则降级用 `nos/storage` 缓存的最后一份；从未获取到则跳过）：证书 generation 低于 `minGeneration`，或信任集中任一密钥指纹命中 `revokedKeyHashes`，直接拒绝。主私钥泄漏后执行 `node scripts/rotate-root.js revoke root` 并部署，攻击者用泄漏钥签发的一切信任集立即失效，随后换钥重签恢复服务。该机制的前提是渠道未被攻破。
+
+> 根证书信任集 `nos/root-cert.json` 的 OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证）；但安装器校验链不信任任何本地副本——pin、链式信任、generation 与 `root-status.json` 吊销检查共同保证只认线上新签的信任集。
 
 ## 四、CONTEXT.md 模块清单
 

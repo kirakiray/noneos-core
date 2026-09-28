@@ -54,7 +54,7 @@ PublicBaseHandle (public/base.js)
 | 函数 | 说明 |
 |------|------|
 | `get(path, options)` | 按路径获取句柄，自动路由到 mount/system（`$mount-` 前缀走挂载库，其余走 OPFS 系统目录） |
-| `init(name)` | 初始化 OPFS 根目录（`navigator.storage.getDirectory()`） |
+| `init(name)` | 初始化 OPFS 目录并返回最内层 `DirHandle`；`name` 支持多段路径（如 `init("nos/nos-config")`，逐段自动创建），单段行为不变 |
 | `open(options?)` | 弹出系统目录选择器，返回 DirHandle；options：`{ mode?: "read"|"readwrite"（默认 readwrite）, id?: string, mount?: true }`；不支持 `showDirectoryPicker` 时抛错。**返回的句柄会被打上 `PICKED` 标记**（见下文） |
 | `mount(handle)` | 持久化本地目录句柄到 IndexedDB，设置 `$mount-{id}>{encodeURI(name)}` 路径，并清除 `PICKED` 标记；若 handle 已挂载（`RESET_PATH` 已存在）则跳过持久化但仍清除标记 |
 | `unmount(idOrHandle)` | 从 IndexedDB 删除挂载记录 |

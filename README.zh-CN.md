@@ -167,8 +167,7 @@ others/               # 归档/实验代码(不参与运行时)
 ### Service Worker 层(`sw/`)
 - 虚拟 URL 前缀:`/nos/`、`/nos-tool/`、`/ncomp/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`
 - CDN 类前缀采用 SWR + 内存 TTL 缓存;本地系统文件优先读取 OPFS
-- **宿主项目离线缓存**——宿主项目可通过 `globalThis.HOST_CACHE_CONFIG` 声明自身文件清单,由 SW 预缓存并离线提供
-- 特殊路由:`/__config`、`/__host-cache`、`/__update-host-cache`
+- 特殊路由:`/__config`
 
 ### 公共 UI(`ncomp/`、`nos/locale-text/`、`nos/n-icon/`)
 - `ncomp/`——与 nos 能力强相关的可复用组件(`<n-user-name>`、`<n-user-status>`),通过 `/ncomp/{name}/{name}.html` 引用
@@ -271,7 +270,6 @@ importScripts("https://core.noneos.com/sw/dist.js");
 - [P2P 发布](nos/publish/README.md)——DataPublisher
 - [公共组件](ncomp/README.md)——`<n-user-name>`、`<n-user-status>`
 - [多语言模块](nos/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
-- [宿主项目离线缓存](.agents/skills/noneos-core-docs/references/host-cache.md)——缓存宿主项目自身文件
 - [服务器配置](server/handshake/README.md)——中继服务器搭建
 - [AI 代理知识库](.agents/skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
 

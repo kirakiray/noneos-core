@@ -6,6 +6,9 @@ import { registerSw, clearSw } from "./util.js";
 
 const installStepTotal = 8;
 
+// 虚拟根目录下的公共系统目录：nos-<version> 与 nos-config 都放在它下面
+const NOS_SYSTEM_DIR = "nos";
+
 // 执行安装程序
 export const install = async (callback) => {
   callback = callback || (() => {});
@@ -16,7 +19,7 @@ export const install = async (callback) => {
 
 // 检查系统的状况
 export const check = async () => {
-  await init("nos-config");
+  await init(NOS_SYSTEM_DIR);
 
   const configData = await fetch("/__config")
     .then((e) => e.json())
@@ -153,7 +156,7 @@ export const installSystemFile = async (callback) => {
     throw new AggregateError(errors, "File verification failed");
   }
 
-  const nosMapPath = "nos-" + onlineNosConfig.version;
+  const nosMapPath = `${NOS_SYSTEM_DIR}/nos-${onlineNosConfig.version}`;
 
   await init(nosMapPath);
 
@@ -184,11 +187,14 @@ export const installSystemFile = async (callback) => {
 
 // 设置使用在线文件
 export const updateSystemConfig = async (options) => {
-  await init("nos-config");
+  await init(NOS_SYSTEM_DIR);
 
-  const systemConfigFile = await get("nos-config/system.json", {
-    create: "file",
-  });
+  const systemConfigFile = await get(
+    `${NOS_SYSTEM_DIR}/nos-config/system.json`,
+    {
+      create: "file",
+    },
+  );
 
   let systemConfig = (await systemConfigFile.json().catch(() => null)) || {};
 
