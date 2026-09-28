@@ -28,6 +28,9 @@ import { init } from "/nos/fs/main.js";
 
 const rootDir = await init("my-app");
 // 返回根目录的 DirHandle
+
+// 也支持多段路径，逐段自动创建，返回最内层 DirHandle
+const nestedDir = await init("my-app/sub/dir");
 ```
 
 ### get() - 获取文件或目录

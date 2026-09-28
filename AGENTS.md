@@ -56,6 +56,7 @@
     - ❌ 以为线上加载的是 `sw/dist.min.js` → ✅ 实际加载的是 `sw/dist.js`（`/sw.js` 内执行 `importScripts("/sw/dist.js")`）
     - ❌ 修改 `sw/src/` 后忘记重建 → ✅ 必须运行 `npm run build:sw` 或开发期使用 `npm run watch:sw`
     - ❌ 把 `nos.json` / `nos.zip` 当源码改 → ✅ 它们是构建产物
+   - ❌ 改了 `nos/` 下任何文件（含证书/密钥相关变更）后只重算 hash 不重打包 → ✅ 必须重跑 `npm run build:hashes`（内含重打 `nos.zip` 与 `verify-pack.js` 一致性校验）；`nos.json` 与 `nos.zip` 漂移会导致客户端安装校验失败，表现为首页永远卡在 Install NoneOS Core
     - ❌ 用 `await extendDirHandle(...)` → ✅ `extendDirHandle` / `extendFileHandle` 虽然声明为 `async`，但内部无异步操作，调用处也未 await
 
 

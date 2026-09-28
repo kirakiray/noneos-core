@@ -167,8 +167,7 @@ others/               # Archived / experimental code (not part of the runtime)
 ### Service Worker Layer (`sw/`)
 - Virtual URL prefixes: `/nos/`, `/nos-tool/`, `/ncomp/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`
 - SWR + in-memory TTL caching for CDN-style prefixes; OPFS-first for local system files
-- **Host project offline cache** — a host project can declare a manifest of its own files via `globalThis.HOST_CACHE_CONFIG`, and the SW pre-caches and serves them offline
-- Special routes: `/__config`, `/__host-cache`, `/__update-host-cache`
+- Special route: `/__config`
 
 ### Shared UI (`ncomp/`, `nos/locale-text/`, `nos/n-icon/`)
 - `ncomp/` — reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/ncomp/{name}/{name}.html`
@@ -271,7 +270,6 @@ Key references:
 - [P2P Publishing](nos/publish/README.md) — DataPublisher
 - [Shared Components](ncomp/README.md) — `<n-user-name>`, `<n-user-status>`
 - [i18n Module](nos/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
-- [Host Offline Cache](.agents/skills/noneos-core-docs/references/host-cache.md) — cache a host project's own files
 - [Server Configuration](server/handshake/README.md) — relay server setup
 - [AI Agent Skill](.agents/skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
 

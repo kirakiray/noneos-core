@@ -147,11 +147,11 @@ const updatePinnedHashes = async (cert) => {
   console.log(`PINNED_ROOT_KEY_HASHES updated (${cert.keys.filter((k) => k.status !== "retired").length} key(s))`);
 };
 
-// 信任集变更后，hashes 随之变化：重算 hashes 并由 active 密钥重签 nos.json
+// 信任集变更后，hashes 随之变化：hashes、nos.json、nos.zip 必须同源重建
+// （build:hashes 内含重打 nos.zip 与 verify-pack 一致性校验）
 const rebuildManifest = () => {
-  execSync("node scripts/calculate-nos-hashes.js", { cwd: repoRoot, stdio: "inherit" });
-  execSync("node scripts/sign-hashes.js", { cwd: repoRoot, stdio: "inherit" });
-  console.log("hashes.json recalculated and nos.json re-signed");
+  execSync("npm run build:hashes", { cwd: repoRoot, stdio: "inherit" });
+  console.log("hashes recalculated, nos.json re-signed, nos.zip repacked & verified");
 };
 
 const assertCertExists = (cert) => {

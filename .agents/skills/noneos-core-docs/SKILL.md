@@ -255,7 +255,6 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 > ⚠️ **实验性特性**：`hybrid-data` 模块当前为实验性质，后续大概率迁移至新位置或被淘汰，请勿在正式项目中依赖。
 
 - [storage 存储模块](references/storage.md)
-- [宿主项目离线缓存 (host-cache)](references/host-cache.md)
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [根证书信任集与密钥轮换 (root-cert)](references/root-cert.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
