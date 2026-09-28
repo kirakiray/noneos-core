@@ -54,7 +54,7 @@ const ensureConfigReady = () => {
   return configReadyPromise;
 };
 
-const NONEOS_CORE_VERSION = "noneos-core@4.7.1";
+const NONEOS_CORE_VERSION = "noneos-core@4.8.0";
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
