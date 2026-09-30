@@ -509,8 +509,14 @@
     const returnOfficial = () => fetch(`https://core.noneos.com${path}`);
 
     if (/^localhost:/.test(host)) {
+      // 依次尝试：3002 开发服务器 → 同域（如 30028 正式部署端口、静态服务器）→ 官方源
       try {
         return await fetch(new URL(path, "http://localhost:3002").href, request);
+      } catch {
+        // 3002 未启动
+      }
+      try {
+        return await fetch(new URL(path, location.origin).href, request);
       } catch {
         return returnOfficial();
       }

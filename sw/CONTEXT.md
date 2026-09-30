@@ -101,7 +101,7 @@ sw/src/main.js
 ### 2. `/nos-tool/` 与 `/nos-lib/_install/` 官方源代理策略（official-handle.js）
 
 - **`localhost:3002`**：直接 fetch 本地调试服务器资源。
-- **其他 `localhost:*`**：代理到 `3002` 再 fetch，失败则回退官方源。
+- **其他 `localhost:*`**：先代理到 `3002` 再 fetch；3002 未启动时尝试同域（如 30028 正式部署端口），仍失败则回退官方源。
 - **非本地环境**：请求 `https://core.noneos.com/` 对应路径。
 - path 一律由 main.js 归一化为仓库物理路径（旧前缀别名亦然），保证回源目标始终是新路径。
 - `/nos-lib/_install/` 与 `/nos-tool/` 共用本处理器：安装引导必须实时回源，不做任何缓存。

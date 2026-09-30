@@ -144,10 +144,11 @@ export const zip = async (files) => {
     localView.setUint16(26, nameBytes.length, true);
     local.set(nameBytes, 30);
 
+    const entryOffset = offset; // 中央目录须记录本地头的起始偏移
     push(local);
     push(deflated);
 
-    centralEntries.push({ nameBytes, crc, compSize: deflated.length, size: raw.length, offset });
+    centralEntries.push({ nameBytes, crc, compSize: deflated.length, size: raw.length, offset: entryOffset });
   }
 
   const centralStart = offset;
