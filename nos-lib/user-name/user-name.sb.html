@@ -209,9 +209,11 @@
             const el = $("#change-userid");
             el.attr("user-id", userA.userId);
             // 轮询等待用户 A 名称生效
+            // （非 force 路径缓存未命中时会走网络 requestProfile，
+            // WebKit 上建立中继会话较慢，窗口放宽到 15s）
             let firstText;
             let firstMatched = false;
-            for (let i = 0; i < 50; i++) {
+            for (let i = 0; i < 150; i++) {
               try {
                 firstText = el.shadow.$("span").text;
                 if (firstText === "用户A") {
@@ -225,10 +227,10 @@
             }
 
             el.attr("user-id", userB.userId);
-            // 轮询等待用户 B 名称生效
+            // 轮询等待用户 B 名称生效（B 是全新会话建立，WebKit 上更慢）
             let secondText;
             let secondMatched = false;
-            for (let i = 0; i < 50; i++) {
+            for (let i = 0; i < 150; i++) {
               try {
                 secondText = el.shadow.$("span").text;
                 if (secondText === "用户B") {
