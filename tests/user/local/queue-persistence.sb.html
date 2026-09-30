@@ -74,9 +74,12 @@
         userQ1B.server.connect(urlQ1).catch(() => {});
         let flushedQ1 = { status: "not_awaited" };
         if (firstQ1.flushed) {
+          // 补投由退避定时器驱动（1.5s 起指数退避，上限 30s）；
+          // 对端重连无推送、RTC 未及时建连时只能等退避轮转，
+          // 窗口须覆盖最差的 30s 退避档 + 会话建立时间
           flushedQ1 = await Promise.race([
             firstQ1.flushed,
-            new Promise((r) => setTimeout(() => r({ status: "test_timeout" }), 20000)),
+            new Promise((r) => setTimeout(() => r({ status: "test_timeout" }), 45000)),
           ]);
         }
         let cleanedQ1 = true;

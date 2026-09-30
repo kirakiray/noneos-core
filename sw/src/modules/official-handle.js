@@ -18,16 +18,25 @@ export const handleOfficialSourceRequest = async ({ path, request }) => {
 
   if (/^localhost:/.test(host)) {
     // 依次尝试：3002 开发服务器 → 同域（如 30028 正式部署端口、静态服务器）→ 官方源
+    // fetch 对 404 等 HTTP 错误状态不会 throw，候选源返回非 ok 响应时
+    // 必须视为失败继续回退，否则文件缺失时永远到不了官方源
     try {
-      return await fetch(new URL(path, "http://localhost:3002").href, request);
+      const res = await fetch(new URL(path, "http://localhost:3002").href, request);
+      if (res.ok) {
+        return res;
+      }
     } catch {
       // 3002 未启动
     }
     try {
-      return await fetch(new URL(path, location.origin).href, request);
+      const res = await fetch(new URL(path, location.origin).href, request);
+      if (res.ok) {
+        return res;
+      }
     } catch {
-      return returnOfficial();
+      // 同域也没有该文件
     }
+    return returnOfficial();
   }
 
   return returnOfficial();
