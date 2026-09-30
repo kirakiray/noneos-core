@@ -11,10 +11,11 @@
 1. **统一拦截**：通过 `fetch` 事件监听同域及 `core.noneos.com` 的请求，按路径前缀分发到对应处理器。
 2. **多级缓存策略**：
    - `/nos/` 资源支持在线模式（直接 fetch）与本地模式（优先 OPFS 缓存，回退 fetch）。
-   - `/gh/`、`/npm/`、`/ncomp/` 资源统一使用 SWR + 内存 TTL 策略（见 `cache-handlers.js`）。
+   - `/gh/`、`/npm/`、`/nos-lib/` 资源统一使用 SWR + 内存 TTL 策略（见 `cache-handlers.js`）。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
-4. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络；`/ncomp/` 请求切换为"网络优先"，代理到 `localhost:3002`，失败时回退官方源和缓存。
-5. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos/nos-config/system.json`（兼容旧版根目录 `nos-config/` 布局），热更新 `systemConfig`。
+4. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络；`/nos-lib/` 请求切换为"网络优先"，代理到 `localhost:3002`，失败时回退官方源和缓存。
+5. **旧前缀兼容**：`/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/` 在分发时把 path 归一化为 `/nos-lib/` 新路径后走同一处理器（兼容已部署的第三方页面，缓存键统一为新路径）；跨域直连消费者由托管层 `_redirects` 的 301 兜底。
+6. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos/nos-config/system.json`（兼容旧版根目录 `nos-config/` 布局），热更新 `systemConfig`。
 
 ## 二、模块地图
 
@@ -24,8 +25,8 @@ sw/
 │   ├── main.js                  # Service Worker 入口：fetch 事件分发与配置加载
 │   └── modules/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
-│       ├── nostool-handle.js    # /nos-tool/ 资源代理（调试模式透传、官方源回退）
-│       ├── cache-handlers.js    # /gh/ /npm/ /ncomp/ 统一 SWR 处理器
+│       ├── official-handle.js   # /nos-tool/ 与 /nos-lib/_install/ 官方源代理（调试模式透传、官方源回退）
+│       ├── cache-handlers.js    # /gh/ /npm/ /nos-lib/ 统一 SWR 处理器
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
 │       ├── mount-handle.js      # /\$mount-{id}>/ 挂载目录文件代理
 │       ├── file-system.js       # OPFS 根目录与文件句柄工具
@@ -40,10 +41,10 @@ sw/
 ```
 sw/src/main.js
 ├── handleNosRequest          (modules/nos-handle.js)
-├── handleNosToolRequest      (modules/nostool-handle.js)
+├── handleOfficialSourceRequest (modules/official-handle.js)
 ├── handleGitHubRequest       (modules/cache-handlers.js)
 ├── handleNpmRequest          (modules/cache-handlers.js)
-├── handleNcompRequest        (modules/cache-handlers.js)
+├── handleNosLibRequest       (modules/cache-handlers.js)
 ├── handleMountRequest        (modules/mount-handle.js)
 ├── handleFileRequest         (modules/file-handler.js)
     └── getFileHandle         (modules/file-system.js)
@@ -70,8 +71,10 @@ sw/src/main.js
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
 | `/__config` | (main.js 内联) | 特殊路由，触发配置重载并返回 JSON |
-| `/nos-tool/` | `nostool-handle.js` | nos-tool 资源代理；调试模式直接 fetch，否则回退官方源 |
-| `/ncomp/` | `cache-handlers.js` | ncomp 公共组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
+| `/nos-lib/_install/` | `official-handle.js` | 安装引导代理；始终实时回源不缓存（`localhost:3002` 直接 fetch，否则回退官方源） |
+| `/nos-lib/` | `cache-handlers.js` | nos-lib 官方在线库组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
+| `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/` | 同上（别名） | 旧前缀兼容：main.js 内归一化为 `/nos-lib/` 新路径后走上述处理器 |
+| `/nos-tool/` | `official-handle.js` | nos-tool 工具集资源代理；调试模式直接 fetch，否则回退官方源 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
 | `/gh/` | `cache-handlers.js` | GitHub 仓库文件代理，映射到 jsDelivr |
 | `/npm/` | `cache-handlers.js` | NPM 包文件代理，映射到 jsDelivr NPM CDN |
@@ -95,13 +98,15 @@ sw/src/main.js
 - **`systemConfig.mode === "online"` 或未配置**：直接 `fetch(request)` 请求线上资源。
 - **`systemConfig.mode === "local"`**：将 `/nos/` 替换为 `systemConfig.nosMapPath + "/"`，优先从 OPFS 读取；若文件不存在或为空，回退 `fetch(request)`。
 
-### 2. `/nos-tool/` 资源代理策略（nostool-handle.js）
+### 2. `/nos-tool/` 与 `/nos-lib/_install/` 官方源代理策略（official-handle.js）
 
-- **`localhost:3002`**：直接 `fetch(request)` 返回本地调试服务器资源。
-- **其他 `localhost:*`**：将请求端口替换为 `3002` 再 fetch，失败则回退官方源。
+- **`localhost:3002`**：直接 fetch 本地调试服务器资源。
+- **其他 `localhost:*`**：先代理到 `3002` 再 fetch；3002 未启动时尝试同域（如 30028 正式部署端口），仍失败则回退官方源。
 - **非本地环境**：请求 `https://core.noneos.com/` 对应路径。
+- path 一律由 main.js 归一化为仓库物理路径（旧前缀别名亦然），保证回源目标始终是新路径。
+- `/nos-lib/_install/` 与 `/nos-tool/` 共用本处理器：安装引导必须实时回源，不做任何缓存。
 
-### 3. `/gh/` `/npm/` `/ncomp/` 统一 SWR 策略（cache-handlers.js）
+### 3. `/gh/` `/npm/` `/nos-lib/` 统一 SWR 策略（cache-handlers.js）
 
 三者共用同一个 `createHandler` 工厂，共享同一份模块级状态（`lastRefreshAt: Map` 与 `refreshing: Set`）。
 
@@ -120,7 +125,7 @@ sw/src/main.js
 **具体路径映射**：
 - `/gh/{path}` → `https://cdn.jsdelivr.net/gh/{path}`（单源，SWR）
 - `/npm/{path}` → `https://cdn.jsdelivr.net/npm/{path}`（单源，SWR）
-- `/ncomp/{path}` → 生产环境走 `https://core.noneos.com/...`（SWR）；localhost dev 环境启用网络优先，候选源依次为 `localhost:3002` → 官方源 → 同域兜底。
+- `/nos-lib/{path}` → 生产环境走 `https://core.noneos.com/nos-lib/{path}`（SWR）；localhost dev 环境启用网络优先，候选源依次为 `localhost:3002` → 官方源 → 同域兜底。旧前缀 `/ncomp/{path}`、`/nos-tool/comps/{path}` 归一化后并入，OPFS 缓存键为新路径。
 
 ### 4. `/\$/` 本地文件代理（file-handler.js）
 
@@ -137,7 +142,7 @@ sw/src/main.js
 
 - `systemConfig` 初始为空对象，SW 脚本加载时、install/activate 时预热加载，保证 SW 冷启动后首个导航也能读到最新配置。
 - `/__config` 请求触发 `reloadSystemConfig()`（重建就绪 Promise 后重新读取）并返回当前版本与配置；读取失败降级保留当前配置（不 reject、不返回 500）。
-- 配置存储在 OPFS `nos/nos-config/system.json` 中（虚拟根目录下公共系统目录 `nos/` 内，与 `nos-<version>/` 版本目录同级），由 `nos-tool/_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。读取时兼容旧版根目录 `nos-config/` 布局。
+- 配置存储在 OPFS `nos/nos-config/system.json` 中（虚拟根目录下公共系统目录 `nos/` 内，与 `nos-<version>/` 版本目录同级），由 `nos-lib/_install/main.js` 的 `updateSystemConfig()` 通过 `nos/fs` 句柄 API 写入（nos-tool 等上层应用通过触发安装流程间接写入）。读取时兼容旧版根目录 `nos-config/` 布局。
 
 ## 六、依赖关系
 
@@ -148,5 +153,5 @@ sw/src/main.js
 
 - 源码使用 ES Modules 编写，通过 Rollup 打包为 `sw/dist.js` 与 `sw/dist.min.js`（以及对应的 `.map` sourcemap 文件）。
 - 构建命令：`npm run build:sw`；开发模式可使用 `npm run watch:sw`（监听 `sw/src/**` 自动重建）。
-- **SW 注册链路**：`nos-tool/_install/main.js`（生产）或 `nos-tool/_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `nos-tool/_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
+- **SW 注册链路**：`nos-lib/_install/main.js`（生产）或 `nos-lib/_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `nos-lib/_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
 - 修改 `sw/src/` 后必须重新构建，否则线上运行的 Service Worker 不会生效。

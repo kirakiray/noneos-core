@@ -15,7 +15,7 @@
   <sb-test name="Real root cert passes pin check">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
 
         const rc_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
 
@@ -33,7 +33,7 @@
   <sb-test name="Tampered cert fails verification">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
 
         const rc2_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
         const rc2_tampered = {
@@ -55,7 +55,7 @@
   <sb-test name="Signer not in trust set is rejected">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
 
         const rc3_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
         // 伪造：把签名者从 keys 中标记为 retired
@@ -78,7 +78,7 @@
   <sb-test name="Generation rollback is rejected">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
 
         const rc4_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
         // 模拟本地缓存是一个更高 generation 的信任集
@@ -101,7 +101,7 @@
   <sb-test name="Chain trust from cached grace key passes">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
         import { generateKeyPair, createSigner } from "/nos/crypto/crypto-ecdsa.js";
 
         const rc5_cached = await fetch("/nos/root-cert.json").then((e) => e.json());
@@ -144,7 +144,7 @@
   <sb-test name="Unknown signer rejected by cached trust set">
     <template>
       <script type="module">
-        import { verifyRootCert } from "/nos-tool/_install/util.js";
+        import { verifyRootCert } from "/nos-lib/_install/util.js";
         import { generateKeyPair, createSigner } from "/nos/crypto/crypto-ecdsa.js";
 
         const rc6_cached = await fetch("/nos/root-cert.json").then((e) => e.json());
@@ -179,7 +179,7 @@
   <sb-test name="Root status clean passes">
     <template>
       <script type="module">
-        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+        import { verifyRootStatus } from "/nos-lib/_install/util.js";
 
         const rs_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
         const rs_status = await fetch("/root-status.json").then((e) => e.json());
@@ -200,7 +200,7 @@
   <sb-test name="Revoked key in trust set is rejected">
     <template>
       <script type="module">
-        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+        import { verifyRootStatus } from "/nos-lib/_install/util.js";
         import { getHash } from "/nos/util/hash/get-hash.js";
 
         const rs2_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
@@ -223,7 +223,7 @@
   <sb-test name="Generation below minGeneration is rejected">
     <template>
       <script type="module">
-        import { verifyRootStatus } from "/nos-tool/_install/util.js";
+        import { verifyRootStatus } from "/nos-lib/_install/util.js";
 
         const rs3_cert = await fetch("/nos/root-cert.json").then((e) => e.json());
 
@@ -244,7 +244,7 @@
   <sb-test name="getOnlineData end-to-end">
     <template>
       <script type="module">
-        import { getOnlineData } from "/nos-tool/_install/util.js";
+        import { getOnlineData } from "/nos-lib/_install/util.js";
 
         try {
           const rc7_data = await getOnlineData();

@@ -1,12 +1,12 @@
 import {
   handleGitHubRequest,
   handleNpmRequest,
-  handleNcompRequest,
+  handleNosLibRequest,
 } from "./modules/cache-handlers.js";
 import { handleFileRequest } from "./modules/file-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
-import { handleNosToolRequest } from "./modules/nostool-handle.js";
+import { handleOfficialSourceRequest } from "./modules/official-handle.js";
 
 // 当前系统的配置信息
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
@@ -72,19 +72,36 @@ self.addEventListener("fetch", (event) => {
   }
 
   try {
-    if (/^\/nos-tool\//.test(pathname)) {
+    // /nos-lib/_install/ 为安装引导（必须实时回源，不缓存）；
+    // 旧前缀 /nos-tool/_install/ 归一化后走同一处理器（兼容已部署的第三方页面）
+    if (/^\/nos-lib\/_install\//.test(pathname) || /^\/nos-tool\/_install\//.test(pathname)) {
       return event.respondWith(
-        handleNosToolRequest({
-          path: pathname,
+        handleOfficialSourceRequest({
+          path: pathname.replace(/^\/nos-tool\/_install\//, "/nos-lib/_install/"),
           request,
           systemConfig,
         }),
       );
     }
 
-    if (/^\/ncomp\//.test(pathname)) {
+    // /nos-lib/ 官方在线库（SWR 缓存）；
+    // 旧前缀 /ncomp/、/nos-tool/comps/ 归一化到新路径（兼容旧引用，缓存键统一为新路径）
+    if (/^\/nos-lib\//.test(pathname) || /^\/ncomp\//.test(pathname) || /^\/nos-tool\/comps\//.test(pathname)) {
+      const libPath = pathname
+        .replace(/^\/ncomp\//, "/nos-lib/")
+        .replace(/^\/nos-tool\/comps\//, "/nos-lib/nos-version/");
       return event.respondWith(
-        handleNcompRequest({
+        handleNosLibRequest({
+          path: libPath,
+          request,
+          systemConfig,
+        }),
+      );
+    }
+
+    if (/^\/nos-tool\//.test(pathname)) {
+      return event.respondWith(
+        handleOfficialSourceRequest({
           path: pathname,
           request,
           systemConfig,

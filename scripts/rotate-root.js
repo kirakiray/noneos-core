@@ -123,7 +123,7 @@ const saveCert = async (certData, signerId, signerPair) => {
   console.log(`root-cert.json written (generation ${certBody.generation}, signer "${signerId}")`);
 };
 
-const clientUtilPath = join(repoRoot, "nos-tool/_install/util.js");
+const clientUtilPath = join(repoRoot, "nos-lib/_install/util.js");
 
 // 将客户端内置 pin 重写为信任集中所有未退役密钥的指纹（单一事实来源）
 const updatePinnedHashes = async (cert) => {
@@ -141,17 +141,17 @@ const updatePinnedHashes = async (cert) => {
     pinBlock,
   );
   if (updated === content) {
-    throw new Error("PINNED_ROOT_KEY_HASHES block not found in nos-tool/_install/util.js");
+    throw new Error("PINNED_ROOT_KEY_HASHES block not found in nos-lib/_install/util.js");
   }
   writeFileSync(clientUtilPath, updated);
   console.log(`PINNED_ROOT_KEY_HASHES updated (${cert.keys.filter((k) => k.status !== "retired").length} key(s))`);
 };
 
-// 信任集变更后，hashes 随之变化：hashes、nos.json、nos.zip 必须同源重建
-// （build:hashes 内含重打 nos.zip 与 verify-pack 一致性校验）
+// 信任集变更后，hashes 随之变化：hashes、nos.json、nos.tgz 必须同源重建
+// （build:hashes 内含重打 nos.tgz 与 verify-pack 一致性校验）
 const rebuildManifest = () => {
   execSync("npm run build:hashes", { cwd: repoRoot, stdio: "inherit" });
-  console.log("hashes recalculated, nos.json re-signed, nos.zip repacked & verified");
+  console.log("hashes recalculated, nos.json re-signed, nos.tgz repacked & verified");
 };
 
 const assertCertExists = (cert) => {
@@ -224,7 +224,7 @@ const commands = {
     await updatePinnedHashes(certData);
     rebuildManifest();
     console.log(
-      "Root key swapped. Deploy the updated nos/ and nos-tool/_install/util.js.\n" +
+      "Root key swapped. Deploy the updated nos/ and nos-lib/_install/util.js.\n" +
         'After the transition window, run `node scripts/rotate-root.js retire root-legacy` to fully retire the old key.',
     );
   },

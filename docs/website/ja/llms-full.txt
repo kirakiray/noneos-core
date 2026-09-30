@@ -1487,7 +1487,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
   </head>
   <body>
     <!-- nos-version コンポーネントを読み込む -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
     <!-- nos-version コンポーネントを使用する -->
     <nos-version auto-install></nos-version>
 

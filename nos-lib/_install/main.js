@@ -108,7 +108,7 @@ export const installSystemFile = async (callback) => {
 
   // await new Promise((resolve) => setTimeout(resolve, 200));
 
-  const zipBlob = await fetch(new URL("../../nos.zip", import.meta.url).href, {
+  const packageBlob = await fetch(new URL("../../nos.tgz", import.meta.url).href, {
     cache: "no-store",
   }).then((res) => res.blob());
 
@@ -120,7 +120,7 @@ export const installSystemFile = async (callback) => {
 
   // await new Promise((resolve) => setTimeout(resolve, 200));
 
-  const extractedFiles = await unzip(zipBlob);
+  const extractedFiles = await unzip(packageBlob);
 
   const fileHashes = onlineNosConfig.hashes;
   const errors = [];
@@ -138,7 +138,7 @@ export const installSystemFile = async (callback) => {
     const matchedFile = extractedFiles.find((item) => item.path === path);
 
     if (!matchedFile) {
-      errors.push(`File ${path} not found in zip`);
+      errors.push(`File ${path} not found in system package`);
       continue;
     }
 

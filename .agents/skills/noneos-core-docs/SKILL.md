@@ -19,7 +19,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 ### 2. 入口 HTML 安装
 ```html
 <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
-<l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+<l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
 <nos-version auto-install></nos-version>
 
 <script type="module">
@@ -258,6 +258,6 @@ rSt.setItem("k", "v"); // ❌ 调用即抛错（只读）
 - [安装系统的组件文档 (nos-version)](references/nos-version.md)
 - [根证书信任集与密钥轮换 (root-cert)](references/root-cert.md)
 - [图标组件文档 (n-icon)](references/n-icon.md)
-- [公共组件文档 (ncomp)](references/ncomp.md)
+- [公共组件与官方在线库 (nos-lib)](references/nos-lib.md)
 - [多语言模块 (locale-text)](references/locale-text.md)
 - [代码风格规范](references/fs-api.md#代码风格规范)

@@ -83,7 +83,7 @@ Although NoneOS Core *presents itself* as a virtual operating system, its techni
 |--------|---------------|----------------|
 | **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | [`nos/publish/`](nos/publish/README.md), [`nos-tool/studio/`](nos-tool/studio/) |
 | **Container isolation** | Each app runs inside a sandboxed runtime: an OPFS-backed virtual filesystem for isolation and persistence, plus a decentralized identity & messaging system that acts as the app's I/O surface to the outside world. | [`nos/fs/`](nos/fs/), [`nos/user/`](nos/user/README.md) |
-| **Resource virtualization** | The containerization is built on a Service Worker layer that intercepts every fetch and maps a set of *virtual URL prefixes* (`/nos/`, `/nos-tool/`, `/ncomp/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`) to different backends — local OPFS, CDN, the official source, or remote users. The browser sees one origin, but the app perceives many. | [`sw/`](sw/) |
+| **Resource virtualization** | The containerization is built on a Service Worker layer that intercepts every fetch and maps a set of *virtual URL prefixes* (`/nos/`, `/nos-lib/`, `/nos-tool/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`) to different backends — local OPFS, CDN, the official source, or remote users. The browser sees one origin, but the app perceives many. | [`sw/`](sw/) |
 
 In short: **micro-frontend hosting** keeps apps independent, the **container** gives each app a private, persistent, connected runtime, and **resource virtualization** is the Service Worker foundation that makes the container work — all running purely in the browser.
 
@@ -102,14 +102,17 @@ nos/                  # Core runtime modules (browser-side)
   n-icon/             #   Icon component
   hybrid-data/        #   Hybrid remote + local data (experimental)
   util/               #   Hash, zip, async pool utilities
-ncomp/                # Shared UI components built on nos (<n-user-name>, ...)
+nos-lib/              # Official online library (CDN-served, outside the signed pack)
+  user-name/          #   <n-user-name> shared component
+  user-status/        #   <n-user-status> shared component
+  nos-version/        #   <nos-version> install/upgrade entry component
+  _install/           #   SW registration & system installer bootstrap
 nos-tool/             # Built-in tools, usable by any NoneOS Core system
   studio/             #   OFA Studio (app dev environment)
   file-explore/       #   File explorer (browse / import / download OPFS files)
   system-info/        #   System info & update manager (version, SW, install)
   locale-text-tool/   #   Extract <locale-text> entries into locale-text.json
   rtc-tool/           #   Manage the WebRTC STUN/TURN server list
-  _install/           #   Service worker registration & system installer
 sw/                   # Service Worker (fetch interception, routing, caching)
 server/               # Backend implementations
   rust/               #   Rust handshake & relay server (production)
@@ -165,12 +168,13 @@ others/               # Archived / experimental code (not part of the runtime)
 - **Preferred over native `localStorage`** for all persistence in this project
 
 ### Service Worker Layer (`sw/`)
-- Virtual URL prefixes: `/nos/`, `/nos-tool/`, `/ncomp/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`
+- Virtual URL prefixes: `/nos/`, `/nos-lib/`, `/nos-tool/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`
 - SWR + in-memory TTL caching for CDN-style prefixes; OPFS-first for local system files
 - Special route: `/__config`
 
-### Shared UI (`ncomp/`, `nos/locale-text/`, `nos/n-icon/`)
-- `ncomp/` — reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/ncomp/{name}/{name}.html`
+### Shared UI (`nos-lib/`, `nos/locale-text/`, `nos/n-icon/`)
+- `nos-lib/` — official online library: reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/nos-lib/{name}/{name}.html`
+- `nos-lib/nos-version/` — `<nos-version>` install/upgrade entry component; `nos-lib/_install/` is its bootstrap (SW registration, version check, full install, root-cert trust verification), also used by the System Info tool — see [`nos-lib/README.md`](nos-lib/README.md)
 - `nos/locale-text/` — lightweight i18n: the `<locale-text>` component plus `getLocaleText()` for scripts
 - `nos/n-icon/` — icon component used across the built-in tools
 
@@ -181,12 +185,10 @@ Every system built on NoneOS Core can use the tools under `nos-tool/` **as-is**.
 | Tool | Entry | Description |
 |---|---|---|
 | **File Explorer** | [`/nos-tool/file-explore/`](nos-tool/file-explore/) | Browse the OPFS virtual filesystem with breadcrumb navigation; create directories, import files/directories from the local disk, download and delete entries, copy the current path, and open files via `/$path` URLs. |
-| **System Info** | [`/nos-tool/system-info/`](nos-tool/system-info/) | Inspect local / online / Service Worker versions and update state, view registered Service Workers and the active controller, then check for updates, (re)register or uninstall the SW, and run a full system update (SW → `nos.zip` → hash verification → OPFS) with progress feedback. |
+| **System Info** | [`/nos-tool/system-info/`](nos-tool/system-info/) | Inspect local / online / Service Worker versions and update state, view registered Service Workers and the active controller, then check for updates, (re)register or uninstall the SW, and run a full system update (SW → `nos.tgz` → hash verification → OPFS) with progress feedback. |
 | **OFA Studio** | [`/nos-tool/studio/`](nos-tool/studio/) | App dev environment: create projects from templates, manage project files, and tune the theme/color scheme. |
 | **Locale Text Tool** | [`/nos-tool/locale-text-tool/`](nos-tool/locale-text-tool/) | Scan HTML files for `<locale-text>` blocks and generate a `locale-text.json` translation index. |
 | **RTC Tool** | [`/nos-tool/rtc-tool/`](nos-tool/rtc-tool/) | Manage the WebRTC STUN/TURN server list: test reachability and latency, reorder, and enable/disable entries. |
-
-`nos-tool/_install/` is not a page-level tool but the installer entry (`registerSw()`, version check, full system install) used by `<nos-version>` and the System Info tool. See [`nos-tool/README.md`](nos-tool/README.md) for the current positioning of this directory.
 
 ---
 
@@ -237,7 +239,7 @@ Install the system from your entry HTML, then use the runtime modules:
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
-<l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+<l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
 <nos-version auto-install></nos-version>
 
 <script type="module">
@@ -255,7 +257,7 @@ Install the system from your entry HTML, then use the runtime modules:
 </script>
 ```
 
-Once installed, the virtual prefixes are live: `/nos/...` for core modules, `/ncomp/...` for shared components, `/nos-tool/...` for the built-in tools, and `/gh/...` / `/npm/...` as cached shortcuts for jsDelivr.
+Once installed, the virtual prefixes are live: `/nos/...` for core modules, `/nos-lib/...` for shared components and the installer, `/nos-tool/...` for the built-in tools, and `/gh/...` / `/npm/...` as cached shortcuts for jsDelivr.
 
 ---
 
@@ -268,7 +270,7 @@ Key references:
 - [Virtual Filesystem API](nos/fs/README.md) — file operations, mounting, observation
 - [Key-Value Storage](nos/storage/README.md) — async localStorage-like storage
 - [P2P Publishing](nos/publish/README.md) — DataPublisher
-- [Shared Components](ncomp/README.md) — `<n-user-name>`, `<n-user-status>`
+- [Official Online Library](nos-lib/README.md) — `<n-user-name>`, `<n-user-status>`, `<nos-version>`, `_install/`
 - [i18n Module](nos/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
 - [Server Configuration](server/handshake/README.md) — relay server setup
 - [AI Agent Skill](.agents/skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
@@ -283,7 +285,7 @@ Key references:
 | `npm start` | Start static server (port 30028) — **for local production use / automated tests** |
 | `npm run static` | Static server only (port 3002) |
 | `npm run watch:sw` | Rebuild the service worker on `sw/src/**` changes |
-| `npm run build` | Build all: hashes → nos.zip → service worker → skill package |
+| `npm run build` | Build all: hashes → nos.tgz → service worker → skill package |
 | `npm run build:sw` | Build the service worker via Rollup (`sw/dist.js` + `sw/dist.min.js`) |
 | `npm run build:hashes` | Compute and sign hashes of `nos/` sources (consumed by `nos.json`) |
 | `npm run build:skill` | Build the `.agents/skills/noneos-core-docs` knowledge base (`noneos-core-docs.zip`) |

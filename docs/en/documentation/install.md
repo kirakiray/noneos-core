@@ -33,7 +33,7 @@ In the entry HTML file, import `ofa.js` and the `nos-version` component. After u
   </head>
   <body>
     <!-- Load nos-version component -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
     <!-- Use nos-version component -->
     <nos-version auto-install></nos-version>
 

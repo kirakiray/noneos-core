@@ -61,6 +61,8 @@ web_modules/
 
 # Output of 'npm pack'
 *.tgz
+# 例外：系统发布包是部署产物，随仓库分发（同 nos.json）
+!nos.tgz
 
 # Yarn Integrity file
 .yarn-integrity

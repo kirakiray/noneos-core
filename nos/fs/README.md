@@ -502,7 +502,7 @@ console.log(JSON.stringify(file));
 
 ```js
 import { init } from "/nos/fs/main.js";
-import registration from "/nos-tool/_install/register.js";
+import registration from "/nos-lib/_install/register.js";
 await registration;
 
 const dir = await init("my-app");

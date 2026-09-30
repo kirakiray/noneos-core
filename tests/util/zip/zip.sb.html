@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,35 +7,28 @@
     <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
-    <h1>Zip Tests</h1>
+    <h1>Zip Tests（zip 写路径：目录下载产物）</h1>
 
-    <sb-test name="zip - Single File Compression Test">
+    <sb-test name="zip - 单文件压缩产出合法 ZIP 头">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
           import { zip } from "/nos/util/zip.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
+            const file = new File(["Hello World"], "hello.txt", { type: "text/plain" });
+            const zipBlob = await zip([{ file, path: "hello.txt" }]);
 
-            const files = [
-              {
-                file: createTextFile("Hello World", "hello.txt"),
-                path: "hello.txt",
-              },
-            ];
-            const zipBlob = await zip(files);
+            const head = new Uint8Array(await zipBlob.slice(0, 4).arrayBuffer());
+            const isPK = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
 
             return {
-              assert: zipBlob instanceof Blob && zipBlob.size > 0,
+              assert: zipBlob instanceof Blob && zipBlob.size > 0 && isPK,
               content: {
-                message: "单个文件压缩测试",
-                filesCount: 1,
+                message: "单文件 zip：Blob 且以 PK\\x03\\x04 开头",
                 isBlob: zipBlob instanceof Blob,
-                zipize: zipBlob.size,
+                size: zipBlob.size,
+                isPK,
               },
             };
           }
@@ -43,40 +36,80 @@
       </template>
     </sb-test>
 
-    <sb-test name="zip - Multiple Files Compression Test">
+    <sb-test name="zip - 多文件条目可被独立解析还原（中央目录 + deflate-raw）">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
-          import { zip, unzip } from "/nos/util/zip.js";
+          import { zip } from "/nos/util/zip.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
+            // 测试内置一个独立的 ZIP 读取器（不依赖被测代码的解压实现），
+            // 用于交叉验证写出的容器结构正确
+            const readZipEntries = async (blob) => {
+              const bytes = new Uint8Array(await blob.arrayBuffer());
+              const view = new DataView(bytes.buffer);
+
+              // EOCD 固定位于尾部 22 字节（本写入器不写注释）
+              const eocd = bytes.length - 22;
+              if (view.getUint32(eocd, true) !== 0x06054b50) {
+                throw new Error("EOCD not found");
+              }
+              const count = view.getUint16(eocd + 10, true);
+              let offset = view.getUint32(eocd + 16, true);
+
+              const entries = [];
+              for (let i = 0; i < count; i++) {
+                const method = view.getUint16(offset + 10, true);
+                const compSize = view.getUint32(offset + 20, true);
+                const size = view.getUint32(offset + 24, true);
+                const nameLen = view.getUint16(offset + 28, true);
+                const extraLen = view.getUint16(offset + 30, true);
+                const commentLen = view.getUint16(offset + 32, true);
+                const localOffset = view.getUint32(offset + 42, true);
+                const name = new TextDecoder().decode(
+                  bytes.subarray(offset + 46, offset + 46 + nameLen),
+                );
+
+                const localNameLen = view.getUint16(localOffset + 26, true);
+                const localExtraLen = view.getUint16(localOffset + 28, true);
+                const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+                const compressed = bytes.subarray(dataStart, dataStart + compSize);
+
+                let content;
+                if (method === 8) {
+                  const stream = new Blob([compressed])
+                    .stream()
+                    .pipeThrough(new DecompressionStream("deflate-raw"));
+                  content = new TextDecoder().decode(
+                    await new Response(stream).arrayBuffer(),
+                  );
+                } else {
+                  content = new TextDecoder().decode(compressed);
+                }
+
+                entries.push({ name, size, content });
+                offset += 46 + nameLen + extraLen + commentLen;
+              }
+              return entries;
             };
 
             const files = [
-              { file: createTextFile("Content 1", "file1.txt"), path: "file1.txt" },
-              { file: createTextFile("Content 2", "file2.txt"), path: "file2.txt" },
-              { file: createTextFile("Content 3", "file3.txt"), path: "file3.txt" },
+              { file: new File(["Content 1"], "file1.txt"), path: "dir1/file1.txt" },
+              { file: new File(["内容2"], "file2.txt"), path: "dir2/file2.txt" },
             ];
             const zipBlob = await zip(files);
-            const extractedFiles = await unzip(zipBlob);
-
-            const allFilesCompressed =
-              extractedFiles.length === 3 &&
-              extractedFiles.some((f) => f.path === "file1.txt") &&
-              extractedFiles.some((f) => f.path === "file2.txt") &&
-              extractedFiles.some((f) => f.path === "file3.txt");
+            const entries = await readZipEntries(zipBlob);
 
             return {
-              assert: allFilesCompressed,
+              assert:
+                entries.length === 2 &&
+                entries[0].name === "dir1/file1.txt" &&
+                entries[0].content === "Content 1" &&
+                entries[1].name === "dir2/file2.txt" &&
+                entries[1].content === "内容2",
               content: {
-                message: "多个文件压缩测试",
-                originalFilesCount: 3,
-                compressedSize: zipBlob.size,
-                extractedFilesCount: extractedFiles.length,
-                allFilesRecovered: allFilesCompressed,
+                message: "多文件 zip：条目名与解压内容均与原文件一致",
+                entries: entries.map(({ name, size }) => ({ name, size })),
               },
             };
           }
@@ -84,83 +117,18 @@
       </template>
     </sb-test>
 
-    <sb-test name="zip - Nested Directory Compression Test">
+    <sb-test name="zip - 空文件列表返回 null">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
-          import { zip, unzip } from "/nos/util/zip.js";
+          import { zip } from "/nos/util/zip.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
-
-            const files = [
-              { file: createTextFile("Root File", "root.txt"), path: "root.txt" },
-              {
-                file: createTextFile("Nested File", "nested.txt"),
-                path: "folder/nested.txt",
-              },
-              {
-                file: createTextFile("Deep File", "deep.txt"),
-                path: "folder/deep/deep.txt",
-              },
-            ];
-            const zipBlob = await zip(files);
-            const extractedFiles = await unzip(zipBlob);
-
-            const hasNestedStructure =
-              extractedFiles.length >= 2 &&
-              extractedFiles.some((f) => f.path.includes("folder"));
+            const result = await zip([]);
 
             return {
-              assert: hasNestedStructure,
-              content: {
-                message: "嵌套目录压缩测试",
-                originalFilesCount: 3,
-                compressedSize: zipBlob.size,
-                extractedFilesCount: extractedFiles.length,
-                hasNestedStructure,
-              },
-            };
-          }
-        </script>
-      </template>
-    </sb-test>
-
-    <sb-test name="zip - Content Integrity Test">
-      <template>
-        <script>
-          import registration from "/nos-tool/_install/register.js";
-          await registration;
-          import { zip, unzip } from "/nos/util/zip.js";
-          {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
-
-            const originalContent = "Integrity test content for compression";
-            const files = [
-              {
-                file: createTextFile(originalContent, "integrity.txt"),
-                path: "integrity.txt",
-              },
-            ];
-            const zipBlob = await zip(files);
-            const extractedFiles = await unzip(zipBlob);
-            const extractedContent = await extractedFiles[0].file.text();
-
-            return {
-              assert: extractedContent === originalContent,
-              content: {
-                message: "压缩内容完整性测试",
-                originalContentLength: originalContent.length,
-                extractedContentLength: extractedContent.length,
-                contentMatch: extractedContent === originalContent,
-                compressedSize: zipBlob.size,
-              },
+              assert: result === null,
+              content: { message: "zip([]) 应返回 null", result },
             };
           }
         </script>

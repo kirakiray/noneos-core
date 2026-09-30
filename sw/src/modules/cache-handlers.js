@@ -176,19 +176,20 @@ export const handleNpmRequest = createHandler({
 });
 
 /**
- * /ncomp/xxx
+ * /nos-lib/xxx（nos 官方在线库：公共组件等，不进 nos.tgz 签名包）
  * - localhost dev：优先 localhost:3002 → 官方源 → 同域兜底（网络优先）
  * - 生产环境：直接走官方源（SWR）
+ * 旧前缀 /ncomp/、/nos-tool/comps/ 由 main.js 归一化为 /nos-lib/ 后进入，
+ * OPFS 缓存键即归一化后的 path（落在 nos-lib/ 目录）。
  */
-export const handleNcompRequest = createHandler({
-  tag: "ncomp",
+export const handleNosLibRequest = createHandler({
+  tag: "nos-lib",
   networkFirstWhen: () => /^localhost:/.test(location.host),
-  resolveSources: ({ path, request }) => {
-    const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+  resolveSources: ({ path }) => {
     const isDev = /^localhost:/.test(location.host);
     return [
-      isDev ? request.url.replace(/:(\d+)/, ":3002") : null,
-      `https://core.noneos.com/${afterHost}`,
+      isDev ? new URL(path, "http://localhost:3002").href : null,
+      `https://core.noneos.com${path}`,
       isDev ? new URL(path, location.origin).href : null,
     ].filter(Boolean);
   },

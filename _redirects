@@ -1,1 +1,6 @@
+# nos-lib 迁移兼容：旧前缀 301 到新路径（保护第三方硬编码 URL 与已发布文档链接）。
+# 必须放在 /*.html 规则之前，避免旧 .html 路径先被 200 rewrite 命中。
+/nos-tool/_install/* /nos-lib/_install/:splat 301
+/nos-tool/comps/* /nos-lib/nos-version/:splat 301
+/ncomp/* /nos-lib/:splat 301
 /*.html /:splat.html 200

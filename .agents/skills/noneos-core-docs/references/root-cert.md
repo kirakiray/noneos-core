@@ -23,7 +23,7 @@ NoneOS Core 发布完整性依赖两级签名：根证书信任集 `nos/root-cer
 
 ## 客户端校验规则
 
-安装/更新时由 `nos-tool/_install/util.js` 的 `verifyRootCert` / `getOnlineData` 执行：
+安装/更新时由 `nos-lib/_install/util.js` 的 `verifyRootCert` / `getOnlineData` 执行：
 
 1. 结构校验 + `verifyData` 整体验签；
 2. 签名者必须是信任集中 active/grace 的密钥；
@@ -75,7 +75,7 @@ node scripts/rotate-root.js swap-root
 
 ## 泄漏保底机制：吊销（root-status.json）
 
-仓库根目录 `root-status.json`（与 `nos.json` 同级，在 `nos/` 之外，不进入 `nos.zip` 与 OPFS，也不经过 SW 的 `/nos/` 代理——保证客户端永远读到线上版本）是独立于签名体系的**域名信任根**，其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不需要签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）：
+仓库根目录 `root-status.json`（与 `nos.json` 同级，在 `nos/` 之外，不进入 `nos.tgz` 与 OPFS，也不经过 SW 的 `/nos/` 代理——保证客户端永远读到线上版本）是独立于签名体系的**域名信任根**，其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不需要签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）：
 
 ```json
 {
@@ -113,7 +113,7 @@ node scripts/rotate-root.js add k2       # 新钥 grace 加入
 node scripts/rotate-root.js promote k2   # 新钥 active、旧钥 retired
 ```
 
-> `npm run build:hashes` 内部执行 `scripts/calculate-nos-hashes.js` + `scripts/sign-hashes.js` + `scripts/pack-nos.js` + `scripts/verify-pack.js`（hash 计算 → 按 active 密钥签发 `nos.json` → 重打 `nos.zip` → 校验 zip 与清单逐文件一致）。后者自动选取信任集中唯一的 active 密钥（对应密钥文件须存在）。
+> `npm run build:hashes` 内部执行 `scripts/calculate-nos-hashes.js` + `scripts/sign-hashes.js` + `scripts/pack-nos.js` + `scripts/verify-pack.js`（hash 计算 → 按 active 密钥签发 `nos.json` → 重打 `nos.tgz` → 校验包与清单逐文件一致）。后者自动选取信任集中唯一的 active 密钥（对应密钥文件须存在）。
 
 ## 泄漏应急轮换
 
