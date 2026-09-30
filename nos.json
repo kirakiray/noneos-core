@@ -1,7 +1,7 @@
 {
   "version": "4.8.0",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1790606687454,
+  "signTime": 1790761181050,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -35,8 +35,8 @@
     },
     {
       "path": "fs/README.md",
-      "hash": "e325fa6ede3bab3c32b60ef236dfcbfea17bc38fe8d931b4fb0bb16cafc2e922",
-      "size": 12750
+      "hash": "341be7d86b415c5f92642fc547168968c91bcac846e9de13f2508c160e71b58c",
+      "size": 12749
     },
     {
       "path": "fs/download.js",
@@ -285,9 +285,9 @@
     },
     {
       "path": "util/zip.js",
-      "hash": "acc9f083a840a8e727320484213a7518797d56ab8abe3f8bf503ede7d2121ce3",
-      "size": 2117
+      "hash": "500793703aa11111868914f65a780be6cbe79c535d336590fbdc5565da2e7ee0",
+      "size": 6117
     }
   ],
-  "signature": "bZcf0pqHEv1JstvqmG6Kw996etFsO2dT61NgBLTNApXWV5AfhyaREyLpoKTc3ee4pPg0IDBiuEZrQe57IaZJCA=="
+  "signature": "qj/gLofCEg9N5AqwwgxjxoNtlFsFbGLzAJ+hp3krgzM0Ci9D5+3GK10Ttxfjuf+EkPa35TU01Ue1dj4ZttLWIQ=="
 }

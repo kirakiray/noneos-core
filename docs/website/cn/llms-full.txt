@@ -798,7 +798,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
   </head>
   <body>
     <!-- 加载 nos-version 组件 -->
-    <l-m src="https://core.noneos.com/nos-tool/comps/nos-version.html"></l-m>
+    <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
     <!-- 使用 nos-version 组件 -->
     <nos-version auto-install></nos-version>
 

@@ -237,7 +237,7 @@
       NoneOS 系统信息
     </h1>
     <p class="subtitle">
-      查看当前系统版本、Service Worker 注册状态，并手动管理系统更新。所有操作直接调用 nos-tool/_install/main.js 的安装 API。
+      查看当前系统版本、Service Worker 注册状态，并手动管理系统更新。所有操作直接调用 nos-lib/_install/main.js 的安装 API。
     </p>
 
     <!-- 系统版本 -->
@@ -373,15 +373,15 @@
 · 检查更新 会比对本地版本与线上 <code>nos.json</code> 的版本号。
 · 注册 SW 直接注册 <code>sw.js</code>（不带版本号参数），适用于首次安装或调试。
 · 更新 SW 先拉取线上版本号，再以 <code>sw.js?v=版本号</code> 方式重新注册，可绕过浏览器对 sw.js 的缓存。
-· 立即更新系统 执行完整流程：重新注册 SW → 下载 nos.zip → 哈希校验 → 写入 OPFS。
+· 立即更新系统 执行完整流程：重新注册 SW → 下载 nos.tgz → 哈希校验 → 写入 OPFS。
 · 完整更新或 SW 更新后，建议刷新页面让新版本 Service Worker 接管。
     </div>
   </div>
 
   <script>
     export default async ({ load }) => {
-      const { check, install, installServiceWorker } = await load("../../_install/main.js");
-      const { registerSw, clearSw, getOnlineData } = await load("../../_install/util.js");
+      const { check, install, installServiceWorker } = await load("/nos-lib/_install/main.js");
+      const { registerSw, clearSw, getOnlineData } = await load("/nos-lib/_install/util.js");
 
       return {
         data: {

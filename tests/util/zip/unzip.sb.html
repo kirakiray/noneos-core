@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,47 +7,47 @@
     <script type="module" src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"></script>
   </head>
   <body>
-    <h1>Unzip Tests</h1>
+    <h1>Unzip Tests（unzip 读路径：系统包 nos.tgz 解包）</h1>
 
-    <sb-test name="unzip - Single File Extraction Test">
+    <sb-test name="unzip - 解包真实系统包，条目与 nos.json 清单完全一致">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
           import { unzip } from "/nos/util/zip.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
+            // 直接解包 Node 端产出的真实 nos.tgz（读写端实现解耦），
+            // 条目集合应与安装签名清单 nos.json 的 hashes 路径完全一致
+            const [packageBlob, manifest] = await Promise.all([
+              fetch("/nos.tgz", { cache: "no-store" }).then((res) => res.blob()),
+              fetch("/nos.json", { cache: "no-store" }).then((res) => res.json()),
+            ]);
 
-            const createZipFile = async (files) => {
-              const { zip } = await import("/nos/util/zip.js");
-              const blob = await zip(files);
-              return blob;
-            };
+            const extracted = await unzip(packageBlob);
+            const extractedPaths = extracted.map((item) => item.path).sort();
+            const manifestPaths = manifest.hashes
+              .map((item) => item.path)
+              .sort();
 
-            const files = [
-              {
-                file: createTextFile("Hello World", "hello.txt"),
-                path: "hello.txt",
-              },
-            ];
-            const zipFile = await createZipFile(files);
-            const extractedFiles = await unzip(zipFile);
+            const missing = manifestPaths.filter(
+              (p) => !extractedPaths.includes(p),
+            );
+            const extra = extractedPaths.filter(
+              (p) => !manifestPaths.includes(p),
+            );
 
             return {
               assert:
-                extractedFiles.length === 1 &&
-                extractedFiles[0].path === "hello.txt",
+                missing.length === 0 &&
+                extra.length === 0 &&
+                extractedPaths.length === manifestPaths.length,
               content: {
-                message: "解压单个文件测试",
-                originalFilesCount: 1,
-                extractedFilesCount: extractedFiles.length,
-                extractedFiles: extractedFiles.map((f) => ({
-                  path: f.path,
-                  name: f.file.name,
-                })),
+                message: "解包条目集合与清单一致",
+                packageSize: packageBlob.size,
+                extractedCount: extractedPaths.length,
+                manifestCount: manifestPaths.length,
+                missing,
+                extra,
               },
             };
           }
@@ -55,48 +55,50 @@
       </template>
     </sb-test>
 
-    <sb-test name="unzip - Multiple Files Extraction Test">
+    <sb-test name="unzip - 抽查条目内容哈希与签名清单一致">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
           import { unzip } from "/nos/util/zip.js";
+          import { getFileHash } from "/nos/util/hash/get-file-hash.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
+            const [packageBlob, manifest] = await Promise.all([
+              fetch("/nos.tgz", { cache: "no-store" }).then((res) => res.blob()),
+              fetch("/nos.json", { cache: "no-store" }).then((res) => res.json()),
+            ]);
 
-            const createZipFile = async (files) => {
-              const { zip } = await import("/nos/util/zip.js");
-              const blob = await zip(files);
-              return blob;
-            };
+            const extracted = await unzip(packageBlob);
+            const byPath = new Map(extracted.map((item) => [item.path, item]));
 
-            const files = [
-              { file: createTextFile("Content 1", "file1.txt"), path: "file1.txt" },
-              { file: createTextFile("Content 2", "file2.txt"), path: "file2.txt" },
-              { file: createTextFile("Content 3", "file3.txt"), path: "file3.txt" },
+            // 抽查若干关键文件（含被测模块自身）的内容哈希
+            const samplePaths = [
+              "util/zip.js",
+              "fs/main.js",
+              "user/main.js",
+              "storage/main.js",
             ];
-            const zipFile = await createZipFile(files);
-            const extractedFiles = await unzip(zipFile);
-
-            const allFilesExtracted =
-              extractedFiles.length === 3 &&
-              extractedFiles.some((f) => f.path === "file1.txt") &&
-              extractedFiles.some((f) => f.path === "file2.txt") &&
-              extractedFiles.some((f) => f.path === "file3.txt");
+            const results = [];
+            let allMatch = true;
+            for (const p of samplePaths) {
+              const declared = manifest.hashes.find((h) => h.path === p);
+              const item = byPath.get(p);
+              if (!declared || !item) {
+                allMatch = false;
+                results.push({ path: p, found: Boolean(item) });
+                continue;
+              }
+              const actualHash = await getFileHash(item.file);
+              const match = actualHash === declared.hash;
+              allMatch = allMatch && match;
+              results.push({ path: p, match });
+            }
 
             return {
-              assert: allFilesExtracted,
+              assert: allMatch,
               content: {
-                message: "解压多个文件测试",
-                originalFilesCount: 3,
-                extractedFilesCount: extractedFiles.length,
-                extractedFiles: extractedFiles.map((f) => ({
-                  path: f.path,
-                  name: f.file.name,
-                })),
+                message: "抽查文件的内容哈希与清单一致",
+                results,
               },
             };
           }
@@ -104,99 +106,23 @@
       </template>
     </sb-test>
 
-    <sb-test name="unzip - Nested Directory Test">
+    <sb-test name="unzip - 非 gzip 输入应报 unsupported archive">
       <template>
         <script>
-          import registration from "/nos-tool/_install/register.js";
+          import registration from "/nos-lib/_install/register.js";
           await registration;
           import { unzip } from "/nos/util/zip.js";
           {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
-
-            const createZipFile = async (files) => {
-              const { zip } = await import("/nos/util/zip.js");
-              const blob = await zip(files);
-              return blob;
-            };
-
-            const files = [
-              { file: createTextFile("Root File", "root.txt"), path: "root.txt" },
-              {
-                file: createTextFile("Nested File", "nested.txt"),
-                path: "folder/nested.txt",
-              },
-              {
-                file: createTextFile("Deep Nested File", "deep.txt"),
-                path: "folder/deep/deep.txt",
-              },
-            ];
-            const zipFile = await createZipFile(files);
-            const extractedFiles = await unzip(zipFile);
-
-            const hasNestedFiles =
-              extractedFiles.length >= 2 &&
-              extractedFiles.some((f) => f.path.includes("folder"));
+            let errorMessage = "";
+            try {
+              await unzip(new Blob(["plain text, not an archive"]));
+            } catch (err) {
+              errorMessage = err.message;
+            }
 
             return {
-              assert: hasNestedFiles,
-              content: {
-                message: "解压嵌套目录测试",
-                originalFilesCount: 3,
-                extractedFilesCount: extractedFiles.length,
-                extractedFiles: extractedFiles.map((f) => ({
-                  path: f.path,
-                  name: f.file.name,
-                })),
-              },
-            };
-          }
-        </script>
-      </template>
-    </sb-test>
-
-    <sb-test name="unzip - File Content Integrity Test">
-      <template>
-        <script>
-          import registration from "/nos-tool/_install/register.js";
-          await registration;
-          import { unzip } from "/nos/util/zip.js";
-          {
-            const createTextFile = (content, filename) => {
-              const blob = new Blob([content], { type: "text/plain" });
-              return new File([blob], filename, { type: "text/plain" });
-            };
-
-            const createZipFile = async (files) => {
-              const { zip } = await import("/nos/util/zip.js");
-              const blob = await zip(files);
-              return blob;
-            };
-
-            const originalContent =
-              "This is test content for integrity verification";
-            const files = [
-              {
-                file: createTextFile(originalContent, "content.txt"),
-                path: "content.txt",
-              },
-            ];
-            const zipFile = await createZipFile(files);
-            const extractedFiles = await unzip(zipFile);
-
-            const extractedContent = await extractedFiles[0].file.text();
-            const contentMatch = extractedContent === originalContent;
-
-            return {
-              assert: contentMatch,
-              content: {
-                message: "解压文件内容完整性测试",
-                originalContentLength: originalContent.length,
-                extractedContentLength: extractedContent.length,
-                contentMatch,
-              },
+              assert: errorMessage.includes("unsupported archive"),
+              content: { message: "非 gzip 输入应抛出明确错误", errorMessage },
             };
           }
         </script>

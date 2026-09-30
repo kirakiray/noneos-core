@@ -2,26 +2,26 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>ncomp 缓存策略测试</title>
+    <title>nos-lib 缓存策略测试</title>
     <script
       type="module"
       src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
     ></script>
     <script type="module">
-      import registration from "/nos-tool/_install/register.js";
+      import registration from "/nos-lib/_install/register.js";
       await registration;
     </script>
   </head>
   <body>
-    <h1>ncomp 缓存策略测试</h1>
+    <h1>nos-lib 缓存策略测试</h1>
 
-    <sb-test name="请求 /ncomp/ 资源后会写入 OPFS 缓存">
+    <sb-test name="请求 /nos-lib/ 资源后会写入 OPFS 缓存">
       <template>
         <script type="module">
           {
             const { get } = await import("/nos/fs/main.js");
 
-            const path = "ncomp/user-name/user-name.html";
+            const path = "nos-lib/user-name/user-name.html";
 
             // 通过 Service Worker 请求组件资源
             const response = await fetch("/" + path);
@@ -70,7 +70,7 @@
           {
             const { get } = await import("/nos/fs/main.js");
 
-            const path = "ncomp/user-name/user-name.html";
+            const path = "nos-lib/user-name/user-name.html";
 
             // 先请求一次，确保 OPFS 中已有缓存
             await fetch("/" + path);
@@ -106,6 +106,50 @@
                 cacheLength: cacheText.length,
                 responseLength: responseText.length,
                 same: responseText === cacheText,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="旧前缀 /ncomp/ 别名请求会归一化写入新缓存键">
+      <template>
+        <script type="module">
+          {
+            const { get } = await import("/nos/fs/main.js");
+
+            // 兼容层：旧前缀 /ncomp/ 的请求应等价于 /nos-lib/ 下的新路径
+            const newPath = "nos-lib/user-status/user-status.html";
+
+            const response = await fetch("/ncomp/user-status/user-status.html");
+            const status = response.status;
+            const text = await response.text();
+
+            // 等待后台异步写入 OPFS 缓存后轮询读取新缓存键
+            await new Promise((r) => setTimeout(r, 500));
+
+            let cachedText = "";
+            for (let i = 0; i < 20; i++) {
+              try {
+                const cachedHandle = await get(newPath);
+                if (cachedHandle) {
+                  cachedText = await cachedHandle.text();
+                  if (cachedText.length > 0) break;
+                }
+              } catch (_) {
+                // 尚未写入，等下一轮
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
+
+            return {
+              assert: status === 200 && text.length > 0 && cachedText === text,
+              content: {
+                status,
+                textLength: text.length,
+                cachedTextLength: cachedText.length,
+                cacheKeyNormalized: cachedText === text,
               },
             };
           }

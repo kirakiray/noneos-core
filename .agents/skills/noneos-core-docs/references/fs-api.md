@@ -264,7 +264,7 @@ const content = await fileHandle.text();
 配合 Service Worker 注册，挂载目录中的文件可以通过 HTTP fetch 直接访问：
 
 ```javascript
-import registration from "/nos-tool/_install/register.js";
+import registration from "/nos-lib/_install/register.js";
 await registration;
 
 const testFile = await testDir.get("fetch-test.txt", { create: "file" });
@@ -408,7 +408,7 @@ const isSame = await root1.isSame(root2);
 
 ```javascript
 import { init } from "/nos/fs/main.js";
-import registration from "/nos-tool/_install/register.js";
+import registration from "/nos-lib/_install/register.js";
 await registration;
 
 const testDir = await init("test-dir");

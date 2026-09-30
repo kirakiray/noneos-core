@@ -306,19 +306,20 @@
   });
 
   /**
-   * /ncomp/xxx
+   * /nos-lib/xxx（nos 官方在线库：公共组件等，不进 nos.tgz 签名包）
    * - localhost dev：优先 localhost:3002 → 官方源 → 同域兜底（网络优先）
    * - 生产环境：直接走官方源（SWR）
+   * 旧前缀 /ncomp/、/nos-tool/comps/ 由 main.js 归一化为 /nos-lib/ 后进入，
+   * OPFS 缓存键即归一化后的 path（落在 nos-lib/ 目录）。
    */
-  const handleNcompRequest = createHandler({
-    tag: "ncomp",
+  const handleNosLibRequest = createHandler({
+    tag: "nos-lib",
     networkFirstWhen: () => /^localhost:/.test(location.host),
-    resolveSources: ({ path, request }) => {
-      const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
+    resolveSources: ({ path }) => {
       const isDev = /^localhost:/.test(location.host);
       return [
-        isDev ? request.url.replace(/:(\d+)/, ":3002") : null,
-        `https://core.noneos.com/${afterHost}`,
+        isDev ? new URL(path, "http://localhost:3002").href : null,
+        `https://core.noneos.com${path}`,
         isDev ? new URL(path, location.origin).href : null,
       ].filter(Boolean);
     },
@@ -489,23 +490,27 @@
     }
   };
 
-  const handleNosToolRequest = async ({ request }) => {
+  /**
+   * 官方源代理（/nos-tool/ 工具集与 /nos-lib/_install/ 共用，不读写缓存）：
+   * - localhost:3002：直接透传本地静态服务器
+   * - 其他 localhost 端口：优先代理到 3002，失败回退官方源
+   * - 生产环境：直接回源官方
+   *
+   * path 由 main.js 归一化为仓库物理路径（旧前缀别名也先归一化），
+   * 保证回源目标始终是新路径；旧 URL 由托管层 301 兜底。
+   */
+  const handleOfficialSourceRequest = async ({ path, request }) => {
     const host = location.host;
 
     if (host === "localhost:3002") {
-      return fetch(request);
+      return fetch(new URL(path, location.origin).href, request);
     }
 
-    // 返回官方的地址
-    const returnOfficial = () => {
-      const afterHost = request.url.replace(/^https?:\/\/[^\/]+\//, "");
-      return fetch(`https://core.noneos.com/${afterHost}`);
-    };
+    const returnOfficial = () => fetch(`https://core.noneos.com${path}`);
 
     if (/^localhost:/.test(host)) {
-      const newUrl = request.url.replace(/:(\d+)/, ":3002");
       try {
-        return await fetch(newUrl);
+        return await fetch(new URL(path, "http://localhost:3002").href, request);
       } catch {
         return returnOfficial();
       }
@@ -578,19 +583,36 @@
     }
 
     try {
-      if (/^\/nos-tool\//.test(pathname)) {
+      // /nos-lib/_install/ 为安装引导（必须实时回源，不缓存）；
+      // 旧前缀 /nos-tool/_install/ 归一化后走同一处理器（兼容已部署的第三方页面）
+      if (/^\/nos-lib\/_install\//.test(pathname) || /^\/nos-tool\/_install\//.test(pathname)) {
         return event.respondWith(
-          handleNosToolRequest({
-            path: pathname,
+          handleOfficialSourceRequest({
+            path: pathname.replace(/^\/nos-tool\/_install\//, "/nos-lib/_install/"),
             request,
             systemConfig,
           }),
         );
       }
 
-      if (/^\/ncomp\//.test(pathname)) {
+      // /nos-lib/ 官方在线库（SWR 缓存）；
+      // 旧前缀 /ncomp/、/nos-tool/comps/ 归一化到新路径（兼容旧引用，缓存键统一为新路径）
+      if (/^\/nos-lib\//.test(pathname) || /^\/ncomp\//.test(pathname) || /^\/nos-tool\/comps\//.test(pathname)) {
+        const libPath = pathname
+          .replace(/^\/ncomp\//, "/nos-lib/")
+          .replace(/^\/nos-tool\/comps\//, "/nos-lib/nos-version/");
         return event.respondWith(
-          handleNcompRequest({
+          handleNosLibRequest({
+            path: libPath,
+            request,
+            systemConfig,
+          }),
+        );
+      }
+
+      if (/^\/nos-tool\//.test(pathname)) {
+        return event.respondWith(
+          handleOfficialSourceRequest({
             path: pathname,
             request,
             systemConfig,

@@ -44,7 +44,7 @@
    - **审查时机**：若发现 CONTEXT.md 与源码不一致（即使非本次改动），应按第 9 条补充完善。
 7. **同步 Skill 文档**：对外可见行为发生变化后，**必须同步更新 `.agents/skills/noneos-core-docs/references/` 下对应的参考文档**，确保 Skill 知识库与源码保持一致。触发条件包括：
    - `nos/` 下模块的导出方法、参数、行为语义变化
-   - `ncomp/` 新增/删除/修改公共组件（标签名、属性、事件）
+   - `nos-lib/` 新增/删除/修改公共组件或安装引导（标签名、属性、事件、入口路径）
    - `sw/` 路由策略或路径前缀变化
    - `server/handshake/` admin 命令、消息协议字段、配置项变化
    - CONTEXT.md 中标注为"关键 API"的任何改动
@@ -52,11 +52,11 @@
 9. **补充上下文**：若发现 `CONTEXT.md` 中存在信息缺失，应及时补充完善。
 10. **AI 常见误判清单**（基于历史踩坑总结，遇到这些情况请额外警惕）：
     - ❌ 把运行时虚拟 URL（`/packages/...`、`/nos/...`、`/gh/...`、`/npm/...`）当作仓库源码路径去查找 → ✅ 应对照 [CONTEXT.md 第二节](CONTEXT.md#二项目结构与运行时路径映射)，把它们映射回真实源码路径
-    - ❌ 以为 `index.html` 注册了 Service Worker → ✅ 实际是 `nos-tool/_install/main.js`（生产）或 `nos-tool/_install/register.js`（测试）通过 `registerSw("sw.js")` 注册
+    - ❌ 以为 `index.html` 注册了 Service Worker → ✅ 实际是 `nos-lib/_install/main.js`（生产）或 `nos-lib/_install/register.js`（测试）通过 `registerSw("sw.js")` 注册
     - ❌ 以为线上加载的是 `sw/dist.min.js` → ✅ 实际加载的是 `sw/dist.js`（`/sw.js` 内执行 `importScripts("/sw/dist.js")`）
     - ❌ 修改 `sw/src/` 后忘记重建 → ✅ 必须运行 `npm run build:sw` 或开发期使用 `npm run watch:sw`
-    - ❌ 把 `nos.json` / `nos.zip` 当源码改 → ✅ 它们是构建产物
-   - ❌ 改了 `nos/` 下任何文件（含证书/密钥相关变更）后只重算 hash 不重打包 → ✅ 必须重跑 `npm run build:hashes`（内含重打 `nos.zip` 与 `verify-pack.js` 一致性校验）；`nos.json` 与 `nos.zip` 漂移会导致客户端安装校验失败，表现为首页永远卡在 Install NoneOS Core
+    - ❌ 把 `nos.json` / `nos.tgz` 当源码改 → ✅ 它们是构建产物
+   - ❌ 改了 `nos/` 下任何文件（含证书/密钥相关变更）后只重算 hash 不重打包 → ✅ 必须重跑 `npm run build:hashes`（内含重打 `nos.tgz` 与 `verify-pack.js` 一致性校验）；`nos.json` 与 `nos.tgz` 漂移会导致客户端安装校验失败，表现为首页永远卡在 Install NoneOS Core
     - ❌ 用 `await extendDirHandle(...)` → ✅ `extendDirHandle` / `extendFileHandle` 虽然声明为 `async`，但内部无异步操作，调用处也未 await
 
 

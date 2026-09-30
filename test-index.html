@@ -25,8 +25,8 @@
     -->
     <sb-test-suite parallel="4">
       <!-- ===== 独占首跑：user-name 干净状态握手 + user-status 注册 SW ===== -->
-      <include src="./ncomp/user-name/user-name.sb.html" exclusive></include>
-      <include src="./ncomp/user-status/user-status.sb.html" exclusive></include>
+      <include src="./nos-lib/user-name/user-name.sb.html" exclusive></include>
+      <include src="./nos-lib/user-status/user-status.sb.html" exclusive></include>
 
       <!-- ===== 纯计算：crypto / hash / zip ===== -->
       <include src="./tests/crypto/crypto-ecdsa.sb.html"></include>
@@ -87,7 +87,7 @@
       <include src="./tests/user/local/connect-server.sb.html" exclusive></include>
 
       <!-- ===== SW 缓存（独占收尾：会替换/注销全 origin 的 SW） ===== -->
-      <include src="./tests/sw/ncomp-cache.sb.html" exclusive></include>
+      <include src="./tests/sw/noslib-cache.sb.html" exclusive></include>
       <include src="./tests/user/local/admin-http.sb.html"></include>
       <include src="./tests/publish/root-cert-trust.sb.html"></include>
     </sb-test-suite>
