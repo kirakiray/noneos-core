@@ -1,4 +1,4 @@
-/* noneos-core version: 4.9.0 */
+/* noneos-core version: 4.9.1 */
 (function () {
   'use strict';
 
@@ -502,8 +502,13 @@
   const handleOfficialSourceRequest = async ({ path, request }) => {
     const host = location.host;
 
+    // 不能把 fetch 事件的整体 request 作为 init 传给 fetch(url, request)：
+    // 导航请求的 mode 是 "navigate"，二次构造会直接抛 TypeError，
+    // 因此只转发方法与头
+    const fetchOptions = { method: request.method, headers: request.headers };
+
     if (host === "localhost:3002") {
-      return fetch(new URL(path, location.origin).href, request);
+      return fetch(new URL(path, location.origin).href, fetchOptions);
     }
 
     const returnOfficial = () => fetch(`https://core.noneos.com${path}`);
@@ -513,7 +518,7 @@
       // fetch 对 404 等 HTTP 错误状态不会 throw，候选源返回非 ok 响应时
       // 必须视为失败继续回退，否则文件缺失时永远到不了官方源
       try {
-        const res = await fetch(new URL(path, "http://localhost:3002").href, request);
+        const res = await fetch(new URL(path, "http://localhost:3002").href, fetchOptions);
         if (res.ok) {
           return res;
         }
@@ -521,7 +526,7 @@
         // 3002 未启动
       }
       try {
-        const res = await fetch(new URL(path, location.origin).href, request);
+        const res = await fetch(new URL(path, location.origin).href, fetchOptions);
         if (res.ok) {
           return res;
         }
@@ -580,7 +585,7 @@
     return configReadyPromise;
   };
 
-  const NONEOS_CORE_VERSION = "noneos-core@4.9.0";
+  const NONEOS_CORE_VERSION = "noneos-core@4.9.1";
 
   self.addEventListener("fetch", (event) => {
     const { request } = event;
