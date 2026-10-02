@@ -70,6 +70,7 @@ nos-lib/
 ### `_install/`（安装/升级引导）
 
 - `main.js`：导出 `install` / `check` / `installServiceWorker` / `installSystemFile` / `updateSystemConfig`。内部以 `../../` 相对引用仓库根的 `nos.tgz`、`nos/` 源码（目录处于顶层，层级恰与迁移前一致）。
+  - `check()` 判定：`serviceWorkerVersion` 或 `systemConfig.version` 缺失，或 `systemConfig.mode !== "local"`（`mode:"online"` 是安装过程的过渡态，装到一半被打断会停留在此）→ 返回 `uninstalled` 触发重装自愈；否则版本与线上一致返回 `installed`、不一致返回 `upgradable`。
 - `util.js`：导出 `verifyRootStatus` / `verifyRootCert` / `getOnlineData` / `registerSw` / `clearSw`；内置 `PINNED_ROOT_KEY_HASHES` 信任锚（由 `scripts/rotate-root.js` 自动重写，路径硬编码于该脚本，移动目录时必须同步）。
 - `register.js`：测试环境快速注册 SW，测试文件以 `import registration from "/nos-lib/_install/register.js"` 引用。
 - 信任链机制详见 [CONTEXT.md「根证书信任集」](../CONTEXT.md#根证书信任集与发布签名链) 与 skill 的 `references/root-cert.md`。

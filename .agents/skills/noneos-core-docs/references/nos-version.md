@@ -71,6 +71,8 @@ attached
        └→ state === "installed" ──→ emit("installed")
 ```
 
+`check()` 的判定规则：`serviceWorkerVersion` 或 `systemConfig.version` 缺失，或 `systemConfig.mode !== "local"`（`mode:"online"` 是安装过程的过渡态，安装被打断会停留在此状态，此时 SW 对 `/nos/*` 直接走网络、localhost 下必定 404）→ 返回 `uninstalled`，由 auto-install 重装自愈；版本与线上一致 → `installed`；不一致 → `upgradable`。
+
 UI 表现对应关系：
 - `loading = true` → spinner 显示
 - `installing = true` → 进度条 + 描述文字显示
