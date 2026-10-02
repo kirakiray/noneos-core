@@ -30,7 +30,15 @@ export const check = async () => {
 
   const { systemConfig, serviceWorkerVersion } = configData;
 
-  if (!serviceWorkerVersion || !systemConfig.version) {
+  // mode:"online" 是安装过程的过渡态（installSystemFile 先写成 online，
+  // 全部文件落盘后才改回 local）；装到一半被打断就会永久停留在该状态，
+  // 而 SW 的 nos-handle 在此模式下直接走网络（localhost 上必定 404）。
+  // 因此 mode 不是 local 一律视为半安装，走重新安装流程自愈。
+  if (
+    !serviceWorkerVersion ||
+    !systemConfig.version ||
+    systemConfig.mode !== "local"
+  ) {
     return {
       state: "uninstalled",
       systemConfig,
