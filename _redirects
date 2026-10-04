@@ -1,6 +1,12 @@
 # nos-lib 迁移兼容：旧前缀 301 到新路径（保护第三方硬编码 URL 与已发布文档链接）。
-# 必须放在 /*.html 规则之前，避免旧 .html 路径先被 200 rewrite 命中。
+# 2026-10-04 实测三条 301 在 core.noneos.com 均生效，保留。
 /nos-tool/_install/* /nos-lib/_install/:splat 301
 /nos-tool/comps/* /nos-lib/nos-version/:splat 301
 /ncomp/* /nos-lib/:splat 301
-/*.html /:splat.html 200
+
+# 注意：不要加「/*.html /:splat.html 200」之类的规则来保留 .html 后缀——
+# Pages 资产层对 .html 路径的 308 规范化发生在 rewrite 目标二次进入资产层时，
+# _redirects 压不住（2026-10-04 实测：本规则在线上存在时 nos-version.html 仍 308，
+# 而同文件 301 规则生效，证明规则被消费、单纯是压不过）。
+# 要保留 .html 后缀需 Pages Functions（先于资产层执行）或迁 Workers Static Assets
+# （assets.html_handling:"none"）。
