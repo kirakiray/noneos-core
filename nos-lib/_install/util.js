@@ -44,6 +44,8 @@ export const verifyRootStatus = async (rootCert, rootStatus) => {
 // 本地缓存的已受信信任集，用于链式校验与 generation 防回滚
 const trustStore = getStorage("nos-root-trust");
 const CACHED_CERT_KEY = "cached-root-cert";
+// 本地缓存的最近一份在线校验通过的 nos.json，供 allowCache 降级使用
+const CACHED_NOS_JSON_KEY = "cached-nos-json";
 
 const isValidStatus = (status) =>
   ["active", "grace", "retired"].includes(status);
@@ -143,7 +145,7 @@ export const verifyRootCert = async (rootCert, cachedCert) => {
   return true;
 };
 
-export const getOnlineData = async () => {
+export const getOnlineData = async ({ allowCache = false } = {}) => {
   // 吊销状态（域名信任根）：拉取失败时降级用本地缓存的最后一份；从未获取到则跳过检查
   let rootStatus = null;
 
@@ -160,12 +162,32 @@ export const getOnlineData = async () => {
     rootStatus = await trustStore.getItem("last-root-status");
   }
 
-  const rootCert = await fetch(
-    new URL("../../nos/root-cert.json", import.meta.url).href,
-    {
-      cache: "no-store",
+  // 根证书信任集：在线拉取失败且 allowCache 时，降级用本地缓存的最近一份受信
+  // 信任集完成本次校验链（数据本身是上一次在线校验通过后写入的）。仅限
+  // check() 的版本检测使用；install 流程必须实时在线（allowCache=false），
+  // 保持"安装校验只认线上新签的信任集"。
+  let rootCert = null;
+  try {
+    rootCert = await fetch(
+      new URL("../../nos/root-cert.json", import.meta.url).href,
+      {
+        cache: "no-store",
+      }
+    ).then((e) => e.json());
+  } catch (err) {
+    if (!allowCache) {
+      throw err;
     }
-  ).then((e) => e.json());
+
+    rootCert = await trustStore.getItem(CACHED_CERT_KEY);
+    if (!rootCert) {
+      // 全新安装没有本地缓存可降级，抛出可读错误（而不是裸的 fetch TypeError）
+      throw new Error(
+        "Failed to fetch root certificate and no cached trust set is available (first-time install requires network access to core.noneos.com)",
+        { cause: err },
+      );
+    }
+  }
 
   const cachedCert = await trustStore.getItem(CACHED_CERT_KEY);
 
@@ -175,12 +197,32 @@ export const getOnlineData = async () => {
   // 缓存通过校验的信任集，作为下次更新的链式信任依据
   await trustStore.setItem(CACHED_CERT_KEY, rootCert);
 
-  const onlineNosConfig = await fetch(
-    new URL("../../nos.json", import.meta.url).href,
-    {
-      cache: "no-store",
+  // 在线版本清单：拉取失败且 allowCache 时降级用本地缓存的最近一份（使用前
+  // 仍走验签 + active key 校验），让网络异常时已装机客户端的版本检测视为
+  // 已安装、跳过升级判断；install 流程保持实时在线，不降级。
+  let onlineNosConfig = null;
+  let nosConfigFromCache = false;
+  try {
+    onlineNosConfig = await fetch(
+      new URL("../../nos.json", import.meta.url).href,
+      {
+        cache: "no-store",
+      }
+    ).then((res) => res.json());
+  } catch (err) {
+    if (!allowCache) {
+      throw err;
     }
-  ).then((res) => res.json());
+
+    onlineNosConfig = await trustStore.getItem(CACHED_NOS_JSON_KEY);
+    if (!onlineNosConfig) {
+      throw new Error(
+        "Failed to fetch online config and no cached copy is available (first-time install requires network access to core.noneos.com)",
+        { cause: err },
+      );
+    }
+    nosConfigFromCache = true;
+  }
 
   const isNosConfigValid = await verifyData(onlineNosConfig);
 
@@ -195,6 +237,12 @@ export const getOnlineData = async () => {
 
   if (!activeKeys.includes(onlineNosConfig.publicKey)) {
     throw new Error("nos.json is not signed by an active root key");
+  }
+
+  // 只把在线拉取且校验通过的数据写入缓存，保证缓存始终是"最近一次在线校验
+  // 通过"的版本，降级路径的数据不会回写
+  if (!nosConfigFromCache) {
+    await trustStore.setItem(CACHED_NOS_JSON_KEY, onlineNosConfig);
   }
 
   return {

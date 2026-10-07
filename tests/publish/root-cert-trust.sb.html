@@ -263,6 +263,138 @@
       </script>
     </template>
   </sb-test>
+
+  <!-- 测试 11：allowCache 降级——在线拉取全部失败时，用本地缓存的最近一份
+       在线数据完成校验链（check() 版本检测的离线兜底）。mock 只拦截三个
+       在线配置 URL，其余请求放行；操作 globalThis.fetch，禁用 parallel。 -->
+  <sb-test name="getOnlineData falls back to cache when offline (allowCache)">
+    <template>
+      <script type="module">
+        import { getOnlineData } from "/nos-lib/_install/util.js";
+
+        const { getStorage } = await import("/nos/storage/main.js");
+        const rc11_trust = getStorage("nos-root-trust");
+
+        // 预写缓存：用仓库真实数据模拟"上一次在线校验通过后写入"的状态
+        const rc11_realCert = await fetch("/nos/root-cert.json").then((e) => e.json());
+        const rc11_realNos = await fetch("/nos.json").then((e) => e.json());
+        await rc11_trust.setItem("cached-root-cert", rc11_realCert);
+        await rc11_trust.setItem("cached-nos-json", rc11_realNos);
+
+        const rc11_originalFetch = globalThis.fetch;
+        const rc11_blockedPaths = ["/root-status.json", "/nos/root-cert.json", "/nos.json"];
+        globalThis.fetch = (input, init) => {
+          const url = typeof input === "string" ? input : input.url;
+          const path = new URL(url, location.href).pathname;
+          if (rc11_blockedPaths.includes(path)) {
+            return Promise.reject(new TypeError("Failed to fetch (mocked offline)"));
+          }
+          return rc11_originalFetch(input, init);
+        };
+
+        try {
+          const rc11_data = await getOnlineData({ allowCache: true });
+          const rc11_versionMatch = rc11_data.onlineNosConfig.version === rc11_realNos.version;
+          const rc11_certMatch = rc11_data.rootCert.generation === rc11_realCert.generation;
+          return {
+            assert: rc11_versionMatch && rc11_certMatch,
+            content: {
+              version: rc11_data.onlineNosConfig.version,
+              checks: { rc11_versionMatch, rc11_certMatch },
+            },
+          };
+        } catch (rc11_error) {
+          return { assert: false, content: { error: rc11_error.message } };
+        } finally {
+          globalThis.fetch = rc11_originalFetch;
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 12：无缓存 + 离线（全新安装场景）→ 抛出可读错误并保留原始 cause -->
+  <sb-test name="getOnlineData throws readable error when offline without cache">
+    <template>
+      <script type="module">
+        import { getOnlineData } from "/nos-lib/_install/util.js";
+
+        const { getStorage } = await import("/nos/storage/main.js");
+        const rc12_trust = getStorage("nos-root-trust");
+
+        // 清掉测试 11 预写的缓存，模拟全新安装
+        await rc12_trust.removeItem("cached-root-cert");
+        await rc12_trust.removeItem("cached-nos-json");
+
+        const rc12_originalFetch = globalThis.fetch;
+        const rc12_blockedPaths = ["/root-status.json", "/nos/root-cert.json", "/nos.json"];
+        globalThis.fetch = (input, init) => {
+          const url = typeof input === "string" ? input : input.url;
+          const path = new URL(url, location.href).pathname;
+          if (rc12_blockedPaths.includes(path)) {
+            return Promise.reject(new TypeError("Failed to fetch (mocked offline)"));
+          }
+          return rc12_originalFetch(input, init);
+        };
+
+        try {
+          await getOnlineData({ allowCache: true });
+          return { assert: false, content: { message: "无缓存离线时应抛错" } };
+        } catch (rc12_error) {
+          const rc12_readable = /no cached/i.test(rc12_error.message);
+          const rc12_hasCause = rc12_error.cause instanceof Error;
+          return {
+            assert: rc12_readable && rc12_hasCause,
+            content: {
+              error: rc12_error.message,
+              checks: { rc12_readable, rc12_hasCause },
+            },
+          };
+        } finally {
+          globalThis.fetch = rc12_originalFetch;
+        }
+      </script>
+    </template>
+  </sb-test>
+
+  <!-- 测试 13：默认（无参数）模式离线时原样抛网络错误——install 流程
+       依赖严格在线行为，不允许静默降级 -->
+  <sb-test name="getOnlineData stays strict online by default">
+    <template>
+      <script type="module">
+        import { getOnlineData } from "/nos-lib/_install/util.js";
+
+        const rc13_originalFetch = globalThis.fetch;
+        const rc13_blockedPaths = ["/root-status.json", "/nos/root-cert.json", "/nos.json"];
+        globalThis.fetch = (input, init) => {
+          const url = typeof input === "string" ? input : input.url;
+          const path = new URL(url, location.href).pathname;
+          if (rc13_blockedPaths.includes(path)) {
+            return Promise.reject(new TypeError("Failed to fetch (mocked offline)"));
+          }
+          return rc13_originalFetch(input, init);
+        };
+
+        try {
+          await getOnlineData();
+          return { assert: false, content: { message: "默认模式离线时应抛错" } };
+        } catch (rc13_error) {
+          // 原样抛出：不是降级包装的可读错误，保持 fetch 的网络错误形态
+          const rc13_rawFetchError =
+            !/no cached/i.test(rc13_error.message) &&
+            (rc13_error instanceof TypeError || /fetch/i.test(rc13_error.message));
+          return {
+            assert: rc13_rawFetchError,
+            content: {
+              error: rc13_error.message,
+              checks: { rc13_rawFetchError },
+            },
+          };
+        } finally {
+          globalThis.fetch = rc13_originalFetch;
+        }
+      </script>
+    </template>
+  </sb-test>
 </body>
 
 </html>

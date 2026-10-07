@@ -46,7 +46,10 @@ export const check = async () => {
     };
   }
 
-  const { onlineNosConfig } = await getOnlineData();
+  // allowCache：版本检测允许降级用本地缓存的最近一份在线数据——网络异常
+  // （在线配置拉取失败）时已装机客户端视为已安装、跳过升级判断，而不是
+  // 直接报错；install 流程不走降级，保持实时在线校验。
+  const { onlineNosConfig } = await getOnlineData({ allowCache: true });
 
   if (systemConfig.version !== onlineNosConfig.version) {
     return {

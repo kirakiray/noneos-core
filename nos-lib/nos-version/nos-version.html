@@ -145,7 +145,8 @@
             } catch (err) {
               this.installing = false;
               this.loading = false;
-              this.emit("error", { data: { message: err.message, phase: "install" } });
+              // error 负载附带原始错误对象，消费方（如 run-app）可读取 stack / cause
+              this.emit("error", { data: { message: err.message, phase: "install", error: err } });
             }
           },
           async refreshData() {
@@ -190,7 +191,8 @@
               this.emit("installed", { data: { version: stateData.version } });
             } catch (err) {
               this.loading = false;
-              this.emit("error", { data: { message: err.message, phase: "check" } });
+              // error 负载附带原始错误对象，消费方（如 run-app）可读取 stack / cause
+              this.emit("error", { data: { message: err.message, phase: "check", error: err } });
             }
           },
         },
