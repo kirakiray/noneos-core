@@ -65,13 +65,13 @@ nos-lib/
 - **依赖**：`../_install/main.js`（相对引用，与 `_install/` 同级故路径稳定）
 - **功能**：安装/版本入口组件，UI 状态机为 loading → installed（含 upgradable 按钮）/ installing（进度条）/ 未安装（Install 按钮）。
 - **属性**：`auto-install`（存在时检测到未安装或可升级即自动触发安装）。
-- **事件**：`installed`（`{version}`）、`upgradable`（`{version, lastVersion}`）、`uninstalled`、`install-start`、`install-progress`（`{step, desc, total}`）、`install-complete`、`check-start`、`error`（`{message, phase: "check"|"install"}`）。
+- **事件**：`installed`（`{version}`）、`upgradable`（`{version, lastVersion}`）、`uninstalled`、`install-start`、`install-progress`（`{step, desc, total}`）、`install-complete`、`check-start`、`error`（`{message, phase: "check"|"install", error}`，`error` 为原始错误对象，供消费方读取 stack / cause）。
 
 ### `_install/`（安装/升级引导）
 
 - `main.js`：导出 `install` / `check` / `installServiceWorker` / `installSystemFile` / `updateSystemConfig`。内部以 `../../` 相对引用仓库根的 `nos.tgz`、`nos/` 源码（目录处于顶层，层级恰与迁移前一致）。
-  - `check()` 判定：`serviceWorkerVersion` 或 `systemConfig.version` 缺失，或 `systemConfig.mode !== "local"`（`mode:"online"` 是安装过程的过渡态，装到一半被打断会停留在此）→ 返回 `uninstalled` 触发重装自愈；否则版本与线上一致返回 `installed`、不一致返回 `upgradable`。
-- `util.js`：导出 `verifyRootStatus` / `verifyRootCert` / `getOnlineData` / `registerSw` / `clearSw`；内置 `PINNED_ROOT_KEY_HASHES` 信任锚（由 `scripts/rotate-root.js` 自动重写，路径硬编码于该脚本，移动目录时必须同步）。
+  - `check()` 判定：`serviceWorkerVersion` 或 `systemConfig.version` 缺失，或 `systemConfig.mode !== "local"`（`mode:"online"` 是安装过程的过渡态，装到一半被打断会停留在此）→ 返回 `uninstalled` 触发重装自愈；否则版本与线上一致返回 `installed`、不一致返回 `upgradable`。版本比对用 `getOnlineData({ allowCache: true })`：在线配置拉取失败（网络异常/被拦截）时降级用 `nos/storage` 缓存的最近一份在线校验通过的数据（视为已安装、跳过升级判断），全新安装无缓存可降级时抛可读错误；install 流程（`installServiceWorker` / `installSystemFile`）不降级、必须实时在线。
+- `util.js`：导出 `verifyRootStatus` / `verifyRootCert` / `getOnlineData` / `registerSw` / `clearSw`；内置 `PINNED_ROOT_KEY_HASHES` 信任锚（由 `scripts/rotate-root.js` 自动重写，路径硬编码于该脚本，移动目录时必须同步）。`getOnlineData({ allowCache = false } = {})`：`allowCache` 为 `true` 时 root-cert.json / nos.json 在线拉取失败降级用 `nos-root-trust` 空间的缓存（`cached-root-cert` / `cached-nos-json`，写入时机 = 每次在线拉取且校验通过后；降级数据不回写），无缓存抛带 cause 的可读错误；默认 `false` 原样抛网络错误。
 - `register.js`：测试环境快速注册 SW，测试文件以 `import registration from "/nos-lib/_install/register.js"` 引用。
 - 信任链机制详见 [CONTEXT.md「根证书信任集」](../CONTEXT.md#根证书信任集与发布签名链) 与 skill 的 `references/root-cert.md`。
 

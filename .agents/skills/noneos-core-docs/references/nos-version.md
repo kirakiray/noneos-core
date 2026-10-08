@@ -52,7 +52,7 @@ NoneOS Core 版本管理组件，用于检测当前安装版本、提示升级�
 | `install-progress` | `{ data: { step, desc, total } }` | 安装进度更新时 |
 | `install-complete` | 无 | 安装/升级完成时 |
 | `installed` | `{ data: { version } }` | 确认已安装且版本正常时 |
-| `error` | `{ data: { message, phase } }` | check 或 install 过程中发生错误时 |
+| `error` | `{ data: { message, phase, error } }` | check 或 install 过程中发生错误时（`error` 为原始错误对象） |
 
 ## 状态机
 
@@ -97,25 +97,25 @@ UI 表现对应关系：
 
 ### 外部事件监听
 
-通过 `on()` 方法监听组件事件，事件数据通过 `e.detail` 获取：
+通过 `on()` 方法监听组件事件。事件负载经 ofa.js 的 `emit` 派发后挂在**原生 Event 的 `data` 字段**上（原生 Event 没有 `detail` 属性，读 `e.detail` 会得到 `undefined`）：
 
 ```html
 <nos-version id="nv"></nos-version>
 <script>
   $("#nv").on("install-progress", (e) => {
-    console.log(e.detail.data); // { step: 2, desc: "downloading", total: 5 }
+    console.log(e.data); // { step: 2, desc: "downloading", total: 5 }
   });
 
   $("#nv").on("installed", (e) => {
-    console.log("当前版本:", e.detail.data.version);
+    console.log("当前版本:", e.data.version);
   });
 
   $("#nv").on("upgradable", (e) => {
-    console.log("可升级:", e.detail.data.version, "→", e.detail.data.lastVersion);
+    console.log("可升级:", e.data.version, "→", e.data.lastVersion);
   });
 
   $("#nv").on("error", (e) => {
-    console.error("出错:", e.detail.data.message, "阶段:", e.detail.data.phase);
+    console.error("出错:", e.data.message, "阶段:", e.data.phase, e.data.error);
   });
 </script>
 ```

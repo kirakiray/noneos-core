@@ -32,6 +32,8 @@ NoneOS Core 发布完整性依赖两级签名：根证书信任集 `nos/root-cer
    - **已有缓存**：签名者必须属于本地缓存的上一份受信信任集中的有效密钥（存于 `nos/storage` 的 `nos-root-trust` 空间）；
 4. `nos.json` 验签通过，且其 `publicKey` 属于信任集 active 密钥。
 
+**离线降级（仅限版本检测）**：`getOnlineData({ allowCache: true })` 在 root-cert.json / nos.json 在线拉取失败（网络异常/被拦截）时，降级用 `nos/storage` 的 `nos-root-trust` 空间中最近一份在线校验通过的缓存（`cached-root-cert` / `cached-nos-json`，降级数据使用前仍完整走上述验签 + active key 校验，且不回写缓存）；本地无缓存（全新安装）时抛出带 cause 的可读错误。仅 `check()` 的版本比对使用该模式（离线时视为已安装、跳过升级判断）；install 流程默认 `allowCache: false`，保持实时在线、原样抛网络错误。
+
 ## 密钥文件存放
 
 - 根密钥：`rootkeys/root.json`（id 固定为 `root`，被 gitignore，**不入库**）
@@ -104,7 +106,7 @@ node scripts/rotate-root.js revoke root   # 吊销泄漏密钥，minGeneration �
 
 ## 根证书的离线可用性
 
-`nos/root-cert.json` 正常打包进系统文件，OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证），断网时业务验签使用本地副本或 `nos/storage` 缓存的信任集均可。安装器校验链则不信任任何本地证书副本——pin、链式信任、generation 与吊销检查共同保证只认线上新签的信任集。
+`nos/root-cert.json` 正常打包进系统文件，OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证），断网时业务验签使用本地副本或 `nos/storage` 缓存的信任集均可。安装（install）校验链则不信任任何本地证书副本——pin、链式信任、generation 与吊销检查共同保证只认线上新签的信任集；`check()` 版本检测是唯一例外，允许降级缓存（见上文「离线降级」）。
 
 ## 泄漏保底机制之外：常规轮换（不换根密钥）
 

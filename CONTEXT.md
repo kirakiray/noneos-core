@@ -101,7 +101,7 @@
 
 **泄漏保底机制（吊销）**：根目录 `root-status.json`（`{ type, signTime, minGeneration, revokedKeyHashes }`）是独立于签名体系的域名信任根——其真实性由部署渠道（HTTPS + 域名控制权）保证，因此**不签名**（用根私钥签会被泄漏钥一并伪造，毫无意义）。放在仓库根目录（`nos/` 之外），与 `nos.json` 一样不经过 SW 的 `/nos/` OPFS 代理，保证客户端永远读到线上版本。客户端更新时一并拉取（`no-store`，失败则降级用 `nos/storage` 缓存的最后一份；从未获取到则跳过）：证书 generation 低于 `minGeneration`，或信任集中任一密钥指纹命中 `revokedKeyHashes`，直接拒绝。主私钥泄漏后执行 `node scripts/rotate-root.js revoke root` 并部署，攻击者用泄漏钥签发的一切信任集立即失效，随后换钥重签恢复服务。该机制的前提是渠道未被攻破。
 
-> 根证书信任集 `nos/root-cert.json` 的 OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证）；但安装器校验链不信任任何本地副本——pin、链式信任、generation 与 `root-status.json` 吊销检查共同保证只认线上新签的信任集。
+> 根证书信任集 `nos/root-cert.json` 的 OPFS 副本可供业务离线读取（完整性由安装时对 `nos.json` 的哈希校验保证）；但安装（install）校验链不信任任何本地副本——pin、链式信任、generation 与 `root-status.json` 吊销检查共同保证只认线上新签的信任集。**唯一例外**：`check()` 的版本检测（`getOnlineData({ allowCache: true })`）在在线配置拉取失败（网络异常/被拦截）时，允许降级用 `nos/storage` 缓存的最近一份在线校验通过的数据（信任集 `cached-root-cert` 与 `nos.json` `cached-nos-json`，使用前仍完整走验签 + active key 校验），把版本比对视为已安装、跳过升级判断；全新安装无缓存可降级时抛可读错误。install 流程始终实时在线、不降级。
 
 ## 四、CONTEXT.md 模块清单
 
