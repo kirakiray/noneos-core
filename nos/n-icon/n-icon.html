@@ -40,7 +40,7 @@
           // 2. 缓存未命中则从网络获取
           if (!content) {
             promiseCache[name] = fetch(
-              `https://api.iconify.design/${name}.svg`
+              `https://api.iconify.design/${name.replace(":", "/")}.svg`
             ).then((res) => (res.ok ? res.text() : Promise.reject()));
 
             try {

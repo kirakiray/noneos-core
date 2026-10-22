@@ -32,7 +32,7 @@
           if (!iconCache[this.icon]) {
             // 创建新的Promise并存入缓存
             iconCache[this.icon] = fetch(
-              `https://api.iconify.design/${this.icon}.svg`
+              `https://api.iconify.design/${this.icon.replace(":", "/")}.svg`
             )
               .then((res) => res.text())
               .catch((error) => {
