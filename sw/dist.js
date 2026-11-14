@@ -567,8 +567,7 @@
    * /nos-lib/xxx（nos 官方在线库：公共组件等，不进 nos.tgz 签名包）
    * - localhost dev：优先 localhost:3002 → 官方源 → 同域兜底（网络优先）
    * - 生产环境：直接走官方源（SWR）
-   * 旧前缀 /ncomp/、/nos-tool/comps/ 由 main.js 归一化为 /nos-lib/ 后进入，
-   * OPFS 缓存键即归一化后的 path（落在 nos-lib/ 目录）。
+   * OPFS 缓存键即 path，落在 nos-lib/ 目录。
    */
   const handleNosLibRequest = createHandler({
     tag: "nos-lib",
@@ -755,8 +754,7 @@
    * - 其他 localhost 端口（含 127.0.0.1 / [::1]）：优先代理到 3002，失败回退官方源
    * - 生产环境：直接回源官方
    *
-   * path 由 main.js 归一化为仓库物理路径（旧前缀别名也先归一化），
-   * 保证回源目标始终是新路径；旧 URL 由托管层 301 兜底。
+   * path 由 main.js 归一化为仓库物理路径，保证回源目标始终正确。
    *
    * 可选 verify(path, blob)：对 `_install/` 等 nos-lib 资源做签名清单校验，
    * 不通过时返回 502 且不返回内容。
@@ -839,18 +837,11 @@
     try {
       const rootHandle = await navigator.storage.getDirectory();
 
-      // 新版布局：nos/nos-config/system.json；兼容旧版安装的根目录 nos-config/
-      let configFileHandle;
-      try {
-        configFileHandle = await rootHandle
-          .getDirectoryHandle("nos")
-          .then((dir) => dir.getDirectoryHandle("nos-config"))
-          .then((dir) => dir.getFileHandle("system.json"));
-      } catch {
-        configFileHandle = await rootHandle
-          .getDirectoryHandle("nos-config")
-          .then((dir) => dir.getFileHandle("system.json"));
-      }
+      // 配置固定存放在 nos/nos-config/system.json
+      const configFileHandle = await rootHandle
+        .getDirectoryHandle("nos")
+        .then((dir) => dir.getDirectoryHandle("nos-config"))
+        .then((dir) => dir.getFileHandle("system.json"));
 
       const file = await configFileHandle.getFile();
       const content = await file.text();
@@ -889,12 +880,11 @@
     }
 
     try {
-      // /nos-lib/_install/ 为安装引导（必须实时回源，不缓存）；
-      // 旧前缀 /nos-tool/_install/ 归一化后走同一处理器（兼容已部署的第三方页面）
-      if (/^\/nos-lib\/_install\//.test(pathname) || /^\/nos-tool\/_install\//.test(pathname)) {
+      // /nos-lib/_install/ 为安装引导（必须实时回源，不缓存）
+      if (/^\/nos-lib\/_install\//.test(pathname)) {
         return event.respondWith(
           handleOfficialSourceRequest({
-            path: pathname.replace(/^\/nos-tool\/_install\//, "/nos-lib/_install/"),
+            path: pathname,
             request,
             systemConfig,
             verify: verifyNosLibFile,
@@ -902,15 +892,11 @@
         );
       }
 
-      // /nos-lib/ 官方在线库（SWR 缓存）；
-      // 旧前缀 /ncomp/、/nos-tool/comps/ 归一化到新路径（兼容旧引用，缓存键统一为新路径）
-      if (/^\/nos-lib\//.test(pathname) || /^\/ncomp\//.test(pathname) || /^\/nos-tool\/comps\//.test(pathname)) {
-        const libPath = pathname
-          .replace(/^\/ncomp\//, "/nos-lib/")
-          .replace(/^\/nos-tool\/comps\//, "/nos-lib/nos-version/");
+      // /nos-lib/ 官方在线库（SWR 缓存）
+      if (/^\/nos-lib\//.test(pathname)) {
         return event.respondWith(
           handleNosLibRequest({
-            path: libPath,
+            path: pathname,
             request,
             systemConfig,
           }),
@@ -924,27 +910,6 @@
             request,
             systemConfig,
           }),
-        );
-      }
-
-      // 旧路径 /nos/locale-text/、/nos/n-icon/ 已迁至 nos-lib：
-      // 优先走 nos-lib（CDN/SWR 缓存）；离线且旧安装的 OPFS 副本仍在时回退原 /nos/ 处理
-      if (/^\/nos\/(locale-text|n-icon)\//.test(pathname)) {
-        const libPath = pathname.replace(/^\/nos\//, "/nos-lib/");
-        return event.respondWith(
-          (async () => {
-            try {
-              const res = await handleNosLibRequest({
-                path: libPath,
-                request,
-                systemConfig,
-              });
-              if (res && res.ok) return res;
-            } catch {
-              // nos-lib 不可用（离线且无缓存），回退旧路径
-            }
-            return handleNosRequest({ path: pathname, request, systemConfig });
-          })(),
         );
       }
 

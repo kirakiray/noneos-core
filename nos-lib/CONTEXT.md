@@ -8,9 +8,9 @@
 
 包含三部分：
 
-1. **公共 UI 组件**（原 `ncomp/` 迁入）：`<n-user-name>`、`<n-user-status>`；
-2. **安装/版本设施**（原 `nos-tool/_install/` 与 `nos-tool/comps/nos-version.html` 迁入）：`_install/` 引导与 `<nos-version>` 组件；
-3. **通用 UI 基础设施**（原 `nos/locale-text/`、`nos/n-icon/` 迁入）：`<locale-text>` 组件与 `getLocaleText()` 运行时、`<n-icon>` 图标组件。
+1. **公共 UI 组件**：`<n-user-name>`、`<n-user-status>`；
+2. **安装/版本设施**：`_install/` 引导与 `<nos-version>` 组件；
+3. **通用 UI 基础设施**：`<locale-text>` 组件与 `getLocaleText()` 运行时、`<n-icon>` 图标组件。
 
 基于 `nos` 的上层项目可通过 `/nos-lib/{path}` 路径直接引用。
 
@@ -105,7 +105,7 @@ nos-lib/
 <nos-version auto-install></nos-version>
 ```
 
-## 五、路由、缓存与旧前缀兼容
+## 五、路由与缓存
 
 路由注册在 `sw/src/main.js`（根 CONTEXT.md 第二节有汇总表）：
 
@@ -115,9 +115,6 @@ nos-lib/
   - OPFS 缓存键即 path，落在 `nos-lib/` 目录。
   - **签名校验**（`sw/src/modules/noslib-verify.js`）：缓存未命中时拉取 `nos-lib/nos-lib.json`（`no-store`）→ pin 校验签名者 → 验签 → 文件 hash 比对，通过后才写 OPFS；缓存命中直接返回。清单 `version` 防回滚，版本升高时清空 `nos-lib/` 缓存；localhost / 127.0.0.1 / [::1] 跳过校验。清单不收录 `*.md` 与 `*.sb.html`。
 - **`/nos-lib/_install/{path}`** → `handleOfficialSourceRequest`（`sw/src/modules/official-handle.js`）：安装引导必须实时回源，**不读写任何缓存**；`localhost:3002` 直接 fetch，其他 localhost 代理到 3002，生产回源官方。生产环境同样按 `nos-lib.json` 验签，失败返回 502。
-- **旧前缀别名**（`/ncomp/{path}`、`/nos-tool/_install/{path}`、`/nos-tool/comps/{path}`、`/nos/locale-text/{path}`、`/nos/n-icon/{path}`）：main.js 在分发前把 path 归一化为 `/nos-lib/` 新路径（`comps/nos-version.html` → `nos-version/nos-version.html`；`/nos/locale-text/...`、`/nos/n-icon/...` → `/nos-lib/...`），再走上述处理器；跨域直连消费者由托管层 `_redirects` 的 301 规则兜底。
-
-> 历史备注：原 `/ncomp/` 处理器名为 `handleNcompRequest`、原 `/nos-tool/` 处理器为 `nostool-handle.js`（现改名 `official-handle.js` 并与 `_install` 共用）。
 
 ## 六、开发规范
 
@@ -125,5 +122,5 @@ nos-lib/
 2. 组件入口文件命名为 `{tag-name}.html`，建议配套同名 `{tag-name}.sb.html` 测试。
 3. 组件内部引用 `nos` 能力时：需要在 SW 接管前也能通过完整 CDN URL 直接加载的组件，使用相对路径 `../../nos/...`；只在 SW 宿主内运行的组件可用绝对路径 `/nos/...`，保持在不同项目中路径一致。
 4. 新增资源前，先确认它应该放 `nos/`（进签名包随系统安装）还是 `nos-lib/`（在线分发），不要把应随包安装的内容放进 `nos-lib/`。
-5. 移动/重命名本目录内容时，必须同步：`sw/src/main.js` 归一化规则、`scripts/rotate-root.js` 的 `clientUtilPath`、`_redirects` 301 规则、各文档与 skill 引用。
+5. 移动/重命名本目录内容时，必须同步：`sw/src/main.js` 路由、`scripts/rotate-root.js` 的 `clientUtilPath`、各文档与 skill 引用。
 6. 修改本目录任何文件后必须重跑 `npm run build:hashes`（重新签发 `nos-lib/nos-lib.json`），否则 SW 校验会失败；只跑 `build:sw` 不会更新清单。

@@ -38,11 +38,3 @@ NoneOS 宿主页面内引用：
 <nos-version auto-install></nos-version>
 ```
 
-## 旧前缀兼容
-
-历史前缀 `/ncomp/`（原组件目录）、`/nos-tool/_install/` 与 `/nos-tool/comps/`（原安装引导与 nos-version 位置）仍可访问：
-
-- **同域**（运行本 SW 的页面）：Service Worker 在分发时把 path 归一化为 `/nos-lib/` 新路径处理，OPFS 缓存键统一为新路径；
-- **跨域直连**（第三方页面直接从 `core.noneos.com` 加载）：托管层 `_redirects` 返回 301 到新路径。
-
-新代码请一律使用 `/nos-lib/` 前缀。

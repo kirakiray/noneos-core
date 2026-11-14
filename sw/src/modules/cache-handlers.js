@@ -196,8 +196,7 @@ export const handleNpmRequest = createHandler({
  * /nos-lib/xxx（nos 官方在线库：公共组件等，不进 nos.tgz 签名包）
  * - localhost dev：优先 localhost:3002 → 官方源 → 同域兜底（网络优先）
  * - 生产环境：直接走官方源（SWR）
- * 旧前缀 /ncomp/、/nos-tool/comps/ 由 main.js 归一化为 /nos-lib/ 后进入，
- * OPFS 缓存键即归一化后的 path（落在 nos-lib/ 目录）。
+ * OPFS 缓存键即 path，落在 nos-lib/ 目录。
  */
 export const handleNosLibRequest = createHandler({
   tag: "nos-lib",

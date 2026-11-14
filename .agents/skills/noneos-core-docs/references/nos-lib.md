@@ -137,11 +137,3 @@
 - `version` 单调递增，低于缓存版本时拒绝回滚；版本升高时清空 `nos-lib/` OPFS 缓存。
 - `localhost` / `127.0.0.1` / `[::1]` 跳过校验；SW 激活前的 `nos-version` / `_install` / 入口页 `locale-text` 不覆盖，仍只依赖 HTTPS。
 
-## 旧前缀兼容
-
-历史前缀仍可访问，但新代码应一律使用 `/nos-lib/`：
-
-- `/ncomp/{path}` → 归一化为 `/nos-lib/{path}`（SW 内）或 301（托管层 `_redirects`）；
-- `/nos-tool/_install/{path}` → `/nos-lib/_install/{path}`；
-- `/nos-tool/comps/nos-version.html` → `/nos-lib/nos-version/nos-version.html`；
-- `/nos/locale-text/{path}`、`/nos/n-icon/{path}` → `/nos-lib/{path}`。

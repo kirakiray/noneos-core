@@ -18,7 +18,7 @@
 | 目录 | 角色 |
 |------|------|
 | `nos/` | 核心能力层（fs/user/publish/storage/crypto/util，根证书 `root-cert.json`） |
-| `nos-lib/` | nos 官方在线库（CDN 分发，不进 `nos.tgz` 签名包）：公共 UI 组件（`<n-user-name>` / `<n-user-status>` / `<nos-version>` / `<n-icon>` / `<locale-text>`）、i18n 运行时（`getLocaleText`）与安装/升级引导 `_install/`；任何基于 noneos-core 的系统都可通过 `/nos-lib/` 直接使用，旧前缀 `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/`、`/nos/locale-text/`、`/nos/n-icon/` 由 SW 归一化 + 托管 301 兼容 |
+| `nos-lib/` | nos 官方在线库（CDN 分发，不进 `nos.tgz` 签名包）：公共 UI 组件（`<n-user-name>` / `<n-user-status>` / `<nos-version>` / `<n-icon>` / `<locale-text>`）、i18n 运行时（`getLocaleText`）与安装/升级引导 `_install/`；任何基于 noneos-core 的系统都可通过 `/nos-lib/` 直接使用 |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
 | `server/client/` | 服务端管理前端（admin 页面） |
@@ -36,7 +36,6 @@
 | `/npm/{path}` | `https://cdn.jsdelivr.net/npm/{path}` | cache-handlers.js |
 | `/nos-lib/{path}` | 生产：`https://core.noneos.com/nos-lib/{path}`（SWR 缓存到 OPFS，写盘前按 `nos-lib.json` 验签 + 验 hash）；dev：localhost:3002 优先（网络优先，跳过验签）。其中 `/nos-lib/_install/` 为安装引导，始终实时回源、不缓存（同样验签） | cache-handlers.js / official-handle.js / noslib-verify.js |
 | `/nos-tool/{path}` | 生产：`https://core.noneos.com/nos-tool/{path}`；dev：localhost:3002 优先 | official-handle.js |
-| 旧前缀 `/ncomp/{path}`、`/nos-tool/_install/{path}`、`/nos-tool/comps/{path}`、`/nos/locale-text/{path}`、`/nos/n-icon/{path}` | 兼容别名：SW 内归一化到 `/nos-lib/` 新路径处理；托管层另有 301（`_redirects`）保护跨域直连的第三方消费者 | cache-handlers.js / official-handle.js |
 | `/$mount-{id}>/{path}` | 本地挂载目录（IndexedDB 中持久化的 FileSystemHandle） | mount-handle.js |
 | `/$/{path}` | 本地 OPFS 系统目录文件 | file-handler.js |
 | `/__config` | 特殊路由：触发 SW 重载 `nos/nos-config/system.json` 并返回版本信息 | main.js 内联 |
@@ -51,7 +50,7 @@
 | `nos-lib/nos-lib.json` | nos-lib 文件哈希清单与签名（构建产物，由 `scripts/sign-noslib-hashes.js` 生成，SW 校验用） | 否（构建生成） |
 | `/root-status.json` | 根密钥吊销状态（泄漏保底机制，见 `scripts/rotate-root.js revoke`；效力来自域名信任根，不签名，永不入 OPFS） | 是（泄漏应急时手动/脚本更新） |
 | `/nos.tgz` | 系统发布包（USTAR tar + gzip，无时间戳、可复现构建；构建产物） | 否（构建生成） |
-| `/404.html`、`/_redirects` | Cloud Pages 托管配置 | 视部署需求 |
+| `/404.html` | Cloud Pages 404 页面 | 视部署需求 |
 
 ## 三、开发与构建命令
 
