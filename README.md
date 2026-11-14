@@ -81,7 +81,7 @@ Although NoneOS Core *presents itself* as a virtual operating system, its techni
 
 | Pillar | What it means | Where it lives |
 |--------|---------------|----------------|
-| **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | [`nos/publish/`](nos/publish/README.md), [`nos-tool/studio/`](nos-tool/studio/) |
+| **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | [`nos/publish/`](nos/publish/README.md) |
 | **Container isolation** | Each app runs inside a sandboxed runtime: an OPFS-backed virtual filesystem for isolation and persistence, plus a decentralized identity & messaging system that acts as the app's I/O surface to the outside world. | [`nos/fs/`](nos/fs/), [`nos/user/`](nos/user/README.md) |
 | **Resource virtualization** | The containerization is built on a Service Worker layer that intercepts every fetch and maps a set of *virtual URL prefixes* (`/nos/`, `/nos-lib/`, `/nos-tool/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`) to different backends — local OPFS, CDN, the official source, or remote users. The browser sees one origin, but the app perceives many. | [`sw/`](sw/) |
 
@@ -100,7 +100,6 @@ nos/                  # Core runtime modules (browser-side)
   storage/            #   Async key-value storage (IndexedDB, localStorage-like)
   locale-text/        #   Lightweight i18n (<locale-text> + getLocaleText)
   n-icon/             #   Icon component
-  hybrid-data/        #   Hybrid remote + local data (experimental)
   util/               #   Hash, zip, async pool utilities
 nos-lib/              # Official online library (CDN-served, outside the signed pack)
   user-name/          #   <n-user-name> shared component
@@ -108,7 +107,6 @@ nos-lib/              # Official online library (CDN-served, outside the signed 
   nos-version/        #   <nos-version> install/upgrade entry component
   _install/           #   SW registration & system installer bootstrap
 nos-tool/             # Built-in tools, usable by any NoneOS Core system
-  studio/             #   OFA Studio (app dev environment)
   file-explore/       #   File explorer (browse / import / download OPFS files)
   system-info/        #   System info & update manager (version, SW, install)
   locale-text-tool/   #   Extract <locale-text> entries into locale-text.json
@@ -186,7 +184,6 @@ Every system built on NoneOS Core can use the tools under `nos-tool/` **as-is**.
 |---|---|---|
 | **File Explorer** | [`/nos-tool/file-explore/`](nos-tool/file-explore/) | Browse the OPFS virtual filesystem with breadcrumb navigation; create directories, import files/directories from the local disk, download and delete entries, copy the current path, and open files via `/$path` URLs. |
 | **System Info** | [`/nos-tool/system-info/`](nos-tool/system-info/) | Inspect local / online / Service Worker versions and update state, view registered Service Workers and the active controller, then check for updates, (re)register or uninstall the SW, and run a full system update (SW → `nos.tgz` → hash verification → OPFS) with progress feedback. |
-| **OFA Studio** | [`/nos-tool/studio/`](nos-tool/studio/) | App dev environment: create projects from templates, manage project files, and tune the theme/color scheme. |
 | **Locale Text Tool** | [`/nos-tool/locale-text-tool/`](nos-tool/locale-text-tool/) | Scan HTML files for `<locale-text>` blocks and generate a `locale-text.json` translation index. |
 | **RTC Tool** | [`/nos-tool/rtc-tool/`](nos-tool/rtc-tool/) | Manage the WebRTC STUN/TURN server list: test reachability and latency, reorder, and enable/disable entries. |
 

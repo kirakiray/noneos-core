@@ -27,7 +27,6 @@ Using the tools in the `nos-tool` directory, you can easily manage the NoneOS sy
 
 - **file-explore** - File explorer: browse the OPFS virtual filesystem, import/download/delete files, and open them via `/$path`
 - **system-info** - System info & updates: inspect versions and SW state, run a full system update
-- **studio** - App dev environment (OFA Studio): create projects from templates, manage project files, tune the theme
 - **locale-text-tool** - Locale text extraction: scan `<locale-text>` blocks and generate `locale-text.json`
 - **rtc-tool** - WebRTC STUN/TURN server list management: test reachability and latency, reorder, enable/disable
 

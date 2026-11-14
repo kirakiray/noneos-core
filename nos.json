@@ -1,7 +1,7 @@
 {
   "version": "4.9.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1794657548560,
+  "signTime": 1794658171605,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -97,26 +97,6 @@
       "path": "fs/public/file.js",
       "hash": "f16064c713a2024d1c20193faf55172289b47bacd655d950249b2828f681c68a",
       "size": 1254
-    },
-    {
-      "path": "hybrid-data/dir/hybird-data.js",
-      "hash": "6e680824df173077f8b5e39e2a0fb20002fbb5e0140fb338fa35b18b410b7f37",
-      "size": 7592
-    },
-    {
-      "path": "hybrid-data/dir/public.js",
-      "hash": "4b35c70aa886a685bff959c4c30ef76bb2e97948138a685c20c96a7fe09ae8ac",
-      "size": 4685
-    },
-    {
-      "path": "hybrid-data/file.js",
-      "hash": "2fbfe5b7947f1a13c1b16ebed2f99a618551993a591ddce4193fbbbddcc9d5e8",
-      "size": 2529
-    },
-    {
-      "path": "hybrid-data/main.js",
-      "hash": "748fa563753f91cfe73bff0caee93259032ecd1b01de91a8a8e596782cd83066",
-      "size": 1765
     },
     {
       "path": "locale-text/README.md",
@@ -284,5 +264,5 @@
       "size": 6211
     }
   ],
-  "signature": "yOE7ppfCze+z7YGo6MVVLP5zPZt9NdNQLJ7uwsuaHnFOjvkzR7iK/v5waoBfu2STq2Ygh99U8IO7M6V68ufU6w=="
+  "signature": "xVZmjx7szRyil8GAYgFEuWaJ5rllFsyIhkJCQTvVBOCjg2cPV3Ue05uQrKQTIG9/e0oNBsVjaC/WQDndEneNtA=="
 }

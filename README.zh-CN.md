@@ -81,7 +81,7 @@ Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、
 
 | 支柱 | 含义 | 所在位置 |
 |------|------|----------|
-| **微前端托管** | 应用基于内容寻址、可独立发布、按需加载——宿主与应用之间无构建期耦合。签名清单允许任意对端分发或提供应用服务。 | [`nos/publish/`](nos/publish/README.md)、[`nos-tool/studio/`](nos-tool/studio/) |
+| **微前端托管** | 应用基于内容寻址、可独立发布、按需加载——宿主与应用之间无构建期耦合。签名清单允许任意对端分发或提供应用服务。 | [`nos/publish/`](nos/publish/README.md) |
 | **容器隔离** | 每个应用运行在沙箱化运行时中:OPFS 支撑的虚拟文件系统负责隔离与持久化,去中心化身份与消息系统作为应用与外部世界交互的 I/O 接口。 | [`nos/fs/`](nos/fs/)、[`nos/user/`](nos/user/README.md) |
 | **资源虚拟化** | 容器化建立在 Service Worker 层之上,拦截每一次 fetch,将一组*虚拟 URL 前缀*(`/nos/`、`/nos-lib/`、`/nos-tool/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`)映射到不同后端——本地 OPFS、CDN、官方源或远端用户。浏览器只看到一个源,应用却感知到多个。 | [`sw/`](sw/) |
 
@@ -100,7 +100,6 @@ nos/                  # 核心运行时模块(浏览器端)
   storage/            #   异步键值存储(IndexedDB,类 localStorage 接口)
   locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
   n-icon/             #   图标组件
-  hybrid-data/        #   远端 + 本地混合数据(实验性)
   util/               #   哈希、zip、异步池等工具
 nos-lib/              # nos 官方在线库(CDN 分发,不进签名包)
   user-name/          #   <n-user-name> 公共组件
@@ -108,7 +107,6 @@ nos-lib/              # nos 官方在线库(CDN 分发,不进签名包)
   nos-version/        #   <nos-version> 安装/升级入口组件
   _install/           #   SW 注册与系统安装器引导
 nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可直接使用
-  studio/             #   OFA Studio(应用开发环境)
   file-explore/       #   文件浏览器(浏览/导入/下载 OPFS 文件)
   system-info/        #   系统信息与更新管理(版本、SW、安装)
   locale-text-tool/   #   提取 <locale-text> 文案并生成 locale-text.json
@@ -186,7 +184,6 @@ others/               # 归档/实验代码(不参与运行时)
 |---|---|---|
 | **文件浏览器** | [`/nos-tool/file-explore/`](nos-tool/file-explore/) | 以面包屑导航浏览 OPFS 虚拟文件系统;支持新建目录、从本地磁盘导入文件/目录、下载与删除条目、复制当前路径,并可通过 `/$路径` 形式的 URL 直接打开文件。 |
 | **系统信息** | [`/nos-tool/system-info/`](nos-tool/system-info/) | 查看本地版本 / 线上版本 / SW 版本与更新状态,查看已注册的 Service Worker 及当前控制器;可检查更新、注册或卸载 SW、仅更新 SW,以及执行带进度反馈的完整系统更新(SW → `nos.tgz` → 哈希校验 → 写入 OPFS)。 |
-| **OFA Studio** | [`/nos-tool/studio/`](nos-tool/studio/) | 应用开发环境:基于模板创建项目、管理项目文件、调整主题配色。 |
 | **Locale Text 工具** | [`/nos-tool/locale-text-tool/`](nos-tool/locale-text-tool/) | 扫描 HTML 中的 `<locale-text>` 文案,生成 `locale-text.json` 翻译索引。 |
 | **RTC 工具** | [`/nos-tool/rtc-tool/`](nos-tool/rtc-tool/) | 管理 WebRTC 的 STUN/TURN 服务器列表:测试连通性与延迟、调整顺序、临时启停。 |
 

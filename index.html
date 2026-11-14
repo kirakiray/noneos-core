@@ -138,18 +138,6 @@
         <li>
           <locale-text>
             <span lang="cn">
-              <a href="/nos-tool/studio/">OFA Studio</a> ： 用于开发 ofa.js
-              项目的集成开发环境（IDE）
-            </span>
-            <span lang="en">
-              <a href="/nos-tool/studio/">OFA Studio</a> ： Integrated
-              Development Environment (IDE) for ofa.js projects
-            </span>
-          </locale-text>
-        </li>
-        <li>
-          <locale-text>
-            <span lang="cn">
               <a href="/nos-tool/file-explore/">File Explore</a
               >：查看虚拟文件系统
             </span>
@@ -210,27 +198,6 @@
       })();
 
       (async () => {
-        const urlObj = new URLSearchParams(location.search);
-
-        if (urlObj.get("redirect")) {
-          const redirectValue = urlObj.get("redirect");
-
-          // 等待安装完毕
-          await new Promise((resolve) => {
-            if ($("nos-version").installed) {
-              resolve();
-              return;
-            }
-
-            $("nos-version").on("installed", () => resolve());
-          });
-
-          if (redirectValue === "studio") {
-            location.href = "/nos-tool/studio/";
-            return;
-          }
-        }
-
         const loadingElement = $("#loading");
         if (loadingElement) {
           // 添加淡出效果后再隐藏

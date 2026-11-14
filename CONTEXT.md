@@ -17,12 +17,12 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util/locale-text/n-icon，根证书 `root-cert.json`；另含 `hybrid-data`，⚠️ 为实验性特性，后续大概率迁移或淘汰） |
+| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util/locale-text/n-icon，根证书 `root-cert.json`） |
 | `nos-lib/` | nos 官方在线库（CDN 分发，不进 `nos.tgz` 签名包）：公共 UI 组件（`<n-user-name>` / `<n-user-status>` / `<nos-version>`）与安装/升级引导 `_install/`；任何基于 noneos-core 的系统都可通过 `/nos-lib/` 直接使用，旧前缀 `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/` 由 SW 归一化 + 托管 301 兼容 |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
 | `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
 | `server/client/` | 服务端管理前端（admin 页面） |
-| `nos-tool/` | 内置工具集（studio、file-explore、system-info、locale-text-tool、rtc-tool）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
+| `nos-tool/` | 内置工具集（file-explore、system-info、locale-text-tool、rtc-tool）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
@@ -122,9 +122,8 @@
 修改这些模块时需逐文件阅读源码，建议在重大改动后补充 CONTEXT.md：
 
 - `nos/crypto/`（5 个加密模块：AES/ECDH/ECDSA/RSA/verify）
-- `nos/hybrid-data/`（混合数据，远端 + 本地）
 - `nos/util/`（hash/zip/async-pool 等工具）
-- `nos-tool/`（内置工具集：studio、file-explore、system-info、locale-text-tool、rtc-tool）
+- `nos-tool/`（内置工具集：file-explore、system-info、locale-text-tool、rtc-tool）
 - `server/client/`（服务端管理前端 admin 页面）
 
 ## 五、多语言方案（locale-text）书写规范

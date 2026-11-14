@@ -27,7 +27,6 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 
 - **file-explore** - 文件浏览器：浏览 OPFS 虚拟文件系统，支持导入/下载/删除文件与 `/$path` 访问
 - **system-info** - 系统信息与更新管理：查看版本、SW 状态并执行完整系统更新
-- **studio** - 应用开发环境（OFA Studio）：从模板创建项目、管理项目文件、调整主题配色
 - **locale-text-tool** - 多语言文案提取：扫描 `<locale-text>` 并生成 `locale-text.json`
 - **rtc-tool** - WebRTC STUN/TURN 服务器列表管理：测试连通性与延迟、排序、启停
 
