@@ -1,7 +1,7 @@
 {
   "version": "4.9.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1794661046665,
+  "signTime": 1794674334601,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -27,16 +27,6 @@
       "path": "crypto/crypto-verify.js",
       "hash": "6fa4f8d176b16ac4e0bdeedf1ecd8cc083f1cd6960a5afff328dc6c41b9985e1",
       "size": 864
-    },
-    {
-      "path": "fs/CONTEXT.md",
-      "hash": "32ab008427bfd4191e7032d047450371b7d296b1a388653322abcd976739574f",
-      "size": 11623
-    },
-    {
-      "path": "fs/README.md",
-      "hash": "341be7d86b415c5f92642fc547168968c91bcac846e9de13f2508c160e71b58c",
-      "size": 12749
     },
     {
       "path": "fs/download.js",
@@ -99,16 +89,6 @@
       "size": 1254
     },
     {
-      "path": "publish/CONTEXT.md",
-      "hash": "dddd0eddab62c966f564e7a6d138fbc889af66779cc5d2c8e6c14f53679ffc84",
-      "size": 12612
-    },
-    {
-      "path": "publish/README.md",
-      "hash": "6b021ffc0b25618fac6d2402b28c640be6cd7d94eb22e3e73dbf2df56df7735a",
-      "size": 13825
-    },
-    {
       "path": "publish/data-publisher.js",
       "hash": "9775ffca1c45e4ab66e86007aa51712ab7e9ee9a4d46892e9b868fc2cdbe3673",
       "size": 26011
@@ -124,29 +104,9 @@
       "size": 565
     },
     {
-      "path": "storage/CONTEXT.md",
-      "hash": "883b23321552c66f443087df9b94a771bd92ab98d8a125ef728976beb32a89e5",
-      "size": 15193
-    },
-    {
-      "path": "storage/README.md",
-      "hash": "c45f42172a6006f7e30dda1fcf73db73394774e63be20a9dddb3be3fa79e85b7",
-      "size": 9646
-    },
-    {
       "path": "storage/main.js",
       "hash": "1aaf2ee404813a01817998287a1c9d11ed358eb0525d75688ec7555e53ce040e",
       "size": 19615
-    },
-    {
-      "path": "user/CONTEXT.md",
-      "hash": "fe589073086aad5980dee77d691a27280dd040f9e37e4642af9e3101005af97d",
-      "size": 48761
-    },
-    {
-      "path": "user/README.md",
-      "hash": "30393281ccdcc97e89faeb9047f9a41f8baa31f8ca05a8775659bc398f1da3de",
-      "size": 34693
     },
     {
       "path": "user/base-user.js",
@@ -244,5 +204,5 @@
       "size": 6211
     }
   ],
-  "signature": "gw4sD63+9MbSEYEahTMttzxUiupbI/Q3BvxkbevgHsmIpfjsGur3WMo423DZjRC/UdUUpO+n0Gvk7suutNEZ9Q=="
+  "signature": "B/ghy0xaWms6auLqql80P7ZiazufdbbsK64mE/9BXAghrKuWWX/TTWGXOtqtzaJqiXDSTqBKqiNa/11onGb98A=="
 }

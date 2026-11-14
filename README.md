@@ -3,7 +3,7 @@
 > English | [中文](README.zh-CN.md)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-4.9.4-blue.svg)](package.json)
 [![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
@@ -114,12 +114,11 @@ nos-tool/             # Built-in tools, usable by any NoneOS Core system
   rtc-tool/           #   Manage the WebRTC STUN/TURN server list
 sw/                   # Service Worker (fetch interception, routing, caching)
 server/               # Backend implementations
-  rust/               #   Rust handshake & relay server (production)
+  handshake/          #   Rust handshake & relay server (production)
   client/             #   Server admin dashboard (web UI)
 tests/                # Browser-based test suites (.sb.html)
 scripts/              # Build, signing, packing utilities
 .agents/skills/       # AI agent skill definitions
-others/               # Archived / experimental code (not part of the runtime)
 ```
 
 ---

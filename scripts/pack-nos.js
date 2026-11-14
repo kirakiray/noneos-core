@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { createTar } from './lib/tar.js';
+import { shouldIncludeInPack } from './lib/pack-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nosPath = path.resolve(__dirname, '../nos');
@@ -19,7 +20,7 @@ const walk = (dir, base = '') => {
     const rel = base ? `${base}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       walk(full, rel);
-    } else {
+    } else if (shouldIncludeInPack(rel)) {
       files.push({ path: rel, data: fs.readFileSync(full) });
     }
   }

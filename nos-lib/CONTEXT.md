@@ -111,9 +111,9 @@ nos-lib/
 
 - **`/nos-lib/{path}`** → `handleNosLibRequest`（`sw/src/modules/cache-handlers.js`，SWR 工厂）：
   - **`localhost:*`（dev）**：网络优先，候选源依次为 `localhost:3002` → 官方源 → 同域兜底；成功后同步写 OPFS 缓存。
-  - **非本地**：SWR 策略，单一候选源 `https://core.noneos.com/nos-lib/{path}`；5 分钟内存 TTL（SW 进程内 `lastRefreshAt: Map`），过期后台无条件重拉覆盖；OPFS 只存文件本体，无元数据。
+  - **非本地**：SWR 策略，单一候选源 `https://core.noneos.com/nos-lib/{path}`；5 分钟内存 TTL（SW 进程内 `lastRefreshAt: Map`），过期后重新拉取、校验通过才覆盖；OPFS 存文件本体与已验签清单（`nos-lib/.manifest.json`）。
   - OPFS 缓存键即 path，落在 `nos-lib/` 目录。
-  - **签名校验**（`sw/src/modules/noslib-verify.js`）：缓存未命中时拉取 `nos-lib/nos-lib.json`（`no-store`）→ pin 校验签名者 → 验签 → 文件 hash 比对，通过后才写 OPFS；缓存命中直接返回。清单 `version` 防回滚，版本升高时清空 `nos-lib/` 缓存；localhost / 127.0.0.1 / [::1] 跳过校验。
+  - **签名校验**（`sw/src/modules/noslib-verify.js`）：缓存未命中时拉取 `nos-lib/nos-lib.json`（`no-store`）→ pin 校验签名者 → 验签 → 文件 hash 比对，通过后才写 OPFS；缓存命中直接返回。清单 `version` 防回滚，版本升高时清空 `nos-lib/` 缓存；localhost / 127.0.0.1 / [::1] 跳过校验。清单不收录 `*.md` 与 `*.sb.html`。
 - **`/nos-lib/_install/{path}`** → `handleOfficialSourceRequest`（`sw/src/modules/official-handle.js`）：安装引导必须实时回源，**不读写任何缓存**；`localhost:3002` 直接 fetch，其他 localhost 代理到 3002，生产回源官方。生产环境同样按 `nos-lib.json` 验签，失败返回 502。
 - **旧前缀别名**（`/ncomp/{path}`、`/nos-tool/_install/{path}`、`/nos-tool/comps/{path}`、`/nos/locale-text/{path}`、`/nos/n-icon/{path}`）：main.js 在分发前把 path 归一化为 `/nos-lib/` 新路径（`comps/nos-version.html` → `nos-version/nos-version.html`；`/nos/locale-text/...`、`/nos/n-icon/...` → `/nos-lib/...`），再走上述处理器；跨域直连消费者由托管层 `_redirects` 的 301 规则兜底。
 

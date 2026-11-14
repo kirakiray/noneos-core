@@ -1,18 +1,8 @@
 {
-  "version": 1794661046771,
+  "version": 1794674334709,
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1794661046771,
+  "signTime": 1794674334709,
   "hashes": [
-    {
-      "path": "CONTEXT.md",
-      "hash": "e16840004527f2f8830a5531ebf753adfd90feb40239612607e8b7cb8ba94f6d",
-      "size": 10593
-    },
-    {
-      "path": "README.md",
-      "hash": "9057f3e811412dceb06f69f71326cb1de709c37cd9a13b2eaff8c20db7da464d",
-      "size": 2807
-    },
     {
       "path": "_install/_install-nos.html",
       "hash": "4d870ec09bc3af9167d7a8c880fd2ce155017f67f2f242b1cc1c82b31abf7f38",
@@ -32,11 +22,6 @@
       "path": "_install/util.js",
       "hash": "0a40bd0ca9e90941484925554ea86b2928ad1668c75f7d6beafa21c187f22509",
       "size": 9894
-    },
-    {
-      "path": "locale-text/README.md",
-      "hash": "58f34ddb2a3571eac86f13c2291f484b3c9fee89665fa00d0411023297e9210c",
-      "size": 14485
     },
     {
       "path": "locale-text/get-locale-text.js",
@@ -64,20 +49,10 @@
       "size": 4762
     },
     {
-      "path": "user-name/user-name.sb.html",
-      "hash": "092651565fd53853e80418d30f9722f3c62febb662a8e7b7afce5ceef9737803",
-      "size": 14466
-    },
-    {
       "path": "user-status/user-status.html",
       "hash": "c9d5b03659dcad18da409caee8fe92fc4399fc230eee544c9b8c3d56514659c7",
       "size": 4911
-    },
-    {
-      "path": "user-status/user-status.sb.html",
-      "hash": "969cce3df846f0633a362d099258b882409dee5cb2a8d407637b7dbc69d3932a",
-      "size": 3944
     }
   ],
-  "signature": "X63eXf9INpUfPQwkgHtf2rt9jo5dvgUv999I7zI2+zHLnBZe7gfSNeA4HfQGOyEURHg5frBxhz6pKHkjv1qhxQ=="
+  "signature": "Xidl98U3eM6oyFVq+zyqS6DHC/Phn3sVkMAw5qH/T2XPqHki3+3dYLplnNmV64kN8ShVjxqsBAQ1Qv5eCDNswA=="
 }

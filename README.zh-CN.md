@@ -3,7 +3,7 @@
 > [English](README.md) | 中文
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-4.9.4-blue.svg)](package.json)
 [![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
@@ -114,12 +114,11 @@ nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可
   rtc-tool/           #   管理 WebRTC 的 STUN/TURN 服务器列表
 sw/                   # Service Worker(请求拦截、路由、缓存)
 server/               # 后端实现
-  rust/               #   Rust 握手与中继服务器(生产用)
+  handshake/          #   Rust 握手与中继服务器(生产用)
   client/             #   服务端管理面板(Web UI)
 tests/                # 浏览器测试套件(.sb.html)
 scripts/              # 构建、签名、打包工具
 .agents/skills/       # AI 代理技能定义
-others/               # 归档/实验代码(不参与运行时)
 ```
 
 ---

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getFileHash } from '../nos/util/hash/get-file-hash.js';
+import { shouldIncludeInPack } from './lib/pack-filter.js';
 
 function getFileSize(filePath) {
   const stats = fs.statSync(filePath);
@@ -19,7 +20,8 @@ function getAllFiles(dirPath, arrayOfFiles = []) {
     if (stat.isDirectory()) {
       arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
     } else {
-      arrayOfFiles.push(fullPath);
+      const relPath = path.relative('nos', fullPath).split(path.sep).join('/');
+      if (shouldIncludeInPack(relPath)) arrayOfFiles.push(fullPath);
     }
   });
 

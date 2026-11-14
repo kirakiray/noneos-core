@@ -5,6 +5,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, relative, join } from "node:path";
+import { shouldIncludeInPack } from "./lib/pack-filter.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const nosLibDir = resolve(__dirname, "../nos-lib");
@@ -27,14 +28,18 @@ walk(nosLibDir);
 
 files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
-const hashes = files.map((file) => {
-  const data = fs.readFileSync(file);
-  return {
-    path: relative(nosLibDir, file).split(path.sep).join("/"),
-    hash: crypto.createHash("sha256").update(data).digest("hex"),
-    size: data.length,
-  };
-});
+const hashes = files
+  .map((file) => relative(nosLibDir, file).split(path.sep).join("/"))
+  .filter(shouldIncludeInPack)
+  .map((relPath) => {
+    const file = join(nosLibDir, relPath);
+    const data = fs.readFileSync(file);
+    return {
+      path: relPath,
+      hash: crypto.createHash("sha256").update(data).digest("hex"),
+      size: data.length,
+    };
+  });
 
 fs.writeFileSync(outputPath, JSON.stringify(hashes, null, 2));
 console.log(`已计算 nos-lib 哈希：${hashes.length} 个文件 -> noslib-hashes.json`);

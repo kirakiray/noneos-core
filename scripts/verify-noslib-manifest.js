@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve, relative, join } from "node:path";
 
 import { verifyData } from "../nos/crypto/crypto-verify.js";
+import { shouldIncludeInPack } from "./lib/pack-filter.js";
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,7 +40,10 @@ const walk = (dir) => {
     if (entry.name === ".DS_Store") continue;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) walk(full);
-    else if (entry.name !== MANIFEST_NAME) files.push(full);
+    else if (entry.name !== MANIFEST_NAME) {
+      const relPath = relative(nosLibDir, full).split(path.sep).join("/");
+      if (shouldIncludeInPack(relPath)) files.push(full);
+    }
   }
 };
 walk(nosLibDir);

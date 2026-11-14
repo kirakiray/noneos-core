@@ -26,7 +26,6 @@
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |
-| `others/` | 归档/实验代码（如 `others/study-rust/` 学习工程），**不参与运行时** |
 
 ### 运行时虚拟路径（由 Service Worker 在运行时映射，**仓库内不存在**）
 
@@ -81,7 +80,7 @@
 |------|------|
 | `npm run build` | 完整构建 = `build:hashes`（hash 计算 + 签名 + 重打包 + 一致性校验）+ `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
-| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出 `nos.json`）→ 重打 `nos.tgz`（`scripts/pack-nos.js`，USTAR tar + gzip，无时间戳）→ `scripts/verify-pack.js` 校验包与清单逐文件一致（hash/size 与安装器同算法）；同时计算并签发 `nos-lib/nos-lib.json`（`scripts/calculate-noslib-hashes.js` + `scripts/sign-noslib-hashes.js` + `scripts/verify-noslib-manifest.js`）。**hash 清单与系统包必须同源：改了 `nos/` 后必须重跑本命令**，只刷 hash 不重打包会让客户端安装校验失败；**改了 `nos-lib/` 后也必须重跑**，否则 SW 校验不过 |
+| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出 `nos.json`）→ 重打 `nos.tgz`（`scripts/pack-nos.js`，USTAR tar + gzip，无时间戳）→ `scripts/verify-pack.js` 校验包与清单逐文件一致（hash/size 与安装器同算法）；同时计算并签发 `nos-lib/nos-lib.json`（`scripts/calculate-noslib-hashes.js` + `scripts/sign-noslib-hashes.js` + `scripts/verify-noslib-manifest.js`）。打包与清单会跳过 `*.md` 与 `*.sb.html`（纯文档/测试，不参与运行时）。**hash 清单与系统包必须同源：改了 `nos/` 后必须重跑本命令**，只刷 hash 不重打包会让客户端安装校验失败；**改了 `nos-lib/` 后也必须重跑**，否则 SW 校验不过 |
 | `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
 | `npm test` | 运行 sibyl-test 测试套件（`sb-test -p 3002`；自定义多浏览器运行器见 `scripts/run-tests.js`）。固定跑 3002 端口：该端口下 `DEFAULT_SERVERS` 只含本地握手服务器，测试用户不连生产服务器。CLI 会先同步根目录测试清单 `test-index.html`（查漏补缺，手动编辑的顺序 / `skip` / `exclusive` 会被保留），再按清单执行。清单内的并发编排有讲究：suite 用 `parallel="4"` 并发跑隔离良好的用例；`user-name`/`user-status` 独占首跑（干净状态握手 + SW 注册），`connect-server`、`sw/*` 独占收尾（低负载握手 / 注销全 origin 的 SW），详见清单头部注释 |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |

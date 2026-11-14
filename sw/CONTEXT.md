@@ -132,7 +132,7 @@ sw/src/main.js
 
 ### 3.1 nos-lib 签名校验（noslib-verify.js）
 
-- **清单**：`nos-lib/nos-lib.json`，内容 `{ version, publicKey, signTime, hashes, signature }`；`hashes` 为 nos-lib 文件的整文件 SHA-256，由 `scripts/sign-noslib-hashes.js` 用根证书 active 密钥签发。
+- **清单**：`nos-lib/nos-lib.json`，内容 `{ version, publicKey, signTime, hashes, signature }`；`hashes` 为 nos-lib 文件的整文件 SHA-256（不收录 `*.md` 与 `*.sb.html`），由 `scripts/sign-noslib-hashes.js` 用根证书 active 密钥签发。
 - **pin**：Rollup 构建期读取 `nos/root-cert.json`，把未退役密钥公钥注入本模块（`__NOSLIB_PINNED_KEYS__` 占位符），SW 只接受 pin 集合内公钥签发的清单。
 - **流程**：首次需要 nos-lib 文件时 `fetch` 清单（`no-store`）→ pin 校验 → `verifyData` 验签 → 比对文件 size/hash → 通过才写 OPFS。缓存命中直接返回（写入前已校验）。
 - **回滚保护**：清单 `version` 必须不低于已缓存版本；更低时拒绝并沿用缓存。版本升高时先清空 `nos-lib/` OPFS 缓存再写入新清单。
