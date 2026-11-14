@@ -106,6 +106,7 @@ nos-lib/              # nos 官方在线库(CDN 分发,不进签名包)
   _install/           #   SW 注册与系统安装器引导
   locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
   n-icon/             #   图标组件
+  nos-lib.json        #   签名清单（由 SW 校验）
 nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可直接使用
   file-explore/       #   文件浏览器(浏览/导入/下载 OPFS 文件)
   system-info/        #   系统信息与更新管理(版本、SW、安装)
@@ -168,12 +169,14 @@ others/               # 归档/实验代码(不参与运行时)
 - 虚拟 URL 前缀:`/nos/`、`/nos-lib/`、`/nos-tool/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`
 - CDN 类前缀采用 SWR + 内存 TTL 缓存;本地系统文件优先读取 OPFS
 - 特殊路由:`/__config`
+- `nos-lib/` 文件写入 OPFS 缓存前,会按签名的 `nos-lib/nos-lib.json` 校验
 
 ### 公共 UI(`nos-lib/`)
 - `nos-lib/`——nos 官方在线库:与 nos 能力强相关的可复用组件(`<n-user-name>`、`<n-user-status>`),通过 `/nos-lib/{name}/{name}.html` 引用
 - `nos-lib/nos-version/`——`<nos-version>` 安装/升级入口组件;`nos-lib/_install/` 是其引导(SW 注册、版本检查、完整安装、根证书信任链校验),系统信息工具同样调用——见 [`nos-lib/README.md`](nos-lib/README.md)
 - `nos-lib/locale-text/`——轻量国际化:`<locale-text>` 组件与脚本用的 `getLocaleText()`
 - `nos-lib/n-icon/`——内置工具通用的图标组件
+- `nos-lib/nos-lib.json`——签名文件清单,SW 在缓存 `nos-lib` 文件前校验 |
 
 ### 内置便捷工具(`nos-tool/`)
 
@@ -283,7 +286,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 | `npm run watch:sw` | 监听 `sw/src/**` 变更并自动重建 Service Worker |
 | `npm run build` | 完整构建:哈希 → nos.tgz → Service Worker → Skill 知识库 |
 | `npm run build:sw` | 通过 Rollup 构建 Service Worker(产出 `sw/dist.js` + `sw/dist.min.js`) |
-| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希(供 `nos.json` 消费) |
+| `npm run build:hashes` | 计算并签名 `nos/` 源码哈希(供 `nos.json` 消费),同时签发 `nos-lib/` 的清单(供 `nos-lib/nos-lib.json` 消费) |
 | `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库(生成 `noneos-core-docs.zip`) |
 | `npm run bump` | 跨所有文件升级版本号,并重新安装依赖与构建 |
 | `npm run ws` | 启动两个 Rust 中继服务器(测试模式,端口 8081 & 8082) |

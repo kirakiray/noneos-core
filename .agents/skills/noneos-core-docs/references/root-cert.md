@@ -115,7 +115,7 @@ node scripts/rotate-root.js add k2       # 新钥 grace 加入
 node scripts/rotate-root.js promote k2   # 新钥 active、旧钥 retired
 ```
 
-> `npm run build:hashes` 内部执行 `scripts/calculate-nos-hashes.js` + `scripts/sign-hashes.js` + `scripts/pack-nos.js` + `scripts/verify-pack.js`（hash 计算 → 按 active 密钥签发 `nos.json` → 重打 `nos.tgz` → 校验包与清单逐文件一致）。后者自动选取信任集中唯一的 active 密钥（对应密钥文件须存在）。
+> `npm run build:hashes` 内部执行 `scripts/calculate-nos-hashes.js` + `scripts/sign-hashes.js` + `scripts/pack-nos.js` + `scripts/verify-pack.js`（hash 计算 → 按 active 密钥签发 `nos.json` → 重打 `nos.tgz` → 校验包与清单逐文件一致），随后用同一 active 密钥签发 `nos-lib/nos-lib.json` 并校验。签名脚本自动选取信任集中唯一的 active 密钥（对应密钥文件须存在）。
 
 ## 泄漏应急轮换
 

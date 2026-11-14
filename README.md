@@ -106,6 +106,7 @@ nos-lib/              # Official online library (CDN-served, outside the signed 
   _install/           #   SW registration & system installer bootstrap
   locale-text/        #   Lightweight i18n (<locale-text> + getLocaleText)
   n-icon/             #   Icon component
+  nos-lib.json        #   Signed file manifest (verified by the service worker)
 nos-tool/             # Built-in tools, usable by any NoneOS Core system
   file-explore/       #   File explorer (browse / import / download OPFS files)
   system-info/        #   System info & update manager (version, SW, install)
@@ -168,12 +169,14 @@ others/               # Archived / experimental code (not part of the runtime)
 - Virtual URL prefixes: `/nos/`, `/nos-lib/`, `/nos-tool/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`
 - SWR + in-memory TTL caching for CDN-style prefixes; OPFS-first for local system files
 - Special route: `/__config`
+- `nos-lib/` files are verified against the signed `nos-lib/nos-lib.json` before being written to the OPFS cache
 
 ### Shared UI (`nos-lib/`)
 - `nos-lib/` — official online library: reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/nos-lib/{name}/{name}.html`
 - `nos-lib/nos-version/` — `<nos-version>` install/upgrade entry component; `nos-lib/_install/` is its bootstrap (SW registration, version check, full install, root-cert trust verification), also used by the System Info tool — see [`nos-lib/README.md`](nos-lib/README.md)
 - `nos-lib/locale-text/` — lightweight i18n: the `<locale-text>` component plus `getLocaleText()` for scripts
 - `nos-lib/n-icon/` — icon component used across the built-in tools
+- `nos-lib/nos-lib.json` — signed file manifest verified by the service worker before caching `nos-lib` files |
 
 ### Built-in Tools (`nos-tool/`)
 
@@ -283,7 +286,7 @@ Key references:
 | `npm run watch:sw` | Rebuild the service worker on `sw/src/**` changes |
 | `npm run build` | Build all: hashes → nos.tgz → service worker → skill package |
 | `npm run build:sw` | Build the service worker via Rollup (`sw/dist.js` + `sw/dist.min.js`) |
-| `npm run build:hashes` | Compute and sign hashes of `nos/` sources (consumed by `nos.json`) |
+| `npm run build:hashes` | Compute and sign hashes of `nos/` sources (consumed by `nos.json`) and `nos-lib/` sources (consumed by `nos-lib/nos-lib.json`) |
 | `npm run build:skill` | Build the `.agents/skills/noneos-core-docs` knowledge base (`noneos-core-docs.zip`) |
 | `npm run bump` | Increment version across all files, then reinstall & rebuild |
 | `npm run ws` | Start two Rust relay servers (test mode, ports 8081 & 8082) |

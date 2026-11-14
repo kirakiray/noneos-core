@@ -103,6 +103,14 @@
 - 组件需要在已初始化 NoneOS Core 用户系统的页面中使用。
 - 颜色依赖 senti-ui 的语义化 CSS 变量（`--md-sys-color-*`），宿主页面需要引入 senti-ui 颜色体系（`st-boot` 或任一 `st-*` 组件）以保证主题一致性。
 
+### `locale-text`
+
+`/nos-lib/locale-text/locale-text.html` 提供 `<locale-text>` 组件，`/nos-lib/locale-text/get-locale-text.js` 提供 `getLocaleText()` 运行时。详见 [locale-text 文档](locale-text.md)。
+
+### `n-icon`
+
+`/nos-lib/n-icon/n-icon.html` 提供 `<n-icon>` 图标组件（基于 `nos/storage` 持久化缓存）。详见 [n-icon 文档](n-icon.md)。
+
 ### `nos-version` 与 `_install/`
 
 安装/版本设施同属本目录：`/nos-lib/nos-version/nos-version.html` 为安装入口组件，`/nos-lib/_install/` 为其引导（SW 注册、版本检查、完整安装、根证书信任链校验）。详见 [nos-version 组件文档](nos-version.md) 与 [根证书信任集](root-cert.md)。
@@ -114,12 +122,20 @@
 - **`localhost:*`（dev 环境）**：走"网络优先"模式，候选源依次为 `localhost:3002` → 官方源 `https://core.noneos.com/nos-lib/...` → 同域兜底；任一源成功后**同步**写入 OPFS `nos-lib/` 缓存并刷新内存级时间戳后返回；全部失败时回退 OPFS 缓存。
 - **非本地环境**：采用 SWR（Stale-While-Revalidate）策略，单一候选源为 `https://core.noneos.com/nos-lib/{path}`：
   - 缓存命中且在 5 分钟 TTL 内：直接返回缓存，不发起网络请求。
-  - 缓存命中但已过 TTL：**立即返回旧缓存**，后台异步重新拉取并**直接覆盖**写入 OPFS（无 hash 对比）。
-  - 缓存未命中：同步请求官方源，成功后写入 OPFS 并返回；失败则返回 500 错误响应。
+  - 缓存命中但已过 TTL：**立即返回旧缓存**，后台异步重新拉取，校验通过后才覆盖写入 OPFS；校验失败保留旧缓存。
+  - 缓存未命中：同步请求官方源，**按 `nos-lib/nos-lib.json` 验签 + 验文件 hash**，通过后才写入 OPFS 并返回；失败则返回 500 错误响应。
 
 ### TTL 与缓存状态
 
-5 分钟 TTL 仅维护在 Service Worker **进程内存**中（模块级 `lastRefreshAt: Map`），SW 重启后即清空，等价于"重启即视为过期"。OPFS 中只保存组件文件本体，**不保存任何元数据**（无 `cachedAt`/`hash` 字段）。
+5 分钟 TTL 仅维护在 Service Worker **进程内存**中（模块级 `lastRefreshAt: Map`），SW 重启后即清空，等价于"重启即视为过期"。OPFS 中保存组件文件本体与已验签的清单（`nos-lib/.manifest.json`），不保存 TTL/`cachedAt` 等元数据。
+
+### 签名校验（生产环境）
+
+- 清单：`nos-lib/nos-lib.json`（`{ version, publicKey, signTime, hashes, signature }`，整文件 SHA-256），由 `scripts/sign-noslib-hashes.js` 用根证书 active 密钥签发。
+- SW 构建期把根证书中未退役公钥注入 `sw/src/modules/noslib-verify.js` 作为 pin。
+- 首次加载 nos-lib 资源时拉取清单（`no-store`）→ pin 校验 → `verifyData` 验签 → hash 比对 → 落盘；缓存命中不重复校验。
+- `version` 单调递增，低于缓存版本时拒绝回滚；版本升高时清空 `nos-lib/` OPFS 缓存。
+- `localhost` / `127.0.0.1` / `[::1]` 跳过校验；SW 激活前的 `nos-version` / `_install` / 入口页 `locale-text` 不覆盖，仍只依赖 HTTPS。
 
 ## 旧前缀兼容
 
@@ -127,4 +143,5 @@
 
 - `/ncomp/{path}` → 归一化为 `/nos-lib/{path}`（SW 内）或 301（托管层 `_redirects`）；
 - `/nos-tool/_install/{path}` → `/nos-lib/_install/{path}`；
-- `/nos-tool/comps/nos-version.html` → `/nos-lib/nos-version/nos-version.html`。
+- `/nos-tool/comps/nos-version.html` → `/nos-lib/nos-version/nos-version.html`；
+- `/nos/locale-text/{path}`、`/nos/n-icon/{path}` → `/nos-lib/{path}`。

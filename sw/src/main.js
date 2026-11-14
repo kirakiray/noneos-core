@@ -7,6 +7,7 @@ import { handleFileRequest } from "./modules/file-handler.js";
 import { handleMountRequest } from "./modules/mount-handle.js";
 import { handleNosRequest } from "./modules/nos-handle.js";
 import { handleOfficialSourceRequest } from "./modules/official-handle.js";
+import { verifyNosLibFile } from "./modules/noslib-verify.js";
 
 // 当前系统的配置信息
 // let systemConfig = {"version":"4.0.0","mode":"online","nosMapPath":"nos-4.0.0"};
@@ -80,6 +81,7 @@ self.addEventListener("fetch", (event) => {
           path: pathname.replace(/^\/nos-tool\/_install\//, "/nos-lib/_install/"),
           request,
           systemConfig,
+          verify: verifyNosLibFile,
         }),
       );
     }

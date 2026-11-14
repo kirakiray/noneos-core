@@ -12,6 +12,7 @@
 | [locale-text/](locale-text/) | `<locale-text>` 轻量国际化组件与 `getLocaleText()` 运行时 |
 | [n-icon/](n-icon/) | `<n-icon>` 图标组件（基于 `nos/storage` 做持久化缓存） |
 | [_install/](_install/) | 安装/升级引导：SW 注册（`registerSw()`）、版本检查、完整系统安装、根证书信任链校验 |
+| [nos-lib.json](nos-lib.json) | 签名文件清单（构建产物）：SW 在缓存 `nos-lib` 文件前验签 + 校验 hash |
 
 ## 设计原则
 

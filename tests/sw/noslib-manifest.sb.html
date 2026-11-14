@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>nos-lib 签名清单测试</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>nos-lib 签名清单测试</h1>
+
+    <sb-test name="nos-lib.json 签名有效且文件 hash 与清单一致">
+      <template>
+        <script type="module">
+          {
+            const { verifyData } = await import("/nos/crypto/crypto-verify.js");
+            const { getHash } = await import("/nos/util/hash/get-hash.js");
+
+            const manifest = await fetch("/nos-lib/nos-lib.json", {
+              cache: "no-store",
+            }).then((res) => res.json());
+
+            const signatureValid = await verifyData(manifest);
+            const versionValid = Number.isFinite(Number(manifest.version));
+
+            const path = "locale-text/get-locale-text.js";
+            const entry = manifest.hashes.find((item) => item.path === path);
+            const blob = await fetch("/nos-lib/" + path).then((res) =>
+              res.blob(),
+            );
+            const fileHash = await getHash(blob);
+
+            const fileValid =
+              !!entry && entry.size === blob.size && entry.hash === fileHash;
+
+            return {
+              assert: signatureValid && versionValid && fileValid,
+              content: {
+                signatureValid,
+                versionValid,
+                version: manifest.version,
+                fileValid,
+                entryHash: entry?.hash,
+                fileHash,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

@@ -132,6 +132,248 @@
   };
 
   /**
+   * ECDSA 签名相关工具函数
+   */
+
+
+  /**
+   * 导入公钥
+   * @param {string} publicKeyBase64 - base64 编码的公钥
+   * @returns {Promise<CryptoKey>} CryptoKey 对象
+   */
+  async function importPublicKey(publicKeyBase64) {
+    try {
+      // 将 base64 转回二进制格式
+      const binaryKey = Uint8Array.from(atob(publicKeyBase64), (c) =>
+        c.charCodeAt(0)
+      );
+
+      // 导入公钥
+      const publicKey = await crypto.subtle.importKey(
+        "spki",
+        binaryKey,
+        {
+          name: "ECDSA",
+          namedCurve: "P-256",
+        },
+        true,
+        ["verify"]
+      );
+
+      return publicKey;
+    } catch (error) {
+      console.error("公钥导入失败:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建验证函数
+   * @param {string} publicKeyBase64 - base64 编码的公钥
+   * @returns {Promise<Function>} 验证函数
+   */
+  const createVerifier = async (publicKeyBase64) => {
+    try {
+      const publicKey = await importPublicKey(publicKeyBase64);
+      return (message, signature) => {
+        const encoder = new TextEncoder();
+        // 将消息转换为 Uint8Array
+        const data = encoder.encode(message);
+        // 使用公钥验证签名
+        return crypto.subtle.verify(
+          {
+            name: "ECDSA",
+            hash: { name: "SHA-256" },
+          },
+          publicKey,
+          signature,
+          data
+        );
+      };
+    } catch (error) {
+      console.error("创建验证函数失败:", error);
+      throw error;
+    }
+  };
+
+  /**
+   * 数据验证相关工具函数
+   */
+
+
+  /**
+   * 验证数据签名
+   * @param {Object} params - 验证参数
+   * @param {Object} params.data - 包含公钥和数据的对象
+   * @param {string} params.signature - base64 编码的签名
+   * @returns {Promise<boolean>} 验证结果
+   */
+  const verifyData = async ({ signature, ...data }) => {
+    const { publicKey } = data;
+
+    // 生成验证器
+    const verify = await createVerifier(publicKey);
+
+    try {
+      // 将 base64 转换回原始格式并验证签名
+      const signatureBuffer = new Uint8Array(
+        [...atob(signature)].map((c) => c.charCodeAt(0)),
+      ).buffer;
+
+      const result = await verify(JSON.stringify(data), signatureBuffer);
+
+      return result;
+    } catch (err) {
+      // 抛出错误信息
+      console.error(err);
+      return false;
+    }
+  };
+
+  /**
+   * nos-lib 签名清单校验。
+   *
+   * - 构建期由 scripts/calculate-noslib-hashes.js + scripts/sign-noslib-hashes.js
+   *   生成并签发 nos-lib/nos-lib.json（整文件 SHA-256）。
+   * - 运行时首次需要 nos-lib 文件时加载清单：先用内置 pin 校验签名者，再验签名；
+   *   清单 version 必须单调递增（防回滚），升级版本时清空 nos-lib OPFS 缓存。
+   * - 缓存命中不重复校验（写入前已校验）；缓存未命中才校验并落盘。
+   * - localhost / 127.0.0.1 / [::1] 视为开发环境，跳过整套校验（与 dev 直连一致）。
+   */
+
+  const MANIFEST_URL = "https://core.noneos.com/nos-lib/nos-lib.json";
+  const CACHE_DIR = "nos-lib";
+  const CACHED_MANIFEST_PATH = "nos-lib/.manifest.json";
+
+  // 构建期由 rollup.config.js 注入（根证书中 active + grace 的密钥公钥）
+  const PINNED_PUBLIC_KEYS = new Set(["MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg=="]);
+
+  let manifestPromise = null;
+  let manifestLoadedAt = 0;
+
+  // 与文件 SWR 相同的 TTL：定期重新拉取清单，避免 SW 常驻时长期看不到 nos-lib 更新
+  const MANIFEST_TTL = 5 * 60 * 1000;
+
+  const isLocalhostHost = (host = location.host) =>
+    /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host);
+
+  const sha256Hex = async (blob) => {
+    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    return Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+  };
+
+  const isTrustedManifest = async (manifest) => {
+    if (!manifest || typeof manifest !== "object") return false;
+    if (!PINNED_PUBLIC_KEYS.has(manifest.publicKey)) return false;
+    if (!Array.isArray(manifest.hashes)) return false;
+    try {
+      return await verifyData(manifest);
+    } catch {
+      return false;
+    }
+  };
+
+  const readCachedManifest = async () => {
+    const handle = await getFileHandle({ path: CACHED_MANIFEST_PATH }).catch(
+      () => null,
+    );
+    if (!handle) return null;
+    const file = await handle.getFile();
+    if (!file.size) return null;
+    try {
+      return JSON.parse(await file.text());
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCachedManifest = async (manifest) => {
+    const handle = await getFileHandle({ path: CACHED_MANIFEST_PATH, create: true });
+    const writable = await handle.createWritable();
+    await writable.write(new Blob([JSON.stringify(manifest)]));
+    await writable.close();
+  };
+
+  const purgeCacheDir = async () => {
+    try {
+      const root = await getRootDirectory();
+      await root.removeEntry(CACHE_DIR, { recursive: true });
+    } catch (err) {
+      if (err?.name !== "NotFoundError") throw err;
+    }
+  };
+
+  const fetchOnlineManifest = async () => {
+    try {
+      const response = await fetch(MANIFEST_URL, { cache: "no-store" });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return await response.json();
+    } catch (err) {
+      console.warn("[nos-lib] fetch manifest failed:", err);
+      return null;
+    }
+  };
+
+  const loadManifest = async () => {
+    const cached = await readCachedManifest();
+    const trustedCached = (await isTrustedManifest(cached)) ? cached : null;
+    const online = await fetchOnlineManifest();
+
+    if (online && (await isTrustedManifest(online))) {
+      const onlineVersion = Number(online.version) || 0;
+      const cachedVersion = Number(trustedCached?.version) || 0;
+
+      if (onlineVersion < cachedVersion) {
+        // 旧签名清单重放：拒绝降级，继续使用已缓存的较新清单
+        console.warn(
+          `[nos-lib] manifest rollback rejected: online=${onlineVersion} cached=${cachedVersion}`,
+        );
+        return trustedCached;
+      }
+
+      if (onlineVersion > cachedVersion) {
+        // 新清单意味着文件可能已更新，清空旧缓存避免命中未校验的旧文件
+        await purgeCacheDir();
+        await writeCachedManifest(online);
+      }
+
+      return online;
+    }
+
+    return trustedCached;
+  };
+
+  const getVerifiedManifest = () => {
+    const expired = manifestLoadedAt && Date.now() - manifestLoadedAt >= MANIFEST_TTL;
+    if (!manifestPromise || expired) {
+      manifestLoadedAt = Date.now();
+      manifestPromise = loadManifest();
+    }
+    return manifestPromise;
+  };
+
+  /**
+   * 校验 nos-lib 文件
+   * @param {string} path 归一化后的虚拟路径，如 /nos-lib/locale-text/...
+   * @param {Blob} blob 文件内容
+   * @returns {Promise<boolean>}
+   */
+  const verifyNosLibFile = async (path, blob) => {
+    if (isLocalhostHost()) return true;
+
+    const manifest = await getVerifiedManifest();
+    if (!manifest) return false;
+
+    const relativePath = path.replace(/^\/nos-lib\//, "");
+    const entry = manifest.hashes.find((item) => item.path === relativePath);
+    if (!entry || entry.size !== blob.size) return false;
+
+    return (await sha256Hex(blob)) === entry.hash;
+  };
+
+  /**
    * 统一的 SWR（Stale-While-Revalidate）资源处理器。
    *
    * 策略：
@@ -195,7 +437,7 @@
   /**
    * 后台异步刷新（离线守卫 + 去重）
    */
-  const refreshInBackground = (path, sources, tag) => {
+  const refreshInBackground = (path, sources, tag, verifyBlob) => {
     if (!navigator.onLine) return;
     if (refreshing.has(path)) return;
     refreshing.add(path);
@@ -203,6 +445,9 @@
     (async () => {
       try {
         const blob = await fetchFromSources(sources);
+        if (verifyBlob && !(await verifyBlob(path, blob))) {
+          throw new Error(`verification failed: ${path}`);
+        }
         await writeToCache(path, blob);
         lastRefreshAt.set(path, Date.now());
       } catch (err) {
@@ -242,8 +487,17 @@
    *        返回按优先级排列的候选源 URL 数组
    * @param {(ctx: {path: string, request: Request}) => boolean} [opts.networkFirstWhen]
    *        返回 true 时改用"网络优先"模式（如 localhost dev）
+   * @param {(path: string, blob: Blob) => Promise<boolean>} [opts.verifyBlob]
+   *        写盘/返回前的校验回调；返回 false 视为校验失败，不写缓存
    */
-  const createHandler = ({ tag, resolveSources, networkFirstWhen }) => {
+  const createHandler = ({ tag, resolveSources, networkFirstWhen, verifyBlob }) => {
+    const verify = async (path, blob) => {
+      if (!verifyBlob) return;
+      if (!(await verifyBlob(path, blob))) {
+        throw new Error(`verification failed: ${path}`);
+      }
+    };
+
     return async ({ path, request }) => {
       const ctx = { path, request };
       const sources = resolveSources(ctx);
@@ -253,6 +507,7 @@
       if (networkFirst) {
         try {
           const blob = await fetchFromSources(sources);
+          await verify(path, blob);
           await writeToCache(path, blob);
           lastRefreshAt.set(path, Date.now());
           return okResponse(blob, path);
@@ -263,16 +518,19 @@
         }
       }
 
-      // SWR：缓存优先，过期后台刷新
+      // SWR：缓存优先，过期后台刷新（缓存命中视为已校验，直接返回）
       const cached = await readCache(path);
       if (cached) {
-        if (shouldRefresh(path)) refreshInBackground(path, sources, tag);
+        if (shouldRefresh(path)) {
+          refreshInBackground(path, sources, tag, verifyBlob);
+        }
         return okResponse(cached, path);
       }
 
-      // 缓存未命中：同步网络
+      // 缓存未命中：同步网络，校验通过才落盘
       try {
         const blob = await fetchFromSources(sources);
+        await verify(path, blob);
         await writeToCache(path, blob);
         lastRefreshAt.set(path, Date.now());
         return okResponse(blob, path);
@@ -314,9 +572,10 @@
    */
   const handleNosLibRequest = createHandler({
     tag: "nos-lib",
-    networkFirstWhen: () => /^localhost:/.test(location.host),
+    networkFirstWhen: () => isLocalhostHost(),
+    verifyBlob: (path, blob) => verifyNosLibFile(path, blob),
     resolveSources: ({ path }) => {
-      const isDev = /^localhost:/.test(location.host);
+      const isDev = isLocalhostHost();
       return [
         isDev ? new URL(path, "http://localhost:3002").href : null,
         `https://core.noneos.com${path}`,
@@ -493,34 +752,61 @@
   /**
    * 官方源代理（/nos-tool/ 工具集与 /nos-lib/_install/ 共用，不读写缓存）：
    * - localhost:3002：直接透传本地静态服务器
-   * - 其他 localhost 端口：优先代理到 3002，失败回退官方源
+   * - 其他 localhost 端口（含 127.0.0.1 / [::1]）：优先代理到 3002，失败回退官方源
    * - 生产环境：直接回源官方
    *
    * path 由 main.js 归一化为仓库物理路径（旧前缀别名也先归一化），
    * 保证回源目标始终是新路径；旧 URL 由托管层 301 兜底。
+   *
+   * 可选 verify(path, blob)：对 `_install/` 等 nos-lib 资源做签名清单校验，
+   * 不通过时返回 502 且不返回内容。
    */
-  const handleOfficialSourceRequest = async ({ path, request }) => {
-    const host = location.host;
 
+  const verifiedResponse = async (path, response, verify) => {
+    if (!verify || isLocalhostHost() || !response.ok) return response;
+
+    const blob = await response.blob();
+    if (!(await verify(path, blob))) {
+      return new Response(`nos-lib verification failed: ${path}`, {
+        status: 502,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    const headers = new Headers();
+    const contentType = response.headers.get("Content-Type");
+    if (contentType) headers.set("Content-Type", contentType);
+
+    return new Response(blob, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  };
+
+  const handleOfficialSourceRequest = async ({ path, request, verify }) => {
     // 不能把 fetch 事件的整体 request 作为 init 传给 fetch(url, request)：
     // 导航请求的 mode 是 "navigate"，二次构造会直接抛 TypeError，
     // 因此只转发方法与头
     const fetchOptions = { method: request.method, headers: request.headers };
+    const finish = (response) => verifiedResponse(path, response, verify);
+    const host = location.host;
 
     if (host === "localhost:3002") {
-      return fetch(new URL(path, location.origin).href, fetchOptions);
+      return finish(await fetch(new URL(path, location.origin).href, fetchOptions));
     }
 
-    const returnOfficial = () => fetch(`https://core.noneos.com${path}`);
+    const returnOfficial = async () =>
+      finish(await fetch(`https://core.noneos.com${path}`));
 
-    if (/^localhost:/.test(host)) {
+    if (isLocalhostHost()) {
       // 依次尝试：3002 开发服务器 → 同域（如 30028 正式部署端口、静态服务器）→ 官方源
       // fetch 对 404 等 HTTP 错误状态不会 throw，候选源返回非 ok 响应时
       // 必须视为失败继续回退，否则文件缺失时永远到不了官方源
       try {
         const res = await fetch(new URL(path, "http://localhost:3002").href, fetchOptions);
         if (res.ok) {
-          return res;
+          return finish(res);
         }
       } catch {
         // 3002 未启动
@@ -528,7 +814,7 @@
       try {
         const res = await fetch(new URL(path, location.origin).href, fetchOptions);
         if (res.ok) {
-          return res;
+          return finish(res);
         }
       } catch {
         // 同域也没有该文件
@@ -611,6 +897,7 @@
             path: pathname.replace(/^\/nos-tool\/_install\//, "/nos-lib/_install/"),
             request,
             systemConfig,
+            verify: verifyNosLibFile,
           }),
         );
       }

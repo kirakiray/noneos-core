@@ -1,0 +1,83 @@
+{
+  "version": 1794661046771,
+  "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
+  "signTime": 1794661046771,
+  "hashes": [
+    {
+      "path": "CONTEXT.md",
+      "hash": "e16840004527f2f8830a5531ebf753adfd90feb40239612607e8b7cb8ba94f6d",
+      "size": 10593
+    },
+    {
+      "path": "README.md",
+      "hash": "9057f3e811412dceb06f69f71326cb1de709c37cd9a13b2eaff8c20db7da464d",
+      "size": 2807
+    },
+    {
+      "path": "_install/_install-nos.html",
+      "hash": "4d870ec09bc3af9167d7a8c880fd2ce155017f67f2f242b1cc1c82b31abf7f38",
+      "size": 1638
+    },
+    {
+      "path": "_install/main.js",
+      "hash": "483145ea8e470d23dec571a7424a1170fb8f02ea141056d170cc75b3a6a51c89",
+      "size": 6287
+    },
+    {
+      "path": "_install/register.js",
+      "hash": "3bf5a51e0163e326046b71096d61e4afa84eb614c6856defbc09e0a8b8b9360b",
+      "size": 454
+    },
+    {
+      "path": "_install/util.js",
+      "hash": "0a40bd0ca9e90941484925554ea86b2928ad1668c75f7d6beafa21c187f22509",
+      "size": 9894
+    },
+    {
+      "path": "locale-text/README.md",
+      "hash": "58f34ddb2a3571eac86f13c2291f484b3c9fee89665fa00d0411023297e9210c",
+      "size": 14485
+    },
+    {
+      "path": "locale-text/get-locale-text.js",
+      "hash": "cf43f530ece1dc8b7dec5c5cf346d680789f3ee62558f27ed9c3cb43a6e8d81a",
+      "size": 4019
+    },
+    {
+      "path": "locale-text/locale-text.html",
+      "hash": "cfbe317c6269e3cd052365123da71894ae28d5604ce17f65808da4305f584392",
+      "size": 9071
+    },
+    {
+      "path": "n-icon/n-icon.html",
+      "hash": "5dacea6a09396f651a55d1121a38d1cc7014da0a9dad2027c9eb2c08e840c656",
+      "size": 1648
+    },
+    {
+      "path": "nos-version/nos-version.html",
+      "hash": "573ebcf83cdb27402b4e15f1e007734b238d97f1a83afed3a58b42648de2667d",
+      "size": 5345
+    },
+    {
+      "path": "user-name/user-name.html",
+      "hash": "1e42fd12b316212ab059d2bd05f542c75b7fbcdf959b3fb16b14083ab77d65e9",
+      "size": 4762
+    },
+    {
+      "path": "user-name/user-name.sb.html",
+      "hash": "092651565fd53853e80418d30f9722f3c62febb662a8e7b7afce5ceef9737803",
+      "size": 14466
+    },
+    {
+      "path": "user-status/user-status.html",
+      "hash": "c9d5b03659dcad18da409caee8fe92fc4399fc230eee544c9b8c3d56514659c7",
+      "size": 4911
+    },
+    {
+      "path": "user-status/user-status.sb.html",
+      "hash": "969cce3df846f0633a362d099258b882409dee5cb2a8d407637b7dbc69d3932a",
+      "size": 3944
+    }
+  ],
+  "signature": "X63eXf9INpUfPQwkgHtf2rt9jo5dvgUv999I7zI2+zHLnBZe7gfSNeA4HfQGOyEURHg5frBxhz6pKHkjv1qhxQ=="
+}

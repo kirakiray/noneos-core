@@ -27,6 +27,7 @@ sw/
 │       ├── nos-handle.js        # /nos/ 资源代理（线上 / OPFS 本地缓存）
 │       ├── official-handle.js   # /nos-tool/ 与 /nos-lib/_install/ 官方源代理（调试模式透传、官方源回退）
 │       ├── cache-handlers.js    # /gh/ /npm/ /nos-lib/ 统一 SWR 处理器
+│       ├── noslib-verify.js     # nos-lib.json 签名清单校验（pin / 验签 / 回滚 / 缓存清理）
 │       ├── file-handler.js      # /\$/ 本地 OPFS 文件代理
 │       ├── mount-handle.js      # /\$mount-{id}>/ 挂载目录文件代理
 │       ├── file-system.js       # OPFS 根目录与文件句柄工具
@@ -71,8 +72,8 @@ sw/src/main.js
 | 路径前缀 | 处理器 | 说明 |
 |----------|--------|------|
 | `/__config` | (main.js 内联) | 特殊路由，触发配置重载并返回 JSON |
-| `/nos-lib/_install/` | `official-handle.js` | 安装引导代理；始终实时回源不缓存（`localhost:3002` 直接 fetch，否则回退官方源） |
-| `/nos-lib/` | `cache-handlers.js` | nos-lib 官方在线库组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
+| `/nos-lib/_install/` | `official-handle.js` | 安装引导代理；始终实时回源不缓存（`localhost:3002` 直接 fetch，否则回退官方源）；生产环境对返回内容按 `nos-lib.json` 验签，失败返回 502 |
+| `/nos-lib/` | `cache-handlers.js` | nos-lib 官方在线库组件；生产环境 SWR + 写入前按 `nos-lib.json` 验签/验 hash，dev（localhost / 127.0.0.1 / [::1]）网络优先且跳过校验 |
 | `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/`、`/nos/locale-text/`、`/nos/n-icon/` | 同上（别名） | 旧前缀兼容：main.js 内归一化为 `/nos-lib/` 新路径后走上述处理器；`/nos/locale-text/`、`/nos/n-icon/` 在 nos-lib 请求失败时回退原 `/nos/` 处理器（旧安装 OPFS 副本） |
 | `/nos-tool/` | `official-handle.js` | nos-tool 工具集资源代理；调试模式直接 fetch，否则回退官方源 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
@@ -105,6 +106,7 @@ sw/src/main.js
 - **非本地环境**：请求 `https://core.noneos.com/` 对应路径。
 - path 一律由 main.js 归一化为仓库物理路径（旧前缀别名亦然），保证回源目标始终是新路径。
 - `/nos-lib/_install/` 与 `/nos-tool/` 共用本处理器：安装引导必须实时回源，不做任何缓存。
+- `_install` 在非开发环境会传入 `verify` 回调：返回内容按 `nos-lib.json` 验签 + 验 hash，不通过返回 502；`/nos-tool/` 不校验。
 
 ### 3. `/gh/` `/npm/` `/nos-lib/` 统一 SWR 策略（cache-handlers.js）
 
@@ -115,17 +117,27 @@ sw/src/main.js
 - **缓存命中 & TTL 过期或无记录**：立即返回旧缓存，后台异步刷新。
   - 后台刷新有 `navigator.onLine` 守卫（离线跳过）和 `refreshing: Set` 去重（并发合并）。
   - 过期条目在检测到时立即从 `lastRefreshAt` 中删除，实现内存自动回收。
-- **缓存未命中**：同步按候选源顺序 fetch，写盘后返回。
+- **缓存未命中**：同步按候选源顺序 fetch；配置了 `verifyBlob` 的 handler（nos-lib）先校验，通过后才写盘并返回。
 - **网络优先模式**（`networkFirstWhen` 返回 true 时启用）：始终先尝试网络，失败才回退缓存。
 
-**每个 handler 的差异只有两个参数**：
+**每个 handler 的差异只有三个参数**：
 - `resolveSources({ path, request })`：返回按优先级排列的候选源 URL 数组。
 - `networkFirstWhen({ path, request })`：可选，返回 true 时启用网络优先。
+- `verifyBlob(path, blob)`：可选，写盘/返回前校验；返回 false 视为失败（nos-lib 用它做签名清单校验）。缓存命中不重复校验。
 
 **具体路径映射**：
 - `/gh/{path}` → `https://cdn.jsdelivr.net/gh/{path}`（单源，SWR）
 - `/npm/{path}` → `https://cdn.jsdelivr.net/npm/{path}`（单源，SWR）
 - `/nos-lib/{path}` → 生产环境走 `https://core.noneos.com/nos-lib/{path}`（SWR）；localhost dev 环境启用网络优先，候选源依次为 `localhost:3002` → 官方源 → 同域兜底。旧前缀 `/ncomp/{path}`、`/nos-tool/comps/{path}` 归一化后并入，OPFS 缓存键为新路径。
+
+### 3.1 nos-lib 签名校验（noslib-verify.js）
+
+- **清单**：`nos-lib/nos-lib.json`，内容 `{ version, publicKey, signTime, hashes, signature }`；`hashes` 为 nos-lib 文件的整文件 SHA-256，由 `scripts/sign-noslib-hashes.js` 用根证书 active 密钥签发。
+- **pin**：Rollup 构建期读取 `nos/root-cert.json`，把未退役密钥公钥注入本模块（`__NOSLIB_PINNED_KEYS__` 占位符），SW 只接受 pin 集合内公钥签发的清单。
+- **流程**：首次需要 nos-lib 文件时 `fetch` 清单（`no-store`）→ pin 校验 → `verifyData` 验签 → 比对文件 size/hash → 通过才写 OPFS。缓存命中直接返回（写入前已校验）。
+- **回滚保护**：清单 `version` 必须不低于已缓存版本；更低时拒绝并沿用缓存。版本升高时先清空 `nos-lib/` OPFS 缓存再写入新清单。
+- **开发环境**：`localhost` / `127.0.0.1` / `[::1]` 跳过全部校验。
+- **边界**：SW 激活前的 `nos-version` / `_install` / 入口页 `locale-text` 不受覆盖，仍依赖 HTTPS 与域名信任。
 
 ### 4. `/\$/` 本地文件代理（file-handler.js）
 
@@ -155,3 +167,4 @@ sw/src/main.js
 - 构建命令：`npm run build:sw`；开发模式可使用 `npm run watch:sw`（监听 `sw/src/**` 自动重建）。
 - **SW 注册链路**：`nos-lib/_install/main.js`（生产）或 `nos-lib/_install/register.js`（测试/快速）→ `registerSw("sw.js")` → `nos-lib/_install/util.js` 调用 `navigator.serviceWorker.register("/sw.js")` → 根目录 `/sw.js` 执行 `importScripts("/sw/dist.js")`。**注意：实际加载的是未压缩的 `dist.js`，不是 `dist.min.js`**。
 - 修改 `sw/src/` 后必须重新构建，否则线上运行的 Service Worker 不会生效。
+- 构建期还会从 `nos/root-cert.json` 注入 nos-lib pin（见 `rollup.config.js` 的 `injectNosLibPins`）；根密钥轮换后需重新 `npm run build:sw`。

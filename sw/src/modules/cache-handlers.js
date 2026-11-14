@@ -1,5 +1,6 @@
 import { getFileHandle } from "./file-system.js";
 import { getContentType } from "./mime-types.js";
+import { isLocalhostHost, verifyNosLibFile } from "./noslib-verify.js";
 
 /**
  * 统一的 SWR（Stale-While-Revalidate）资源处理器。
@@ -65,7 +66,7 @@ const writeToCache = async (path, blob) => {
 /**
  * 后台异步刷新（离线守卫 + 去重）
  */
-const refreshInBackground = (path, sources, tag) => {
+const refreshInBackground = (path, sources, tag, verifyBlob) => {
   if (!navigator.onLine) return;
   if (refreshing.has(path)) return;
   refreshing.add(path);
@@ -73,6 +74,9 @@ const refreshInBackground = (path, sources, tag) => {
   (async () => {
     try {
       const blob = await fetchFromSources(sources);
+      if (verifyBlob && !(await verifyBlob(path, blob))) {
+        throw new Error(`verification failed: ${path}`);
+      }
       await writeToCache(path, blob);
       lastRefreshAt.set(path, Date.now());
     } catch (err) {
@@ -112,8 +116,17 @@ const errResponse = (tag, err) =>
  *        返回按优先级排列的候选源 URL 数组
  * @param {(ctx: {path: string, request: Request}) => boolean} [opts.networkFirstWhen]
  *        返回 true 时改用"网络优先"模式（如 localhost dev）
+ * @param {(path: string, blob: Blob) => Promise<boolean>} [opts.verifyBlob]
+ *        写盘/返回前的校验回调；返回 false 视为校验失败，不写缓存
  */
-const createHandler = ({ tag, resolveSources, networkFirstWhen }) => {
+const createHandler = ({ tag, resolveSources, networkFirstWhen, verifyBlob }) => {
+  const verify = async (path, blob) => {
+    if (!verifyBlob) return;
+    if (!(await verifyBlob(path, blob))) {
+      throw new Error(`verification failed: ${path}`);
+    }
+  };
+
   return async ({ path, request }) => {
     const ctx = { path, request };
     const sources = resolveSources(ctx);
@@ -123,6 +136,7 @@ const createHandler = ({ tag, resolveSources, networkFirstWhen }) => {
     if (networkFirst) {
       try {
         const blob = await fetchFromSources(sources);
+        await verify(path, blob);
         await writeToCache(path, blob);
         lastRefreshAt.set(path, Date.now());
         return okResponse(blob, path);
@@ -133,16 +147,19 @@ const createHandler = ({ tag, resolveSources, networkFirstWhen }) => {
       }
     }
 
-    // SWR：缓存优先，过期后台刷新
+    // SWR：缓存优先，过期后台刷新（缓存命中视为已校验，直接返回）
     const cached = await readCache(path);
     if (cached) {
-      if (shouldRefresh(path)) refreshInBackground(path, sources, tag);
+      if (shouldRefresh(path)) {
+        refreshInBackground(path, sources, tag, verifyBlob);
+      }
       return okResponse(cached, path);
     }
 
-    // 缓存未命中：同步网络
+    // 缓存未命中：同步网络，校验通过才落盘
     try {
       const blob = await fetchFromSources(sources);
+      await verify(path, blob);
       await writeToCache(path, blob);
       lastRefreshAt.set(path, Date.now());
       return okResponse(blob, path);
@@ -184,9 +201,10 @@ export const handleNpmRequest = createHandler({
  */
 export const handleNosLibRequest = createHandler({
   tag: "nos-lib",
-  networkFirstWhen: () => /^localhost:/.test(location.host),
+  networkFirstWhen: () => isLocalhostHost(),
+  verifyBlob: (path, blob) => verifyNosLibFile(path, blob),
   resolveSources: ({ path }) => {
-    const isDev = /^localhost:/.test(location.host);
+    const isDev = isLocalhostHost();
     return [
       isDev ? new URL(path, "http://localhost:3002").href : null,
       `https://core.noneos.com${path}`,
