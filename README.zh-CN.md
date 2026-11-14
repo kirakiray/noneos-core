@@ -98,14 +98,14 @@ nos/                  # 核心运行时模块(浏览器端)
   crypto/             #   ECDSA、E2EE、RSA、AES 加密
   publish/            #   P2P 文件发布与应用管理
   storage/            #   异步键值存储(IndexedDB,类 localStorage 接口)
-  locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
-  n-icon/             #   图标组件
   util/               #   哈希、zip、异步池等工具
 nos-lib/              # nos 官方在线库(CDN 分发,不进签名包)
   user-name/          #   <n-user-name> 公共组件
   user-status/        #   <n-user-status> 公共组件
   nos-version/        #   <nos-version> 安装/升级入口组件
   _install/           #   SW 注册与系统安装器引导
+  locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
+  n-icon/             #   图标组件
 nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可直接使用
   file-explore/       #   文件浏览器(浏览/导入/下载 OPFS 文件)
   system-info/        #   系统信息与更新管理(版本、SW、安装)
@@ -169,11 +169,11 @@ others/               # 归档/实验代码(不参与运行时)
 - CDN 类前缀采用 SWR + 内存 TTL 缓存;本地系统文件优先读取 OPFS
 - 特殊路由:`/__config`
 
-### 公共 UI(`nos-lib/`、`nos/locale-text/`、`nos/n-icon/`)
+### 公共 UI(`nos-lib/`)
 - `nos-lib/`——nos 官方在线库:与 nos 能力强相关的可复用组件(`<n-user-name>`、`<n-user-status>`),通过 `/nos-lib/{name}/{name}.html` 引用
 - `nos-lib/nos-version/`——`<nos-version>` 安装/升级入口组件;`nos-lib/_install/` 是其引导(SW 注册、版本检查、完整安装、根证书信任链校验),系统信息工具同样调用——见 [`nos-lib/README.md`](nos-lib/README.md)
-- `nos/locale-text/`——轻量国际化:`<locale-text>` 组件与脚本用的 `getLocaleText()`
-- `nos/n-icon/`——内置工具通用的图标组件
+- `nos-lib/locale-text/`——轻量国际化:`<locale-text>` 组件与脚本用的 `getLocaleText()`
+- `nos-lib/n-icon/`——内置工具通用的图标组件
 
 ### 内置便捷工具(`nos-tool/`)
 
@@ -267,7 +267,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 - [键值存储](nos/storage/README.md)——异步的类 localStorage 存储
 - [P2P 发布](nos/publish/README.md)——DataPublisher
 - [官方在线库](nos-lib/README.md)——`<n-user-name>`、`<n-user-status>`、`<nos-version>`、`_install/`
-- [多语言模块](nos/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
+- [多语言模块](nos-lib/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
 - [服务器配置](server/handshake/README.md)——中继服务器搭建
 - [AI 代理知识库](.agents/skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
 

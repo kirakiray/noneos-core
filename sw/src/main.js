@@ -109,6 +109,27 @@ self.addEventListener("fetch", (event) => {
       );
     }
 
+    // 旧路径 /nos/locale-text/、/nos/n-icon/ 已迁至 nos-lib：
+    // 优先走 nos-lib（CDN/SWR 缓存）；离线且旧安装的 OPFS 副本仍在时回退原 /nos/ 处理
+    if (/^\/nos\/(locale-text|n-icon)\//.test(pathname)) {
+      const libPath = pathname.replace(/^\/nos\//, "/nos-lib/");
+      return event.respondWith(
+        (async () => {
+          try {
+            const res = await handleNosLibRequest({
+              path: libPath,
+              request,
+              systemConfig,
+            });
+            if (res && res.ok) return res;
+          } catch {
+            // nos-lib 不可用（离线且无缓存），回退旧路径
+          }
+          return handleNosRequest({ path: pathname, request, systemConfig });
+        })(),
+      );
+    }
+
     if (/^\/nos\//.test(pathname)) {
       return event.respondWith(
         handleNosRequest({

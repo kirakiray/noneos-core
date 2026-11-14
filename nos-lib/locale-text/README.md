@@ -23,7 +23,7 @@
 - **脚本中**（HTML 内联 `<script>` 或独立 `.js`/`.mjs` 文件均可，关键是必须通过 `getLocaleText` 函数调用）：动态文案以语言对象传入 `getLocaleText({ cn: "...", en: "..." })`（动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
 
   ```javascript
-  import getLocaleText from "/nos/locale-text/get-locale-text.js";
+  import getLocaleText from "/nos-lib/locale-text/get-locale-text.js";
 
   getLocaleText({ cn: "保存失败", en: "Save failed" });
   getLocaleText({ cn: "网络请求失败: {msg}", en: "Network failed: {msg}" }, { msg: err.message });
@@ -57,13 +57,13 @@
 在页面顶部通过 `<l-m>` 加载（推荐）：
 
 ```html
-<l-m src="/nos/locale-text/locale-text.html"></l-m>
+<l-m src="/nos-lib/locale-text/locale-text.html"></l-m>
 ```
 
 或在组件的脚本中通过 `load` 加载：
 
 ```javascript
-await load("/nos/locale-text/locale-text.html");
+await load("/nos-lib/locale-text/locale-text.html");
 ```
 
 ### 基本用法
@@ -175,9 +175,9 @@ await load("/nos/locale-text/locale-text.html");
 ### 引入
 
 ```javascript
-import { getLocaleText, getLang } from "/nos/locale-text/get-locale-text.js";
+import { getLocaleText, getLang } from "/nos-lib/locale-text/get-locale-text.js";
 // 或使用默认导出
-import getLocaleText from "/nos/locale-text/get-locale-text.js";
+import getLocaleText from "/nos-lib/locale-text/get-locale-text.js";
 ```
 
 ### `getLocaleText(obj, vars)`
@@ -263,7 +263,7 @@ const lang = getLang(); // "cn"
 - `lang` (string | falsy) - 目标语言码；传入 `null` / `undefined` / `""` 等 falsy 值时，恢复为模块加载时缓存的初始判定值
 
 ```javascript
-import { setLang } from "/nos/locale-text/get-locale-text.js";
+import { setLang } from "/nos-lib/locale-text/get-locale-text.js";
 
 setLang("en");   // 切换到英文，<locale-text> 立即重新渲染
 setLang(null);   // 恢复到启动期判定的语言

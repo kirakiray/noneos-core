@@ -23,7 +23,7 @@
 - **脚本中**（HTML 内联 `<script>` 或独立 `.js`/`.mjs` 文件均可，关键是必须通过 `getLocaleText` 函数调用）：动态文案以语言对象传入 `getLocaleText({ cn: "...", en: "..." })`（动态值用 `{key}` 占位符 + `vars`，不要用模板字符串插值）：
 
   ```javascript
-  import getLocaleText from "/nos/locale-text/get-locale-text.js";
+  import getLocaleText from "/nos-lib/locale-text/get-locale-text.js";
 
   getLocaleText({ cn: "保存失败", en: "Save failed" });
   getLocaleText({ cn: "网络请求失败: {msg}", en: "Network failed: {msg}" }, { msg: err.message });
@@ -37,12 +37,12 @@
 
 ```html
 <!-- 组件 -->
-<l-m src="/nos/locale-text/locale-text.html"></l-m>
+<l-m src="/nos-lib/locale-text/locale-text.html"></l-m>
 ```
 
 ```javascript
 // 函数
-import { getLocaleText, getLang, setLang } from "/nos/locale-text/get-locale-text.js";
+import { getLocaleText, getLang, setLang } from "/nos-lib/locale-text/get-locale-text.js";
 ```
 
 ## 语言判定规则

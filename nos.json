@@ -1,7 +1,7 @@
 {
   "version": "4.9.4",
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1794658171605,
+  "signTime": 1794659022982,
   "hashes": [
     {
       "path": "crypto/crypto-aes.js",
@@ -97,26 +97,6 @@
       "path": "fs/public/file.js",
       "hash": "f16064c713a2024d1c20193faf55172289b47bacd655d950249b2828f681c68a",
       "size": 1254
-    },
-    {
-      "path": "locale-text/README.md",
-      "hash": "18cd455a22ac643199c7042391eedbd2f73747b2f1abdfdd1e1d7bc83ace746c",
-      "size": 14461
-    },
-    {
-      "path": "locale-text/get-locale-text.js",
-      "hash": "b213d2a2924cb2f5f58aa9cc2e6b554949e643cce64d18b221ba833aff6cd107",
-      "size": 4019
-    },
-    {
-      "path": "locale-text/locale-text.html",
-      "hash": "0fa6aa8ce2cbee817eaeb558f526560939862f12664645564af33261f7a396e5",
-      "size": 9071
-    },
-    {
-      "path": "n-icon/n-icon.html",
-      "hash": "19c3158493f5a3cd2e26c53837961c8c690754fb6dceff64571eb693aae29ccd",
-      "size": 1641
     },
     {
       "path": "publish/CONTEXT.md",
@@ -264,5 +244,5 @@
       "size": 6211
     }
   ],
-  "signature": "xVZmjx7szRyil8GAYgFEuWaJ5rllFsyIhkJCQTvVBOCjg2cPV3Ue05uQrKQTIG9/e0oNBsVjaC/WQDndEneNtA=="
+  "signature": "mi7KzLCBPc6/wqnhYD8PdJ0dDsSlVCBps1zUoxjOoT5kgv49TjtqFzCMQ3XCuLkFAqKnp0swthPKidDqinqzxA=="
 }

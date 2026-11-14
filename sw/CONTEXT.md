@@ -14,7 +14,7 @@
    - `/gh/`、`/npm/`、`/nos-lib/` 资源统一使用 SWR + 内存 TTL 策略（见 `cache-handlers.js`）。
    - `/\$/`、`/\$mount-/` 资源直接读取本地 OPFS / 挂载目录。
 4. **调试模式透传**：`localhost:3002` 调试环境下，`/nos/` 与 `/nos-tool/` 请求直接走网络；`/nos-lib/` 请求切换为"网络优先"，代理到 `localhost:3002`，失败时回退官方源和缓存。
-5. **旧前缀兼容**：`/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/` 在分发时把 path 归一化为 `/nos-lib/` 新路径后走同一处理器（兼容已部署的第三方页面，缓存键统一为新路径）；跨域直连消费者由托管层 `_redirects` 的 301 兜底。
+5. **旧前缀兼容**：`/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/`、`/nos/locale-text/`、`/nos/n-icon/` 在分发时把 path 归一化为 `/nos-lib/` 新路径后走同一处理器（兼容已部署的第三方页面，缓存键统一为新路径）；跨域直连消费者由托管层 `_redirects` 的 301 兜底。
 6. **动态配置**：通过 `/__config` 与激活后的 `reloadSystemConfig()` 读取 OPFS 中的 `nos/nos-config/system.json`（兼容旧版根目录 `nos-config/` 布局），热更新 `systemConfig`。
 
 ## 二、模块地图
@@ -73,7 +73,7 @@ sw/src/main.js
 | `/__config` | (main.js 内联) | 特殊路由，触发配置重载并返回 JSON |
 | `/nos-lib/_install/` | `official-handle.js` | 安装引导代理；始终实时回源不缓存（`localhost:3002` 直接 fetch，否则回退官方源） |
 | `/nos-lib/` | `cache-handlers.js` | nos-lib 官方在线库组件；生产环境 SWR，dev（localhost）网络优先，多源候选 |
-| `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/` | 同上（别名） | 旧前缀兼容：main.js 内归一化为 `/nos-lib/` 新路径后走上述处理器 |
+| `/ncomp/`、`/nos-tool/_install/`、`/nos-tool/comps/`、`/nos/locale-text/`、`/nos/n-icon/` | 同上（别名） | 旧前缀兼容：main.js 内归一化为 `/nos-lib/` 新路径后走上述处理器；`/nos/locale-text/`、`/nos/n-icon/` 在 nos-lib 请求失败时回退原 `/nos/` 处理器（旧安装 OPFS 副本） |
 | `/nos-tool/` | `official-handle.js` | nos-tool 工具集资源代理；调试模式直接 fetch，否则回退官方源 |
 | `/nos/` | `nos-handle.js` | nos 核心资源代理；支持 online / local 模式，调试模式直接 fetch |
 | `/gh/` | `cache-handlers.js` | GitHub 仓库文件代理，映射到 jsDelivr |

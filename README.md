@@ -98,14 +98,14 @@ nos/                  # Core runtime modules (browser-side)
   crypto/             #   ECDSA, E2EE, RSA, AES encryption
   publish/            #   P2P file publishing & app management
   storage/            #   Async key-value storage (IndexedDB, localStorage-like)
-  locale-text/        #   Lightweight i18n (<locale-text> + getLocaleText)
-  n-icon/             #   Icon component
   util/               #   Hash, zip, async pool utilities
 nos-lib/              # Official online library (CDN-served, outside the signed pack)
   user-name/          #   <n-user-name> shared component
   user-status/        #   <n-user-status> shared component
   nos-version/        #   <nos-version> install/upgrade entry component
   _install/           #   SW registration & system installer bootstrap
+  locale-text/        #   Lightweight i18n (<locale-text> + getLocaleText)
+  n-icon/             #   Icon component
 nos-tool/             # Built-in tools, usable by any NoneOS Core system
   file-explore/       #   File explorer (browse / import / download OPFS files)
   system-info/        #   System info & update manager (version, SW, install)
@@ -169,11 +169,11 @@ others/               # Archived / experimental code (not part of the runtime)
 - SWR + in-memory TTL caching for CDN-style prefixes; OPFS-first for local system files
 - Special route: `/__config`
 
-### Shared UI (`nos-lib/`, `nos/locale-text/`, `nos/n-icon/`)
+### Shared UI (`nos-lib/`)
 - `nos-lib/` — official online library: reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/nos-lib/{name}/{name}.html`
 - `nos-lib/nos-version/` — `<nos-version>` install/upgrade entry component; `nos-lib/_install/` is its bootstrap (SW registration, version check, full install, root-cert trust verification), also used by the System Info tool — see [`nos-lib/README.md`](nos-lib/README.md)
-- `nos/locale-text/` — lightweight i18n: the `<locale-text>` component plus `getLocaleText()` for scripts
-- `nos/n-icon/` — icon component used across the built-in tools
+- `nos-lib/locale-text/` — lightweight i18n: the `<locale-text>` component plus `getLocaleText()` for scripts
+- `nos-lib/n-icon/` — icon component used across the built-in tools
 
 ### Built-in Tools (`nos-tool/`)
 
@@ -267,7 +267,7 @@ Key references:
 - [Key-Value Storage](nos/storage/README.md) — async localStorage-like storage
 - [P2P Publishing](nos/publish/README.md) — DataPublisher
 - [Official Online Library](nos-lib/README.md) — `<n-user-name>`, `<n-user-status>`, `<nos-version>`, `_install/`
-- [i18n Module](nos/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
+- [i18n Module](nos-lib/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
 - [Server Configuration](server/handshake/README.md) — relay server setup
 - [AI Agent Skill](.agents/skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
 

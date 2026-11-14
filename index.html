@@ -163,7 +163,7 @@
       const load = lm(import.meta);
 
       await load("./nos-lib/nos-version/nos-version.html");
-      await load("/nos/locale-text/locale-text.html");
+      await load("/nos-lib/locale-text/locale-text.html");
 
       (async () => {
         const { LocalUser } = await import("/nos/user/user.js");

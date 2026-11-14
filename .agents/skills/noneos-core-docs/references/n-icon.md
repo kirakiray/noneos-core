@@ -27,7 +27,7 @@ NoneOS 的图标组件，支持通过 [Iconify](https://iconify.design/) 引用�
 通过 `icon` 属性指定要显示的图标：
 
 ```html
-<l-m src="https://core.noneos.com/nos/n-icon/n-icon.html"></l-m>
+<l-m src="https://core.noneos.com/nos-lib/n-icon/n-icon.html"></l-m>
 
 <n-icon icon="mdi:home"></n-icon>
 <n-icon icon="mdi:account-circle"></n-icon>

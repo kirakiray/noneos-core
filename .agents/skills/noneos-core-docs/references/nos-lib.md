@@ -1,6 +1,6 @@
 # nos-lib 官方在线库
 
-`nos-lib` 是 NoneOS Core 的**官方在线库**：由官方 CDN（`core.noneos.com`）分发、不进入 `nos.tgz` 签名包的公共资源目录。基于 `nos` 的上层项目可以通过 `/nos-lib/{path}` 路径直接引用。包含公共 UI 组件（`<n-user-name>`、`<n-user-status>`）、安装/版本入口组件（`<nos-version>`）与安装引导 `_install/`。
+`nos-lib` 是 NoneOS Core 的**官方在线库**：由官方 CDN（`core.noneos.com`）分发、不进入 `nos.tgz` 签名包的公共资源目录。基于 `nos` 的上层项目可以通过 `/nos-lib/{path}` 路径直接引用。包含公共 UI 组件（`<n-user-name>`、`<n-user-status>`、`<n-icon>`、`<locale-text>`）、i18n 运行时（`getLocaleText`）、安装/版本入口组件（`<nos-version>`）与安装引导 `_install/`。
 
 ## 设计原则
 

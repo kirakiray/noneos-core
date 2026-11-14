@@ -4,6 +4,10 @@
 /nos-tool/comps/* /nos-lib/nos-version/:splat 301
 /ncomp/* /nos-lib/:splat 301
 
+# 2026-11: nos/locale-text、nos/n-icon 迁入 nos-lib，旧路径保留 301
+/nos/locale-text/* /nos-lib/locale-text/:splat 301
+/nos/n-icon/* /nos-lib/n-icon/:splat 301
+
 # 注意：不要加「/*.html /:splat.html 200」之类的规则来保留 .html 后缀——
 # Pages 资产层对 .html 路径的 308 规范化发生在 rewrite 目标二次进入资产层时，
 # _redirects 压不住（2026-10-04 实测：本规则在线上存在时 nos-version.html 仍 308，

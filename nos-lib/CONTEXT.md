@@ -6,10 +6,11 @@
 
 `nos-lib` 是 NoneOS Core 的**官方在线库**：由官方 CDN（`core.noneos.com`）分发、**不进入 `nos.tgz` 签名包**的公共资源目录。与 `nos/` 的边界：必须随系统安装、参与哈希签名校验的核心能力放 `nos/`；官方在线分发的可复用资源放 `nos-lib/`。
 
-包含两部分：
+包含三部分：
 
 1. **公共 UI 组件**（原 `ncomp/` 迁入）：`<n-user-name>`、`<n-user-status>`；
-2. **安装/版本设施**（原 `nos-tool/_install/` 与 `nos-tool/comps/nos-version.html` 迁入）：`_install/` 引导与 `<nos-version>` 组件。
+2. **安装/版本设施**（原 `nos-tool/_install/` 与 `nos-tool/comps/nos-version.html` 迁入）：`_install/` 引导与 `<nos-version>` 组件；
+3. **通用 UI 基础设施**（原 `nos/locale-text/`、`nos/n-icon/` 迁入）：`<locale-text>` 组件与 `getLocaleText()` 运行时、`<n-icon>` 图标组件。
 
 基于 `nos` 的上层项目可通过 `/nos-lib/{path}` 路径直接引用。
 
@@ -25,6 +26,12 @@ nos-lib/
 ├── user-status/
 │   ├── user-status.html        # 组件实现
 │   └── user-status.sb.html     # sibyl-test 测试用例
+├── locale-text/
+│   ├── locale-text.html        # <locale-text> 组件
+│   ├── get-locale-text.js      # getLocaleText / getLang / setLang 运行时
+│   └── README.md               # 使用说明
+├── n-icon/
+│   └── n-icon.html             # <n-icon> 图标组件
 ├── nos-version/
 │   └── nos-version.html        # 安装/版本入口组件
 └── _install/
@@ -58,6 +65,14 @@ nos-lib/
   - 监听 `remote_user_connected` / `remote_user_disconnected` / `rtc_state` 事件实时刷新；30 秒低频轮询兜底；`visibilitychange` 时立即刷新。
 - **属性**：`user-id`、`namespace`（默认 `"default"`）。
 - **尺寸**：默认 `8px × 8px`，可通过 `style` 覆盖。
+
+### `locale-text/`（`<locale-text>` + `getLocaleText`）
+
+轻量 i18n：`<locale-text>` 组件按 `lang` 声明多语文案，`getLocaleText()` 供脚本使用；语言判定与站点根目录 `/locale-text.json` 回退逻辑都在 `get-locale-text.js`。书写规范与 API 见 [locale-text/README.md](locale-text/README.md)。
+
+### `n-icon/`（`<n-icon>`）
+
+图标组件：按 `icon` 属性（Iconify 名称）拉取 SVG，并基于 `nos/storage` 的 `n-icon` 空间做持久化缓存，避免重复网络请求。
 
 ### `nos-version`（`<nos-version>`）
 
@@ -98,7 +113,7 @@ nos-lib/
   - **非本地**：SWR 策略，单一候选源 `https://core.noneos.com/nos-lib/{path}`；5 分钟内存 TTL（SW 进程内 `lastRefreshAt: Map`），过期后台无条件重拉覆盖；OPFS 只存文件本体，无元数据。
   - OPFS 缓存键即 path，落在 `nos-lib/` 目录。
 - **`/nos-lib/_install/{path}`** → `handleOfficialSourceRequest`（`sw/src/modules/official-handle.js`）：安装引导必须实时回源，**不读写任何缓存**；`localhost:3002` 直接 fetch，其他 localhost 代理到 3002，生产回源官方。
-- **旧前缀别名**（`/ncomp/{path}`、`/nos-tool/_install/{path}`、`/nos-tool/comps/{path}`）：main.js 在分发前把 path 归一化为 `/nos-lib/` 新路径（`comps/nos-version.html` → `nos-version/nos-version.html`），再走上述处理器；跨域直连消费者由托管层 `_redirects` 的 301 规则兜底。
+- **旧前缀别名**（`/ncomp/{path}`、`/nos-tool/_install/{path}`、`/nos-tool/comps/{path}`、`/nos/locale-text/{path}`、`/nos/n-icon/{path}`）：main.js 在分发前把 path 归一化为 `/nos-lib/` 新路径（`comps/nos-version.html` → `nos-version/nos-version.html`；`/nos/locale-text/...`、`/nos/n-icon/...` → `/nos-lib/...`），再走上述处理器；跨域直连消费者由托管层 `_redirects` 的 301 规则兜底。
 
 > 历史备注：原 `/ncomp/` 处理器名为 `handleNcompRequest`、原 `/nos-tool/` 处理器为 `nostool-handle.js`（现改名 `official-handle.js` 并与 `_install` 共用）。
 
@@ -106,6 +121,6 @@ nos-lib/
 
 1. 每个组件独占一个子目录，目录名与组件标签名保持一致（`n-` 前缀组件去掉 `n-`）。
 2. 组件入口文件命名为 `{tag-name}.html`，建议配套同名 `{tag-name}.sb.html` 测试。
-3. 组件内部引用 `nos` 能力时，使用绝对路径 `/nos/...`，确保在不同项目中路径一致。
+3. 组件内部引用 `nos` 能力时：需要在 SW 接管前也能通过完整 CDN URL 直接加载的组件，使用相对路径 `../../nos/...`；只在 SW 宿主内运行的组件可用绝对路径 `/nos/...`，保持在不同项目中路径一致。
 4. 新增资源前，先确认它应该放 `nos/`（进签名包随系统安装）还是 `nos-lib/`（在线分发），不要把应随包安装的内容放进 `nos-lib/`。
 5. 移动/重命名本目录内容时，必须同步：`sw/src/main.js` 归一化规则、`scripts/rotate-root.js` 的 `clientUtilPath`、`_redirects` 301 规则、各文档与 skill 引用。

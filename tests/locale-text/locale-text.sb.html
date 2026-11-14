@@ -17,7 +17,7 @@
     <h1>locale-text 多语言模块测试</h1>
 
     <!-- 注册 locale-text 组件 -->
-    <l-m src="/nos/locale-text/locale-text.html"></l-m>
+    <l-m src="/nos-lib/locale-text/locale-text.html"></l-m>
     <div id="query-target"></div>
 
     <sb-test name="getLang - 返回非空语言码">
@@ -25,7 +25,7 @@
         <script type="module">
           {
             const { getLang } =
-              await import("/nos/locale-text/get-locale-text.js");
+              await import("/nos-lib/locale-text/get-locale-text.js");
             const lang_getLang = getLang();
             const isString_getLang = typeof lang_getLang === "string";
             const nonEmpty_getLang = lang_getLang.length > 0;
@@ -48,7 +48,7 @@
         <script type="module">
           {
             const { getLang, getLocaleText, setLang } =
-              await import("/nos/locale-text/get-locale-text.js");
+              await import("/nos-lib/locale-text/get-locale-text.js");
 
             // 强制使用非 en 语言，避免对象字面量中出现重复的 en key
             const beforeLang_match = getLang();
@@ -80,7 +80,7 @@
         <script type="module">
           {
             const { getLang, getLocaleText } =
-              await import("/nos/locale-text/get-locale-text.js");
+              await import("/nos-lib/locale-text/get-locale-text.js");
             const lang_fallbackEn = getLang();
 
             // 使用一个绝不会命中的语言码，且提供 en，应回退到 en
@@ -115,7 +115,7 @@
         <script type="module">
           {
             const { getLocaleText } =
-              await import("/nos/locale-text/get-locale-text.js");
+              await import("/nos-lib/locale-text/get-locale-text.js");
 
             // 既无当前语言也无 en，应返回第一个 key 的值
             const obj_first = {
@@ -243,7 +243,7 @@
         <script type="module">
           {
             const { getLang, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             const before = getLang();
@@ -271,7 +271,7 @@
         <script type="module">
           {
             const { setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             let fired = false;
@@ -298,7 +298,7 @@
         <script type="module">
           {
             const { getLocaleText } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             const checks = {
@@ -354,7 +354,7 @@
         <script type="module">
           {
             const { getLang, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             // 强制设定一个已知语言，确保组件首次渲染就应显示对应元素
@@ -395,7 +395,7 @@
         <script type="module">
           {
             const { setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             const container_react = $("#query-target");
@@ -443,7 +443,7 @@
         <script type="module">
           {
             const { setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("cn");
@@ -495,7 +495,7 @@
         <script type="module">
           {
             const { setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("en");
@@ -574,7 +574,7 @@
         <script type="module">
           {
             const { setLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
             const { getHash } = await import("/nos/util/hash/get-hash.js");
 
@@ -655,7 +655,7 @@
         <script type="module">
           {
             const { setLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             // mock fetch 返回空 JSON，确保不会命中
@@ -712,7 +712,7 @@
         <script type="module">
           {
             const { setLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             // mock fetch 返回 404
@@ -765,7 +765,7 @@
         <script type="module">
           {
             const { setLang, getLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
             const { getHash } = await import("/nos/util/hash/get-hash.js");
 
@@ -929,7 +929,7 @@
         <script type="module">
           {
             const { setLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
             const { getHash } = await import("/nos/util/hash/get-hash.js");
 
@@ -1011,7 +1011,7 @@
         <script type="module">
           {
             const { getLocaleText, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("cn");
@@ -1042,7 +1042,7 @@
         <script type="module">
           {
             const { getLocaleText, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("en");
@@ -1077,7 +1077,7 @@
         <script type="module">
           {
             const { getLocaleText, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("cn");
@@ -1104,7 +1104,7 @@
         <script type="module">
           {
             const { getLocaleText, setLang } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
 
             setLang("cn");
@@ -1139,7 +1139,7 @@
               setLang,
               resetLocaleTextJsonCache,
               ensureLocaleTextJson,
-            } = await import("/nos/locale-text/get-locale-text.js");
+            } = await import("/nos-lib/locale-text/get-locale-text.js");
 
             const baseText_jsonIdx = "JSON索引扩展语种测试文本";
 
@@ -1203,7 +1203,7 @@
               setLang,
               resetLocaleTextJsonCache,
               ensureLocaleTextJson,
-            } = await import("/nos/locale-text/get-locale-text.js");
+            } = await import("/nos-lib/locale-text/get-locale-text.js");
 
             resetLocaleTextJsonCache();
             const origFetch_noHit = window.fetch;
@@ -1254,7 +1254,7 @@
               setLang,
               resetLocaleTextJsonCache,
               ensureLocaleTextJson,
-            } = await import("/nos/locale-text/get-locale-text.js");
+            } = await import("/nos-lib/locale-text/get-locale-text.js");
 
             const baseText_jsonVars = "ID: {id}";
             resetLocaleTextJsonCache();
@@ -1388,7 +1388,7 @@
         <script type="module">
           {
             const { setLang, resetLocaleTextJsonCache } = await import(
-              "/nos/locale-text/get-locale-text.js"
+              "/nos-lib/locale-text/get-locale-text.js"
             );
             const { getHash } = await import("/nos/util/hash/get-hash.js");
 
