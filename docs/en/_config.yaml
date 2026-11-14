@@ -1,4 +1,0 @@
-index: ./index.html
-header:
-  - name: Documentation
-    url: ./documentation/_config.yaml

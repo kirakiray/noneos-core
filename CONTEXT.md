@@ -23,7 +23,6 @@
 | `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
 | `server/client/` | 服务端管理前端（admin 页面） |
 | `nos-tool/` | 内置工具集（file-explore、system-info、locale-text-tool、rtc-tool）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
-| `docs/` | 多语言文档源（cn/en/ja）与构建产物 |
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |

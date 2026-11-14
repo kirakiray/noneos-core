@@ -117,7 +117,6 @@ server/               # Backend implementations
   client/             #   Server admin dashboard (web UI)
 tests/                # Browser-based test suites (.sb.html)
 scripts/              # Build, signing, packing utilities
-docs/                 # Multi-language documentation site (OBook)
 .agents/skills/       # AI agent skill definitions
 others/               # Archived / experimental code (not part of the runtime)
 ```

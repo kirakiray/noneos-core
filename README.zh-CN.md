@@ -117,7 +117,6 @@ server/               # 后端实现
   client/             #   服务端管理面板(Web UI)
 tests/                # 浏览器测试套件(.sb.html)
 scripts/              # 构建、签名、打包工具
-docs/                 # 多语言文档站点(OBook)
 .agents/skills/       # AI 代理技能定义
 others/               # 归档/实验代码(不参与运行时)
 ```
