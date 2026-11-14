@@ -54,14 +54,6 @@ pub struct AdminResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traffic: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_inbound_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_outbound_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_relay_forwarded_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_handshake_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub system_stats: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota: Option<serde_json::Value>,

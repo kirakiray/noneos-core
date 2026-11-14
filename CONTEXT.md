@@ -27,7 +27,7 @@
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例 |
 | `scripts/` | 构建/打包/测试脚本 |
-| `others/` | 归档/实验代码（如 `others/old/editor/` 旧 Monaco 编辑器），**不参与运行时** |
+| `others/` | 归档/实验代码（如 `others/study-rust/` 学习工程），**不参与运行时** |
 
 ### 运行时虚拟路径（由 Service Worker 在运行时映射，**仓库内不存在**）
 
