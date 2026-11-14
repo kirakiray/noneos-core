@@ -64,7 +64,7 @@ const rtt = await remoteUser.ping(sessionIds[0]);
 ### 服务器管理
 
 ```javascript
-// 连接指定服务器（第二个参数可传数字重试次数，也可传 { retries } 选项）
+// 连接指定服务器（第二个参数可传 { retries } 选项）
 await user.server.connect("ws://localhost:8081");
 
 // 配置自动重连

@@ -438,14 +438,6 @@
             <st-button
               variant="outlined"
               color="primary"
-              on:click="$host.showTrafficHistory($data.userId, $data.username)"
-              attr:disabled="!$host._adminUser"
-            >
-              流量历史
-            </st-button>
-            <st-button
-              variant="outlined"
-              color="primary"
               on:click="$host.openQuotaDialog($data)"
               attr:disabled="$data.isSelf"
             >
@@ -517,24 +509,6 @@
       </st-select>
     </div>
   </div>
-
-  <st-dialog
-    id="traffic-history-dialog"
-    sync:open="historyDialogOpen"
-  >
-    <style>
-      #traffic-history-dialog::part(panel) {
-        width: auto;
-      }
-    </style>
-    <span slot="headline">{{historyDialogTitle}}</span>
-    <o-if :value="historyDialogOpen">
-      <o-page :src="historyPageSrc"></o-page>
-    </o-if>
-    <div slot="actions">
-      <st-button color="primary" on:click="closeTrafficHistory">关闭</st-button>
-    </div>
-  </st-dialog>
 
   <st-dialog id="quota-dialog" sync:open="quotaDialogOpen">
     <span slot="headline">设置额度 — {{quotaDialogTarget?.username}}</span>
@@ -632,10 +606,6 @@
           groupByUser: false,
           _adminUser: null,
           _refreshTimer: null,
-          // 流量历史弹窗状态
-          historyDialogOpen: false,
-          historyPageSrc: "",
-          historyTarget: null, // { userId, username }
           // 额度设置弹窗状态
           quotaDialogOpen: false,
           quotaDialogTarget: null, // { userId, username }
@@ -858,30 +828,6 @@
           },
 
           /**
-           * 打开指定用户的流量历史弹窗
-           * @param {string} userId
-           * @param {string} username
-           */
-          showTrafficHistory(userId, username) {
-            if (!this.connected || !this._adminUser) return;
-            this.historyTarget = { userId, username };
-            // 加一个时间戳强制 o-page 每次都重新挂载，确保拉到最新数据
-            this.historyPageSrc = `./traffic-history-page.html?userId=${encodeURIComponent(
-              userId,
-            )}&t=${Date.now()}`;
-            this.historyDialogOpen = true;
-          },
-
-          /**
-           * 关闭流量历史弹窗并清空临时数据
-           */
-          closeTrafficHistory() {
-            this.historyDialogOpen = false;
-            this.historyPageSrc = "";
-            this.historyTarget = null;
-          },
-
-          /**
            * 打开设置额度弹窗
            */
           openQuotaDialog(group) {
@@ -938,15 +884,6 @@
             return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
           },
 
-          /**
-           * 流量历史弹窗标题
-           */
-          get historyDialogTitle() {
-            if (!this.historyTarget) return "流量历史";
-            const name = this.historyTarget.username || "未命名用户";
-            return `${name} 的流量历史`;
-          },
-
           _onClose() {
             this.connected = false;
             this.users = [];
@@ -965,13 +902,6 @@
           groupByUser() {
             this.currentPage = 1;
             this.refreshUsers();
-          },
-          historyDialogOpen(open) {
-            if (!open) {
-              // 关闭弹窗时清空 src 释放子页面实例
-              this.historyPageSrc = "";
-              this.historyTarget = null;
-            }
           },
           quotaDialogOpen(open) {
             if (!open) {

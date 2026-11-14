@@ -157,19 +157,14 @@ export class ServerManager {
   /**
    * 连接握手服务器
    * @param {string} url - 握手服务器的 WebSocket 地址
-   * @param {Object|number} [optionsOrRetries={ retries: 3 }] - 连接选项，或仅指定重试次数（向后兼容）
-   * @param {number} [optionsOrRetries.retries=3] - 握手阶段的重试次数
-   * @param {boolean} [optionsOrRetries.auto=false] - 是否为自动连接（connectAll 调用）；
+   * @param {Object} [options={}] - 连接选项
+   * @param {number} [options.retries=3] - 握手阶段的重试次数
+   * @param {boolean} [options.auto=false] - 是否为自动连接（connectAll 调用）；
    *        自动连接不清除主动断开标记，保证 disconnectAll 后不会被后台任务复活
    * @returns {Promise<{success: boolean, version: string|null}>} 连接成功返回 { success: true, version }
    */
-  async connect(url, optionsOrRetries = { retries: 3 }) {
-    let options;
-    if (typeof optionsOrRetries === "number") {
-      options = { retries: optionsOrRetries };
-    } else {
-      options = { retries: 3, ...optionsOrRetries };
-    }
+  async connect(url, options = {}) {
+    options = { retries: 3, ...options };
 
     // 用户主动连接某 URL 时，视为恢复自动重连的意图（auto 连接不恢复，
     // 避免 deleteUser 的 disconnectAll 之后被后台 connectAll 复活，

@@ -23,11 +23,12 @@ When referencing dist.js, add the `?v=` parameter and update the version number 
 
 ## Official Tools
 
-Using `nos-tool` directorytools,caneasilymanage NoneOS system.
+Using the tools in the `nos-tool` directory, you can easily manage the NoneOS system.
 
-- **editor** - Monaco editor integration, supporting code highlighting, formatting, and AI completion
-- **file-explore** - File explorer
-- **file-list** - File list view and handle management
-- **studio** - Development studio, providing file management, color tools, theme editing, and other features
+- **file-explore** - File explorer: browse the OPFS virtual filesystem, import/download/delete files, and open them via `/$path`
+- **system-info** - System info & updates: inspect versions and SW state, run a full system update
+- **studio** - App dev environment (OFA Studio): create projects from templates, manage project files, tune the theme
+- **locale-text-tool** - Locale text extraction: scan `<locale-text>` blocks and generate `locale-text.json`
+- **rtc-tool** - WebRTC STUN/TURN server list management: test reachability and latency, reorder, enable/disable
 
 These tools are located in the `nos-tool` directory and can be imported and used as needed.

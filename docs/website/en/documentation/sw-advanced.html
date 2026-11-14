@@ -88,13 +88,13 @@
 importScripts(<span class="hljs-string">&quot;https://core.noneos.com/sw/dist.js?v=&quot;</span> + version);</code></pre>
         <p>When referencing dist.js, add the <code>?v=</code> parameter and update the version number each time a new version is released, so that the browser will request the new file instead of using the cache.</p>
         <h2>Official Tools</h2>
-        <p>Using <code>nos-tool</code> directorytools,caneasilymanage NoneOS system.</p>
+        <p>Using the tools in the <code>nos-tool</code> directory, you can easily manage the NoneOS system.</p>
         <ul>
-          <li><strong>ai</strong> - AI model management, including chat, configuration, and key management</li>
-          <li><strong>editor</strong> - Monaco editor integration, supporting code highlighting, formatting, and AI completion</li>
-          <li><strong>file-explore</strong> - File explorer</li>
-          <li><strong>file-list</strong> - File list view and handle management</li>
-          <li><strong>studio</strong> - Development studio, providing file management, color tools, theme editing, and other features</li>
+          <li><strong>file-explore</strong> - File explorer: browse the OPFS virtual filesystem, import/download/delete files, and open them via <code>/$path</code></li>
+          <li><strong>system-info</strong> - System info &amp; updates: inspect versions and SW state, run a full system update</li>
+          <li><strong>studio</strong> - App dev environment (OFA Studio): create projects from templates, manage project files, tune the theme</li>
+          <li><strong>locale-text-tool</strong> - Locale text extraction: scan <code>&lt;locale-text&gt;</code> blocks and generate <code>locale-text.json</code></li>
+          <li><strong>rtc-tool</strong> - WebRTC STUN/TURN server list management: test reachability and latency, reorder, enable/disable</li>
         </ul>
         <p>These tools are located in the <code>nos-tool</code> directory and can be imported and used as needed.</p>
       </article>

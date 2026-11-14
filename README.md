@@ -156,7 +156,7 @@ others/               # Archived / experimental code (not part of the runtime)
 - User bandwidth quotas (configurable per user)
 - Heartbeat detection for stale connection cleanup
 - Memory overload protection
-- Admin commands: online users, system info, traffic history, quota management
+- Admin commands: online users, system info, traffic stats, quota management
 
 ### P2P Publishing (`nos/publish/`)
 - `DataPublisher` — chunked P2P file distribution (128KB chunks, signed manifest, per-chunk SHA-256)

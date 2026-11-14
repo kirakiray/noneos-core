@@ -25,9 +25,10 @@ importScripts("https://core.noneos.com/sw/dist.js?v=" + version);
 
 使用 `nos-tool` 目录下的工具，可以方便地管理 NoneOS 系统。
 
-- **editor** - Monaco 编辑器集成，支持代码高亮、格式化、AI 补全
-- **file-explore** - 文件浏览器
-- **file-list** - 文件列表视图和句柄管理
-- **studio** - 开发工作室，提供文件管理、颜色工具、主题编辑等功能
+- **file-explore** - 文件浏览器：浏览 OPFS 虚拟文件系统，支持导入/下载/删除文件与 `/$path` 访问
+- **system-info** - 系统信息与更新管理：查看版本、SW 状态并执行完整系统更新
+- **studio** - 应用开发环境（OFA Studio）：从模板创建项目、管理项目文件、调整主题配色
+- **locale-text-tool** - 多语言文案提取：扫描 `<locale-text>` 并生成 `locale-text.json`
+- **rtc-tool** - WebRTC STUN/TURN 服务器列表管理：测试连通性与延迟、排序、启停
 
 这些工具位于 `nos-tool` 目录下，可按需引入和使用。

@@ -21,9 +21,6 @@ pub struct AdminCommand {
     pub page_size: u32,
     #[serde(default)]
     pub limit: Option<usize>,
-    /// 可选：流量历史查询的起始时间戳（毫秒）。不传则默认查最近 1 小时。
-    #[serde(default)]
-    pub from_ms: Option<i64>,
     /// 可选：设置用户转发额度（字节）
     #[serde(default)]
     pub quota_bytes: Option<u64>,
@@ -56,8 +53,6 @@ pub struct AdminResponse {
     pub page_size: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traffic: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub history: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_inbound_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -488,24 +483,6 @@ pub async fn handle_admin_command(
                 status: "ok".to_string(),
                 message: Some(format!("Traffic stats: {} active session(s)", traffic_resp.users.len())),
                 traffic: Some(serde_json::to_value(traffic_resp).unwrap_or_default()),
-                ..Default::default()
-            }
-        }
-        "get_traffic_history" => {
-            // 在新的设计下，不再有每个 session 的流量快照
-            // 返回全局流量时间分布数据代替
-            let to_ms = traffic::now_ms() as i64;
-            let _from_ms = admin_cmd.from_ms.unwrap_or(to_ms - 3_600_000);
-
-            AdminResponse {
-                msg_type: "admin_response".to_string(),
-                action: "get_traffic_history".to_string(),
-                status: "ok".to_string(),
-                message: Some("Traffic history data is now exported via redb file. Use data export tool to pull data to local relational DB for analysis.".to_string()),
-                history: Some(Vec::new()),
-                total: Some(0),
-                page: Some(admin_cmd.page),
-                page_size: Some(admin_cmd.page_size),
                 ..Default::default()
             }
         }

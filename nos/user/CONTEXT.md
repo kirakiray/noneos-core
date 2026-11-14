@@ -100,7 +100,7 @@ EventTarget
 
 | 方法 | 说明 |
 |------|------|
-| `connect(url, optionsOrRetries?)` | 建立 WebSocket，自动执行握手挑战应答；第二个参数支持 `{ retries }` 或旧版的数字重试次数；连接被主动断开（`disconnect`）中止时 reject 的 Error 带 `aborted: true` 标记（正常取消，非失败） |
+| `connect(url, options?)` | 建立 WebSocket，自动执行握手挑战应答；第二个参数为 `{ retries, auto }` 选项；连接被主动断开（`disconnect`）中止时 reject 的 Error 带 `aborted: true` 标记（正常取消，非失败） |
 | `setAutoReconnect(options)` | 配置自动重连：enabled/baseDelay/maxDelay/multiplier/maxRetries。**默认开启**（`baseDelay=1000`，间隔带 ±25% 抖动防惊群），仅 `disconnect(url)` 标记的主动断开不重连 |
 | `disconnect(url)` | 断开指定服务器，并停止该 URL 的自动重连 |
 | `sendToUser(targetUserId, targetSessionId, data)` | 自动选最优服务器发送，支持二进制中继帧 |

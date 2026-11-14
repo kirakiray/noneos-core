@@ -132,7 +132,6 @@ header 含 from/to/sessionId 等路由字段，payload 为原始字节，直接�
 | `disconnect_user` / `disconnect_session` | 踢出 |
 | `get_system_info` | 内存/CPU 核数/磁盘 |
 | `get_traffic_stats` | 实时流量 |
-| `get_traffic_history` | **已废弃**，仅返回空数组与提示信息（数据需从 redb 文件导出分析） |
 | `get_system_stats_history` | 历史 CPU/内存 |
 | `set_user_relay_quota` / `get_user_relay_quota` | 配额管理。set 携带 `quota_bytes` 为单独设置（custom_quota=true）；携带 `reset_to_default: true` 则重置为跟随服务器默认（优先级高于 quota_bytes）。get 与 list_all_users 返回**生效额度**（quotaBytes）与 `customQuota`/`custom_quota` 标记 |
 | `get_global_relay_quota` | 查询服务器整体月度配额：`quota.quotaBytes` / `usedBytes` / `inboundBytes` / `outboundBytes` / `periodStartAt` / `periodResetDay` / `remainingBytes` / `unlimited` / `exceeded` |

@@ -97,15 +97,6 @@ class AdminHttpClient {
     return this.#command("get_traffic_stats", { limit });
   }
 
-  async getTrafficHistory(_url, { fromMs, userId, page = 1, pageSize = 20 } = {}) {
-    return this.#command("get_traffic_history", {
-      from_ms: fromMs,
-      page,
-      page_size: pageSize,
-      user_id: userId,
-    });
-  }
-
   async getSystemStatsHistory(_url, { limit = 60 } = {}) {
     return this.#command("get_system_stats_history", { limit });
   }
