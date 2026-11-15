@@ -21,7 +21,7 @@
           {
             const { get } = await import("/nos/fs/main.js");
 
-            const path = "nos-lib/user-name/user-name.html";
+            const path = "nos-lib/locale-text/locale-text.html";
 
             // 通过 Service Worker 请求组件资源
             const response = await fetch("/" + path);
@@ -70,7 +70,7 @@
           {
             const { get } = await import("/nos/fs/main.js");
 
-            const path = "nos-lib/user-name/user-name.html";
+            const path = "nos-lib/locale-text/locale-text.html";
 
             // 先请求一次，确保 OPFS 中已有缓存
             await fetch("/" + path);

@@ -17,16 +17,16 @@
     "dev": "npm run static & npm run watch:sw",
     "static": "node scripts/static.js",
     "start": "http-server -p 30028 -c-1 --cors",
-    "ws": "npm run ws1 & npm run ws2",
-    "ws1": "cd server/handshake && cargo run -- --config test-space/config.example.toml",
-    "ws2": "cd server/handshake && cargo run -- --config test-space/config2.toml",
     "bump": "node scripts/bump.js && npm i && npm run build",
     "build": "npm run build:hashes && npm run build:sw && npm run build:skill",
     "build:skill": "node scripts/build-skill.js noneos-core-docs",
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm -f hashes.json && node scripts/pack-nos.js && node scripts/verify-pack.js && node scripts/calculate-noslib-hashes.js && node scripts/sign-noslib-hashes.js && node scripts/verify-noslib-manifest.js && rm -f noslib-hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "sb-test -p 3002 -t 10"
+    "test": "sb-test -p 3002 -t 10",
+    "test:peer": "node --test tests/peer/*.node.test.mjs",
+    "relay": "cd server/relay && cargo run",
+    "test:relay": "cd server/relay && cargo test"
   },
   "devDependencies": {
     "@rollup/plugin-terser": "^1.0.0",

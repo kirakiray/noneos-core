@@ -4,76 +4,31 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)](package.json)
-[![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
+
+> **5.0** replaces the old user/identity/messaging, publishing and Rust relay implementations with a new `PeerSession + Link` architecture (relay + optional WebRTC), ECDSA identity, E2EE, service discovery and a Rust relay server.
 
 **NoneOS Core** is a browser-based virtual operating system core that provides a **virtual filesystem** and a **decentralized user interconnection** system — no server-side installation required for basic usage. Applications built on NoneOS Core can read/write files in a sandboxed virtual filesystem and communicate peer-to-peer between users.
 
 > **In essence**, NoneOS Core is an innovative **Micro-Frontend Containerization Technology**. While it *appears* as a browser-based virtual operating system, its technical essence is micro-frontend containerization built on Service Worker resource virtualization — it intercepts browser fetches through a routing layer, hosts independently published apps, and runs each one inside a sandboxed, persistent container with no server-side installation.
-
-```js
-import { getUser } from "/nos/user/main.js";
-
-const user = await getUser("my-app");
-// user.userId → unique ECDSA-based identity
-// Auto-connects to relay servers for messaging
-
-const remote = await user.connectUser(targetUserId);
-await remote.send(sessionId, { text: "Hello from NoneOS!" });
-```
 
 ---
 
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│                         Browser (ofajs app)                           │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │                    ofa.js Framework                           │    │
-│  │             (Web Components, data binding, routing)           │    │
-│  └─────────────────────┬────────────────────────────────────────┘    │
-│                        │                                              │
-│  ┌──────────┐  ┌──────┴──────┐  ┌─────────────────────────────┐   │
-│  │  nos/fs   │  │  nos/user  │  │  nos/publish                 │   │
-│  │ (OPFS-    │  │ (decent-   │  │ (DataPublisher)              │   │
-│  │  backed)  │  │  ralized   │  │                              │   │
-│  │           │  │  identity) │  │                              │   │
-│  └──────────┘  └──────┬─────┘  └─────────────────────────────┘   │
-│                        │ WebSocket relay / RTC signaling             │
-├────────────────────────┼────────────────────────────────────────────┤
-│                   Service Worker (sw/)                               │
-│               (fetch interception, caching, routing)                 │
-└────────────────────────┼────────────────────────────────────────────┘
-                         │ WebSocket (wss://)
-┌────────────────────────┼────────────────────────────────────────────┐
-│                Rust Relay Server (server/handshake/)                      │
-│  ┌──────────┐  ┌──────┴──────┐  ┌──────────────────────────────┐   │
-│  │ Handshake│  │  Message    │  │  Traffic Stats               │   │
-│  │ (ECDSA   │  │  Relay      │  │  (redb persistence)          │   │
-│  │ P-256)   │  │             │  │                              │   │
-│  └──────────┘  ├─────────────┤  ├──────────────────────────────┤   │
-│                │ RTC Signal  │  │  Quota / Abuse               │   │
-│                │ Tunnel      │  │  Protection                  │   │
-│                │(transparent │  │                              │   │
-│                │ pass-through│  └──────────────────────────────┘   │
-│  ┌──────────┐  └─────────────┘  ┌──────────────────────────────┐   │
-│  │  Admin   │  ┌─────────────┐  │  Memory Overload             │   │
-│  │ Commands │  │  Heartbeat  │  │  Protection                  │   │
-│  └──────────┘  │  Detection  │  └──────────────────────────────┘   │
-│                └─────────────┘                                     │
-└────────────────────────────────────────────────────────────────────┘
+Browser
+├─ ofa.js app (Web Components / routing)
+├─ nos/fs       OPFS virtual filesystem
+├─ nos/storage  IndexedDB key-value storage
+├─ nos/peer     PeerSession + Link (5.0)
+│    ├─ RTC Link   leader tab owns RTCPeerConnection
+│    └─ WS Relay   SharedWorker owns the persistent relay connection
+└─ sw/          resource virtualization (/nos, /nos-lib, /gh, /npm, /$, /$mount-*)
 
-      ─ ─ ─  WebRTC direct (once negotiated via server) ─ ─ ─
-      │                                                          │
-      ▼                                                          ▼
-   Browser A                                               Browser B
+Relay: server/relay (Rust WebSocket relay + offline mailbox).
 ```
-
-The Rust relay server provides **challenge-response authentication** (ECDSA P-256), **message relay**, and **RTC signaling tunnel** between users. Server-negotiated relay is always available as a fallback, but once peers discover each other they can switch to direct **WebRTC** connections — the relay server transparently passes SDP/ICE signaling messages as ordinary relay data, with no server-side awareness of the signaling protocol.
-
----
 
 ## Micro-Frontend Containerization
 
@@ -81,8 +36,8 @@ Although NoneOS Core *presents itself* as a virtual operating system, its techni
 
 | Pillar | What it means | Where it lives |
 |--------|---------------|----------------|
-| **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | [`nos/publish/`](nos/publish/README.md) |
-| **Container isolation** | Each app runs inside a sandboxed runtime: an OPFS-backed virtual filesystem for isolation and persistence, plus a decentralized identity & messaging system that acts as the app's I/O surface to the outside world. | [`nos/fs/`](nos/fs/), [`nos/user/`](nos/user/README.md) |
+| **Micro-frontend hosting** | Apps are content-addressed, independently publishable, and loaded on demand — no build-time coupling between the host and its apps. A signed manifest lets any peer distribute or serve an app. | `nos/peer` |
+| **Container isolation** | Each app runs inside a sandboxed runtime: an OPFS-backed virtual filesystem for isolation and persistence, plus a decentralized identity & messaging system that acts as the app's I/O surface to the outside world. | [`nos/fs/`](nos/fs/), `nos/peer` |
 | **Resource virtualization** | The containerization is built on a Service Worker layer that intercepts every fetch and maps a set of *virtual URL prefixes* (`/nos/`, `/nos-lib/`, `/nos-tool/`, `/gh/`, `/npm/`, `/$/`, `/$mount-.../`) to different backends — local OPFS, CDN, the official source, or remote users. The browser sees one origin, but the app perceives many. | [`sw/`](sw/) |
 
 In short: **micro-frontend hosting** keeps apps independent, the **container** gives each app a private, persistent, connected runtime, and **resource virtualization** is the Service Worker foundation that makes the container work — all running purely in the browser.
@@ -94,14 +49,10 @@ In short: **micro-frontend hosting** keeps apps independent, the **container** g
 ```
 nos/                  # Core runtime modules (browser-side)
   fs/                 #   Virtual filesystem (OPFS-backed)
-  user/               #   Decentralized user identity & messaging
-  crypto/             #   ECDSA, E2EE, RSA, AES encryption
-  publish/            #   P2P file publishing & app management
+  crypto/             #   ECDSA, RSA, AES encryption
   storage/            #   Async key-value storage (IndexedDB, localStorage-like)
   util/               #   Hash, zip, async pool utilities
 nos-lib/              # Official online library (CDN-served, outside the signed pack)
-  user-name/          #   <n-user-name> shared component
-  user-status/        #   <n-user-status> shared component
   nos-version/        #   <nos-version> install/upgrade entry component
   _install/           #   SW registration & system installer bootstrap
   locale-text/        #   Lightweight i18n (<locale-text> + getLocaleText)
@@ -113,9 +64,7 @@ nos-tool/             # Built-in tools, usable by any NoneOS Core system
   locale-text-tool/   #   Extract <locale-text> entries into locale-text.json
   rtc-tool/           #   Manage the WebRTC STUN/TURN server list
 sw/                   # Service Worker (fetch interception, routing, caching)
-server/               # Backend implementations
-  handshake/          #   Rust handshake & relay server (production)
-  client/             #   Server admin dashboard (web UI)
+server/relay/         # Rust WebSocket relay (auth, mailbox, services)
 tests/                # Browser-based test suites (.sb.html)
 scripts/              # Build, signing, packing utilities
 .agents/skills/       # AI agent skill definitions
@@ -130,33 +79,18 @@ scripts/              # Build, signing, packing utilities
 - File/directory CRUD, move, copy, observe
 - Mount real local directories (Chrome File System Access API) — mounted handles persisted via IndexedDB
 - Files accessible via `/$dirName/path` HTTP-style URLs
-- Remote filesystem access over P2P connection
 
-### Decentralized User System (`nos/user/`)
-- **ECDSA P-256** key pair generation and identity (userId = public key hash)
-- Challenge-response **authentication** against relay servers
-- **Message relay** through configurable WebSocket servers
-- **End-to-end encryption** (ECDH + AES-GCM) for private messages
-- **WebRTC** direct peer-to-peer fallback after initial discovery
-- **Service Registry** — app-level routing by `appId`, no session management needed
-- **Certificate system** for role/permission management
-- **Cross-tab session** support via BroadcastChannel
-- Latency monitoring with automatic server selection
+### Peer Interconnect (`nos/peer/`)
+- `PeerSession` — transport-agnostic reliability: sequence numbers, cumulative ACK, retransmit, reorder buffer and dedup
+- `RelayMux` — many peers over one WebSocket; SharedWorker owns the socket and broadcasts to tabs
+- Optional WebRTC — leader tab owns `RTCPeerConnection`; SharedWorker proxies frames and falls back to the relay
+- ECDSA P-256 identity (`userId = sha256(publicKey)`), challenge-response auth, E2EE and appId service discovery
 
-### Relay Server (`server/handshake/`)
-- Challenge-response handshake with ECDSA P-256 signature verification
-- Text and binary relay with configurable size limits
-- **RTC signaling tunnel** — transparently passes SDP/ICE offers and candidates as ordinary relay data; the server is unaware it's carrying signaling
-- Multi-session per user with configurable concurrency limits
-- Relay abuse protection (failure counting per time window)
-- Traffic statistics with redb persistence (30s granularity)
-- User bandwidth quotas (configurable per user)
-- Heartbeat detection for stale connection cleanup
-- Memory overload protection
-- Admin commands: online users, system info, traffic stats, quota management
-
-### P2P Publishing (`nos/publish/`)
-- `DataPublisher` — chunked P2P file distribution (128KB chunks, signed manifest, per-chunk SHA-256)
+### Relay Server (`server/relay/`)
+- WebSocket binary relay: routes mux frames by `from` / `to`, verifies `from` against the connection userId
+- Multi-connection per user; offline mailbox (memory or `--mailbox <file>`), TTL 1h
+- Public-key lookup and appId service discovery
+- ECDSA P-256 challenge-response auth + public-key lookup; persistent mailbox via `--mailbox`
 
 ### Key-Value Storage (`nos/storage/`)
 - Async, `localStorage`-like API (`setItem` / `getItem` / `removeItem` / `clear`) backed by IndexedDB
@@ -171,7 +105,7 @@ scripts/              # Build, signing, packing utilities
 - `nos-lib/` files are verified against the signed `nos-lib/nos-lib.json` before being written to the OPFS cache
 
 ### Shared UI (`nos-lib/`)
-- `nos-lib/` — official online library: reusable components tied to nos capabilities (`<n-user-name>`, `<n-user-status>`), referenced via `/nos-lib/{name}/{name}.html`
+- `nos-lib/` — official online library: `<nos-version>`, `<locale-text>`, `<n-icon>`, referenced via `/nos-lib/{name}/{name}.html`
 - `nos-lib/nos-version/` — `<nos-version>` install/upgrade entry component; `nos-lib/_install/` is its bootstrap (SW registration, version check, full install, root-cert trust verification), also used by the System Info tool — see [`nos-lib/README.md`](nos-lib/README.md)
 - `nos-lib/locale-text/` — lightweight i18n: the `<locale-text>` component plus `getLocaleText()` for scripts
 - `nos-lib/n-icon/` — icon component used across the built-in tools
@@ -217,15 +151,7 @@ npm start
 
 Use `npm start` when you want to actually *use* NoneOS Core locally rather than debug it. On any local port other than 3002, the default handshake server list also includes the online relay servers (`wss://hand3-jp1.noneos.com:4331`, `wss://hand3-us1.noneos.com:4331`, `wss://hand3-hk1.noneos.com:4331`), so you can connect with remote users without running your own relay server.
 
-### 3. Start a Local Relay Server (optional, for multi-user testing)
-
-```bash
-# Terminal 1: start two Rust relay servers (port 8081, 8082)
-npm run ws
-```
-Requires [Rust](https://www.rust-lang.org/) to compile.
-
-### 4. Use in Your Own Project
+### 3. Use in Your Own Project
 
 Create `sw.js` at your project root:
 
@@ -242,15 +168,9 @@ Install the system from your entry HTML, then use the runtime modules:
 
 <script type="module">
   $("nos-version").on("installed", async () => {
-    const { getUser } = await import("/nos/user/main.js");
-
-    const user = await getUser("my-app");
-    console.log("My ID:", user.userId);
-
-    // Send a message to another user via relay server
-    const remote = await user.connectUser(targetUserId);
-    const sessions = await remote.getSessionIds();
-    await remote.send(sessions[0], { hello: "world" });
+    const { get } = await import("/nos/fs/main.js");
+    const file = await get("my-app/hello.txt", { create: "file" });
+    await file.write("hello");
   });
 </script>
 ```
@@ -264,13 +184,10 @@ Once installed, the virtual prefixes are live: `/nos/...` for core modules, `/no
 Full documentation is available at **[https://core.noneos.com](https://core.noneos.com)** (multi-language: English, 中文, 日本語).
 
 Key references:
-- [User System API](nos/user/README.md) — identity, messaging, certificates, service registry
 - [Virtual Filesystem API](nos/fs/README.md) — file operations, mounting, observation
 - [Key-Value Storage](nos/storage/README.md) — async localStorage-like storage
-- [P2P Publishing](nos/publish/README.md) — DataPublisher
-- [Official Online Library](nos-lib/README.md) — `<n-user-name>`, `<n-user-status>`, `<nos-version>`, `_install/`
+- [Official Online Library](nos-lib/README.md) — `<nos-version>`, `<locale-text>`, `<n-icon>`, `_install/`
 - [i18n Module](nos-lib/locale-text/README.md) — `<locale-text>`, `getLocaleText()`
-- [Server Configuration](server/handshake/README.md) — relay server setup
 - [AI Agent Skill](.agents/skills/noneos-core-docs/SKILL.md) — condensed docs for AI agents
 
 ---
@@ -288,8 +205,9 @@ Key references:
 | `npm run build:hashes` | Compute and sign hashes of `nos/` sources (consumed by `nos.json`) and `nos-lib/` sources (consumed by `nos-lib/nos-lib.json`) |
 | `npm run build:skill` | Build the `.agents/skills/noneos-core-docs` knowledge base (`noneos-core-docs.zip`) |
 | `npm run bump` | Increment version across all files, then reinstall & rebuild |
-| `npm run ws` | Start two Rust relay servers (test mode, ports 8081 & 8082) |
-| `npm run ws1` / `npm run ws2` | Start a single Rust relay server (port 8081 / 8082) |
+| `npm run relay` | Start the new Rust relay server (default port 8081) |
+| `npm run test:relay` | Run Rust relay tests |
+| `npm run test:peer` | Run Stage 1/2 PeerSession tests |
 | `npm run test` | Run browser-based test suites (`sb-test`) |
 
 > **Important**: after changing anything under `sw/src/`, you must re-run `npm run build:sw` (or keep `npm run watch:sw` running), otherwise the deployed service worker won't pick up the change.

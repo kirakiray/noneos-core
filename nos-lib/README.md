@@ -6,8 +6,6 @@
 
 | 子目录 | 内容 |
 |--------|------|
-| [user-name/](user-name/) | `<n-user-name>` 公共组件：根据 `user-id` 显示对应用户的用户名 |
-| [user-status/](user-status/) | `<n-user-status>` 公共组件：根据 `user-id` 显示对应用户的在线/连接状态（颜色圆点） |
 | [nos-version/](nos-version/) | `<nos-version>` 公共组件：安装/版本入口组件（检查更新、触发安装/升级，事件驱动） |
 | [locale-text/](locale-text/) | `<locale-text>` 轻量国际化组件与 `getLocaleText()` 运行时 |
 | [n-icon/](n-icon/) | `<n-icon>` 图标组件（基于 `nos/storage` 做持久化缓存） |
@@ -19,7 +17,7 @@
 - **与 `nos/` 的边界**：必须随系统安装、参与哈希签名校验的核心能力一律放 `nos/`；官方在线分发的可复用资源放 `nos-lib/`。
 - **克制收录**：只存放与 `nos` 核心能力强相关、在多个项目中会被高频复用的资源。
 - **可定制性**：组件保持简洁，允许第三方基于它们做较大程度的定制和扩展。
-- **命名规范**：nos 能力相关组件标签统一使用 `n-` 前缀（如 `n-user-name`）；`nos-version` 为历史沿用的例外。
+- **命名规范**：nos 能力相关组件标签统一使用 `n-` 前缀（如 `n-icon`）；`nos-version` 为历史沿用的例外。
 - **路径稳定**：内部引用 `nos` 能力时，SW 宿主内可用绝对路径 `/nos/...`；需要支持完整 CDN URL 直接加载的组件用相对路径 `../../nos/...`（`n-icon` 即属此类）。
 
 ## 使用方式
@@ -27,8 +25,8 @@
 NoneOS 宿主页面内引用：
 
 ```html
-<l-m src="/nos-lib/user-name/user-name.html"></l-m>
-<n-user-name user-id="{userId}"></n-user-name>
+<l-m src="/nos-lib/n-icon/n-icon.html"></l-m>
+<n-icon icon="mdi:home"></n-icon>
 ```
 
 跨域页面（未安装 NoneOS Core 的站点）使用完整官方地址加载安装组件：

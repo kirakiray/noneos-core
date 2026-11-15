@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PeerSession Stage 1</title>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
+    ></script>
+  </head>
+  <body>
+    <h1>PeerSession Stage 1</h1>
+
+    <sb-test name="帧编解码往返，非法帧被拒绝">
+      <template>
+        <script type="module">
+          {
+            const { encodeFrame, decodeFrame, FrameType, FrameFlags } =
+              await import("/nos/peer/framing.js");
+
+            const payload = new TextEncoder().encode("hello");
+            const bytes = encodeFrame({
+              type: FrameType.DATA,
+              flags: FrameFlags.RELIABLE,
+              seq: 7,
+              ack: 3,
+              payload,
+            });
+            const decoded = decodeFrame(bytes);
+
+            const badVersion = bytes.slice();
+            badVersion[0] = 99;
+            let versionRejected = false;
+            try {
+              decodeFrame(badVersion);
+            } catch {
+              versionRejected = true;
+            }
+
+            let truncatedRejected = false;
+            try {
+              decodeFrame(bytes.slice(0, 8));
+            } catch {
+              truncatedRejected = true;
+            }
+
+            return {
+              assert:
+                decoded.type === FrameType.DATA &&
+                decoded.seq === 7 &&
+                decoded.ack === 3 &&
+                decoded.payload.length === payload.length &&
+                new TextDecoder().decode(decoded.payload) === "hello" &&
+                versionRejected &&
+                truncatedRejected,
+              content: {
+                type: decoded.type,
+                seq: decoded.seq,
+                ack: decoded.ack,
+                versionRejected,
+                truncatedRejected,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="乱序缓存按序交付，重复帧被丢弃">
+      <template>
+        <script type="module">
+          {
+            const { ReorderBuffer } = await import("/nos/peer/reorder-buffer.js");
+            const reorder = new ReorderBuffer({ windowSize: 8 });
+            const payload = (n) => new Uint8Array([n]);
+
+            const second = reorder.accept(2, payload(2));
+            const first = reorder.accept(1, payload(1));
+            const duplicate = reorder.accept(1, payload(1));
+            const outOfWindow = reorder.accept(99, payload(99));
+
+            return {
+              assert:
+                second.status === "buffered" &&
+                first.status === "deliver" &&
+                first.messages.length === 2 &&
+                first.messages[0].seq === 1 &&
+                first.messages[1].seq === 2 &&
+                duplicate.status === "duplicate" &&
+                outOfWindow.status === "out-of-window" &&
+                reorder.receivedThrough === 2,
+              content: {
+                second: second.status,
+                first: first.messages.map((m) => m.seq),
+                duplicate: duplicate.status,
+                outOfWindow: outOfWindow.status,
+                receivedThrough: reorder.receivedThrough,
+              },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="可靠消息发送后收到 ACK，接收端只交付一次">
+      <template>
+        <script type="module">
+          {
+            const { PeerSession } = await import("/nos/peer/session.js");
+            const { createFakeLinkPair } = await import(
+              "/nos/peer/links/fake-link.js"
+            );
+
+            const [linkA, linkB] = createFakeLinkPair();
+            const sessionA = new PeerSession({ link: linkA, ackTimeout: 100 }).start();
+            const sessionB = new PeerSession({ link: linkB, ackTimeout: 100 }).start();
+
+            const received = [];
+            sessionB.onMessage((payload, meta) => {
+              received.push({ text: new TextDecoder().decode(payload), seq: meta.seq });
+            });
+
+            const result = await sessionA.send(new TextEncoder().encode("hello"));
+            await Promise.resolve();
+
+            return {
+              assert:
+                result.acked === true &&
+                result.seq === 1 &&
+                received.length === 1 &&
+                received[0].text === "hello" &&
+                sessionA.pendingCount === 0,
+              content: { result, received },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="丢包后按超时重传，重复包不会重复交付">
+      <template>
+        <script type="module">
+          {
+            const { PeerSession } = await import("/nos/peer/session.js");
+            const { createFakeLinkPair } = await import(
+              "/nos/peer/links/fake-link.js"
+            );
+
+            class FakeTimers {
+              constructor() {
+                this.now = 0;
+                this.tasks = new Map();
+                this.nextId = 1;
+              }
+              setTimeout(fn, ms) {
+                const id = this.nextId++;
+                this.tasks.set(id, { fn, at: this.now + ms });
+                return id;
+              }
+              clearTimeout(id) {
+                this.tasks.delete(id);
+              }
+              advance(ms) {
+                this.now += ms;
+                for (const [id, task] of [...this.tasks]) {
+                  if (task.at <= this.now) {
+                    this.tasks.delete(id);
+                    task.fn();
+                  }
+                }
+              }
+            }
+
+            const timersA = new FakeTimers();
+            const timersB = new FakeTimers();
+            const [linkA, linkB] = createFakeLinkPair();
+            const sessionA = new PeerSession({
+              link: linkA,
+              ackTimeout: 100,
+              maxRetries: 2,
+              timers: timersA,
+            }).start();
+            const sessionB = new PeerSession({ link: linkB, timers: timersB }).start();
+
+            const received = [];
+            sessionB.onMessage((payload, meta) => {
+              received.push(meta.seq);
+            });
+
+            linkA.dropNext = 1;
+            linkA.duplicateNext = 2;
+            const pending = sessionA.send(new TextEncoder().encode("retry"));
+            await Promise.resolve();
+
+            let settled = false;
+            pending.then(() => (settled = true));
+            await Promise.resolve();
+            const beforeRetry = settled;
+
+            timersA.advance(100);
+            const result = await pending;
+
+            return {
+              assert:
+                beforeRetry === false &&
+                result.acked === true &&
+                result.attempts === 2 &&
+                received.length === 1 &&
+                received[0] === 1,
+              content: { beforeRetry, result, received },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+
+    <sb-test name="超过最大重试次数后 reject，关闭会话会清理未确认消息">
+      <template>
+        <script type="module">
+          {
+            const { PeerSession } = await import("/nos/peer/session.js");
+            const { FakeLink } = await import("/nos/peer/links/fake-link.js");
+
+            class FakeTimers {
+              constructor() {
+                this.now = 0;
+                this.tasks = new Map();
+                this.nextId = 1;
+              }
+              setTimeout(fn, ms) {
+                const id = this.nextId++;
+                this.tasks.set(id, { fn, at: this.now + ms });
+                return id;
+              }
+              clearTimeout(id) {
+                this.tasks.delete(id);
+              }
+              advance(ms) {
+                this.now += ms;
+                for (const [id, task] of [...this.tasks]) {
+                  if (task.at <= this.now) {
+                    this.tasks.delete(id);
+                    task.fn();
+                  }
+                }
+              }
+            }
+
+            const timers = new FakeTimers();
+            const link = new FakeLink();
+            const session = new PeerSession({
+              link,
+              ackTimeout: 100,
+              maxRetries: 0,
+              timers,
+            }).start();
+
+            const pending = session.send(new TextEncoder().encode("lost"));
+            let error = null;
+            pending.catch((err) => (error = err));
+            await Promise.resolve();
+            timers.advance(100);
+            await Promise.resolve();
+
+            const pending2 = session.send(new TextEncoder().encode("close"));
+            pending2.catch(() => {});
+            session.close("test close");
+
+            return {
+              assert:
+                error instanceof Error &&
+                error.message.includes("ack timeout") &&
+                session.state === "closed" &&
+                session.pendingCount === 0,
+              content: { error: error?.message, state: session.state },
+            };
+          }
+        </script>
+      </template>
+    </sb-test>
+  </body>
+</html>

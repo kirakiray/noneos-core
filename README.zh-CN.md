@@ -4,76 +4,31 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0_with_additional_terms-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)](package.json)
-[![Handshake Server](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/build-handshake-server.yml)
 [![Browser Tests](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml/badge.svg)](https://github.com/kirakiray/noneos-core/actions/workflows/browser-tests.yml)
 [![Website](https://img.shields.io/badge/website-core.noneos.com-blue.svg)](https://core.noneos.com)
+
+> **5.0** 用全新的 `PeerSession + Link` 架构（Relay + 可选 WebRTC）、ECDSA 身份、E2EE、服务发现与 Rust 中继服务端，替换旧用户/身份/通信、发布与中继实现。
 
 **NoneOS Core** 是一个运行于浏览器的虚拟操作系统内核,提供**虚拟文件系统**与**去中心化用户互联**体系——基础用法无需服务端安装。基于 NoneOS Core 构建的应用可以在沙箱化的虚拟文件系统中读写文件,并在用户之间点对点通信。
 
 > **本质上**,NoneOS Core 是一项创新的**微前端容器化技术**。虽然它*表面上*呈现为一个浏览器内的虚拟操作系统,但其技术本质是建立在 Service Worker 资源虚拟化之上的微前端容器化——通过路由层拦截浏览器请求,托管独立发布的应用,并将每一个运行在无需服务端安装的沙箱化、持久化容器之中。
-
-```js
-import { getUser } from "/nos/user/main.js";
-
-const user = await getUser("my-app");
-// user.userId → 基于 ECDSA 的唯一身份标识
-// 自动连接中继服务器以收发消息
-
-const remote = await user.connectUser(targetUserId);
-await remote.send(sessionId, { text: "Hello from NoneOS!" });
-```
 
 ---
 
 ## 架构
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│                         Browser (ofajs app)                           │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │                    ofa.js Framework                           │    │
-│  │             (Web Components, data binding, routing)           │    │
-│  └─────────────────────┬────────────────────────────────────────┘    │
-│                        │                                              │
-│  ┌──────────┐  ┌──────┴──────┐  ┌─────────────────────────────┐   │
-│  │  nos/fs   │  │  nos/user  │  │  nos/publish                 │   │
-│  │ (OPFS-    │  │ (decent-   │  │ (DataPublisher)              │   │
-│  │  backed)  │  │  ralized   │  │                              │   │
-│  │           │  │  identity) │  │                              │   │
-│  └──────────┘  └──────┬─────┘  └─────────────────────────────┘   │
-│                        │ WebSocket relay / RTC signaling             │
-├────────────────────────┼────────────────────────────────────────────┤
-│                   Service Worker (sw/)                               │
-│               (fetch interception, caching, routing)                 │
-└────────────────────────┼────────────────────────────────────────────┘
-                         │ WebSocket (wss://)
-┌────────────────────────┼────────────────────────────────────────────┐
-│                Rust Relay Server (server/handshake/)                      │
-│  ┌──────────┐  ┌──────┴──────┐  ┌──────────────────────────────┐   │
-│  │ Handshake│  │  Message    │  │  Traffic Stats               │   │
-│  │ (ECDSA   │  │  Relay      │  │  (redb persistence)          │   │
-│  │ P-256)   │  │             │  │                              │   │
-│  └──────────┘  ├─────────────┤  ├──────────────────────────────┤   │
-│                │ RTC Signal  │  │  Quota / Abuse               │   │
-│                │ Tunnel      │  │  Protection                  │   │
-│                │(transparent │  │                              │   │
-│                │ pass-through│  └──────────────────────────────┘   │
-│  ┌──────────┐  └─────────────┘  ┌──────────────────────────────┐   │
-│  │  Admin   │  ┌─────────────┐  │  Memory Overload             │   │
-│  │ Commands │  │  Heartbeat  │  │  Protection                  │   │
-│  └──────────┘  │  Detection  │  └──────────────────────────────┘   │
-│                └─────────────┘                                     │
-└────────────────────────────────────────────────────────────────────┘
+Browser
+├─ ofa.js 应用（Web Components / 路由）
+├─ nos/fs       OPFS 虚拟文件系统
+├─ nos/storage  IndexedDB 键值存储
+├─ nos/peer     PeerSession + Link（5.0）
+│    ├─ RTC Link   leader 标签页持有 RTCPeerConnection
+│    └─ WS Relay   SharedWorker 持有常驻中继连接
+└─ sw/          资源虚拟化（/nos、/nos-lib、/gh、/npm、/$、/$mount-*）
 
-      ─ ─ ─  WebRTC direct (once negotiated via server) ─ ─ ─
-      │                                                          │
-      ▼                                                          ▼
-   Browser A                                               Browser B
+中继：server/relay（Rust WebSocket 中继 + 离线信箱）。
 ```
-
-Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、**消息中继**和 **RTC 信令隧道**。服务器中继始终作为可用兜底,一旦对端互相发现,即可切换为直连 **WebRTC**——中继服务器以普通中继数据的形式透明转发 SDP/ICE 信令消息,服务端对其承载的是信令协议毫无感知。
-
----
 
 ## 微前端容器化
 
@@ -81,8 +36,8 @@ Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、
 
 | 支柱 | 含义 | 所在位置 |
 |------|------|----------|
-| **微前端托管** | 应用基于内容寻址、可独立发布、按需加载——宿主与应用之间无构建期耦合。签名清单允许任意对端分发或提供应用服务。 | [`nos/publish/`](nos/publish/README.md) |
-| **容器隔离** | 每个应用运行在沙箱化运行时中:OPFS 支撑的虚拟文件系统负责隔离与持久化,去中心化身份与消息系统作为应用与外部世界交互的 I/O 接口。 | [`nos/fs/`](nos/fs/)、[`nos/user/`](nos/user/README.md) |
+| **微前端托管** | 应用基于内容寻址、可独立发布、按需加载——宿主与应用之间无构建期耦合。签名清单允许任意对端分发或提供应用服务。 | `nos/peer` |
+| **容器隔离** | 每个应用运行在沙箱化运行时中:OPFS 支撑的虚拟文件系统负责隔离与持久化,去中心化身份与消息系统作为应用与外部世界交互的 I/O 接口。 | [`nos/fs/`](nos/fs/)、`nos/peer` |
 | **资源虚拟化** | 容器化建立在 Service Worker 层之上,拦截每一次 fetch,将一组*虚拟 URL 前缀*(`/nos/`、`/nos-lib/`、`/nos-tool/`、`/gh/`、`/npm/`、`/$/`、`/$mount-.../`)映射到不同后端——本地 OPFS、CDN、官方源或远端用户。浏览器只看到一个源,应用却感知到多个。 | [`sw/`](sw/) |
 
 简而言之:**微前端托管**让应用彼此独立,**容器**为每个应用提供私有、持久、可互联的运行时,**资源虚拟化**则是让容器得以运作的 Service Worker 基石——这一切全部纯粹运行在浏览器中。
@@ -94,14 +49,10 @@ Rust 中继服务器在用户之间提供**挑战-响应认证**(ECDSA P-256)、
 ```
 nos/                  # 核心运行时模块(浏览器端)
   fs/                 #   虚拟文件系统(基于 OPFS)
-  user/               #   去中心化用户身份与消息系统
   crypto/             #   ECDSA、E2EE、RSA、AES 加密
-  publish/            #   P2P 文件发布与应用管理
   storage/            #   异步键值存储(IndexedDB,类 localStorage 接口)
   util/               #   哈希、zip、异步池等工具
 nos-lib/              # nos 官方在线库(CDN 分发,不进签名包)
-  user-name/          #   <n-user-name> 公共组件
-  user-status/        #   <n-user-status> 公共组件
   nos-version/        #   <nos-version> 安装/升级入口组件
   _install/           #   SW 注册与系统安装器引导
   locale-text/        #   轻量国际化(<locale-text> + getLocaleText)
@@ -113,9 +64,7 @@ nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可
   locale-text-tool/   #   提取 <locale-text> 文案并生成 locale-text.json
   rtc-tool/           #   管理 WebRTC 的 STUN/TURN 服务器列表
 sw/                   # Service Worker(请求拦截、路由、缓存)
-server/               # 后端实现
-  handshake/          #   Rust 握手与中继服务器(生产用)
-  client/             #   服务端管理面板(Web UI)
+server/relay/         # Rust WebSocket 中继（认证、信箱、服务发现）
 tests/                # 浏览器测试套件(.sb.html)
 scripts/              # 构建、签名、打包工具
 .agents/skills/       # AI 代理技能定义
@@ -130,33 +79,18 @@ scripts/              # 构建、签名、打包工具
 - 文件/目录增删改查、移动、复制、监听
 - 挂载真实本地目录(Chrome File System Access API)——挂载句柄通过 IndexedDB 持久化
 - 文件可通过 `/$dirName/path` 风格的 HTTP URL 访问
-- 通过 P2P 连接访问远端文件系统
 
-### 去中心化用户系统(`nos/user/`)
-- 基于 **ECDSA P-256** 的密钥对生成与身份(userId = 公钥哈希)
-- 针对中继服务器的挑战-响应**认证**
-- 通过可配置的 WebSocket 服务器进行**消息中继**
-- 私聊消息的**端到端加密**(ECDH + AES-GCM)
-- 初始发现后的 **WebRTC** 直连兜底
-- **服务注册表**——按 `appId` 进行应用级路由,无需管理会话
-- 用于角色/权限管理的**证书系统**
-- 通过 BroadcastChannel 支持**跨标签页会话**
-- 延迟监控与自动服务器选路
+### Peer 用户互联(`nos/peer/`)
+- `PeerSession` — 与传输无关的可靠性：序号、累计 ACK、重传、乱序缓冲与去重
+- `RelayMux` — 一条 WebSocket 复用多个 peer；SharedWorker 持有连接并广播到标签页
+- 可选 WebRTC — leader 标签页持有 `RTCPeerConnection`；SharedWorker 代理帧，失败自动回退中继
+- ECDSA P-256 身份（`userId = sha256(publicKey)`）、挑战应答认证、E2EE 与 appId 服务发现
 
-### 中继服务器(`server/handshake/`)
-- 基于 ECDSA P-256 签名验证的挑战-响应握手
-- 文本与二进制中继,支持可配置的大小限制
-- **RTC 信令隧道**——透明转发 SDP/ICE offer 与 candidate,以普通中继数据形式传输;服务器对其承载的是信令毫无感知
-- 单用户多会话,支持可配置的并发上限
-- 中继滥用防护(按时间窗口统计失败次数)
-- 基于 redb 持久化的流量统计(30 秒粒度)
-- 用户带宽配额(可按用户配置)
-- 心跳检测,清理过期连接
-- 内存过载保护
-- 管理员命令:在线用户、系统信息、流量统计、配额管理
-
-### P2P 发布(`nos/publish/`)
-- `DataPublisher`——分块式 P2P 文件分发(128KB 分块、签名清单、每块 SHA-256)
+### 中继服务器(`server/relay/`)
+- WebSocket 二进制中继:按 mux 帧 `from` / `to` 路由,并校验 `from` 与连接 userId 一致
+- 同一用户多连接;离线信箱(内存或 `--mailbox <file>`,TTL 1 小时)
+- 公钥查询与 appId 服务发现
+- ECDSA P-256 挑战应答认证 + 公钥查询;`--mailbox` 持久化离线信箱
 
 ### 键值存储(`nos/storage/`)
 - 基于 IndexedDB 的异步存储,提供类 `localStorage` 接口(`setItem` / `getItem` / `removeItem` / `clear`)
@@ -171,7 +105,7 @@ scripts/              # 构建、签名、打包工具
 - `nos-lib/` 文件写入 OPFS 缓存前,会按签名的 `nos-lib/nos-lib.json` 校验
 
 ### 公共 UI(`nos-lib/`)
-- `nos-lib/`——nos 官方在线库:与 nos 能力强相关的可复用组件(`<n-user-name>`、`<n-user-status>`),通过 `/nos-lib/{name}/{name}.html` 引用
+- `nos-lib/`——nos 官方在线库:`<nos-version>`、`<locale-text>`、`<n-icon>`,通过 `/nos-lib/{name}/{name}.html` 引用
 - `nos-lib/nos-version/`——`<nos-version>` 安装/升级入口组件;`nos-lib/_install/` 是其引导(SW 注册、版本检查、完整安装、根证书信任链校验),系统信息工具同样调用——见 [`nos-lib/README.md`](nos-lib/README.md)
 - `nos-lib/locale-text/`——轻量国际化:`<locale-text>` 组件与脚本用的 `getLocaleText()`
 - `nos-lib/n-icon/`——内置工具通用的图标组件
@@ -217,15 +151,7 @@ npm start
 
 如果你是要在本地**正式使用** NoneOS Core(而非调试),请用 `npm start`。在 3002 以外的本地端口上,默认握手服务器列表会额外包含线上中继服务器(`wss://hand3-jp1.noneos.com:4331`、`wss://hand3-us1.noneos.com:4331`、`wss://hand3-hk1.noneos.com:4331`),因此无需自建中继服务器即可与远端用户互联。
 
-### 3. 启动本地中继服务器(可选,用于多用户测试)
-
-```bash
-# 终端 1:启动两个 Rust 中继服务器(端口 8081、8082)
-npm run ws
-```
-编译需要 [Rust](https://www.rust-lang.org/)。
-
-### 4. 在你自己的项目中使用
+### 3. 在你自己的项目中使用
 
 在项目根目录创建 `sw.js`:
 
@@ -242,15 +168,9 @@ importScripts("https://core.noneos.com/sw/dist.js");
 
 <script type="module">
   $("nos-version").on("installed", async () => {
-    const { getUser } = await import("/nos/user/main.js");
-
-    const user = await getUser("my-app");
-    console.log("My ID:", user.userId);
-
-    // 通过中继服务器向另一个用户发送消息
-    const remote = await user.connectUser(targetUserId);
-    const sessions = await remote.getSessionIds();
-    await remote.send(sessions[0], { hello: "world" });
+    const { get } = await import("/nos/fs/main.js");
+    const file = await get("my-app/hello.txt", { create: "file" });
+    await file.write("hello");
   });
 </script>
 ```
@@ -264,13 +184,10 @@ importScripts("https://core.noneos.com/sw/dist.js");
 完整文档见 **[https://core.noneos.com](https://core.noneos.com)**(多语言:English、中文、日本語)。
 
 核心参考:
-- [用户系统 API](nos/user/README.md)——身份、消息、证书、服务注册表
 - [虚拟文件系统 API](nos/fs/README.md)——文件操作、挂载、监听
 - [键值存储](nos/storage/README.md)——异步的类 localStorage 存储
-- [P2P 发布](nos/publish/README.md)——DataPublisher
-- [官方在线库](nos-lib/README.md)——`<n-user-name>`、`<n-user-status>`、`<nos-version>`、`_install/`
+- [官方在线库](nos-lib/README.md)——`<nos-version>`、`<locale-text>`、`<n-icon>`、`_install/`
 - [多语言模块](nos-lib/locale-text/README.md)——`<locale-text>`、`getLocaleText()`
-- [服务器配置](server/handshake/README.md)——中继服务器搭建
 - [AI 代理知识库](.agents/skills/noneos-core-docs/SKILL.md)——面向 AI 的精简文档
 
 ---
@@ -290,6 +207,9 @@ importScripts("https://core.noneos.com/sw/dist.js");
 | `npm run bump` | 跨所有文件升级版本号,并重新安装依赖与构建 |
 | `npm run ws` | 启动两个 Rust 中继服务器(测试模式,端口 8081 & 8082) |
 | `npm run ws1` / `npm run ws2` | 单独启动一个 Rust 中继服务器(端口 8081 / 8082) |
+| `npm run relay` | 启动新的 Rust 中继服务(默认 8081) |
+| `npm run test:relay` | 运行 Rust 中继测试 |
+| `npm run test:peer` | 运行 Stage 1/2 PeerSession 测试 |
 | `npm run test` | 运行浏览器测试套件(`sb-test`) |
 
 > **重要**:修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`(或保持 `npm run watch:sw` 运行),否则部署的 Service Worker 不会生效。

@@ -1,9 +1,8 @@
 name: 'Browser test environment & run'
 description: >
-  Build and start local handshake servers (8081/8082), install browser
-  dependencies, then run sb-test on port 3002. On port 3002 DEFAULT_SERVERS
-  contains local servers only, so test users never hit production servers
-  (see nos/user/server.js).
+  Install browser dependencies, then run sb-test on port 3002. The old
+  handshake servers were archived in 5.0; user/relay integration tests are
+  re-added once the new server stage lands.
 
 inputs:
   browsers:
@@ -13,42 +12,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache Rust build
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: server/handshake
-
-    - name: Build handshake server
-      working-directory: server/handshake
-      shell: bash
-      run: cargo build
-
-    - name: Start handshake server 8081
-      working-directory: server/handshake
-      shell: bash
-      run: nohup cargo run -- --config test-space/config.example.toml > server1.log 2>&1 &
-
-    - name: Start handshake server 8082
-      working-directory: server/handshake
-      shell: bash
-      run: nohup cargo run -- --config test-space/config2.toml > server2.log 2>&1 &
-
-    - name: Wait for handshake servers
-      shell: bash
-      run: |
-        for i in {1..30}; do
-          if (echo >/dev/tcp/localhost/8081) 2>/dev/null && (echo >/dev/tcp/localhost/8082) 2>/dev/null; then
-            echo "Handshake servers are ready"
-            exit 0
-          fi
-          sleep 1
-        done
-        echo "Handshake servers did not start in time"
-        exit 1
-
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:

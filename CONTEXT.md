@@ -17,14 +17,13 @@
 
 | 目录 | 角色 |
 |------|------|
-| `nos/` | 核心能力层（fs/user/publish/storage/crypto/util，根证书 `root-cert.json`） |
-| `nos-lib/` | nos 官方在线库（CDN 分发，不进 `nos.tgz` 签名包）：公共 UI 组件（`<n-user-name>` / `<n-user-status>` / `<nos-version>` / `<n-icon>` / `<locale-text>`）、i18n 运行时（`getLocaleText`）与安装/升级引导 `_install/`；任何基于 noneos-core 的系统都可通过 `/nos-lib/` 直接使用 |
+| `nos/` | 核心能力层（fs/storage/crypto/util/peer，根证书 `root-cert.json`；`peer` 为 5.0 PeerSession + Link + Hub + RTC + E2EE） |
+| `nos-lib/` | nos 官方在线库（CDN 分发，不进 `nos.tgz` 签名包）：`<nos-version>`、`<n-icon>`、`<locale-text>`、i18n 运行时 `getLocaleText` 与安装/升级引导 `_install/`；任何基于 noneos-core 的系统都可通过 `/nos-lib/` 直接使用 |
 | `sw/` | Service Worker 源码（`sw/src/`，构建产物 `sw/dist.js`、`sw/dist.min.js`） |
-| `server/handshake/` | Rust 服务端（WebSocket 握手/中继服务，含离线收件箱 store-and-forward） |
-| `server/client/` | 服务端管理前端（admin 页面） |
+| `server/relay/` | 5.0 Rust 中继服务（WS 多路复用、认证、公钥/服务查询、可选持久化信箱；详见 `server/relay/CONTEXT.md`） |
 | `nos-tool/` | 内置工具集（file-explore、system-info、locale-text-tool、rtc-tool）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
-| `tests/` | sibyl-test 测试用例 |
+| `tests/` | sibyl-test 测试用例（peer / fs / storage / crypto / sw / 安装信任） |
 | `scripts/` | 构建/打包/测试脚本 |
 
 ### 运行时虚拟路径（由 Service Worker 在运行时映射，**仓库内不存在**）
@@ -61,27 +60,26 @@
 | 命令 | 作用 | 监听地址 |
 |------|------|---------|
 | `npm run static` | 启动静态文件服务器（`scripts/static.js`，监听 3002 常规开发端口） | `http://localhost:3002` |
-| `npm run ws1` | 启动主 WebSocket 服务（Rust） | `ws://localhost:8081` |
-| `npm run ws2` | 启动备 WebSocket 服务（Rust，用于多服务器选路联调） | `ws://localhost:8082` |
 | `npm run watch:sw` | 监听 `sw/src/**` 自动重建 SW（可与 static 合并成 `npm run dev`） | — |
 
 便捷组合：
 - `npm run dev` = `npm run static` + `npm run watch:sw`（不含 ws，需另起）
-- `npm run ws` = `npm run ws1` + `npm run ws2`
 - `npm start` = 本地正式部署用的静态服务器（`localhost:30028`，默认握手服务器会包含线上节点；同时也是自动化测试使用的端口）
 
 
-**Rust 服务配置文件**：`server/handshake/test-space/config.example.toml`（ws1）与 `config2.toml`（ws2），测试环境已关闭内存过载保护、放宽 session/relay 限制。
+> Rust 服务端已归档，新的 relay/signaling 服务将在重写阶段加入并补充启动命令。
 
 ### 构建
 
 | 命令 | 作用 |
 |------|------|
+| `npm run relay` | 启动新 Rust 中继服务（默认 8081） |
+| `npm run test:relay` | 运行 Rust 服务端测试 |
 | `npm run build` | 完整构建 = `build:hashes`（hash 计算 + 签名 + 重打包 + 一致性校验）+ `build:sw` + `build:skill` |
 | `npm run build:sw` | 通过 Rollup 构建 SW（产出 `sw/dist.js` + `sw/dist.min.js`） |
 | `npm run build:hashes` | 计算并签名 `nos/` 源码哈希（产出 `nos.json`）→ 重打 `nos.tgz`（`scripts/pack-nos.js`，USTAR tar + gzip，无时间戳）→ `scripts/verify-pack.js` 校验包与清单逐文件一致（hash/size 与安装器同算法）；同时计算并签发 `nos-lib/nos-lib.json`（`scripts/calculate-noslib-hashes.js` + `scripts/sign-noslib-hashes.js` + `scripts/verify-noslib-manifest.js`）。打包与清单会跳过 `*.md` 与 `*.sb.html`（纯文档/测试，不参与运行时）。**hash 清单与系统包必须同源：改了 `nos/` 后必须重跑本命令**，只刷 hash 不重打包会让客户端安装校验失败；**改了 `nos-lib/` 后也必须重跑**，否则 SW 校验不过 |
 | `npm run build:skill` | 构建 `.agents/skills/noneos-core-docs` 知识库（生成 `noneos-core-docs.zip`）；打包前会把仓库 `package.json` 的版本号幂等写入 SKILL.md frontmatter 的 `version` 字段 |
-| `npm test` | 运行 sibyl-test 测试套件（`sb-test -p 3002`；自定义多浏览器运行器见 `scripts/run-tests.js`）。固定跑 3002 端口：该端口下 `DEFAULT_SERVERS` 只含本地握手服务器，测试用户不连生产服务器。CLI 会先同步根目录测试清单 `test-index.html`（查漏补缺，手动编辑的顺序 / `skip` / `exclusive` 会被保留），再按清单执行。清单内的并发编排有讲究：suite 用 `parallel="4"` 并发跑隔离良好的用例；`user-name`/`user-status` 独占首跑（干净状态握手 + SW 注册），`connect-server`、`sw/*` 独占收尾（低负载握手 / 注销全 origin 的 SW），详见清单头部注释 |
+| `npm test` | 运行 sibyl-test 测试套件（`sb-test -p 3002`）。CLI 会先同步根目录测试清单 `test-index.html` 再执行。5.0 重写期间清单纯计算/fs/storage/sw/安装信任用例；新分层测试会随阶段加入 |
 | `npm run bump` | 升级版本号 = `bump.js` + `npm i` + `npm run build` |
 
 > **重要**：修改 `sw/src/` 下任何文件后必须重新运行 `npm run build:sw`（或开发期使用 `npm run watch:sw`），否则线上 SW 不会生效。
@@ -110,12 +108,14 @@
 ### 已有 CONTEXT.md 的模块
 
 - [nos/fs/CONTEXT.md](nos/fs/CONTEXT.md) - 文件系统（OPFS 虚拟 FS、挂载、跨标签页同步）
-- [nos/user/CONTEXT.md](nos/user/CONTEXT.md) - 用户身份与通信（ECDSA 握手、中继、WebRTC、E2EE、可靠投递/ACK 去重、离线收件箱、大 payload 拉取化）
-- [server/handshake/CONTEXT.md](server/handshake/CONTEXT.md) - 服务端实现（WebSocket、会话管理、流量统计、redb、离线收件箱）
-- [nos/publish/CONTEXT.md](nos/publish/CONTEXT.md) - 数据/应用发布（内容寻址、分块、签名清单）
 - [nos/storage/CONTEXT.md](nos/storage/CONTEXT.md) - 官方键值存储（IndexedDB、类 localStorage、跨标签页同步、句柄序列化）
 - [sw/CONTEXT.md](sw/CONTEXT.md) - Service Worker（请求拦截、资源代理、缓存策略）
 - [nos-lib/CONTEXT.md](nos-lib/CONTEXT.md) - nos 官方在线库（公共组件、nos-version、安装引导 `_install/`）
+- [server/relay/CONTEXT.md](server/relay/CONTEXT.md) - 5.0 Rust 中继服务（WS 多路复用、认证、服务发现、信箱）
+
+> **5.0 用户互联已完成重写**：`nos/user`、`nos/publish`、`server/handshake`、`server/client` 及旧用例已移除；新实现为 `PeerSession + Link`：FakeLink → WS Relay → RTC → SharedWorker 多标签，配合 Rust 中继、ECDSA 身份、E2EE、服务发现与离线信箱。
+
+- `nos/peer/`（PeerSession + Link + RelayMux + Hub + RTC + E2EE，见 [nos/peer/README.md](nos/peer/README.md)）
 
 ### 暂无 CONTEXT.md 的模块
 
@@ -124,7 +124,6 @@
 - `nos/crypto/`（5 个加密模块：AES/ECDH/ECDSA/RSA/verify）
 - `nos/util/`（hash/zip/async-pool 等工具）
 - `nos-tool/`（内置工具集：file-explore、system-info、locale-text-tool、rtc-tool）
-- `server/client/`（服务端管理前端 admin 页面）
 
 ## 五、多语言方案（locale-text）书写规范
 

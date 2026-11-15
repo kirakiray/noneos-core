@@ -1,0 +1,23 @@
+[package]
+name = "noneos-relay"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "noneos_relay"
+path = "src/lib.rs"
+
+[[bin]]
+name = "noneos-relay"
+path = "src/main.rs"
+
+[dependencies]
+p256 = { version = "0.13", features = ["ecdsa"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.21"
+futures-util = "0.3"

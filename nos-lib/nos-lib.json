@@ -1,7 +1,7 @@
 {
-  "version": 1794675111555,
+  "version": 1794727579606,
   "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwqKk1tx1Pr7XcTCSnCaLOtbSnAPgO6LYLlK2Z1gOPAUCs+e6kzXDtScowZhso0yEp+J/Z5X6saYx8iveBvxKjg==",
-  "signTime": 1794675111555,
+  "signTime": 1794727579606,
   "hashes": [
     {
       "path": "_install/_install-nos.html",
@@ -42,17 +42,7 @@
       "path": "nos-version/nos-version.html",
       "hash": "573ebcf83cdb27402b4e15f1e007734b238d97f1a83afed3a58b42648de2667d",
       "size": 5345
-    },
-    {
-      "path": "user-name/user-name.html",
-      "hash": "1e42fd12b316212ab059d2bd05f542c75b7fbcdf959b3fb16b14083ab77d65e9",
-      "size": 4762
-    },
-    {
-      "path": "user-status/user-status.html",
-      "hash": "c9d5b03659dcad18da409caee8fe92fc4399fc230eee544c9b8c3d56514659c7",
-      "size": 4911
     }
   ],
-  "signature": "5yIIBuuPpIoi2JQU4ZR/7QGx6XQDoICOKpKunSEcGtupBo+k0jPP6hv4pOQGLO3UlnnOz40nz6g6kQB6wKcauA=="
+  "signature": "Ng9t6icvhqEhU6ScUogztPU3GSnfTwTP9B4HJvznAB8uegbyGrg2VTIOh+Xyo0ftAM2i+y3e1lA5N/bgxDzzRA=="
 }

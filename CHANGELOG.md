@@ -6,6 +6,7 @@
 
 ### Removed
 
+- **旧用户互联**：移除 `nos/user`、`nos/publish`、`server/handshake`、`server/client` 及对应用例，替换为 `nos/peer` + `server/relay`。
 - **管理端**：删除已废弃的 `get_traffic_history` admin 命令及其流量历史页面、客户端方法与测试引用。
 - **`connect()`**：删除旧版「第二参传数字作为重试次数」的兼容写法，只接受 `{ retries, auto }`。
 - **`nos-tool/studio`**：移除 OFA Studio 工具及入口。
@@ -19,6 +20,8 @@
 
 ### Changed
 
+- **Peer 互联**：新增 `PeerSession`/`Link`（FakeLink、WS Relay、RTC）、SharedWorker 多标签 Hub、ECDSA P-256 身份与挑战应答、E2EE、公钥查询、appId 服务发现。
+- **中继服务**：新增 `server/relay/`（Rust）：WS 多路复用、认证、离线信箱（内存/`--mailbox` 文件）。
 - **`nos/locale-text`、`nos/n-icon`**：迁移到 `nos-lib/`，路径分别为 `/nos-lib/locale-text/`、`/nos-lib/n-icon/`。
 - **`nos-lib` 签名机制**：新增 `nos-lib/nos-lib.json`（逐文件 SHA-256 + 根密钥签名 + 单调版本）；Service Worker 在写入 OPFS 缓存前执行 pin 校验、验签、hash 比对，并防清单回滚；开发环境（localhost / 127.0.0.1 / [::1]）跳过校验。
 - **构建**：`build:hashes` 同时签发 `nos.json` 与 `nos-lib/nos-lib.json`；打包与清单排除 `*.md`、`*.sb.html`（`nos.tgz` 由 48 个文件降至 40 个）。

@@ -6,11 +6,10 @@
 
 `nos-lib` 是 NoneOS Core 的**官方在线库**：由官方 CDN（`core.noneos.com`）分发、**不进入 `nos.tgz` 签名包**的公共资源目录。与 `nos/` 的边界：必须随系统安装、参与哈希签名校验的核心能力放 `nos/`；官方在线分发的可复用资源放 `nos-lib/`。
 
-包含三部分：
+包含两部分：
 
-1. **公共 UI 组件**：`<n-user-name>`、`<n-user-status>`；
-2. **安装/版本设施**：`_install/` 引导与 `<nos-version>` 组件；
-3. **通用 UI 基础设施**：`<locale-text>` 组件与 `getLocaleText()` 运行时、`<n-icon>` 图标组件。
+1. **安装/版本设施**：`_install/` 引导与 `<nos-version>` 组件；
+2. **通用 UI 基础设施**：`<locale-text>` 组件与 `getLocaleText()` 运行时、`<n-icon>` 图标组件。
 
 基于 `nos` 的上层项目可通过 `/nos-lib/{path}` 路径直接引用。
 
@@ -21,12 +20,6 @@ nos-lib/
 ├── CONTEXT.md                  # 本文档
 ├── README.md                   # 面向人类的说明文档
 ├── nos-lib.json                # 签名文件清单（构建产物，SW 校验用）
-├── user-name/
-│   ├── user-name.html          # 组件实现
-│   └── user-name.sb.html       # sibyl-test 测试用例
-├── user-status/
-│   ├── user-status.html        # 组件实现
-│   └── user-status.sb.html     # sibyl-test 测试用例
 ├── locale-text/
 │   ├── locale-text.html        # <locale-text> 组件
 │   ├── get-locale-text.js      # getLocaleText / getLang / setLang 运行时
@@ -43,29 +36,6 @@ nos-lib/
 ```
 
 ## 三、内容说明
-
-### `user-name`（`<n-user-name>`）
-
-- **路径**：`nos-lib/user-name/user-name.html`
-- **依赖**：`/nos/user/main.js`
-- **功能**：根据 `user-id` 显示对应用户的用户名。
-  - 若本地用户就是自己，直接读取 `user.getInfo().username`。
-  - 否则读取本地资料缓存 `user.cred.getProfile(uid)` 中的 `username`。
-  - 当设置 `force` 属性时，会尝试主动连接目标用户并刷新资料缓存，再显示最新名称。
-  - 资料加载失败时自动重试最多 3 次（间隔递增 1s/2s）；`userId` 变化后旧的重试轮次自动作废。
-  - 失败步骤与原始错误记录在 `el.lastLoadError`（格式 `步骤: message | stack`）。
-- **属性**：`user-id`（目标用户 ID）、`force`（存在时强制刷新）、`namespace`（用户命名空间，默认 `"default"`）。
-- **回退行为**：资料获取失败时保持显示 `user-id`。
-
-### `user-status`（`<n-user-status>`）
-
-- **路径**：`nos-lib/user-status/user-status.html`
-- **依赖**：`/nos/user/main.js`
-- **功能**：根据 `user-id` 显示对应用户的在线/连接状态（颜色圆点）。
-  - 默认/出错：灰色（`--md-sys-color-surface-container`）；服务器在线未直连：`primary`；RTC DataChannel `open`：`success`；均不在线：`error`。
-  - 监听 `remote_user_connected` / `remote_user_disconnected` / `rtc_state` 事件实时刷新；30 秒低频轮询兜底；`visibilitychange` 时立即刷新。
-- **属性**：`user-id`、`namespace`（默认 `"default"`）。
-- **尺寸**：默认 `8px × 8px`，可通过 `style` 覆盖。
 
 ### `locale-text/`（`<locale-text>` + `getLocaleText`）
 
@@ -94,8 +64,8 @@ nos-lib/
 ## 四、使用方式
 
 ```html
-<l-m src="/nos-lib/user-name/user-name.html"></l-m>
-<n-user-name user-id="{targetUserId}"></n-user-name>
+<l-m src="/nos-lib/n-icon/n-icon.html"></l-m>
+<n-icon icon="mdi:home"></n-icon>
 ```
 
 跨域页面加载安装组件使用完整官方地址：

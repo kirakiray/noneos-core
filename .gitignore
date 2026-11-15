@@ -156,6 +156,7 @@ rootkeys
 # Rust
 target/
 Cargo.lock
+!server/relay/Cargo.lock
 **/*.rs.bk
 *.pdb
 

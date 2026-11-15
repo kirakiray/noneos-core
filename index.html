@@ -71,43 +71,27 @@
         color: var(--md-sys-color-primary);
       }
 
-      .user-info-card {
+      .peer-card {
         margin-top: 24px;
         padding: 16px;
-        border-radius: 12px;
-        background-color: var(--md-sys-color-surface-variant);
-        color: var(--md-sys-color-on-surface-variant);
-        border: 1px solid rgb(from var(--md-sys-color-on-surface) r g b / 0.12);
+        border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+        border-radius: 16px;
+        background: var(--md-sys-color-surface-container-low, #f7f2fa);
       }
 
-      .user-info-card h2 {
-        margin: 0 0 12px;
-        font-size: 18px;
-        color: var(--md-sys-color-on-surface);
+      .peer-card code {
+        display: block;
+        margin-top: 8px;
+        overflow-wrap: anywhere;
+        font-size: 0.85em;
+        color: var(--md-sys-color-on-surface-variant, #49454f);
       }
 
-      .user-info-card dl {
-        margin: 0;
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 8px 16px;
-        font-size: 14px;
-      }
 
-      .user-info-card dt {
-        color: var(--md-sys-color-on-surface-variant);
-      }
 
-      .user-info-card dd {
-        margin: 0;
-        word-break: break-all;
-        color: var(--md-sys-color-on-surface);
-      }
 
-      .user-info-card .status {
-        color: var(--md-sys-color-on-surface-variant);
-        font-size: 14px;
-      }
+
+
     </style>
     <!-- senti-ui 颜色体系引导（替代原 nos-tool/css palette+theme；SW 就绪前的静态页走完整 URL） -->
     <script src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/boot/st-boot.js"></script>
@@ -153,10 +137,18 @@
         <nos-version auto-install></nos-version>
       </div>
 
-      <div class="user-info-card" id="user-info">
-        <h2>Default User</h2>
-        <p class="status">Loading user info...</p>
-      </div>
+      <section class="peer-card">
+        <locale-text>
+          <span lang="cn">
+            本机 Peer 身份（ECDSA P-256，保存在本地，不上传私钥）：
+          </span>
+          <span lang="en">
+            Local peer identity (ECDSA P-256, stored locally; private key never uploaded):
+          </span>
+        </locale-text>
+        <code id="peer-id">loading...</code>
+      </section>
+
     </article>
 
     <script type="module">
@@ -165,37 +157,16 @@
       await load("./nos-lib/nos-version/nos-version.html");
       await load("/nos-lib/locale-text/locale-text.html");
 
-      (async () => {
-        const { LocalUser } = await import("/nos/user/user.js");
-        const user = new LocalUser("default");
-        const infoContainer = $("#user-info");
-
-        try {
-          await user.ready();
-          const info = await user.getInfo();
-
-          if (!info) {
-            infoContainer.html = `<h2>Default User</h2><p class="status">No user info found.</p>`;
-            return;
-          }
-
-          const truncate = (str, len = 32) =>
-            str && str.length > len ? str.slice(0, len) + "..." : str || "-";
-
-          infoContainer.html = `
-            <h2>Default User</h2>
-            <dl>
-              <dt>Username</dt><dd>${info.username || "-"}</dd>
-              <dt>User ID</dt><dd>${info.userId || "-"}</dd>
-              <dt>Public Key</dt><dd>${truncate(info.publicKey)}</dd>
-              <dt>Sign Time</dt><dd>${info.signTime ? new Date(info.signTime).toLocaleString() : "-"}</dd>
-            </dl>
-          `;
-        } catch (error) {
-          infoContainer.html = `<h2>Default User</h2><p class="status">Failed to load user info: ${error.message}</p>`;
-          console.error("Failed to load default user info:", error);
-        }
-      })();
+      try {
+        const { loadOrCreateIdentity } = await import("/nos/peer/identity-store.js");
+        const identity = await loadOrCreateIdentity();
+        const peerId = $("#peer-id");
+        if (peerId) peerId.text = identity.userId;
+      } catch (err) {
+        console.warn("peer identity unavailable:", err);
+        const peerId = $("#peer-id");
+        if (peerId) peerId.text = "unavailable";
+      }
 
       (async () => {
         const loadingElement = $("#loading");
