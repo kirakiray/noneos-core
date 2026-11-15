@@ -23,10 +23,12 @@
     "build:hashes": "node scripts/calculate-nos-hashes.js && node scripts/sign-hashes.js && rm -f hashes.json && node scripts/pack-nos.js && node scripts/verify-pack.js && node scripts/calculate-noslib-hashes.js && node scripts/sign-noslib-hashes.js && node scripts/verify-noslib-manifest.js && rm -f noslib-hashes.json",
     "build:sw": "rollup -c",
     "watch:sw": "rollup -c -w",
-    "test": "sb-test -p 3002 -t 10",
+    "test": "node scripts/run-tests.js",
     "test:peer": "node --test tests/peer/*.node.test.mjs",
     "relay": "cd server/relay && cargo run",
-    "test:relay": "cd server/relay && cargo test"
+    "test:relay": "cd server/relay && cargo test",
+    "test:all": "BROWSER=chrome,webkit,firefox node scripts/run-tests.js",
+    "test:install": "npx playwright install chromium webkit"
   },
   "devDependencies": {
     "@rollup/plugin-terser": "^1.0.0",

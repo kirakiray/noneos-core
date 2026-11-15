@@ -257,10 +257,10 @@
 
             const pending = session.send(new TextEncoder().encode("lost"));
             let error = null;
-            pending.catch((err) => (error = err));
+            const failed = pending.catch((err) => (error = err));
             await Promise.resolve();
             timers.advance(100);
-            await Promise.resolve();
+            await failed;
 
             const pending2 = session.send(new TextEncoder().encode("close"));
             pending2.catch(() => {});

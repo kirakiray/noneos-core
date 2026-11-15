@@ -167,3 +167,5 @@ server/**/*.db
 server/**/*.redb
 .playwright-mcp
 .zcode
+# Local Playwright browser cache
+.pw-browsers/

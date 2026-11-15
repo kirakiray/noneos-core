@@ -8,10 +8,10 @@
       type="module"
       src="https://cdn.jsdelivr.net/gh/ofajs/sibyl-test/components/sb-test.mjs"
     ></script>
-    <script
-      src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@latest/dist/ofa.mjs#debug"
-      type="module"
-    ></script>
+    <script type="module">
+      import $ from "https://cdn.jsdelivr.net/gh/ofajs/ofa.js@latest/dist/ofa.mjs";
+      globalThis.$ = $;
+    </script>
   </head>
   <body>
     <h1>locale-text 多语言模块测试</h1>
