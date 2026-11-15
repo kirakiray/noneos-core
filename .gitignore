@@ -169,3 +169,6 @@ server/**/*.redb
 .zcode
 # Local Playwright browser cache
 .pw-browsers/
+
+# Local Selenium driver cache
+.selenium-cache/
