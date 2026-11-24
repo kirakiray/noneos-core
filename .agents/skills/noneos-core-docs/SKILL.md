@@ -5,7 +5,7 @@ NoneOS Core 是基于浏览器的虚拟操作系统内核，提供**虚拟文件
 ## 安装
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.js"></script>
 <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
 <nos-version auto-install></nos-version>
 <script type="module">

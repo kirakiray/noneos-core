@@ -162,7 +162,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 Install the system from your entry HTML, then use the runtime modules:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.js"></script>
 <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
 <nos-version auto-install></nos-version>
 

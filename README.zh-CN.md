@@ -162,7 +162,7 @@ importScripts("https://core.noneos.com/sw/dist.js");
 在入口 HTML 中安装系统,随后即可使用运行时模块:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.js"></script>
 <l-m src="https://core.noneos.com/nos-lib/nos-version/nos-version.html"></l-m>
 <nos-version auto-install></nos-version>
 

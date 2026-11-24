@@ -8,6 +8,7 @@
   - 涉及文件系统、用户管理及服务通信时，请参考 `noneos-core-docs` 知识库，它的地址在 .agents/skills/noneos-core-docs/SKILL.md。
 - **应用框架 (Application Layer)**：基于 `ofa.js` 开发。
   - 进行组件开发、路由配置或状态管理时，请参考 `ofajs-docs` 知识库。
+  - **资源地址统一走 5.x**：ofa.js 用 `.../gh/ofajs/ofa.js@5/dist/ofa.min.{js,mjs}`；路由用 `.../gh/ofajs/ofa.js@5/packages/router/dist/router.min.{js,mjs}`。v5 monorepo 已把 router 从根 `libs/` 迁到 `packages/router/`，**禁止再写 `libs/router`**，也不要写不带版本的 `gh/ofajs/ofa.js/...`（会随分支漂移）。前缀规则同 senti-ui：模块/页面内用 `/gh/...`，SW 就绪前就要渲染的静态入口页（根 `index.html`、`404.html`、`_install`）用完整 URL `https://cdn.jsdelivr.net/gh/...`。
 - **本地存储 (Storage Layer)**：统一使用项目内置的 `nos/storage`。
   - 涉及持久化数据（原本会用 `localStorage` 或手写 IndexedDB 的场景）时，一律改用 `nos/storage`，不要引入第三方存储库。
   - 用法见 `nos/storage/README.md`，实现细节见 `nos/storage/CONTEXT.md`，Skill 文档见 `.agents/skills/noneos-core-docs/references/storage.md`。
