@@ -1,161 +1,369 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NoneOS Core</title>
     <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/packages/router/dist/router.min.js"></script>
-    <!-- <script src="/gh/ofajs/ofa.js@5/dist/ofa.js"></script> -->
-    <!-- <script src="/gh/ofajs/ofa.js@5/packages/router/dist/router.min.js"></script> -->
     <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       html,
       body {
-        height: 100%;
-        padding: 0;
+        min-height: 100%;
         margin: 0;
-        overflow: hidden;
         font-family:
-          -apple-system,
-          BlinkMacSystemFont,
-          Segoe UI,
-          Microsoft Yahei,
-          Helvetica,
-          Arial,
-          sans-serif,
-          Apple Color Emoji,
-          Segoe UI Emoji;
-      }
-
-      article {
-        padding: 32px 16px;
-        min-height: 60vh;
-        max-width: 800px;
-        margin: 0 auto;
-        line-height: 1.6em;
-      }
-
-      /* Loading Animation Styles */
-      .loading-container {
-        position: fixed;
-        z-index: 2;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        background-color: var(--md-sys-color-surface, rgba(255, 255, 255, 0.8));
-      }
-
-      .spinner {
-        width: 32px;
-        height: 32px;
-        border: 4px solid var(--md-sys-color-surface, #f3f3f3);
-        border-top: 4px solid var(--md-sys-color-primary, #3498db);
-        border-radius: 50%;
-        animation: spin 0.5s linear infinite;
-      }
-
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
+          "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft Yahei", sans-serif;
+        color: var(--md-sys-color-on-surface);
+        background: var(--md-sys-color-surface);
       }
 
       a {
         color: var(--md-sys-color-primary);
       }
 
-      .peer-card {
-        margin-top: 24px;
-        padding: 16px;
-        border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
-        border-radius: 16px;
-        background: var(--md-sys-color-surface-container-low, #f7f2fa);
+      .loading-container {
+        position: fixed;
+        z-index: 10;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: var(--md-sys-color-surface);
       }
 
-      .peer-card code {
-        display: block;
+      .spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid var(--md-sys-color-surface-container-highest);
+        border-top-color: var(--md-sys-color-primary);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .wrap {
+        width: min(860px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 34px 0 56px;
+      }
+
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 26px;
+        border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-weight: 750;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--md-sys-color-on-primary);
+        background: var(--md-sys-color-primary);
+      }
+
+      .top-right {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .top-link {
+        padding: 5px 9px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .top-link:hover {
+        background: var(--md-sys-color-surface-container-high);
+        color: var(--md-sys-color-on-surface);
+      }
+
+      .intro {
+        padding: 38px 0 30px;
+      }
+
+      .eyebrow {
+        margin-bottom: 8px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--md-sys-color-primary);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 5vw, 2.6rem);
+        line-height: 1.12;
+        letter-spacing: -0.035em;
+      }
+
+      .intro p {
+        max-width: 620px;
+        margin: 12px 0 0;
+        font-size: 0.94rem;
+        line-height: 1.7;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .cases {
+        border-top: 1px solid var(--md-sys-color-outline-variant);
+      }
+
+      .case-row {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+        padding: 18px 10px;
+        border-bottom: 1px solid var(--md-sys-color-outline-variant);
+        text-decoration: none;
+        color: inherit;
+        border-radius: 12px;
+      }
+
+      .case-row:hover {
+        background: var(--md-sys-color-surface-container-low);
+      }
+
+      .case-num {
+        padding-top: 2px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--md-sys-color-primary);
+      }
+
+      .case-row h2 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: -0.01em;
+      }
+
+      .case-row p {
+        margin: 5px 0 0;
+        font-size: 0.8rem;
+        line-height: 1.6;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .case-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
         margin-top: 8px;
-        overflow-wrap: anywhere;
-        font-size: 0.85em;
-        color: var(--md-sys-color-on-surface-variant, #49454f);
       }
 
+      .case-tags span {
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 0.64rem;
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface-variant);
+        background: var(--md-sys-color-surface-container-high);
+      }
 
+      .case-arrow {
+        padding-top: 2px;
+        font-size: 0.9rem;
+        color: var(--md-sys-color-primary);
+      }
 
+      .meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 24px;
+      }
 
+      .meta-card {
+        padding: 16px;
+        border: 1px solid var(--md-sys-color-outline-variant);
+        border-radius: 14px;
+        background: var(--md-sys-color-surface-container-low);
+      }
 
+      .meta-card h3 {
+        margin: 0 0 6px;
+        font-size: 0.84rem;
+      }
 
+      .meta-card p {
+        margin: 0;
+        font-size: 0.76rem;
+        line-height: 1.6;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .peer-id {
+        display: block;
+        margin-top: 10px;
+        padding: 8px 9px;
+        overflow-wrap: anywhere;
+        border-radius: 8px;
+        font: 0.68rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--md-sys-color-on-surface-variant);
+        background: var(--md-sys-color-surface-container-high);
+      }
+
+      .meta-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 0.78rem;
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 28px;
+        font-size: 0.72rem;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      @media (max-width: 620px) {
+        .wrap {
+          width: min(100% - 24px, 560px);
+          padding-top: 20px;
+        }
+
+        .intro {
+          padding: 28px 0 22px;
+        }
+
+        .case-row {
+          grid-template-columns: 28px minmax(0, 1fr);
+        }
+
+        .case-arrow {
+          display: none;
+        }
+
+        .meta {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
-    <!-- senti-ui 颜色体系引导（替代原 nos-tool/css palette+theme；SW 就绪前的静态页走完整 URL） -->
     <script src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/boot/st-boot.js"></script>
   </head>
   <body>
-    <!-- Loading Animation -->
     <div id="loading" class="loading-container">
       <div class="spinner"></div>
     </div>
 
-    <article>
-      <p>
-        <locale-text>
-          <span lang="cn">
-            NoneOS Core 是一款轻量级核心引擎，专为运行 ofa.js
-            应用而设计。无需额外安装任何软件，即可一键启动、开发与调试 ofa.js
-            项目。
-          </span>
-          <span lang="en">
-            NoneOS Core is a lightweight core engine designed to run ofa.js
-            applications. It does not require any additional software to be
-            installed, and can be started, developed, and debugged with just a
-            single click.
-          </span>
-        </locale-text>
-      </p>
-      <ul>
-        <li>
-          <locale-text>
-            <span lang="cn">
-              <a href="/nos-tool/file-explore/">File Explore</a
-              >：查看虚拟文件系统
-            </span>
-            <span lang="en">
-              <a href="/nos-tool/file-explore/">File Explore</a>：View the
-              virtual file system
-            </span>
-          </locale-text>
-        </li>
-      </ul>
+    <main class="wrap">
+      <header class="top">
+        <a class="brand" href="/">
+          <span class="brand-mark">N</span>
+          <span>NoneOS Core</span>
+        </a>
+        <div class="top-right">
+          <a class="top-link" href="/nos-tool/file-explore/">文件系统</a>
+          <a class="top-link" href="/cases/fs-browser-open/index.html">案例</a>
+          <nos-version auto-install></nos-version>
+        </div>
+      </header>
 
-      <div style="display: flex; justify-content: center; align-items: center">
-        <nos-version auto-install></nos-version>
-      </div>
-
-      <section class="peer-card">
-        <locale-text>
-          <span lang="cn">
-            本机 Peer 身份（ECDSA P-256，保存在本地，不上传私钥）：
-          </span>
-          <span lang="en">
-            Local peer identity (ECDSA P-256, stored locally; private key never uploaded):
-          </span>
-        </locale-text>
-        <code id="peer-id">loading...</code>
+      <section class="intro">
+        <div class="eyebrow">BROWSER-NATIVE RUNTIME</div>
+        <h1>浏览器里的应用容器</h1>
+        <p>
+          用 OPFS 存文件，用 ECDSA 建身份，用 PeerSession 连接用户。
+          没有后端安装，打开网页就能运行与互联。
+        </p>
       </section>
 
-    </article>
+      <section class="cases">
+        <a class="case-row" href="/cases/fs-browser-open/index.html">
+          <span class="case-num">01</span>
+          <div>
+            <h2>写入文件，浏览器打开</h2>
+            <p>把 HTML 写进 OPFS，再通过 <code>/$cases-demo/hello.html</code> GET 打开。</p>
+            <div class="case-tags"><span>nos/fs</span><span>OPFS</span><span>实时预览</span></div>
+          </div>
+          <span class="case-arrow">↗</span>
+        </a>
+
+        <a class="case-row" href="/cases/user-profile/index.html">
+          <span class="case-num">02</span>
+          <div>
+            <h2>创建用户，更新资料</h2>
+            <p>生成 ECDSA 身份、查看 userId，用 nos/storage 写入和更新昵称、简介。</p>
+            <div class="case-tags"><span>Identity</span><span>userId</span><span>Storage</span></div>
+          </div>
+          <span class="case-arrow">↗</span>
+        </a>
+
+        <a class="case-row" href="/cases/peer-chat/index.html">
+          <span class="case-num">03</span>
+          <div>
+            <h2>两个用户，简单互联</h2>
+            <p>两个 SharedWorker Hub、ECDSA 认证、服务发现，然后互发消息。</p>
+            <div class="case-tags"><span>SharedWorker</span><span>Relay</span><span>E2EE</span></div>
+          </div>
+          <span class="case-arrow">↗</span>
+        </a>
+      </section>
+
+      <section class="meta">
+        <div class="meta-card">
+          <h3>本机 Peer 身份</h3>
+          <p>ECDSA P-256，私钥只保存在本机浏览器。</p>
+          <code class="peer-id" id="peer-id">loading...</code>
+        </div>
+        <div class="meta-card">
+          <h3>文件系统</h3>
+          <p>用 File Explore 浏览、导入和下载 OPFS 文件。</p>
+          <a class="meta-link" href="/nos-tool/file-explore/">打开 File Explore →</a>
+        </div>
+      </section>
+
+      <footer>
+        <span>NoneOS Core 5.0</span>
+        <span>·</span>
+        <span>浏览器原生应用容器</span>
+      </footer>
+    </main>
 
     <script type="module">
       const load = lm(import.meta);
 
       await load("./nos-lib/nos-version/nos-version.html");
-      await load("/nos-lib/locale-text/locale-text.html");
 
       try {
         const { loadOrCreateIdentity } = await import("/nos/peer/identity-store.js");
@@ -171,16 +379,13 @@
       (async () => {
         const loadingElement = $("#loading");
         if (loadingElement) {
-          // 添加淡出效果后再隐藏
           loadingElement.css = {
             opacity: "0",
-            transition: "opacity 0.5s ease-out",
+            transition: "opacity 0.35s ease-out",
           };
           setTimeout(() => {
-            loadingElement.css = {
-              display: "none",
-            };
-          }, 500);
+            loadingElement.css = { display: "none" };
+          }, 350);
         }
       })();
     </script>

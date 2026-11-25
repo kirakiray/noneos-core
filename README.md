@@ -66,6 +66,7 @@ nos-tool/             # Built-in tools, usable by any NoneOS Core system
 sw/                   # Service Worker (fetch interception, routing, caching)
 server/relay/         # Rust WebSocket relay (auth, mailbox, services)
 tests/                # Browser-based test suites (.sb.html)
+cases/                # User-facing interactive walkthroughs
 scripts/              # Build, signing, packing utilities
 .agents/skills/       # AI agent skill definitions
 ```
@@ -73,6 +74,11 @@ scripts/              # Build, signing, packing utilities
 ---
 
 ## Features
+
+### Interactive Cases (`cases/`)
+- [`fs-browser-open/`](cases/fs-browser-open/index.html) — write an OPFS file, then GET it through the browser
+- [`user-profile/`](cases/user-profile/index.html) — create a local ECDSA identity, inspect userId, write/update profile data
+- [`peer-chat/`](cases/peer-chat/index.html) — two SharedWorker hubs, ECDSA auth, service discovery and an E2EE chat
 
 ### Virtual Filesystem (`nos/fs/`)
 - **OPFS-backed** sandboxed filesystem (`navigator.storage.getDirectory()`)

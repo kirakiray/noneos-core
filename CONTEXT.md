@@ -24,6 +24,7 @@
 | `nos-tool/` | 内置工具集（file-explore、system-info、locale-text-tool、rtc-tool）；任何基于 noneos-core 的系统都可通过 `/nos-tool/` 直接使用 |
 | `.agents/skills/` | Skill 知识库（`noneos-core-docs` 等） |
 | `tests/` | sibyl-test 测试用例（peer / fs / storage / crypto / sw / 安装信任） |
+| `cases/` | 面向用户的递进式交互案例（文件系统 / 身份资料 / 双用户互联） |
 | `scripts/` | 构建/打包/测试脚本 |
 
 ### 运行时虚拟路径（由 Service Worker 在运行时映射，**仓库内不存在**）

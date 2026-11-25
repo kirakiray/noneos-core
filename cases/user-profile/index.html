@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>案例 02 · 创建用户与更新资料 | NoneOS Core</title>
+    <link rel="stylesheet" href="/cases/shared/case.css" />
+    <script type="module">
+      import $ from "https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.mjs";
+      globalThis.$ = $;
+    </script>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/button/button.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/input/input.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/textarea/textarea.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/markdown/markdown.html"></l-m>
+    <l-m src="/nos-lib/nos-version/nos-version.html"></l-m>
+  </head>
+  <body>
+    <div class="case-page">
+      <header class="case-topbar">
+        <a class="case-back" href="/index.html">← 返回 NoneOS Core</a>
+        <div class="case-topbar-meta">
+          <span>Case 02 / 03</span>
+          <nos-version auto-install class="case-install"></nos-version>
+        </div>
+      </header>
+
+      <section class="case-hero">
+        <div class="case-eyebrow">Identity & profile</div>
+        <h1>创建一个用户， 然后慢慢完善资料</h1>
+        <p>
+          NoneOS Core 5.0 的身份是一对 ECDSA P-256 密钥，<code>userId</code>
+          由公钥哈希得到。用户名、简介这些资料属于应用数据，由应用自己保存和更新——
+          这正是本案例要演示的分层。
+        </p>
+        <div class="case-tags">
+          <span class="case-tag">ECDSA P-256</span>
+          <span class="case-tag">userId</span>
+          <span class="case-tag">nos/storage</span>
+          <span class="case-tag">资料更新</span>
+        </div>
+      </section>
+
+      <main class="case-layout">
+        <aside class="case-rail">
+          <div class="case-rail-head">
+            <strong>演示步骤</strong>
+            <span id="case-counter">1 / 4</span>
+          </div>
+          <div class="case-progress"><i id="case-progress"></i></div>
+          <ol class="case-steps" id="case-rail"></ol>
+        </aside>
+
+        <section class="case-main">
+          <section class="case-code-panel">
+            <div class="case-side-head">
+              代码记录
+              <span>保留每一步</span>
+            </div>
+            <div class="case-code">
+              <st-markdown id="case-code"></st-markdown>
+            </div>
+          </section>
+
+          <article class="case-step is-active" data-step="0">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 01</div>
+              <h2>创建或加载本机用户</h2>
+              <div class="case-copy">
+                <p>
+                  <code>loadOrCreateIdentity()</code> 会从
+                  <code>nos/storage</code> 读取已有身份；如果没有，就用 WebCrypto
+                  生成一对 P-256 密钥并保存。
+                </p>
+                <p>
+                  私钥只留在本机存储中，<code>userId</code>
+                  是由公钥计算出的公开标识，可以放心展示给对方。
+                </p>
+                <div class="case-callout">
+                  这一步是“用户系统”的地基：先有身份，才有后面的资料和互联。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新加载身份</st-button>
+                <span class="spacer"></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="1">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 02</div>
+              <h2>写入第一版资料</h2>
+              <div class="case-copy">
+                <p>
+                  身份只负责“你是谁”，资料负责“别人怎么认识你”。
+                  这里把昵称和简介写入以 userId 为键的应用存储空间。
+                </p>
+              </div>
+              <div class="case-field">
+                <label for="name-1">昵称</label>
+                <st-input id="name-1" placeholder="例如：林墨"></st-input>
+              </div>
+              <div class="case-field">
+                <label for="bio-1">简介</label>
+                <st-textarea id="bio-1" rows="3" placeholder="一句话介绍自己"></st-textarea>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新填写</st-button>
+                <span class="spacer"></span>
+                <span class="case-hint">点击「下一步」保存这一版</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="2">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 03</div>
+              <h2>更新资料</h2>
+              <div class="case-copy">
+                <p>
+                  同一个 <code>userId</code>，同一把存储键。修改昵称和简介后再保存，
+                  读取时就会得到更新后的版本和新的 <code>updatedAt</code>。
+                </p>
+              </div>
+              <div class="case-field">
+                <label for="name-2">新的昵称</label>
+                <st-input id="name-2" placeholder="修改昵称"></st-input>
+              </div>
+              <div class="case-field">
+                <label for="bio-2">新的简介</label>
+                <st-textarea id="bio-2" rows="3" placeholder="修改简介"></st-textarea>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新填写</st-button>
+                <span class="spacer"></span>
+                <span class="case-hint">点击「下一步」保存更新</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="3">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 04</div>
+              <h2>读取并验证</h2>
+              <div class="case-copy">
+                <p>
+                  最后从存储里按 <code>profile:&lt;userId&gt;</code>
+                  读取一次。右侧会显示完整的资料 JSON 和更新时间。
+                </p>
+                <div class="case-callout">
+                  这说明：身份是稳定的，资料是可迭代的。应用可以随时扩展字段，
+                  而不会改变用户的 <code>userId</code>。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新读取</st-button>
+                <span class="spacer"></span>
+                <st-button id="case-copy">复制 userId</st-button>
+              </div>
+            </div>
+          </article>
+
+          <div class="case-actions" style="margin-top: 14px">
+            <st-button id="case-prev" variant="text">上一步</st-button>
+            <st-button id="case-next">下一步</st-button>
+          </div>
+        </section>
+
+        <aside class="case-side">
+          <section class="case-side-card">
+            <div class="case-side-head">
+              用户档案
+              <span id="case-status" class="case-status">等待运行</span>
+            </div>
+            <div class="case-result" id="case-profile">
+              <div class="case-result-empty">创建身份后显示用户档案。</div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module">
+      import { loadOrCreateIdentity } from "/nos/peer/identity-store.js";
+      import { getStorage } from "/nos/storage/main.js";
+      import { createCaseWizard, createCodeHistory, setStatus } from "/cases/shared/wizard.js";
+
+      const store = getStorage("noneos-case-profile");
+      const codeBox = $("#case-code");
+      const codeHistory = createCodeHistory(codeBox);
+      const status = $("#case-status");
+      const profileBox = $("#case-profile");
+      const name1 = $("#name-1");
+      const bio1 = $("#bio-1");
+      const name2 = $("#name-2");
+      const bio2 = $("#bio-2");
+      let identity;
+      let profile;
+
+      const escapeHtml = (value) =>
+        String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+
+      const initial = (name) => (name ? name.trim().slice(0, 1).toUpperCase() : "?");
+
+      function profileKey() {
+        return `profile:${identity.userId}`;
+      }
+
+      function renderProfile() {
+        if (!identity) return;
+        const name = profile?.name || "未命名用户";
+        const bio = profile?.bio || "还没有简介。";
+        const updated = profile?.updatedAt
+          ? new Date(profile.updatedAt).toLocaleString()
+          : "尚未保存";
+        profileBox.html = `
+          <div class="case-profile">
+            <div class="case-profile-row">
+              <div class="case-profile-avatar">${escapeHtml(initial(name))}</div>
+              <div style="min-width: 0">
+                <div class="case-profile-name">${escapeHtml(name)}</div>
+                <div class="case-profile-id">${escapeHtml(identity.userId)}</div>
+              </div>
+            </div>
+            <div class="case-copy" style="font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant)">
+              ${escapeHtml(bio)}
+            </div>
+            <div class="case-code-inline">updatedAt · ${escapeHtml(updated)}</div>
+            <div class="case-code-inline">publicKey · ${escapeHtml(identity.publicKey.slice(0, 28))}…</div>
+          </div>`;
+      }
+
+      async function saveProfile(values) {
+        const now = new Date().toISOString();
+        profile = {
+          ...profile,
+          ...values,
+          userId: identity.userId,
+          createdAt: profile?.createdAt || now,
+          updatedAt: now,
+        };
+        await store.setItem(profileKey(), profile);
+        renderProfile();
+      }
+
+      function readForm(name, bio) {
+        return {
+          name: String(name.ele.value || "").trim() || "未命名用户",
+          bio: String(bio.ele.value || "").trim(),
+        };
+      }
+
+      function fillForm(name, bio, data) {
+        name.ele.value = data?.name || "";
+        bio.ele.value = data?.bio || "";
+      }
+
+      const steps = [
+        { title: "创建/加载身份", description: "ECDSA P-256" },
+        { title: "写入资料", description: "昵称与简介" },
+        { title: "更新资料", description: "覆盖同一份记录" },
+        { title: "读取验证", description: "updatedAt 与 JSON" },
+      ];
+
+      const wizard = createCaseWizard({
+        steps,
+        railElement: $("#case-rail"),
+        stepElements: document.querySelectorAll(".case-step"),
+        prevButton: $("#case-prev"),
+        nextButton: $("#case-next"),
+        progressElement: $("#case-progress"),
+        counterElement: $("#case-counter"),
+        async onEnter(index) {
+          try {
+            setStatus(status, "运行中", "busy");
+            if (index === 0) {
+              identity = await loadOrCreateIdentity();
+              profile = await store.getItem(profileKey());
+              if (!profile) {
+                profile = {
+                  name: "新用户",
+                  bio: "这是我在 NoneOS Core 里的第一个身份。",
+                  userId: identity.userId,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: null,
+                };
+              }
+              renderProfile();
+              setStatus(status, "身份已就绪", "ok");
+              codeHistory.set(index, "创建/加载用户", `import { loadOrCreateIdentity } from "/nos/peer/identity-store.js";
+
+const identity = await loadOrCreateIdentity();
+
+console.log("userId:", identity.userId);
+console.log("publicKey:", identity.publicKey);`);
+              return;
+            }
+
+            if (index === 1) {
+              fillForm(name1, bio1, profile);
+              codeHistory.set(index, "写入用户资料", `import { getStorage } from "/nos/storage/main.js";
+
+const store = getStorage("noneos-case-profile");
+const key = \`profile:\${identity.userId}\`;
+
+await store.setItem(key, {
+  name: "林墨",
+  bio: "正在用 NoneOS Core 做一个去中心化应用。",
+  userId: identity.userId,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});`);
+              setStatus(status, "填写资料", "ok");
+              return;
+            }
+
+            if (index === 2) {
+              fillForm(name2, bio2, profile);
+              codeHistory.set(index, "更新用户资料", `// 同一个 key，直接覆盖即可更新
+await store.setItem(\`profile:\${identity.userId}\`, {
+  ...profile,
+  name: "林墨 · 更新版",
+  bio: "资料已经更新，但 userId 不变。",
+  updatedAt: new Date().toISOString(),
+});
+
+console.log("已更新");`);
+              setStatus(status, "编辑更新", "ok");
+              return;
+            }
+
+            const saved = await store.getItem(profileKey());
+            codeHistory.set(index, "读取资料", `const saved = await store.getItem(\`profile:\${identity.userId}\`);
+
+console.log(saved);
+// {
+//   name, bio, userId,
+//   createdAt, updatedAt
+// }`);
+            profileBox.html = `
+              <div class="case-profile">
+                <div class="case-profile-row">
+                  <div class="case-profile-avatar">${escapeHtml(initial(saved?.name))}</div>
+                  <div style="min-width: 0">
+                    <div class="case-profile-name">${escapeHtml(saved?.name || "未命名用户")}</div>
+                    <div class="case-profile-id">${escapeHtml(identity.userId)}</div>
+                  </div>
+                </div>
+                <pre class="case-response" style="max-height: 230px">${escapeHtml(JSON.stringify(saved, null, 2))}</pre>
+              </div>`;
+            setStatus(status, "读取成功", "ok");
+          } catch (error) {
+            setStatus(status, "运行失败", "err");
+            profileBox.html = `<div class="case-result-empty" style="color: var(--md-sys-color-error)">${escapeHtml(error?.message || error)}</div>`;
+          }
+        },
+        async onLeave(from, to) {
+          if (!identity) return;
+          if (from === 1 && to > 1) {
+            await saveProfile(readForm(name1, bio1));
+          }
+          if (from === 2 && to > 2) {
+            await saveProfile(readForm(name2, bio2));
+          }
+        },
+      });
+
+      document.querySelectorAll(".case-run").forEach((element) => {
+        $(element).on("click", () => wizard.rerun());
+      });
+      $("#case-copy").on("click", async () => {
+        if (!identity) return;
+        await navigator.clipboard?.writeText(identity.userId);
+        setStatus(status, "userId 已复制", "ok");
+      });
+      wizard.start();
+    </script>
+  </body>
+</html>

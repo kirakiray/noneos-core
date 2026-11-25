@@ -66,6 +66,7 @@ nos-tool/             # 内置工具集,任何基于 NoneOS Core 的系统都可
 sw/                   # Service Worker(请求拦截、路由、缓存)
 server/relay/         # Rust WebSocket 中继（认证、信箱、服务发现）
 tests/                # 浏览器测试套件(.sb.html)
+cases/                # 面向用户的交互式案例
 scripts/              # 构建、签名、打包工具
 .agents/skills/       # AI 代理技能定义
 ```
@@ -73,6 +74,11 @@ scripts/              # 构建、签名、打包工具
 ---
 
 ## 特性
+
+### 交互式案例(`cases/`)
+- [`fs-browser-open/`](cases/fs-browser-open/index.html) — 写入 OPFS 文件，再通过浏览器 GET 打开
+- [`user-profile/`](cases/user-profile/index.html) — 创建本机 ECDSA 身份、查看 userId、写入/更新资料
+- [`peer-chat/`](cases/peer-chat/index.html) — 两个 SharedWorker Hub、ECDSA 认证、服务发现与 E2EE 聊天
 
 ### 虚拟文件系统(`nos/fs/`)
 - 基于 **OPFS** 的沙箱化文件系统(`navigator.storage.getDirectory()`)

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>案例 03 · 两个用户简单互联 | NoneOS Core</title>
+    <link rel="stylesheet" href="/cases/shared/case.css" />
+    <script type="module">
+      import $ from "https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.mjs";
+      globalThis.$ = $;
+    </script>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/button/button.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/input/input.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/markdown/markdown.html"></l-m>
+    <l-m src="/nos-lib/nos-version/nos-version.html"></l-m>
+  </head>
+  <body>
+    <div class="case-page">
+      <header class="case-topbar">
+        <a class="case-back" href="/index.html">← 返回 NoneOS Core</a>
+        <div class="case-topbar-meta">
+          <span>Case 03 / 03</span>
+          <nos-version auto-install class="case-install"></nos-version>
+        </div>
+      </header>
+
+      <section class="case-hero">
+        <div class="case-eyebrow">Peer interconnect</div>
+        <h1>两个用户， 在一个页面里互相发消息</h1>
+        <p>
+          这个案例会创建两个独立身份、两个 SharedWorker Hub，通过本机 Rust
+          Relay 完成认证、服务发现和消息投递。右侧聊天记录就是真实的
+          <code>PeerSession</code> 消息。
+        </p>
+        <div class="case-tags">
+          <span class="case-tag">SharedWorker</span>
+          <span class="case-tag">ECDSA 认证</span>
+          <span class="case-tag">PeerSession</span>
+          <span class="case-tag">E2EE</span>
+        </div>
+      </section>
+
+      <main class="case-layout">
+        <aside class="case-rail">
+          <div class="case-rail-head">
+            <strong>演示步骤</strong>
+            <span id="case-counter">1 / 4</span>
+          </div>
+          <div class="case-progress"><i id="case-progress"></i></div>
+          <ol class="case-steps" id="case-rail"></ol>
+        </aside>
+
+        <section class="case-main">
+          <section class="case-code-panel">
+            <div class="case-side-head">
+              代码记录
+              <span>保留每一步</span>
+            </div>
+            <div class="case-code">
+              <st-markdown id="case-code"></st-markdown>
+            </div>
+          </section>
+
+          <article class="case-step is-active" data-step="0">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 01</div>
+              <h2>先启动本机 Relay</h2>
+              <div class="case-copy">
+                <p>
+                  NoneOS Core 不强制依赖中心服务器，但两个用户需要一条可达的信令/中继通道。
+                  在项目根目录运行：
+                </p>
+                <pre class="case-response" style="max-height: none">npm run relay</pre>
+                <p>
+                  默认监听 <code>ws://localhost:8081</code>。如果你改了端口，在下面填入对应地址。
+                </p>
+                <div class="case-field">
+                  <label for="relay-url">Relay 地址</label>
+                  <st-input id="relay-url" default-value="ws://localhost:8081" placeholder="ws://localhost:8081"></st-input>
+                </div>
+                <div class="case-callout warn">
+                  这个案例需要 Chrome / Edge 的模块化 SharedWorker 支持；Relay 没启动时，下一步会给出错误提示。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重置本步</st-button>
+                <span class="spacer"></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="1">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 02</div>
+              <h2>创建两个身份并连接</h2>
+              <div class="case-copy">
+                <p>
+                  两个用户各自持有一对 ECDSA 密钥，各自启动一个 SharedWorker。
+                  Hub 会先完成挑战应答认证，再建立 PeerSession。
+                </p>
+                <div class="case-callout">
+                  这一步成功后，右侧会出现两个 userId；它们是真正的公开身份。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新连接</st-button>
+                <span class="spacer"></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="2">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 03</div>
+              <h2>用服务发现找到对方</h2>
+              <div class="case-copy">
+                <p>
+                  两个用户都注册 <code>noneos-case-chat</code> 服务。
+                  Hub 通过 Relay 查询这个 appId 下的在线用户，拿到对方的 userId。
+                </p>
+                <p>
+                  服务发现只返回公开的 userId；真正的消息仍然由
+                  PeerSession 点对点/中继传输。
+                </p>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新查询</st-button>
+                <span class="spacer"></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="3">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 04</div>
+              <h2>开始聊天</h2>
+              <div class="case-copy">
+                <p>
+                  从 A 或 B 输入一句话并发送。消息经 E2EE 加密后由
+                  PeerSession 可靠投递，另一端解密并显示。
+                </p>
+              </div>
+              <div class="case-chat" style="margin-top: 16px">
+                <div class="case-chat-column">
+                  <h4>用户 A · <span id="label-a">未连接</span></h4>
+                  <div class="case-chat-log" id="chat-a">
+                    <div class="case-empty">还没有消息</div>
+                  </div>
+                  <div class="case-field">
+                    <st-input id="input-a" placeholder="以用户 A 发送消息"></st-input>
+                  </div>
+                  <st-button id="send-a" disabled>发送</st-button>
+                </div>
+                <div class="case-chat-column">
+                  <h4>用户 B · <span id="label-b">未连接</span></h4>
+                  <div class="case-chat-log" id="chat-b">
+                    <div class="case-empty">还没有消息</div>
+                  </div>
+                  <div class="case-field">
+                    <st-input id="input-b" placeholder="以用户 B 发送消息"></st-input>
+                  </div>
+                  <st-button id="send-b" disabled>发送</st-button>
+                </div>
+              </div>
+              <div class="case-log" id="chat-log"></div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新连接</st-button>
+              </div>
+            </div>
+          </article>
+
+          <div class="case-actions" style="margin-top: 14px">
+            <st-button id="case-prev" variant="text">上一步</st-button>
+            <st-button id="case-next">下一步</st-button>
+          </div>
+        </section>
+
+        <aside class="case-side">
+          <section class="case-side-card">
+            <div class="case-side-head">
+              连接状态
+              <span id="case-status" class="case-status">等待运行</span>
+            </div>
+            <div class="case-result" id="case-side-result">
+              <div class="case-result-empty">连接后会显示两个用户和服务发现结果。</div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module">
+      import { createIdentity } from "/nos/peer/identity.js";
+      import { PeerHubClient } from "/nos/peer/hub/client.js";
+      import { createCaseWizard, createCodeHistory, setStatus } from "/cases/shared/wizard.js";
+
+      const SERVICE_ID = "noneos-case-chat";
+      const codeBox = $("#case-code");
+      const codeHistory = createCodeHistory(codeBox);
+      const status = $("#case-status");
+      const sideResult = $("#case-side-result");
+      const chatLog = $("#chat-log");
+      const sendA = $("#send-a");
+      const sendB = $("#send-b");
+      const inputA = $("#input-a");
+      const inputB = $("#input-b");
+      let identityA;
+      let identityB;
+      let hubA;
+      let hubB;
+      let ready = false;
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+
+      function log(message, kind = "") {
+        const line = document.createElement("div");
+        line.className = kind;
+        line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+        chatLog.ele.appendChild(line);
+        chatLog.ele.scrollTop = chatLog.ele.scrollHeight;
+      }
+
+      function resetLogs() {
+        chatLog.innerHTML = "";
+        $("#chat-a").html = `<div class="case-empty">还没有消息</div>`;
+        $("#chat-b").html = `<div class="case-empty">还没有消息</div>`;
+      }
+
+      function appendMessage(column, text, self) {
+        const target = $(`#chat-${column}`);
+        const empty = target.ele.querySelector(".case-empty");
+        empty?.remove();
+        const bubble = document.createElement("div");
+        bubble.className = `case-bubble${self ? " self" : ""}`;
+        bubble.textContent = text;
+        target.ele.appendChild(bubble);
+        target.ele.scrollTop = target.ele.scrollHeight;
+      }
+
+      async function closeHubs() {
+        ready = false;
+        sendA.attr("disabled", "");
+        sendB.attr("disabled", "");
+        hubA?.close();
+        hubB?.close();
+        hubA = null;
+        hubB = null;
+      }
+
+      async function connect() {
+        await closeHubs();
+        resetLogs();
+        const url = String($("#relay-url").ele.value || "").trim();
+        if (!url) throw new Error("请先填写 Relay 地址");
+
+        identityA = await createIdentity();
+        identityB = await createIdentity();
+        const suffix = crypto.randomUUID();
+        hubA = new PeerHubClient({ name: `cases-peer-a-${suffix}` });
+        hubB = new PeerHubClient({ name: `cases-peer-b-${suffix}` });
+
+        await Promise.all([
+          hubA.connect({ url, identity: identityA }),
+          hubB.connect({ url, identity: identityB }),
+        ]);
+
+        hubA.onMessage((payload) => {
+          appendMessage("a", decoder.decode(payload), false);
+          log(`A 收到来自 B 的消息`, "ok");
+        });
+        hubB.onMessage((payload) => {
+          appendMessage("b", decoder.decode(payload), false);
+          log(`B 收到来自 A 的消息`, "ok");
+        });
+
+        $("#label-a").text = `${identityA.userId.slice(0, 8)}…`;
+        $("#label-b").text = `${identityB.userId.slice(0, 8)}…`;
+        ready = true;
+        sendA.attr("disabled", null);
+        sendB.attr("disabled", null);
+        log("两个用户已连接并完成 ECDSA 认证", "ok");
+        sideResult.html = `
+          <div class="case-log" style="margin: 0; max-height: 210px">
+            <div><strong>A</strong> ${identityA.userId}</div>
+            <div><strong>B</strong> ${identityB.userId}</div>
+          </div>`;
+        setStatus(status, "已连接", "ok");
+      }
+
+      async function discover() {
+        if (!identityA || !hubA) throw new Error("请先完成连接");
+        await Promise.all([
+          hubA.registerServices([SERVICE_ID]),
+          hubB.registerServices([SERVICE_ID]),
+        ]);
+        const users = await hubA.lookupService(SERVICE_ID);
+        const other = users.filter(
+          (id) => id === identityA.userId || id === identityB.userId,
+        );
+        log(`服务发现返回 ${other.length} 个在线用户`, "ok");
+        sideResult.html = `
+          <div class="case-log" style="margin: 0; max-height: 210px">
+            <div><strong>appId</strong> ${SERVICE_ID}</div>
+            <div><strong>userIds</strong> ${JSON.stringify(other, null, 2)}</div>
+          </div>`;
+        setStatus(status, "服务已发现", "ok");
+      }
+
+      async function sendFrom(side) {
+        if (!ready) return;
+        const input = side === "a" ? inputA : inputB;
+        const text = String(input.ele.value || "").trim();
+        if (!text) return;
+        const hub = side === "a" ? hubA : hubB;
+        const target = side === "a" ? identityB.userId : identityA.userId;
+        input.ele.value = "";
+        appendMessage(side, text, true);
+        log(`${side.toUpperCase()} 发送消息`, "ok");
+        try {
+          await hub.send(target, encoder.encode(text));
+        } catch (error) {
+          log(`${side.toUpperCase()} 发送失败：${error.message}`, "err");
+        }
+      }
+
+      async function reconnect() {
+        try {
+          setStatus(status, "重新连接中", "busy");
+          await connect();
+          await discover();
+          codeHistory.set(index, "发送消息", `await hubA.send(identityB.userId, new TextEncoder().encode("你好"));
+
+hubB.onMessage((payload) => {
+  console.log(new TextDecoder().decode(payload));
+});`);
+          setStatus(status, "可以开始聊天", "ok");
+        } catch (error) {
+          setStatus(status, "连接失败", "err");
+          log(`错误：${error.message}`, "err");
+        }
+      }
+
+      const steps = [
+        { title: "启动 Relay", description: "本机 WebSocket 中继" },
+        { title: "创建并连接两个用户", description: "ECDSA + SharedWorker" },
+        { title: "服务发现", description: "appId 查询在线用户" },
+        { title: "发送消息", description: "PeerSession / E2EE" },
+      ];
+
+      const wizard = createCaseWizard({
+        steps,
+        railElement: $("#case-rail"),
+        stepElements: document.querySelectorAll(".case-step"),
+        prevButton: $("#case-prev"),
+        nextButton: $("#case-next"),
+        progressElement: $("#case-progress"),
+        counterElement: $("#case-counter"),
+        async onEnter(index) {
+          try {
+            if (index === 0) {
+              setStatus(status, "等待连接", "");
+              codeHistory.set(index, "启动 Relay", `# 在 noneos-core 根目录启动中继
+npm run relay
+
+# 默认地址
+# ws://localhost:8081`);
+              return;
+            }
+            setStatus(status, "连接中", "busy");
+            if (index === 1) {
+              codeHistory.set(index, "两个用户", `import { createIdentity } from "/nos/peer/identity.js";
+import { PeerHubClient } from "/nos/peer/hub/client.js";
+
+const identityA = await createIdentity();
+const identityB = await createIdentity();
+
+const hubA = new PeerHubClient({ name: "peer-a" });
+const hubB = new PeerHubClient({ name: "peer-b" });
+
+await hubA.connect({ url: "ws://localhost:8081", identity: identityA });
+await hubB.connect({ url: "ws://localhost:8081", identity: identityB });
+
+console.log(identityA.userId, identityB.userId);`);
+              await connect();
+              return;
+            }
+            if (index === 2) {
+              codeHistory.set(index, "服务发现", `await hubA.registerServices(["noneos-case-chat"]);
+await hubB.registerServices(["noneos-case-chat"]);
+
+const users = await hubA.lookupService("noneos-case-chat");
+console.log(users);`);
+              await discover();
+              return;
+            }
+            if (!ready) throw new Error("请先完成连接");
+            codeHistory.set(3, "发送消息", `await hubA.send(identityB.userId, new TextEncoder().encode("你好"));
+
+hubB.onMessage((payload) => {
+  console.log(new TextDecoder().decode(payload));
+});`, "发送消息");
+            setStatus(status, "可以开始聊天", "ok");
+          } catch (error) {
+            setStatus(status, "连接失败", "err");
+            log(`错误：${error.message}`, "err");
+            sideResult.html = `
+              <div class="case-result-empty" style="color: var(--md-sys-color-error); text-align: left">
+                无法连接 Relay。<br /><br />
+                请先在项目根目录运行 <code>npm run relay</code>，
+                确认地址为 <code>ws://localhost:8081</code>，然后点「重新连接」。<br /><br />
+                ${error.message}
+              </div>`;
+          }
+        },
+      });
+
+      document.querySelectorAll(".case-run").forEach((element) => {
+        $(element).on("click", async () => {
+          if (wizard.current === 3) await reconnect();
+          else wizard.rerun();
+        });
+      });
+      sendA.on("click", () => sendFrom("a"));
+      sendB.on("click", () => sendFrom("b"));
+      inputA.on("keydown", (event) => {
+        if (event.key === "Enter") sendFrom("a");
+      });
+      inputB.on("keydown", (event) => {
+        if (event.key === "Enter") sendFrom("b");
+      });
+      wizard.start();
+    </script>
+  </body>
+</html>

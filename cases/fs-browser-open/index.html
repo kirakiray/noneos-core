@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>案例 01 · 写入文件并用浏览器打开 | NoneOS Core</title>
+    <link rel="stylesheet" href="/cases/shared/case.css" />
+    <script type="module">
+      import $ from "https://cdn.jsdelivr.net/gh/ofajs/ofa.js@5/dist/ofa.min.mjs";
+      globalThis.$ = $;
+    </script>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/button/button.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/markdown/markdown.html"></l-m>
+    <l-m src="https://cdn.jsdelivr.net/gh/ofajs/senti-ui@latest/packages/input/input.html"></l-m>
+    <l-m src="/nos-lib/nos-version/nos-version.html"></l-m>
+  </head>
+  <body>
+    <div class="case-page">
+      <header class="case-topbar">
+        <a class="case-back" href="/index.html">← 返回 NoneOS Core</a>
+        <div class="case-topbar-meta">
+          <span>Case 01 / 03</span>
+          <nos-version auto-install class="case-install"></nos-version>
+        </div>
+      </header>
+
+      <section class="case-hero">
+        <div class="case-eyebrow">Local filesystem</div>
+        <h1>写入本地虚拟文件， 再用浏览器 GET 打开</h1>
+        <p>
+          把一段 HTML 写进 OPFS 虚拟文件系统，然后通过
+          <code>/$cases-demo/hello.html</code> 这条普通 URL
+          打开它。整个过程没有后端文件服务器，浏览器就是你的运行环境。
+        </p>
+        <div class="case-tags">
+          <span class="case-tag">nos/fs</span>
+          <span class="case-tag">OPFS</span>
+          <span class="case-tag">Service Worker 路由</span>
+          <span class="case-tag">实时预览</span>
+        </div>
+      </section>
+
+      <main class="case-layout">
+        <aside class="case-rail">
+          <div class="case-rail-head">
+            <strong>演示步骤</strong>
+            <span id="case-counter">1 / 4</span>
+          </div>
+          <div class="case-progress"><i id="case-progress"></i></div>
+          <ol class="case-steps" id="case-rail"></ol>
+        </aside>
+
+        <section class="case-main">
+          <section class="case-code-panel">
+            <div class="case-side-head">
+              代码记录
+              <span>保留每一步</span>
+            </div>
+            <div class="case-code">
+              <st-markdown id="case-code"></st-markdown>
+            </div>
+          </section>
+
+          <article class="case-step is-active" data-step="0">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 01</div>
+              <h2>准备一个 OPFS 存储空间</h2>
+              <div class="case-copy">
+                <p>
+                  <code>init("cases-demo")</code> 会在浏览器的 Origin Private
+                  File System 里创建（或复用）一个根目录。这里的数据只属于当前浏览器来源。
+                </p>
+                <div class="case-callout">
+                  这一步同时创建一个空的 <code>hello.html</code> 文件句柄，
+                  下一步再写入内容。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新运行本步</st-button>
+                <span class="spacer"></span>
+                <span class="case-hint">完成后点击「下一步」</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="1">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 02</div>
+              <h2>把 HTML 写进虚拟文件</h2>
+              <div class="case-copy">
+                <p>
+                  拿到文件句柄后，直接用 <code>file.write()</code> 写入字符串。
+                  写入的内容会持久化在 OPFS 中，刷新页面也还在。
+                </p>
+                <div class="case-callout">
+                  注意：这里写入的是应用自己的虚拟目录，不是用户磁盘上的任意文件。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新运行本步</st-button>
+                <span class="spacer"></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="2">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 03</div>
+              <h2>通过浏览器 GET 打开</h2>
+              <div class="case-copy">
+                <p>
+                  Service Worker 会把 <code>/$cases-demo/hello.html</code>
+                  映射到刚才的 OPFS 文件。用普通 <code>fetch()</code> 或 iframe
+                  就能访问，就像它是一张真实的网页。
+                </p>
+                <div class="case-callout">
+                  右侧会显示 HTTP 状态、响应文本和真实 iframe 预览。
+                </div>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新运行本步</st-button>
+                <span class="spacer"></span>
+                <st-button class="case-open" disabled>在新窗口打开</st-button>
+              </div>
+            </div>
+          </article>
+
+          <article class="case-step" data-step="3">
+            <div class="case-panel">
+              <div class="case-step-kicker">Step 04</div>
+              <h2>修改文件，URL 立即更新</h2>
+              <div class="case-copy">
+                <p>
+                  再次写入同名文件，不需要重新部署。下一次 GET
+                  会读取到新内容；这就是可持久化、可热更新的浏览器文件系统。
+                </p>
+                <ul>
+                  <li>文件路径保持稳定</li>
+                  <li>内容可以随时覆盖</li>
+                  <li>刷新浏览器后数据仍然存在</li>
+                </ul>
+              </div>
+              <div class="case-actions">
+                <st-button variant="outlined" class="case-run">重新运行本步</st-button>
+                <span class="spacer"></span>
+                <st-button class="case-open" disabled>在新窗口打开</st-button>
+              </div>
+            </div>
+          </article>
+
+          <div class="case-actions" style="margin-top: 14px">
+            <st-button id="case-prev" variant="text">上一步</st-button>
+            <st-button id="case-next">下一步</st-button>
+          </div>
+        </section>
+
+        <aside class="case-side">
+          <section class="case-side-card">
+            <div class="case-side-head">
+              运行结果
+              <span id="case-status" class="case-status">等待运行</span>
+            </div>
+            <div class="case-result" id="case-result">
+              <div class="case-result-empty">运行这一步后，这里会显示文件与 GET 的结果。</div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module">
+      import { init } from "/nos/fs/main.js";
+      import { createCaseWizard, createCodeHistory, setStatus } from "/cases/shared/wizard.js";
+
+      const ROOT = "cases-demo";
+      const PATH = `${ROOT}/hello.html`;
+      const URL = "/$" + ROOT + "/hello.html";
+      const V1 = `<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="UTF-8" /><title>Hello OPFS</title></head>
+  <body style="font-family: system-ui; padding: 32px; background: #f7f2fa">
+    <h1>Hello from OPFS</h1>
+    <p>这个页面来自浏览器虚拟文件系统，而不是远程服务器。</p>
+    <p>写入时间：${new Date().toLocaleString()}</p>
+  </body>
+</html>`;
+      const V2 = V1.replace("Hello from OPFS", "Hello again, OPFS").replace(
+        "这个页面来自浏览器虚拟文件系统，而不是远程服务器。",
+        "文件已经被覆盖，但 URL 完全没有变化。",
+      );
+
+      const codeBox = $("#case-code");
+      const codeHistory = createCodeHistory(codeBox);
+      const status = $("#case-status");
+      const result = $("#case-result");
+      const openButtons = [...document.querySelectorAll(".case-open")].map((el) => $(el));
+      let root;
+      let file;
+
+      function setCode(code, title = "JavaScript") {
+        codeHistory.set(wizard.current, title, code);
+      }
+
+      function emptyResult(text) {
+        result.html = `<div class="case-result-empty">${text}</div>`;
+      }
+
+      function showError(error) {
+        setStatus(status, "运行失败", "err");
+        result.html = `<div class="case-result-empty" style="color: var(--md-sys-color-error)">${String(error?.message || error)}</div>`;
+      }
+
+      function showFile(text) {
+        result.html = `<pre class="case-response">${text.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</pre>`;
+      }
+
+      async function ensureFile() {
+        if (!root) root = await init(ROOT);
+        if (!file) file = await root.get("hello.html", { create: "file" });
+        return file;
+      }
+
+      const steps = [
+        { title: "准备 OPFS 空间", description: "init 创建根目录" },
+        { title: "写入 HTML", description: "file.write" },
+        { title: "浏览器 GET", description: "fetch / iframe" },
+        { title: "更新文件", description: "覆盖后立即生效" },
+      ];
+
+      const wizard = createCaseWizard({
+        steps,
+        railElement: $("#case-rail"),
+        stepElements: document.querySelectorAll(".case-step"),
+        prevButton: $("#case-prev"),
+        nextButton: $("#case-next"),
+        progressElement: $("#case-progress"),
+        counterElement: $("#case-counter"),
+        async onEnter(index) {
+          try {
+            setStatus(status, "运行中", "busy");
+            if (index === 0) {
+              openButtons.forEach((button) => button.attr("disabled", ""));
+              root = await init(ROOT);
+              file = await root.get("hello.html", { create: "file" });
+              setCode(`import { init } from "/nos/fs/main.js";
+
+const root = await init("cases-demo");
+const file = await root.get("hello.html", { create: "file" });
+
+console.log("文件已就绪:", file);`, "准备 OPFS 空间");
+              setStatus(status, "存储空间已就绪", "ok");
+              emptyResult("OPFS 根目录已创建。点击下一步写入内容。");
+              return;
+            }
+
+            if (index === 1) {
+              await ensureFile();
+              await file.write(V1);
+              setCode(`const file = await root.get("hello.html", { create: "file" });
+
+await file.write(${JSON.stringify(V1)});
+
+console.log(await file.text());`, "写入文件");
+              showFile(await file.text());
+              setStatus(status, "文件已写入", "ok");
+              return;
+            }
+
+            if (index === 2) {
+              await ensureFile();
+              const response = await fetch(`${URL}?t=${Date.now()}`);
+              const text = await response.text();
+              if (!response.ok) throw new Error(`GET ${URL} -> ${response.status}`);
+              setCode(`const response = await fetch("${URL}");
+const html = await response.text();
+
+console.log(response.status, response.headers.get("content-type"));`, "通过 URL 读取");
+              result.html = `
+                <iframe class="case-preview-frame" title="OPFS 文件预览" src="${URL}?t=${Date.now()}"></iframe>
+                <pre class="case-response">HTTP ${response.status} · ${response.headers.get("content-type") || "text/html"}\n\n${text.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</pre>`;
+              openButtons.forEach((button) => button.attr("disabled", null));
+              setStatus(status, "GET 成功", "ok");
+              return;
+            }
+
+            await ensureFile();
+            await file.write(V2);
+            const response = await fetch(`${URL}?t=${Date.now()}`);
+            const text = await response.text();
+            if (!response.ok) throw new Error(`GET ${URL} -> ${response.status}`);
+            setCode(`// 覆盖同名文件
+await file.write(nextHtml);
+
+const response = await fetch("${URL}");
+const html = await response.text();
+
+// URL 不变，内容已经更新`, "更新文件");
+            result.html = `
+              <iframe class="case-preview-frame" title="更新后的 OPFS 文件" src="${URL}?t=${Date.now()}"></iframe>
+              <pre class="case-response">HTTP ${response.status} · 已读取 ${text.length} 个字符</pre>`;
+            openButtons.forEach((button) => button.attr("disabled", null));
+            setStatus(status, "文件已更新", "ok");
+          } catch (error) {
+            showError(error);
+          }
+        },
+      });
+
+      document.querySelectorAll(".case-run").forEach((element) => {
+        $(element).on("click", () => wizard.rerun());
+      });
+      openButtons.forEach((button) => {
+        button.on("click", () => {
+          window.open(`${URL}?t=${Date.now()}`, "_blank", "noopener");
+        });
+      });
+
+      wizard.start();
+    </script>
+  </body>
+</html>
